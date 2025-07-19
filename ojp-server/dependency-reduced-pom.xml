@@ -34,7 +34,7 @@
         <version>${jib.plugin.version}</version>
         <configuration>
           <from>
-            <image>eclipse-temurin:11-jre</image>
+            <image>eclipse-temurin:22-jre</image>
           </from>
           <to>
             <image>rrobetti/ojp:0.0.5-alpha</image>
@@ -105,10 +105,10 @@
     </dependency>
   </dependencies>
   <properties>
-    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.target>17</maven.compiler.target>
     <slf4j.version>2.0.17</slf4j.version>
     <jib.plugin.version>3.4.5</jib.plugin.version>
-    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.source>17</maven.compiler.source>
     <grpc.version>1.70.0</grpc.version>
   </properties>
 </project>

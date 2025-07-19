@@ -1,6 +1,7 @@
 package openjdbcproxy.jdbc;
 
 import lombok.extern.slf4j.Slf4j;
+import openjdbcproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;

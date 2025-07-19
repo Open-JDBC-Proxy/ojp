@@ -1,5 +1,6 @@
 package openjdbcproxy.jdbc;
 
+import openjdbcproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -15,6 +16,7 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+
 import static openjdbcproxy.helpers.SqlHelper.executeUpdate;
 
 public class H2MultipleTypesIntegrationTest {
@@ -26,28 +28,7 @@ public class H2MultipleTypesIntegrationTest {
 
         System.out.println("Testing for url -> " + url);
 
-        try {
-            executeUpdate(conn, "drop table test_table");
-        } catch (Exception e) {
-            //Might not find it, not an issue
-        }
-        executeUpdate(conn,
-                "create table test_table(" +
-                        " val_int INT NOT NULL," +
-                        " val_varchar VARCHAR(50) NOT NULL," +
-                        " val_double_precision DOUBLE PRECISION," +
-                        " val_bigint BIGINT," +
-                        " val_tinyint TINYINT," +
-                        " val_smallint SMALLINT," +
-                        " val_boolean BOOLEAN," +
-                        " val_decimal DECIMAL," +
-                        " val_float FLOAT(2)," +
-                        " val_byte BINARY," +
-                        " val_binary BINARY(4)," +
-                        " val_date DATE," +
-                        " val_time TIME," +
-                        " val_timestamp TIMESTAMP)"
-        );
+        TestDBUtils.createMultiTypeTestTable(conn, TestDBUtils.SqlSyntax.H2);
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into test_table (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +

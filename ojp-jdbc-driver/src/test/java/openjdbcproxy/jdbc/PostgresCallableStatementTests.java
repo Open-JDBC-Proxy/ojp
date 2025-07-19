@@ -1,5 +1,6 @@
 package openjdbcproxy.jdbc;
 
+import openjdbcproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class PostgresCallableStatementTests {
 
@@ -35,11 +37,13 @@ public class PostgresCallableStatementTests {
     private CallableStatement callableStatement;
 
     @BeforeAll
-    public static void setup() {
+    public static void checkTestConfiguration() {
         isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
     }
 
     public void setUp(String driverClass, String url, String user, String password) throws Exception {
+        assumeFalse(isTestDisabled, "Postgres tests are disabled");
+        
         // Connect to the PostgreSQL database
         connection = DriverManager.getConnection(url, user, password);
 

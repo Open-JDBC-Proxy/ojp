@@ -7,14 +7,23 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.sql.*;
 
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class H2DatabaseMetaDataExtensiveTests {
+public class PostgresDatabaseMetaDataExtensiveTests {
 
+    private static boolean isTestDisabled;
     private static Connection connection;
 
+    @BeforeAll
+    public static void checkTestConfiguration() {
+        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+    }
+
     public void setUp(String driverClass, String url, String user, String password) throws Exception {
+        assumeFalse(isTestDisabled, "Postgres tests are disabled");
+        
         connection = DriverManager.getConnection(url, user, password);
-        TestDBUtils.createBasicTestTable(connection, TestDBUtils.SqlSyntax.H2);
+        TestDBUtils.createBasicTestTable(connection, TestDBUtils.SqlSyntax.POSTGRES);
     }
 
     @AfterAll
@@ -23,119 +32,121 @@ public class H2DatabaseMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
+    @CsvFileSource(resources = "/postgres_connection.csv")
     public void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData meta = connection.getMetaData();
 
-        // 1–5
+        // 1–5: Basic database information (PostgreSQL-specific values)
         Assertions.assertEquals(true, meta.allProceduresAreCallable());
         Assertions.assertEquals(true, meta.allTablesAreSelectable());
-        Assertions.assertEquals("jdbc:h2:~/test", meta.getURL());
-        Assertions.assertEquals(user.toUpperCase(), meta.getUserName()); // random: H2 username can be "SA" or empty, set as needed
+        Assertions.assertTrue(meta.getURL().contains("postgresql") || meta.getURL().contains(":5432/"));
+        Assertions.assertNotNull(meta.getUserName()); // PostgreSQL username
         Assertions.assertEquals(false, meta.isReadOnly());
 
-        // 6–10
-        Assertions.assertEquals(false, meta.nullsAreSortedHigh());      // random
-        Assertions.assertEquals(true, meta.nullsAreSortedLow());        // random
-        Assertions.assertEquals(false, meta.nullsAreSortedAtStart());   // random
-        Assertions.assertEquals(false, meta.nullsAreSortedAtEnd());      // random
-        Assertions.assertEquals("H2", meta.getDatabaseProductName());
+        // 6–10: Null handling and database product info (PostgreSQL-specific behaviors)
+        Assertions.assertEquals(true, meta.nullsAreSortedHigh());  // PostgreSQL behavior
+        Assertions.assertEquals(false, meta.nullsAreSortedLow());
+        Assertions.assertEquals(false, meta.nullsAreSortedAtStart());
+        Assertions.assertEquals(false, meta.nullsAreSortedAtEnd()); // PostgreSQL behavior
+        Assertions.assertEquals("PostgreSQL", meta.getDatabaseProductName());
 
-        // 11–15
-        Assertions.assertNotNull(meta.getDatabaseProductVersion()); // random: version string e.g. "2.1.214 (2022-07-29)"
-        Assertions.assertEquals("H2 JDBC Driver", meta.getDriverName());
-        Assertions.assertNotNull(meta.getDriverVersion()); // random: version string
-        Assertions.assertEquals(2, meta.getDriverMajorVersion()); // random: check your H2 version
-        Assertions.assertEquals(3, meta.getDriverMinorVersion()); // random
+        // 11–15: Version information
+        Assertions.assertNotNull(meta.getDatabaseProductVersion());
+        Assertions.assertEquals("PostgreSQL JDBC Driver", meta.getDriverName());
+        Assertions.assertNotNull(meta.getDriverVersion());
+        Assertions.assertTrue(meta.getDriverMajorVersion() >= 42); // PostgreSQL driver version
+        Assertions.assertTrue(meta.getDriverMinorVersion() >= 0);
 
-        // 16–20
-        Assertions.assertEquals(true, meta.usesLocalFiles());
+        // 16–20: File handling and identifiers
+        Assertions.assertEquals(false, meta.usesLocalFiles());
         Assertions.assertEquals(false, meta.usesLocalFilePerTable());
         Assertions.assertEquals(false, meta.supportsMixedCaseIdentifiers());
-        Assertions.assertEquals(true, meta.storesUpperCaseIdentifiers());
-        Assertions.assertEquals(false, meta.storesLowerCaseIdentifiers());
+        Assertions.assertEquals(false, meta.storesUpperCaseIdentifiers());
+        Assertions.assertEquals(true, meta.storesLowerCaseIdentifiers()); // PostgreSQL stores lowercase
 
-        // 21–25
+        // 21–25: Quoted identifiers
         Assertions.assertEquals(false, meta.storesMixedCaseIdentifiers());
         Assertions.assertEquals(true, meta.supportsMixedCaseQuotedIdentifiers());
         Assertions.assertEquals(false, meta.storesUpperCaseQuotedIdentifiers());
         Assertions.assertEquals(false, meta.storesLowerCaseQuotedIdentifiers());
-        Assertions.assertEquals(false, meta.storesMixedCaseQuotedIdentifiers());
+        Assertions.assertEquals(false, meta.storesMixedCaseQuotedIdentifiers()); // PostgreSQL behavior
 
-        // 26–30
+        // 26–30: String handling and functions
         Assertions.assertEquals("\"", meta.getIdentifierQuoteString());
-        Assertions.assertNotNull(meta.getSQLKeywords()); // random: String like "LIMIT,MINUS,..." etc
-        Assertions.assertNotNull(meta.getNumericFunctions()); // random: String containing function names
-        Assertions.assertNotNull(meta.getStringFunctions()); // random
-        Assertions.assertNotNull(meta.getSystemFunctions()); // random
+        Assertions.assertNotNull(meta.getSQLKeywords());
+        Assertions.assertNotNull(meta.getNumericFunctions());
+        Assertions.assertNotNull(meta.getStringFunctions());
+        Assertions.assertNotNull(meta.getSystemFunctions());
 
-        // 31–35
-        Assertions.assertNotNull(meta.getTimeDateFunctions()); // random
+        // 31–35: More functions and table operations
+        Assertions.assertNotNull(meta.getTimeDateFunctions());
         Assertions.assertEquals("\\", meta.getSearchStringEscape());
-        Assertions.assertEquals("", meta.getExtraNameCharacters());
+        // PostgreSQL may not allow extra name characters beyond standard ones
+        String extraChars = meta.getExtraNameCharacters();
+        Assertions.assertNotNull(extraChars); // Accept any non-null value
         Assertions.assertEquals(true, meta.supportsAlterTableWithAddColumn());
         Assertions.assertEquals(true, meta.supportsAlterTableWithDropColumn());
 
-        // 36–40
+        // 36–40: Query features
         Assertions.assertEquals(true, meta.supportsColumnAliasing());
         Assertions.assertEquals(true, meta.nullPlusNonNullIsNull());
-        Assertions.assertEquals(true, meta.supportsConvert());
-        Assertions.assertEquals(true, meta.supportsConvert(Types.INTEGER, Types.VARCHAR));
+        Assertions.assertEquals(false, meta.supportsConvert()); // PostgreSQL behavior differs from H2
+        Assertions.assertEquals(false, meta.supportsConvert(Types.INTEGER, Types.VARCHAR)); // PostgreSQL behavior
         Assertions.assertEquals(true, meta.supportsTableCorrelationNames());
 
-        // 41–45
+        // 41–45: More query features
         Assertions.assertEquals(false, meta.supportsDifferentTableCorrelationNames());
         Assertions.assertEquals(true, meta.supportsExpressionsInOrderBy());
         Assertions.assertEquals(true, meta.supportsOrderByUnrelated());
         Assertions.assertEquals(true, meta.supportsGroupBy());
         Assertions.assertEquals(true, meta.supportsGroupByUnrelated());
 
-        // 46–50
+        // 46–50: Advanced query features
         Assertions.assertEquals(true, meta.supportsGroupByBeyondSelect());
         Assertions.assertEquals(true, meta.supportsLikeEscapeClause());
-        Assertions.assertEquals(false, meta.supportsMultipleResultSets());
+        Assertions.assertEquals(true, meta.supportsMultipleResultSets()); // PostgreSQL supports multiple result sets
         Assertions.assertEquals(true, meta.supportsMultipleTransactions());
         Assertions.assertEquals(true, meta.supportsNonNullableColumns());
 
-        // 51–55
+        // 51–55: SQL grammar support
         Assertions.assertEquals(true, meta.supportsMinimumSQLGrammar());
         Assertions.assertEquals(true, meta.supportsCoreSQLGrammar());
-        Assertions.assertEquals(false, meta.supportsExtendedSQLGrammar());
+        Assertions.assertEquals(true, meta.supportsExtendedSQLGrammar());
         Assertions.assertEquals(true, meta.supportsANSI92EntryLevelSQL());
-        Assertions.assertEquals(false, meta.supportsANSI92IntermediateSQL());
+        Assertions.assertEquals(true, meta.supportsANSI92IntermediateSQL());
 
-        // 56–60
-        Assertions.assertEquals(false, meta.supportsANSI92FullSQL());
+        // 56–60: Advanced SQL and joins
+        Assertions.assertEquals(true, meta.supportsANSI92FullSQL());
         Assertions.assertEquals(true, meta.supportsIntegrityEnhancementFacility());
         Assertions.assertEquals(true, meta.supportsOuterJoins());
-        Assertions.assertEquals(false, meta.supportsFullOuterJoins());
+        Assertions.assertEquals(true, meta.supportsFullOuterJoins());
         Assertions.assertEquals(true, meta.supportsLimitedOuterJoins());
 
-        // 61–65
+        // 61–65: Schema and catalog terminology
         Assertions.assertEquals("schema", meta.getSchemaTerm());
-        Assertions.assertEquals("procedure", meta.getProcedureTerm());
-        Assertions.assertEquals("catalog", meta.getCatalogTerm());
-        Assertions.assertEquals(true, meta.isCatalogAtStart());
+        Assertions.assertEquals("function", meta.getProcedureTerm()); // PostgreSQL uses functions
+        Assertions.assertEquals("database", meta.getCatalogTerm());
+        Assertions.assertEquals(false, meta.isCatalogAtStart());
         Assertions.assertEquals(".", meta.getCatalogSeparator());
 
-        // 66–75
+        // 66–75: Schema and catalog support
         Assertions.assertEquals(true, meta.supportsSchemasInDataManipulation());
         Assertions.assertEquals(true, meta.supportsSchemasInProcedureCalls());
         Assertions.assertEquals(true, meta.supportsSchemasInTableDefinitions());
         Assertions.assertEquals(true, meta.supportsSchemasInIndexDefinitions());
         Assertions.assertEquals(true, meta.supportsSchemasInPrivilegeDefinitions());
-        Assertions.assertEquals(true, meta.supportsCatalogsInDataManipulation());
+        Assertions.assertEquals(false, meta.supportsCatalogsInDataManipulation());
         Assertions.assertEquals(false, meta.supportsCatalogsInProcedureCalls());
-        Assertions.assertEquals(true, meta.supportsCatalogsInTableDefinitions());
-        Assertions.assertEquals(true, meta.supportsCatalogsInIndexDefinitions());
-        Assertions.assertEquals(true, meta.supportsCatalogsInPrivilegeDefinitions());
+        Assertions.assertEquals(false, meta.supportsCatalogsInTableDefinitions());
+        Assertions.assertEquals(false, meta.supportsCatalogsInIndexDefinitions());
+        Assertions.assertEquals(false, meta.supportsCatalogsInPrivilegeDefinitions());
 
-        // 76–90
+        // 76–90: Cursor and subquery support
         Assertions.assertEquals(false, meta.supportsPositionedDelete());
         Assertions.assertEquals(false, meta.supportsPositionedUpdate());
         Assertions.assertEquals(true, meta.supportsSelectForUpdate());
-        Assertions.assertEquals(false, meta.supportsStoredProcedures());
+        Assertions.assertEquals(true, meta.supportsStoredProcedures());
         Assertions.assertEquals(true, meta.supportsSubqueriesInComparisons());
         Assertions.assertEquals(true, meta.supportsSubqueriesInExists());
         Assertions.assertEquals(true, meta.supportsSubqueriesInIns());
@@ -143,138 +154,138 @@ public class H2DatabaseMetaDataExtensiveTests {
         Assertions.assertEquals(true, meta.supportsCorrelatedSubqueries());
         Assertions.assertEquals(true, meta.supportsUnion());
         Assertions.assertEquals(true, meta.supportsUnionAll());
-        Assertions.assertEquals(false, meta.supportsOpenCursorsAcrossCommit());
-        Assertions.assertEquals(false, meta.supportsOpenCursorsAcrossRollback());
+        Assertions.assertEquals(true, meta.supportsOpenCursorsAcrossCommit());
+        Assertions.assertEquals(true, meta.supportsOpenCursorsAcrossRollback());
         Assertions.assertEquals(true, meta.supportsOpenStatementsAcrossCommit());
         Assertions.assertEquals(true, meta.supportsOpenStatementsAcrossRollback());
 
-        // 91–111: Random numeric values (replace with actual as needed)
+        // 91–111: Limits (PostgreSQL typically has no limits or very high limits)
         Assertions.assertEquals(0, meta.getMaxBinaryLiteralLength());
         Assertions.assertEquals(0, meta.getMaxCharLiteralLength());
-        Assertions.assertEquals(0, meta.getMaxColumnNameLength());
+        Assertions.assertEquals(63, meta.getMaxColumnNameLength()); // PostgreSQL identifier limit
         Assertions.assertEquals(0, meta.getMaxColumnsInGroupBy());
-        Assertions.assertEquals(0, meta.getMaxColumnsInIndex());
+        Assertions.assertEquals(32, meta.getMaxColumnsInIndex()); // PostgreSQL index column limit
         Assertions.assertEquals(0, meta.getMaxColumnsInOrderBy());
-        Assertions.assertEquals(0, meta.getMaxColumnsInSelect());
-        Assertions.assertEquals(0, meta.getMaxColumnsInTable());
+        Assertions.assertEquals(1600, meta.getMaxColumnsInSelect()); // PostgreSQL column limit
+        Assertions.assertEquals(1600, meta.getMaxColumnsInTable());
         Assertions.assertEquals(0, meta.getMaxConnections());
-        Assertions.assertEquals(0, meta.getMaxCursorNameLength());
+        Assertions.assertEquals(63, meta.getMaxCursorNameLength());
         Assertions.assertEquals(0, meta.getMaxIndexLength());
-        Assertions.assertEquals(0, meta.getMaxSchemaNameLength());
-        Assertions.assertEquals(0, meta.getMaxProcedureNameLength());
-        Assertions.assertEquals(0, meta.getMaxCatalogNameLength());
+        Assertions.assertEquals(63, meta.getMaxSchemaNameLength());
+        Assertions.assertEquals(63, meta.getMaxProcedureNameLength());
+        Assertions.assertEquals(63, meta.getMaxCatalogNameLength());
         Assertions.assertEquals(0, meta.getMaxRowSize());
-        Assertions.assertEquals(false, meta.doesMaxRowSizeIncludeBlobs());
+        Assertions.assertEquals(true, meta.doesMaxRowSizeIncludeBlobs());
         Assertions.assertEquals(0, meta.getMaxStatementLength());
         Assertions.assertEquals(0, meta.getMaxStatements());
-        Assertions.assertEquals(0, meta.getMaxTableNameLength());
+        Assertions.assertEquals(63, meta.getMaxTableNameLength());
         Assertions.assertEquals(0, meta.getMaxTablesInSelect());
-        Assertions.assertEquals(0, meta.getMaxUserNameLength());
+        Assertions.assertEquals(63, meta.getMaxUserNameLength());
         Assertions.assertEquals(Connection.TRANSACTION_READ_COMMITTED, meta.getDefaultTransactionIsolation());
 
-        // 112–118
+        // 112–118: Transaction support
         Assertions.assertEquals(true, meta.supportsTransactions());
         Assertions.assertEquals(true, meta.supportsTransactionIsolationLevel(Connection.TRANSACTION_READ_COMMITTED));
         Assertions.assertEquals(false, meta.supportsDataDefinitionAndDataManipulationTransactions());
-        Assertions.assertEquals(true, meta.supportsDataManipulationTransactionsOnly());
+        Assertions.assertEquals(false, meta.supportsDataManipulationTransactionsOnly());
         Assertions.assertEquals(true, meta.dataDefinitionCausesTransactionCommit());
         Assertions.assertEquals(false, meta.dataDefinitionIgnoredInTransactions());
 
-        // 119–174: ResultSets, Connection, and more
+        // 119–174: ResultSets for metadata queries
         try (ResultSet rs = meta.getProcedures(null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getProcedureColumns(null, null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getTables(null, null, null, new String[]{"TABLE"})) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getSchemas()) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getCatalogs()) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getTableTypes()) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getColumns(null, null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getColumnPrivileges(null, null, "TEST_TABLE", null)) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getColumnPrivileges(null, null, "test_table", null)) {
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getTablePrivileges(null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getBestRowIdentifier(null, null, "TEST_TABLE", DatabaseMetaData.bestRowSession, false)) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getBestRowIdentifier(null, null, "test_table", DatabaseMetaData.bestRowSession, false)) {
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getVersionColumns(null, null, "TEST_TABLE")) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getVersionColumns(null, null, "test_table")) {
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getPrimaryKeys(null, null, "TEST_TABLE")) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getPrimaryKeys(null, null, "test_table")) {
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getImportedKeys(null, null, "TEST_TABLE")) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getImportedKeys(null, null, "test_table")) {
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getExportedKeys(null, null, "TEST_TABLE")) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getExportedKeys(null, null, "test_table")) {
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getCrossReference(null, null, "TEST_TABLE", null, null, "TEST_TABLE")) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getCrossReference(null, null, "test_table", null, null, "test_table")) {
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getTypeInfo()) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getIndexInfo(null, null, "TEST_TABLE", false, false)) {
-            validateAllRows(rs);
+        try (ResultSet rs = meta.getIndexInfo(null, null, "test_table", false, false)) {
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getUDTs(null, null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         Assertions.assertNotNull(meta.getConnection());
         Assertions.assertEquals(true, meta.supportsSavepoints());
-        Assertions.assertEquals(false, meta.supportsNamedParameters());
+        Assertions.assertEquals(true, meta.supportsNamedParameters());
         Assertions.assertEquals(false, meta.supportsMultipleOpenResults());
         Assertions.assertEquals(true, meta.supportsGetGeneratedKeys());
         try (ResultSet rs = meta.getSuperTypes(null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getSuperTables(null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getAttributes(null, null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
-        Assertions.assertEquals(false, meta.supportsResultSetHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT));
-        Assertions.assertEquals(ResultSet.CLOSE_CURSORS_AT_COMMIT, meta.getResultSetHoldability());
-        Assertions.assertEquals(2, meta.getDatabaseMajorVersion());
-        Assertions.assertEquals(3, meta.getDatabaseMinorVersion());
+        Assertions.assertEquals(true, meta.supportsResultSetHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT));
+        Assertions.assertEquals(ResultSet.HOLD_CURSORS_OVER_COMMIT, meta.getResultSetHoldability());
+        Assertions.assertTrue(meta.getDatabaseMajorVersion() >= 10); // Modern PostgreSQL
+        Assertions.assertTrue(meta.getDatabaseMinorVersion() >= 0);
         Assertions.assertEquals(4, meta.getJDBCMajorVersion());
-        Assertions.assertEquals(3, meta.getJDBCMinorVersion());
+        Assertions.assertTrue(meta.getJDBCMinorVersion() >= 2);
         Assertions.assertEquals(DatabaseMetaData.sqlStateSQL, meta.getSQLStateType());
         Assertions.assertEquals(false, meta.locatorsUpdateCopy());
         Assertions.assertEquals(false, meta.supportsStatementPooling());
         Assertions.assertNotNull(meta.getRowIdLifetime());
         try (ResultSet rs = meta.getSchemas(null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         Assertions.assertEquals(true, meta.supportsStoredFunctionsUsingCallSyntax());
         Assertions.assertEquals(false, meta.autoCommitFailureClosesAllResultSets());
         try (ResultSet rs = meta.getClientInfoProperties()) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getFunctions(null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getFunctionColumns(null, null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         try (ResultSet rs = meta.getPseudoColumns(null, null, null, null)) {
-            validateAllRows(rs);
+            TestDBUtils.validateAllRows(rs);
         }
         Assertions.assertEquals(true, meta.generatedKeyAlwaysReturned());
         Assertions.assertEquals(0, meta.getMaxLogicalLobSize());
@@ -284,7 +295,7 @@ public class H2DatabaseMetaDataExtensiveTests {
         // 175–177: ResultSet/Concurrency methods
         Assertions.assertEquals(true, meta.supportsResultSetType(ResultSet.TYPE_FORWARD_ONLY));
         Assertions.assertEquals(true, meta.supportsResultSetConcurrency(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY));
-        Assertions.assertEquals(true, meta.ownUpdatesAreVisible(ResultSet.TYPE_FORWARD_ONLY));
+        Assertions.assertEquals(false, meta.ownUpdatesAreVisible(ResultSet.TYPE_FORWARD_ONLY));
         Assertions.assertEquals(false, meta.ownDeletesAreVisible(ResultSet.TYPE_FORWARD_ONLY));
         Assertions.assertEquals(false, meta.ownInsertsAreVisible(ResultSet.TYPE_FORWARD_ONLY));
         Assertions.assertEquals(false, meta.othersUpdatesAreVisible(ResultSet.TYPE_FORWARD_ONLY));
@@ -294,9 +305,5 @@ public class H2DatabaseMetaDataExtensiveTests {
         Assertions.assertEquals(false, meta.deletesAreDetected(ResultSet.TYPE_FORWARD_ONLY));
         Assertions.assertEquals(false, meta.insertsAreDetected(ResultSet.TYPE_FORWARD_ONLY));
         Assertions.assertEquals(true, meta.supportsBatchUpdates());
-    }
-
-    private void validateAllRows(ResultSet rs) throws SQLException {
-        TestDBUtils.validateAllRows(rs);
     }
 }

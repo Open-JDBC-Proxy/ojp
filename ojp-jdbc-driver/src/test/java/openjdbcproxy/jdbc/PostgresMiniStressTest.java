@@ -2,7 +2,9 @@ package openjdbcproxy.jdbc;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import openjdbcproxy.jdbc.testutil.TestDBUtils;
 import org.codehaus.plexus.util.ExceptionUtils;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
@@ -22,15 +24,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @Slf4j
 public class PostgresMiniStressTest {
     private static final int THREADS = 10; // Number of worker threads
     private static final int RAMPUP_MS = 10 * 1000; // 10 seconds Ramp-up window in milliseconds
 
+    private static boolean isTestDisabled;
     private static Queue<Long> queryDurations = new ConcurrentLinkedQueue<>();
     private static AtomicInteger totalQueries = new AtomicInteger(0);
     private static AtomicInteger failedQueries = new AtomicInteger(0);
+
+    @BeforeAll
+    public static void checkTestConfiguration() {
+        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+    }
 
     @SneakyThrows
     public void setUp() throws SQLException {
@@ -43,6 +52,8 @@ public class PostgresMiniStressTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
     public void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
+        assumeFalse(isTestDisabled, "Postgres tests are disabled");
+        
         this.setUp();
         // 1. Schema and seeding (not timed)
         try (Connection conn = getConnection(driverClass, url, user, password)) {
