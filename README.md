@@ -1,4 +1,6 @@
-# OJP - Open JDBC Proxy
+<img src="documents/images/ojp_rectangular_large.png" alt="Comunidade Brasil JUG" />
+
+# Open JDBC Proxy
 
 A JDBC Driver and Layer 7 Proxy Server to decouple applications from relational database connection management.
 
