@@ -140,3 +140,69 @@ Maps port 1521 of your host to port 1521 of the container (Oracle's default port
 
 #### gvenzl/oracle-xe:21-slim
 Specifies the Docker image to use (in this case, the community Oracle XE 21c image from Docker Hub). This is a lightweight, license-free Oracle Express Edition suitable for development and testing.
+
+---
+
+## Run SQL Server on Docker
+
+### Preconditions
+Have Docker installed on your machine.
+
+### Run Command
+
+> docker run --name ojp-sqlserver -e ACCEPT_EULA=Y -e SA_PASSWORD=TestPassword123! -d -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+
+#### docker run
+Tells Docker to run a new container.
+
+#### --name ojp-sqlserver
+Assigns the name `ojp-sqlserver` to the container, making it easier to manage and reference.
+
+#### -e ACCEPT_EULA=Y
+Accepts the End-User License Agreement for SQL Server (required by Microsoft).
+
+#### -e SA_PASSWORD=TestPassword123!
+Sets the password for the SA (System Administrator) user. Must meet SQL Server password complexity requirements.
+
+#### -d
+Runs the container in detached mode (in the background).
+
+#### -p 1433:1433
+Maps port 1433 of your host to port 1433 of the container (SQL Server's default port), allowing local access.
+
+#### mcr.microsoft.com/mssql/server:2022-latest
+Specifies the Docker image to use (in this case, the official Microsoft SQL Server 2022 image from Microsoft Container Registry).
+
+### Create Test Database and User (Optional)
+
+After the container starts, you can create a test database and user:
+
+```bash
+# Connect to SQL Server (using sqlcmd directly - it's in the PATH)
+docker exec -it ojp-sqlserver sqlcmd -S localhost -U sa -P TestPassword123!
+
+# Create database and user
+CREATE DATABASE defaultdb;
+GO
+CREATE LOGIN testuser WITH PASSWORD = 'TestPassword123!';
+GO
+USE defaultdb;
+GO
+CREATE USER testuser FOR LOGIN testuser;
+GO
+ALTER ROLE db_datareader ADD MEMBER testuser;
+GO
+ALTER ROLE db_datawriter ADD MEMBER testuser;
+GO
+ALTER ROLE db_ddladmin ADD MEMBER testuser;
+GO
+```
+
+> **Note**: If the above `sqlcmd` command doesn't work, try these alternatives:
+> ```bash
+> # Alternative 1: Use the newer tools path
+> docker exec -it ojp-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P TestPassword123! -C
+> 
+> # Alternative 2: Use bash to access sqlcmd
+> docker exec -it ojp-sqlserver bash -c "sqlcmd -S localhost -U sa -P TestPassword123!"
+> ```

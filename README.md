@@ -47,6 +47,9 @@ Replace your existing connection URL by prefixing with `ojp[host:port]_`:
 
 // Oracle example
 "jdbc:ojp[localhost:1059]_oracle:thin:@localhost:1521/XEPDB1"
+
+// SQL Server example
+"jdbc:ojp[localhost:1059]_sqlserver://localhost:1433;databaseName=mydb"
 ```
 Use the ojp driver: `org.openjdbcproxy.jdbc.Driver`
 
@@ -142,7 +145,7 @@ Welcome to OJP! We appreciate your interest in contributing. This guide will hel
    Navigate to the ojp-jdbc-driver folder first:
    ```bash
    cd ojp-jdbc-driver
-   mvn test -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -DdisableOracleTests
+   mvn test -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests
    ```
 **Note:** With the disable flags only H2 integration tests will run, to run the full set of integration tests you have to run all the databases locally, follow the instructions at [Run Local Databases](documents/environment-setup/run-local-databases.md)
 
@@ -152,13 +155,18 @@ We have comprehensive JDBC integration tests with OJP for the following database
 - MariaDB
 - MySQL
 - Oracle
+- SQL Server
 - H2
 
-The free and open source databases (H2, Postgres, MySQL and MariaDB) jdbc drivers are packed with OJP and have integration tests always running in our CI pipelines, for proprietary databases as Oracle vide specific sections.
+The free and open source databases (H2, Postgres, MySQL and MariaDB) jdbc drivers are packed with OJP and have integration tests always running in our CI pipelines, for proprietary databases as Oracle and SQL Server see specific sections.
 
 ### Oracle Database Setup (Optional)
 Oracle integration tests require the Oracle JDBC driver and due to licensing restrictions we do not pack it with OJP.
 For detailed Oracle setup instructions, see [Oracle Testing Guide](documents/environment-setup/oracle-testing-guide.md).
+
+### SQL Server Database Setup (Optional)
+SQL Server integration tests use the Microsoft SQL Server JDBC driver which is not included in OJP dependencies.
+For detailed SQL Server setup instructions, see [SQL Server Testing Guide](documents/environment-setup/sqlserver-testing-guide.md).
 
 ### Testing Configuration
 - Test connection configurations are stored in CSV files under `test/resources`
@@ -168,7 +176,8 @@ For detailed Oracle setup instructions, see [Oracle Testing Guide](documents/env
 
 ### Test Options
 - `-DdisablePostgresTests` - Skip PostgreSQL integration tests
-- `-DenableOracleTests` - Skip Oracle integration tests by default (requires manual Oracle JDBC driver setup)
+- `-DenableOracleTests` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
+- `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default)
 
 ### Contributing
 1. Fork the repository

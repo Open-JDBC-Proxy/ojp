@@ -21,6 +21,7 @@ public class BasicCrudIntegrationTest {
     private static boolean isMySQLTestDisabled;
     private static boolean isMariaDBTestDisabled;
     private static boolean isOracleTestEnabled;
+    private static boolean isSqlServerTestEnabled;
     private static String tablePrefix = "";
 
     @BeforeAll
@@ -29,10 +30,11 @@ public class BasicCrudIntegrationTest {
         isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
+        isSqlServerTestEnabled = Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/h2_postgres_mysql_mariadb_oracle_connections.csv")
+    @CsvFileSource(resources = "/h2_postgres_mysql_mariadb_oracle_sqlserver_connections.csv")
     public void crudTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         // Skip PostgreSQL tests if disabled
         if (url.toLowerCase().contains("postgresql") && isPostgresTestDisabled) {
@@ -56,6 +58,12 @@ public class BasicCrudIntegrationTest {
         if (url.toLowerCase().contains("oracle") && !isOracleTestEnabled) {
             Assumptions.assumeFalse(true, "Skipping Oracle tests - not enabled");
             tablePrefix = "oracle_";
+        }
+
+        // Skip SQL Server tests if not enabled
+        if (url.toLowerCase().contains("sqlserver") && !isSqlServerTestEnabled) {
+            Assumptions.assumeFalse(true, "Skipping SQL Server tests - not enabled");
+            tablePrefix = "sqlserver_";
         }
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
