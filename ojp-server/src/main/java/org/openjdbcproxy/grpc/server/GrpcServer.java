@@ -2,6 +2,7 @@ package org.openjdbcproxy.grpc.server;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.netty.NettyServerBuilder;
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 import org.slf4j.Logger;
@@ -15,6 +16,9 @@ public class GrpcServer {
     private static final Logger logger = LoggerFactory.getLogger(GrpcServer.class);
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        // Initialize health status manager
+        OjpHealthManager.initialize();
+
         // Load configuration
         ServerConfiguration config = new ServerConfiguration();
         
@@ -33,6 +37,9 @@ public class GrpcServer {
                 config.getPrometheusPort(), 
                 config.getPrometheusAllowedIps()
             );
+
+            OjpHealthManager.setServiceStatus(OjpHealthManager.Services.OPENTELEMETRY_SERVICE,
+                    HealthCheckResponse.ServingStatus.SERVING);
         } else {
             grpcTelemetry = ojpServerTelemetry.createNoOpGrpcTelemetry();
         }
@@ -47,6 +54,7 @@ public class GrpcServer {
                         new SessionManagerImpl(),
                         new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold())
                 ))
+                .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
                 .intercept(grpcTelemetry.newServerInterceptor());
 
         Server server = serverBuilder.build();
@@ -55,11 +63,14 @@ public class GrpcServer {
         logger.info("Server configuration applied successfully");
         
         server.start();
+        OjpHealthManager.setServiceStatus(OjpHealthManager.Services.OJP_SERVER,
+                HealthCheckResponse.ServingStatus.SERVING);
         
         // Add shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutting down OJP gRPC Server...");
             server.shutdown();
+
             try {
                 if (!server.awaitTermination(30, TimeUnit.SECONDS)) {
                     logger.warn("Server did not terminate gracefully, forcing shutdown");

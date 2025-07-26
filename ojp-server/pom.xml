@@ -15,8 +15,8 @@
     </parent>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
 
         <grpc.version>1.70.0</grpc.version>
         <slf4j.version>2.0.17</slf4j.version>
@@ -33,6 +33,12 @@
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-netty</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-services</artifactId>
             <version>${grpc.version}</version>
         </dependency>
 
@@ -207,7 +213,7 @@
                 <version>${jib.plugin.version}</version>
                 <configuration>
                     <from>
-                        <image>eclipse-temurin:22-jre</image>
+                        <image>eclipse-temurin:21-jre</image>
                     </from>
                     <to>
                         <image>rrobetti/ojp:0.0.5-alpha</image>
