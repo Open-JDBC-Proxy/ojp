@@ -47,10 +47,6 @@ message SessionInfo {
     SessionStatus sessionStatus = 5;
 }
 
-message ResultSetId {
-    string uuid = 1;
-}
-
 enum ResultType {
     INTEGER = 0;
     RESULT_SET_DATA = 1;
@@ -62,6 +58,7 @@ message OpResult {
     ResultType type = 2;
     bytes value = 3;
     string uuid = 4;
+    string flag = 5;
 }
 
 message StatementRequest {
@@ -204,21 +201,20 @@ message CallResourceResponse {
     bytes values = 3;
 }
 
+message ResultSetFetchRequest {
+    SessionInfo session = 1;
+    string resultSetUUID = 2;
+    int32 size = 3;
+}
+
 service StatementService {
     rpc connect(ConnectionDetails) returns (SessionInfo);
     rpc executeUpdate(StatementRequest) returns (OpResult);
     rpc executeQuery(StatementRequest) returns (stream OpResult);
+    rpc fetchNextRows(ResultSetFetchRequest) returns (OpResult);
     rpc createLob(stream LobDataBlock) returns (stream LobReference);
     rpc readLob(ReadLobRequest) returns (stream LobDataBlock);
     rpc terminateSession(SessionInfo) returns (SessionTerminationStatus);
-    //TODO this will close the resource and remove it from session ad closing session if no resource left,
-    // need to test with Blob because block does not have a close method, it has a free method, now does JPA for example
-    // call that free method? Because JPA with Hikari CP will not call close on the connection
-    // --> I can relate the Blob to the resource it is being used on, if that or those resources all close I can close
-    // the Blob and remove it from the session.
-    /**
-    Resources can be closed with the exception of connection as per connections are managed by the connection pool.
-    **/
     rpc startTransaction(SessionInfo) returns (SessionInfo);
     rpc commitTransaction(SessionInfo) returns (SessionInfo);
     rpc rollbackTransaction(SessionInfo) returns (SessionInfo);

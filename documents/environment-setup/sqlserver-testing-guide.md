@@ -108,3 +108,7 @@ Where:
 - `databaseName=defaultdb` - Target database
 - `encrypt=false;trustServerCertificate=true` - SSL configuration for testing
 
+## LOBs special treatment
+n SQL Server JDBC driver, advancing a ResultSet invalidates any associated LOBs (Blob, Clob, binary streams). To prevent errors, OJP reads LOB-containing rows one at a time instead of batching multiple rows.
+
+Additionally, LOBs are fully read into memory upfront, which may increase memory usage depending on their size.

@@ -9,6 +9,7 @@ import com.openjdbcproxy.grpc.LobDataBlock;
 import com.openjdbcproxy.grpc.LobReference;
 import com.openjdbcproxy.grpc.OpResult;
 import com.openjdbcproxy.grpc.ReadLobRequest;
+import com.openjdbcproxy.grpc.ResultSetFetchRequest;
 import com.openjdbcproxy.grpc.SessionInfo;
 import com.openjdbcproxy.grpc.SessionTerminationStatus;
 import com.openjdbcproxy.grpc.StatementRequest;
@@ -131,6 +132,21 @@ public class StatementServiceGrpcClient implements StatementService {
             return this.statemetServiceBlockingStub.executeQuery(builder
                     .setStatementUUID(statementUUID != null ? statementUUID : "")
                     .setSession(sessionInfo).setSql(sql).setParameters(ByteString.copyFrom(serialize(params))).build());
+        } catch (StatusRuntimeException e) {
+            throw handle(e);
+        }
+    }
+
+    @Override
+    public OpResult fetchNextRows(SessionInfo sessionInfo, String resultSetUUID, int size) throws SQLException {
+        try {
+            return this.statemetServiceBlockingStub.fetchNextRows(
+                    ResultSetFetchRequest.newBuilder()
+                            .setSession(sessionInfo)
+                            .setResultSetUUID(resultSetUUID)
+                            .setSize(size)
+                            .build()
+            );
         } catch (StatusRuntimeException e) {
             throw handle(e);
         }

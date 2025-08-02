@@ -6,15 +6,15 @@ import java.sql.Blob;
 import java.sql.SQLException;
 
 /**
- * Handle SqlServer BLOB in memory.
- * Issue open: https://github.com/Open-JDBC-Proxy/ojp/issues/19.
+ * Handle SqlServer and DB2 BLOB in memory due to the fact that these databases invalidate the LOB object once the cursor moves,
+ * therefore all the bytes have to be read in advance.
  */
-public class SqlServerSerialBlob extends SerialBlob {
-    public SqlServerSerialBlob(byte[] b) throws SerialException, SQLException {
+public class HydratedBlob extends SerialBlob {
+    public HydratedBlob(byte[] b) throws SerialException, SQLException {
         super(b);
     }
 
-    public SqlServerSerialBlob(Blob blob) throws SerialException, SQLException {
+    public HydratedBlob(Blob blob) throws SerialException, SQLException {
         super(blob);
     }
 

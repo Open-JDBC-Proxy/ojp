@@ -22,6 +22,7 @@ public class BasicCrudIntegrationTest {
     private static boolean isMariaDBTestDisabled;
     private static boolean isOracleTestEnabled;
     private static boolean isSqlServerTestEnabled;
+    private static boolean isDb2TestEnabled;
     private static String tablePrefix = "";
 
     @BeforeAll
@@ -31,6 +32,7 @@ public class BasicCrudIntegrationTest {
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
         isSqlServerTestEnabled = Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
+        isDb2TestEnabled = Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @ParameterizedTest
@@ -66,24 +68,43 @@ public class BasicCrudIntegrationTest {
             tablePrefix = "sqlserver_";
         }
 
+        // Skip DB2 tests if not enabled
+        if (url.toLowerCase().contains("db2") && !isDb2TestEnabled) {
+            Assumptions.assumeFalse(true, "Skipping DB2 tests - not enabled");
+            tablePrefix = "db2_";
+        }
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
+
+        // Set schema for DB2 connections to avoid "object not found" errors
+        if (url.toLowerCase().contains("db2")) {
+            try (java.sql.Statement schemaStmt = conn.createStatement()) {
+                schemaStmt.execute("SET SCHEMA DB2INST1");
+            }
+        }
 
         System.out.println("Testing for url -> " + url);
 
+        // Use qualified table names for DB2
+        String tableName = tablePrefix + "basic_crud_test";
+        if (url.toLowerCase().contains("db2")) {
+            tableName = "DB2INST1." + tableName;
+        }
+
         try {
-            executeUpdate(conn, "drop table " + tablePrefix + "basic_crud_test");
+            executeUpdate(conn, "drop table " + tableName);
         } catch (Exception e) {
             //Does not matter
         }
 
-        executeUpdate(conn, "create table " + tablePrefix + "basic_crud_test(" +
+        executeUpdate(conn, "create table " + tableName + "(" +
                 "id INT NOT NULL," +
                 "title VARCHAR(50) NOT NULL" +
                 ")");
 
-        executeUpdate(conn, " insert into " + tablePrefix + "basic_crud_test (id, title) values (1, 'TITLE_1')");
+        executeUpdate(conn, " insert into " + tableName + " (id, title) values (1, 'TITLE_1')");
 
-        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from " + tablePrefix + "basic_crud_test where id = ?");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from " + tableName + " where id = ?");
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
@@ -92,7 +113,7 @@ public class BasicCrudIntegrationTest {
         Assert.assertEquals(1, id);
         Assert.assertEquals("TITLE_1", title);
 
-        executeUpdate(conn, "update " + tablePrefix + "basic_crud_test set title='TITLE_1_UPDATED'");
+        executeUpdate(conn, "update " + tableName + " set title='TITLE_1_UPDATED'");
 
         ResultSet resultSetUpdated = psSelect.executeQuery();
         resultSetUpdated.next();

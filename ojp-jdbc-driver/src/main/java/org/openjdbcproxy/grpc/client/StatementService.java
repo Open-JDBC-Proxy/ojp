@@ -37,6 +37,8 @@ public interface StatementService {
 
     Iterator<OpResult> executeQuery(SessionInfo sessionInfo, String sql, List<Parameter> params, Map<String, Object> properties) throws SQLException;
 
+    OpResult fetchNextRows(SessionInfo sessionInfo, String resultSetUUID, int size) throws SQLException;
+
     //LOB (Large objects) management.
     LobReference createLob(Connection connection, Iterator<LobDataBlock> lobDataBlock) throws SQLException;
 

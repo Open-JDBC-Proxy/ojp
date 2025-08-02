@@ -94,6 +94,33 @@ jobs:
       #  ports:
       #    - 1433:1433
 
+      #db2:
+      #  image: ibmcom/db2:11.5.8.0
+      #  env:
+      #    LICENSE: accept
+      #    DB2INSTANCE: db2inst1
+      #    DB2INST1_PASSWORD: testpassword
+      #    DBNAME: defaultdb
+      #    BLU: false
+      #    ENABLE_ORACLE_COMPATIBILITY: false
+      #    UPDATEAVAIL: NO
+      #    TO_CREATE_SAMPLEDB: false
+      #    REPODB: false
+      #    IS_OSXFS: false
+      #    PERSISTENT_HOME: false
+      #    HADR_ENABLED: false
+      #    ETCD_ENDPOINT: 
+      #    ETCD_USERNAME: 
+      #    ETCD_PASSWORD: 
+      #  options: >-
+      #    --name ojp-db2
+      #    --health-cmd "db2 connect to defaultdb user testuser using testpassword; db2 'select 1 from sysibm.sysdummy1'"
+      #    --health-interval 30s
+      #    --health-timeout 10s
+      #    --health-retries 5
+      #  ports:
+      #    - 50000:50000
+
     steps:
       - name: Git checkout
         uses: actions/checkout@v4

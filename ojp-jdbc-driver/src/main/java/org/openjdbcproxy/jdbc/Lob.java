@@ -147,12 +147,13 @@ public class Lob {
                         //Read next 2 blocks
                         Iterator<LobDataBlock> dataBlocks = null;
                         try {
-                            dataBlocks = statementService.readLob(lobReference.get(), currentPos + 1, (int) length);
+                            dataBlocks = statementService.readLob(lobReference.get(), currentPos + 1, TWO_BLOCKS_SIZE);
                             this.currentBlockInputStream = lobService.parseReceivedBlocks(dataBlocks);
                             if (currentBlockInputStream == null) {
                                 return -1;
                             }
                             currentByte = this.currentBlockInputStream.read();
+                            currentPos++;
                         } catch (SQLException e) {
                             log.error("SQLException in getBinaryStream InputStream.read() - readLob/parseReceivedBlocks", e);
                             throw new RuntimeException(e);

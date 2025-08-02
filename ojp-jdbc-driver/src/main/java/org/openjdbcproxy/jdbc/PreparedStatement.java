@@ -11,6 +11,7 @@ import com.openjdbcproxy.grpc.OpResult;
 import com.openjdbcproxy.grpc.ResourceType;
 import com.openjdbcproxy.grpc.ResultType;
 import com.openjdbcproxy.grpc.TargetCall;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.openjdbcproxy.constants.CommonConstants;
@@ -696,11 +697,23 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
                         .build());
     }
 
+    @SneakyThrows
     @Override
     public void setBinaryStream(int parameterIndex, InputStream is, long length) throws SQLException {
         log.debug("setBinaryStream: {}, <InputStream>, {}", parameterIndex, length);
         this.checkClosed();
         try {
+            if (DbName.DB2.equals(this.getConnection().getDbName())) {
+                int readLength = (length > 0) ? (int) length : Integer.MAX_VALUE;
+                byte[] allBytes = is.readNBytes((int) readLength);
+                this.paramsMap.put(parameterIndex,
+                        Parameter.builder()
+                                .type(BINARY_STREAM)
+                                .index(parameterIndex)
+                                .values(Arrays.asList(allBytes, length))
+                                .build());
+                return;
+            }
             BinaryStream binaryStream = new BinaryStream(this.getConnection(),
                     new LobServiceImpl(this.connection, this.statementService),
                     this.statementService, null);

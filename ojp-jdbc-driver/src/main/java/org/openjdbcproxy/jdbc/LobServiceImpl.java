@@ -138,9 +138,6 @@ public class LobServiceImpl implements LobService {
 
             @Override
             public int read() throws IOException {
-                if (currentPos == 2048) {
-                    int i = 0;
-                }
                 if (currentPos >= (currentBlock.length - 1)) {
                     if (!itBlocks.hasNext()) {
                         return -1;// -1 means end of the stream.
@@ -149,7 +146,7 @@ public class LobServiceImpl implements LobService {
                     currentPos = -1;
                 }
                 int currentByte = currentBlock[++currentPos];
-                return currentByte & 0xFF;// Need to return unsigned byte (& 0xFF) to not cause EOF if int representation of byte is -1
+                return currentByte & 0xFF;// Need to return unsigned byte (& 0xFF) to not incorrectly cause EOF if int representation of byte is -1
             }
         };
     }

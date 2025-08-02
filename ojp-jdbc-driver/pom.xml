@@ -23,6 +23,14 @@
     </properties>
 
     <dependencies>
+        <!-- TODO remove -->
+        <!-- https://mvnrepository.com/artifact/com.ibm.db2/jcc -->
+        <dependency>
+            <groupId>com.ibm.db2</groupId>
+            <artifactId>jcc</artifactId>
+            <version>12.1.2.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.openjdbcproxy</groupId>
             <artifactId>ojp-grpc-commons</artifactId>
@@ -83,6 +91,8 @@
                 <configuration>
                     <!--Without order the multiple drivers used in tests will conflict (mostly for tests), if moved to use only OJP no longer needed-->
                     <runOrder>alphabetical</runOrder>
+
+                    <argLine>-Dfile.encoding=UTF-8</argLine>
                 </configuration>
                 <version>3.2.5</version>
             </plugin>

@@ -11,6 +11,8 @@ import com.openjdbcproxy.grpc.LobReference;
 import com.openjdbcproxy.grpc.LobType;
 import com.openjdbcproxy.grpc.OpResult;
 import com.openjdbcproxy.grpc.ReadLobRequest;
+import com.openjdbcproxy.grpc.ResourceType;
+import com.openjdbcproxy.grpc.ResultSetFetchRequest;
 import com.openjdbcproxy.grpc.ResultType;
 import com.openjdbcproxy.grpc.SessionInfo;
 import com.openjdbcproxy.grpc.SessionTerminationStatus;
@@ -56,6 +58,7 @@ import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.Savepoint;
@@ -66,6 +69,7 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -94,6 +98,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
+    private final Map<String, DbName> dbNameMap = new ConcurrentHashMap<>();
+
+    private final static String RESULT_SET_METADATA_ATTR_PREFIX = "rsMetadata|";
 
     static {
         DriverUtils.registerDrivers();
@@ -125,6 +132,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 .setClientUUID(connectionDetails.getClientUUID())
                 .build()
         );
+
+        this.dbNameMap.put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
+
         responseObserver.onCompleted();
     }
 
@@ -332,9 +342,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     @Override
     public void executeQuery(StatementRequest request, StreamObserver<OpResult> responseObserver) {
         log.info("Executing query for {}", request.getSql());
-        if (request.getSql().contains("select oi1_0.id,oi1_0.order_id,oi1_0.product_id,oi1_0.quantity from order_items oi1_0")) {
-            int stop = 0;
-        }
         String stmtHash = SqlStatementXXHash.hashSqlQuery(request.getSql());
         try {
             circuitBreaker.preCheck(stmtHash);
@@ -355,6 +362,18 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         } catch (SQLException e) {
             circuitBreaker.onFailure(stmtHash, e);
             log.error("Failure during query execution: " + e.getMessage(), e);
+            sendSQLExceptionMetadata(e, responseObserver);
+        }
+    }
+
+    @Override
+    public void fetchNextRows(ResultSetFetchRequest request, StreamObserver<OpResult> responseObserver) {
+        log.debug("Executing fetch next rows for result set  {}", request.getResultSetUUID());
+        try {
+            ConnectionSessionDTO dto = this.sessionConnection(request.getSession(), false);
+            this.handleResultSet(dto.getSession(), request.getResultSetUUID(), responseObserver);
+        } catch (SQLException e) {
+            log.error("Failure fetch next rows for result set: " + e.getMessage(), e);
             sendSQLExceptionMetadata(e, responseObserver);
         }
     }
@@ -560,7 +579,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             //If the lob length is known the exact size of the next block is also known.
             boolean exactSizeKnown = readLobContext.getLobLength().isPresent() && readLobContext.getAvailableLength().isPresent();
             int nextByte = inputStream.read();
-            int nextBlockSize = this.nextBlockSize(readLobContext, request.getPosition());
+            int nextBlockSize = nextByte == -1 ? 1 : this.nextBlockSize(readLobContext, request.getPosition());
             byte[] nextBlock = new byte[nextBlockSize];
             int idx = -1;
             int currentPos = (int) request.getPosition();
@@ -595,6 +614,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
                 byte[] adjustedSizeArray = (idx % MAX_LOB_DATA_BLOCK_SIZE != 0 && !exactSizeKnown) ?
                         trim(nextBlock) : nextBlock;
+                if (nextByte == -1 && adjustedSizeArray.length == 1 && adjustedSizeArray[0] != nextByte) {
+                    // For cases where the amount of bytes is a multiple of the block size and last read only reads the end of the stream.
+                    adjustedSizeArray = new byte[0];
+                }
                 currentPos = (int) request.getPosition() + idx;
                 log.info("Sending leftover bytes size {} pos {}", idx, currentPos);
                 responseObserver.onNext(LobDataBlock.newBuilder()
@@ -694,10 +717,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 .getInputStream();
     }
 
+    @SneakyThrows
     private InputStream inputStreamFromBlob(SessionManager sessionManager, LobReference lobReference,
                                             ReadLobRequest request,
-                                            ReadLobContext.ReadLobContextBuilder readLobContextBuilder)
-            throws SQLException {
+                                            ReadLobContext.ReadLobContextBuilder readLobContextBuilder) {
         Blob blob = sessionManager.getLob(lobReference.getSession(), lobReference.getUuid());
         long lobLength = blob.length();
         readLobContextBuilder.lobLength(Optional.of(lobLength));
@@ -830,10 +853,14 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     public void callResource(CallResourceRequest request, StreamObserver<CallResourceResponse> responseObserver) {
         try {
             if (!request.hasSession()) {
-                throw new SQLException("No active session.");//TODO review might have to create a session in some cases
+                throw new SQLException("No active session.");
             }
 
             CallResourceResponse.Builder responseBuilder = CallResourceResponse.newBuilder();
+
+            if (this.db2SpecialResultSetMetadata(request, responseObserver)) {
+                return;
+            }
 
             Object resource;
             switch (request.getResourceType()) {
@@ -976,6 +1003,40 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         } catch (Exception e) {
             sendSQLExceptionMetadata(new SQLException("Unable to call resource: " + e.getMessage(), e), responseObserver);
         }
+    }
+
+    /**
+     * As DB2 eagerly closes result sets in multiple situations the result set metadata is saved a priori in a session
+     * attribute and has to be read in a special manner treated in this method.
+     *
+     * @param request
+     * @param responseObserver
+     * @return boolean
+     * @throws SQLException
+     */
+    @SneakyThrows
+    private boolean db2SpecialResultSetMetadata(CallResourceRequest request, StreamObserver<CallResourceResponse> responseObserver) throws SQLException {
+        if (DbName.DB2.equals(this.dbNameMap.get(request.getSession().getConnHash())) &&
+                ResourceType.RES_RESULT_SET.equals(request.getResourceType()) &&
+                CallType.CALL_GET.equals(request.getTarget().getCallType()) &&
+                "Metadata".equalsIgnoreCase(request.getTarget().getResourceName())) {
+            ResultSetMetaData resultSetMetaData = (ResultSetMetaData) this.sessionManager.getAttr(request.getSession(),
+                    RESULT_SET_METADATA_ATTR_PREFIX + request.getResourceUUID());
+            List<Object> paramsReceived = (request.getTarget().getNextCall().getParams().size() > 0) ?
+                    deserialize(request.getTarget().getNextCall().getParams().toByteArray(), List.class) :
+                    EMPTY_LIST;
+            Method methodNext = this.findMethodByName(ResultSetMetaData.class,
+                    methodName(request.getTarget().getNextCall()),
+                    paramsReceived);
+            Object metadataResult = methodNext.invoke(resultSetMetaData, paramsReceived.toArray());
+            responseObserver.onNext(CallResourceResponse.newBuilder()
+                    .setSession(request.getSession())
+                    .setValues(ByteString.copyFrom(serialize(metadataResult)))
+                    .build());
+            responseObserver.onCompleted();
+            return true;
+        }
+        return false;
     }
 
     private Method findMethodByName(Class<?> clazz, String methodName, List<Object> params) {
@@ -1232,7 +1293,17 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         List<Object[]> results = new ArrayList<>();
         int row = 0;
         boolean justSent = false;
+        DbName dbName = DatabaseUtils.resolveDbName(rs.getStatement().getConnection().getMetaData().getURL());
+        //Only used if result set contains LOBs in SQL Server (if LOB's present) and DB2 (all scenarios due to aggressive
+        // ResultSet closure), so cursor is not read in advance, every row has to be requested by the jdbc client.
+        String resultSetMode = DbName.DB2.equals(dbName) ? CommonConstants.RESULT_SET_ROW_BY_ROW_MODE : "";
+        boolean resultSetMetadataCollected = false;
+
+        forEachRow:
         while (rs.next()) {
+            if (DbName.DB2.equals(dbName) && !resultSetMetadataCollected) {
+                this.collectResultSetMetadata(session, resultSetUUID, rs);
+            }
             justSent = false;
             row++;
             Object[] rowValues = new Object[columnCount];
@@ -1243,18 +1314,27 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 //Postgres uses type BYTEA which translates to type VARBINARY
                 switch (colType) {
                     case Types.VARBINARY: {
+                        if (DbName.SQL_SERVER.equals(dbName)) {
+                            resultSetMode = CommonConstants.RESULT_SET_ROW_BY_ROW_MODE;
+                        }
                         if ("BLOB".equalsIgnoreCase(colTypeName)) {
                             currentValue = this.treatAsBlob(session, rs, i);
                         } else {
-                            currentValue = this.treatAsBinary(session, rs, i);
+                            currentValue = this.treatAsBinary(session, dbName, rs, i);
                         }
                         break;
                     }
                     case Types.BLOB, Types.LONGVARBINARY: {
+                        if (DbName.SQL_SERVER.equals(dbName)) {
+                            resultSetMode = CommonConstants.RESULT_SET_ROW_BY_ROW_MODE;
+                        }
                         currentValue = this.treatAsBlob(session, rs, i);
                         break;
                     }
                     case Types.CLOB: {
+                        if (DbName.SQL_SERVER.equals(dbName)) {
+                            resultSetMode = CommonConstants.RESULT_SET_ROW_BY_ROW_MODE;
+                        }
                         Clob clob = rs.getClob(i + 1);
                         if (clob == null) {
                             currentValue = null;
@@ -1267,7 +1347,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         break;
                     }
                     case Types.BINARY: {
-                        currentValue = treatAsBinary(session, rs, i);
+                        if (DbName.SQL_SERVER.equals(dbName)) {
+                            resultSetMode = CommonConstants.RESULT_SET_ROW_BY_ROW_MODE;
+                        }
+                        currentValue = treatAsBinary(session, dbName, rs, i);
                         break;
                     }
                     case Types.DATE: {
@@ -1293,13 +1376,19 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     }
                 }
                 rowValues[i] = currentValue;
+
             }
             results.add(rowValues);
+
+            if ((DbName.DB2.equals(dbName) || DbName.SQL_SERVER.equals(dbName))
+                    && CommonConstants.RESULT_SET_ROW_BY_ROW_MODE.equalsIgnoreCase(resultSetMode)) {
+                break forEachRow;
+            }
 
             if (row % CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK == 0) {
                 justSent = true;
                 //Send a block of records
-                responseObserver.onNext(this.wrapResults(session, results, queryResultBuilder, resultSetUUID));
+                responseObserver.onNext(this.wrapResults(session, results, queryResultBuilder, resultSetUUID, resultSetMode));
                 queryResultBuilder = OpQueryResult.builder();// Recreate the builder to not send labels in every block.
                 results = new ArrayList<>();
             }
@@ -1307,17 +1396,29 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         if (!justSent) {
             //Send a block of remaining records
-            responseObserver.onNext(this.wrapResults(session, results, queryResultBuilder, resultSetUUID));
+            responseObserver.onNext(this.wrapResults(session, results, queryResultBuilder, resultSetUUID, resultSetMode));
         }
 
         responseObserver.onCompleted();
 
     }
 
+    @SneakyThrows
+    private void collectResultSetMetadata(SessionInfo session, String resultSetUUID, ResultSet rs) {
+        this.sessionManager.registerAttr(session, RESULT_SET_METADATA_ATTR_PREFIX +
+                resultSetUUID, new HydratedResultSetMetadata(rs.getMetaData()));
+    }
+
+    @SneakyThrows
     private Object treatAsBlob(SessionInfo session, ResultSet rs, int i) throws SQLException {
         Blob blob = rs.getBlob(i + 1);
         if (blob == null) {
             return null;
+        }
+        DbName dbName = this.dbNameMap.get(session.getConnHash());
+        //SQL Server and DB2 must eagerly hydrate LOBs as per LOBs get invalidated once cursor moves.
+        if (DbName.SQL_SERVER.equals(dbName) || DbName.DB2.equals(dbName)) {
+            return blob.getBinaryStream().readAllBytes();
         }
         Object logUUID = UUID.randomUUID().toString();
         this.sessionManager.registerLob(session, blob, logUUID.toString());
@@ -1325,17 +1426,16 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
 
     @SneakyThrows
-    private Object treatAsBinary(SessionInfo session, ResultSet rs, int i) throws SQLException {
+    private Object treatAsBinary(SessionInfo session, DbName dbName, ResultSet rs, int i) throws SQLException {
         int precision = rs.getMetaData().getPrecision(i + 1);
         String catalogName = rs.getMetaData().getCatalogName(i + 1);
         String colClassName = rs.getMetaData().getColumnClassName(i + 1);
         String colTypeName = rs.getMetaData().getColumnTypeName(i + 1);
         colTypeName = colTypeName != null ? colTypeName : "";
         Object binaryValue = null;
-        boolean sqlServerVarbinary = "VARBINARY".equalsIgnoreCase(colTypeName); //TODO add dbName check here
-        if (precision == 1 && !"[B".equalsIgnoreCase(colClassName)) { //it is a single byte and is not of class byte array([B)
+        if (precision == 1 && !"[B".equalsIgnoreCase(colClassName) && !"byte[]".equalsIgnoreCase(colClassName)) { //it is a single byte and is not of class byte array([B)
             binaryValue = rs.getByte(i + 1);
-        } else if ((StringUtils.isNotEmpty(catalogName) || "[B".equalsIgnoreCase(colClassName)) &&
+        } else if ((StringUtils.isNotEmpty(catalogName) || "[B".equalsIgnoreCase(colClassName) || "byte[]".equalsIgnoreCase(colClassName)) &&
                 !INPUT_STREAM_TYPES.contains(colTypeName.toUpperCase())) {
             binaryValue = rs.getBytes(i + 1);
         } else {
@@ -1343,9 +1443,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             if (inputStream == null) {
                 return null;
             }
-            //TODO do it only for sql server as per sql server cannot move the cursor or read binary streams in multiple threads
-            byte[] allBytes = inputStream.readAllBytes();
-            inputStream = new ByteArrayInputStream(allBytes);
+
+            //SQL Server and DB2 must eagerly hydrate LOBs as per LOBs get invalidated once cursor moves.
+            if (DbName.SQL_SERVER.equals(dbName) || DbName.DB2.equals(dbName)) {
+                byte[] allBytes = inputStream.readAllBytes();
+                inputStream = new ByteArrayInputStream(allBytes);
+            }
 
             binaryValue = UUID.randomUUID().toString();
             this.sessionManager.registerLob(session, inputStream, binaryValue.toString());
@@ -1356,7 +1459,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private OpResult wrapResults(SessionInfo sessionInfo,
                                  List<Object[]> results,
                                  OpQueryResult.OpQueryResultBuilder queryResultBuilder,
-                                 String resultSetUUID) {
+                                 String resultSetUUID, String resultSetMode) {
 
         OpResult.Builder resultsBuilder = OpResult.newBuilder();
         resultsBuilder.setSession(sessionInfo);
@@ -1364,6 +1467,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         queryResultBuilder.resultSetUUID(resultSetUUID);
         queryResultBuilder.rows(results);
         resultsBuilder.setValue(ByteString.copyFrom(serialize(queryResultBuilder.build())));
+        resultsBuilder.setFlag(resultSetMode);
 
         return resultsBuilder.build();
     }
@@ -1431,6 +1535,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 Object inputStreamValue = param.getValues().get(0);
                 if (inputStreamValue == null) {
                     ps.setBinaryStream(idx, null);
+                } else if (inputStreamValue instanceof byte[]) {
+                    //DB2 require the full binary stream to be sent at once.
+                    ps.setBinaryStream(idx, new ByteArrayInputStream((byte[]) inputStreamValue));
                 } else {
                     InputStream is = (InputStream) inputStreamValue;
                     if (param.getValues().size() > 1) {
@@ -1522,20 +1629,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             log.warn("Invalid long value for property '{}': {}, using default: {}", key, properties.getProperty(key), defaultValue);
             return defaultValue;
         }
-    }
-
-    private boolean getBooleanProperty(Properties properties, String key, boolean defaultValue) {
-        if (properties == null || !properties.containsKey(key)) {
-            return defaultValue;
-        }
-        return Boolean.parseBoolean(properties.getProperty(key));
-    }
-
-    private String getStringProperty(Properties properties, String key, String defaultValue) {
-        if (properties == null || !properties.containsKey(key)) {
-            return defaultValue;
-        }
-        return properties.getProperty(key);
     }
 
 }
