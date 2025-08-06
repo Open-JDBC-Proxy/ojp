@@ -151,6 +151,14 @@
             <version>1.52.0-alpha</version>
         </dependency>
 
+        <!-- OTLP exporter for traces (future implementation) -->
+        <!-- https://mvnrepository.com/artifact/io.opentelemetry/opentelemetry-exporter-otlp -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+            <version>1.52.0</version>
+        </dependency>
+
         <!-- HTTP server for metrics endpoint -->
         <!-- https://mvnrepository.com/artifact/io.prometheus/simpleclient_httpserver -->
         <dependency>

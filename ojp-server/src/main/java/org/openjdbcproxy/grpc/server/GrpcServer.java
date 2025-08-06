@@ -35,7 +35,8 @@ public class GrpcServer {
         if (config.isOpenTelemetryEnabled()) {
             grpcTelemetry = ojpServerTelemetry.createGrpcTelemetry(
                 config.getPrometheusPort(), 
-                config.getPrometheusAllowedIps()
+                config.getPrometheusAllowedIps(),
+                config.getOpenTelemetryEndpoint()
             );
 
             OjpHealthManager.setServiceStatus(OjpHealthManager.Services.OPENTELEMETRY_SERVICE,

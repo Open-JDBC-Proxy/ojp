@@ -5,6 +5,9 @@ import io.opentelemetry.exporter.prometheus.PrometheusHttpServer;
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.sdk.resources.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +39,14 @@ public class OjpServerTelemetry {
 	 * Creates GrpcTelemetry with specified Prometheus port and IP whitelist.
 	 */
 	public GrpcTelemetry createGrpcTelemetry(int prometheusPort, List<String> allowedIps) {
+		return createGrpcTelemetry(prometheusPort, allowedIps, null);
+	}
+
+	/**
+	 * Creates GrpcTelemetry with specified Prometheus port, IP whitelist, and optional OTLP endpoint.
+	 * Note: OTLP tracing is not yet fully implemented but configuration is prepared for future use.
+	 */
+	public GrpcTelemetry createGrpcTelemetry(int prometheusPort, List<String> allowedIps, String otlpEndpoint) {
 		logger.info("Initializing OpenTelemetry with Prometheus on port {} with IP whitelist: {}", 
 					prometheusPort, allowedIps);
 
@@ -45,14 +56,28 @@ public class OjpServerTelemetry {
 			allowedIps = List.of(IpWhitelistValidator.ALLOW_ALL_IPS);
 		}
 
+		// Configure Prometheus metrics exporter
 		PrometheusHttpServer prometheusServer = PrometheusHttpServer.builder()
 				.setPort(prometheusPort)
 				.build();
 
+		// Configure basic resource information
+		Resource resource = Resource.getDefault()
+				.merge(Resource.create(Attributes.of(
+					AttributeKey.stringKey("service.name"), "ojp-server",
+					AttributeKey.stringKey("service.version"), "0.0.8-alpha")));
+
+		// For now, only metrics are fully supported. Tracing configuration is prepared for future implementation.
+		if (otlpEndpoint != null && !otlpEndpoint.trim().isEmpty()) {
+			logger.warn("OTLP endpoint configured ({}) but distributed tracing is not yet fully implemented. Only metrics will be available.", otlpEndpoint);
+		}
+
+		// Build OpenTelemetry with metrics support
 		OpenTelemetry openTelemetry = OpenTelemetrySdk.builder()
 				.setMeterProvider(
 						SdkMeterProvider.builder()
 								.registerMetricReader(prometheusServer)
+								.setResource(resource)
 								.build())
 				.build();
 
