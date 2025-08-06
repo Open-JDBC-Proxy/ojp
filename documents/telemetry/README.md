@@ -292,3 +292,8 @@ If you're interested in implementing tracing features:
 - [OpenTelemetry gRPC Instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/instrumentation/grpc-1.6)
 - [Prometheus Java Client](https://github.com/prometheus/client_java)
 - [ADR-005: Use OpenTelemetry](../ADRs/adr-005-use-opentelemetry.md)
+
+## Additional Resources
+
+- [Configuration Examples](./telemetry-config-examples.properties) - Complete configuration examples for various deployment scenarios
+- [Verification Script](./verify-telemetry.sh) - Script to verify your telemetry setup is working correctly
