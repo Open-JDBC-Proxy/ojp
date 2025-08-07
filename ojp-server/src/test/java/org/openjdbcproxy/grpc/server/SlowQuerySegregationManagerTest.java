@@ -13,8 +13,8 @@ public class SlowQuerySegregationManagerTest {
 
     @BeforeEach
     public void setUp() {
-        // 10 total slots, 20% slow (2 slots), 100ms idle timeout, enabled
-        segregationManager = new SlowQuerySegregationManager(10, 20, 100, true);
+        // 10 total slots, 20% slow (2 slots), 100ms idle timeout, 120000ms slow timeout, 60000ms fast timeout, enabled
+        segregationManager = new SlowQuerySegregationManager(10, 20, 100, 120000, 60000, true);
     }
 
     @Test
@@ -27,7 +27,7 @@ public class SlowQuerySegregationManagerTest {
 
     @Test
     public void testDisabledManager() {
-        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, false);
+        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 120000, 60000, false);
         
         assertFalse(disabledManager.isEnabled());
         assertNotNull(disabledManager.getPerformanceMonitor());
@@ -56,7 +56,7 @@ public class SlowQuerySegregationManagerTest {
 
     @Test
     public void testExecuteWithSegregationDisabled() throws Exception {
-        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, false);
+        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 120000, 60000, false);
         String operationHash = "test-operation";
         String expectedResult = "operation-result";
         

@@ -86,7 +86,7 @@ public class SlowQuerySegregationManualTest {
     private static void testSlowQuerySegregationManager() throws Exception {
         System.out.println("\n--- Testing SlowQuerySegregationManager ---");
         
-        SlowQuerySegregationManager manager = new SlowQuerySegregationManager(10, 20, 100, true);
+        SlowQuerySegregationManager manager = new SlowQuerySegregationManager(10, 20, 100, 120000, 60000, true);
         
         assert manager.isEnabled() : "Manager should be enabled";
         
@@ -106,7 +106,7 @@ public class SlowQuerySegregationManualTest {
         assert avgTime > 40 : "Average time should be greater than 40ms";
         
         // Test disabled manager
-        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, false);
+        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 120000, 60000, false);
         assert !disabledManager.isEnabled() : "Manager should be disabled";
         
         result = disabledManager.executeWithSegregation(operationHash, () -> "disabled-success");

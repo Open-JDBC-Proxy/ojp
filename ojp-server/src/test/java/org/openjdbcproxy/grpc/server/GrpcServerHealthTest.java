@@ -103,7 +103,7 @@ class GrpcServerHealthTest {
     }
 
     private void startServer() {
-		virtualThreadExecutor = Executors.newVirtualThreadPerTaskExecutor();
+        virtualThreadExecutor = Executors.newCachedThreadPool();
         virtualThreadExecutor.submit(() -> {
             try {
                 String[] args = {};

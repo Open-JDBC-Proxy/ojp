@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ConnectionPoolServerConfigurationTest {
 
     private StatementServiceImpl createTestStatementServiceImpl() {
-        SlowQuerySegregationManager testManager = new SlowQuerySegregationManager(1, 0, 0, false);
-        return new StatementServiceImpl(null, null, testManager);
+        ServerConfiguration testConfig = new ServerConfiguration();
+        return new StatementServiceImpl(null, null, testConfig);
     }
 
     @Test

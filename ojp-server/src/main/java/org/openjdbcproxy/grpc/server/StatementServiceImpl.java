@@ -107,7 +107,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
-    private final SlowQuerySegregationManager slowQuerySegregationManager;
+    private final ServerConfiguration serverConfiguration;
+    private final Map<String, SlowQuerySegregationManager> segregationManagerMap = new ConcurrentHashMap<>();
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
     private final Map<String, DbName> dbNameMap = new ConcurrentHashMap<>();
 
@@ -135,8 +136,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             ds = new HikariDataSource(config);
             this.datasourceMap.put(connHash, ds);
             
-            // Update slow query segregation manager with actual pool size
-            updateSlotManagerPoolSize(config.getMaximumPoolSize());
+            // Create slow query segregation manager for this datasource
+            createSegregationManagerForDatasource(connHash, config.getMaximumPoolSize());
         }
 
         this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
@@ -161,8 +162,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         try {
             circuitBreaker.preCheck(stmtHash);
             
+            // Get the appropriate segregation manager for this connection
+            String connHash = request.getSession().getConnHash();
+            SlowQuerySegregationManager segregationManager = getSegregationManagerForConnection(connHash);
+            
             // Execute with slow query segregation
-            OpResult result = slowQuerySegregationManager.executeWithSegregation(stmtHash, () -> {
+            OpResult result = segregationManager.executeWithSegregation(stmtHash, () -> {
                 return executeUpdateInternal(request);
             });
             
@@ -287,8 +292,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         try {
             circuitBreaker.preCheck(stmtHash);
             
+            // Get the appropriate segregation manager for this connection
+            String connHash = request.getSession().getConnHash();
+            SlowQuerySegregationManager segregationManager = getSegregationManagerForConnection(connHash);
+            
             // Execute with slow query segregation
-            slowQuerySegregationManager.executeWithSegregation(stmtHash, () -> {
+            segregationManager.executeWithSegregation(stmtHash, () -> {
                 executeQueryInternal(request, responseObserver);
                 return null; // Void return for query execution
             });
@@ -1178,19 +1187,42 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
 
     /**
-     * Updates the slot manager with the actual connection pool size.
+     * Gets the appropriate slow query segregation manager for a connection hash.
+     * Returns a disabled manager if none exists for the connection.
+     */
+    private SlowQuerySegregationManager getSegregationManagerForConnection(String connHash) {
+        SlowQuerySegregationManager manager = segregationManagerMap.get(connHash);
+        if (manager == null) {
+            // Create a disabled manager as fallback
+            manager = new SlowQuerySegregationManager(1, 0, 0, 0, 0, false);
+            log.warn("No segregation manager found for connection {}, using disabled fallback", connHash);
+        }
+        return manager;
+    }
+
+    /**
+     * Creates a slow query segregation manager for a specific datasource.
      * This is called when a new connection pool is created.
      */
-    private void updateSlotManagerPoolSize(int actualPoolSize) {
-        if (slowQuerySegregationManager.isEnabled() && slowQuerySegregationManager.getSlotManager() != null) {
-            SlotManager currentSlotManager = slowQuerySegregationManager.getSlotManager();
-            if (actualPoolSize > currentSlotManager.getTotalSlots()) {
-                log.info("Updating slot manager pool size from {} to {} based on HikariCP configuration", 
-                        currentSlotManager.getTotalSlots(), actualPoolSize);
-                // Note: In a real implementation, we might want to create a new SlotManager
-                // For now, we'll log this information. The current SlotManager is still functional
-                // with the default size.
-            }
+    private void createSegregationManagerForDatasource(String connHash, int actualPoolSize) {
+        if (serverConfiguration.isSlowQuerySegregationEnabled()) {
+            SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
+                actualPoolSize,
+                serverConfiguration.getSlowQuerySlotPercentage(),
+                serverConfiguration.getSlowQueryIdleTimeout(),
+                serverConfiguration.getSlowQuerySlowSlotTimeout(),
+                serverConfiguration.getSlowQueryFastSlotTimeout(),
+                true
+            );
+            segregationManagerMap.put(connHash, manager);
+            log.info("Created SlowQuerySegregationManager for datasource {} with pool size {}", connHash, actualPoolSize);
+        } else {
+            // Create disabled manager
+            SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
+                1, 0, 0, 0, 0, false
+            );
+            segregationManagerMap.put(connHash, manager);
+            log.info("Created disabled SlowQuerySegregationManager for datasource {}", connHash);
         }
     }
 
