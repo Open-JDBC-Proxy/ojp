@@ -17,10 +17,15 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class ConnectionPoolServerConfigurationTest {
 
+    private StatementServiceImpl createTestStatementServiceImpl() {
+        ServerConfiguration testConfig = new ServerConfiguration();
+        return new StatementServiceImpl(null, null, testConfig);
+    }
+
     @Test
     public void testHikariConfigurationWithClientProperties() throws Exception {
         // Create a StatementServiceImpl instance
-        StatementServiceImpl serviceImpl = new StatementServiceImpl(null, null);
+        StatementServiceImpl serviceImpl = createTestStatementServiceImpl();
         
         // Create test properties that a client would send
         Properties clientProperties = new Properties();
@@ -64,7 +69,7 @@ public class ConnectionPoolServerConfigurationTest {
     @Test
     public void testHikariConfigurationWithoutClientProperties() throws Exception {
         // Create a StatementServiceImpl instance
-        StatementServiceImpl serviceImpl = new StatementServiceImpl(null, null);
+        StatementServiceImpl serviceImpl = createTestStatementServiceImpl();
         
         // Create ConnectionDetails without properties
         ConnectionDetails connectionDetails = ConnectionDetails.newBuilder()
@@ -96,7 +101,7 @@ public class ConnectionPoolServerConfigurationTest {
     @Test
     public void testHikariConfigurationWithInvalidProperties() throws Exception {
         // Create a StatementServiceImpl instance
-        StatementServiceImpl serviceImpl = new StatementServiceImpl(null, null);
+        StatementServiceImpl serviceImpl = createTestStatementServiceImpl();
         
         // Create test properties with invalid values
         Properties clientProperties = new Properties();

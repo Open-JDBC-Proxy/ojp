@@ -68,6 +68,7 @@ If Docker is not available in your environment, you can build and run OJP Server
 - [Get started: Spring Boot, Quarkus and Micronaut](documents/java-frameworks) - Framework-specific integration guides and examples.
 - [Connection Pool Configuration](documents/configuration/CONNECTION_POOL_CONFIG.md) - OJP connection pool settings and tuning parameters.
 - [OJP Server Configuration](documents/configuration/ojp-server-configuration.md) - Server startup options and runtime configuration.
+- [Slow Query Segregation](documents/designs/SLOW_QUERY_SEGREGATION.md) - Performance feature for managing slow and fast operations with per-datasource isolation.
 - [Telemetry and Observability](documents/telemetry/README.md) - OpenTelemetry integration and monitoring setup.
 
 ## High Level Design

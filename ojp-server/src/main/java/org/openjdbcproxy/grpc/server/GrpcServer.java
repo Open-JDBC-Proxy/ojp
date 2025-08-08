@@ -5,6 +5,7 @@ import io.grpc.ServerBuilder;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.netty.NettyServerBuilder;
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
+import org.openjdbcproxy.constants.CommonConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +53,8 @@ public class GrpcServer {
                 .keepAliveTime(config.getConnectionIdleTimeout(), TimeUnit.MILLISECONDS)
                 .addService(new StatementServiceImpl(
                         new SessionManagerImpl(),
-                        new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold())
+                        new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
+                        config
                 ))
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
                 .intercept(grpcTelemetry.newServerInterceptor());

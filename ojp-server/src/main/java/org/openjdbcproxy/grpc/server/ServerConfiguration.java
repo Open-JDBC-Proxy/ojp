@@ -29,6 +29,11 @@ public class ServerConfiguration {
     private static final String PROMETHEUS_ALLOWED_IPS_KEY = "ojp.prometheus.allowedIps";
     private static final String CIRCUIT_BREAKER_TIMEOUT_KEY = "ojp.server.circuitBreakerTimeout";
     private static final String CIRCUIT_BREAKER_THRESHOLD_KEY = "ojp.server.circuitBreakerThreshold";
+    private static final String SLOW_QUERY_SEGREGATION_ENABLED_KEY = "ojp.server.slowQuerySegregation.enabled";
+    private static final String SLOW_QUERY_SLOT_PERCENTAGE_KEY = "ojp.server.slowQuerySegregation.slowSlotPercentage";
+    private static final String SLOW_QUERY_IDLE_TIMEOUT_KEY = "ojp.server.slowQuerySegregation.idleTimeout";
+    private static final String SLOW_QUERY_SLOW_SLOT_TIMEOUT_KEY = "ojp.server.slowQuerySegregation.slowSlotTimeout";
+    private static final String SLOW_QUERY_FAST_SLOT_TIMEOUT_KEY = "ojp.server.slowQuerySegregation.fastSlotTimeout";
 
     // Default values
     public static final int DEFAULT_SERVER_PORT = CommonConstants.DEFAULT_PORT_NUMBER;
@@ -44,6 +49,11 @@ public class ServerConfiguration {
     public static final List<String> DEFAULT_PROMETHEUS_ALLOWED_IPS = List.of(IpWhitelistValidator.ALLOW_ALL_IPS); // Allow all by default
     public static final long DEFAULT_CIRCUIT_BREAKER_TIMEOUT = 60000; // 60 seconds
     public static final int DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 3; // 3 failures before opening the circuit breaker.
+    public static final boolean DEFAULT_SLOW_QUERY_SEGREGATION_ENABLED = true; // Enable slow query segregation by default
+    public static final int DEFAULT_SLOW_QUERY_SLOT_PERCENTAGE = 20; // 20% of slots for slow queries
+    public static final long DEFAULT_SLOW_QUERY_IDLE_TIMEOUT = 10000; // 10 seconds idle timeout
+    public static final long DEFAULT_SLOW_QUERY_SLOW_SLOT_TIMEOUT = 120000; // 120 seconds slow slot timeout
+    public static final long DEFAULT_SLOW_QUERY_FAST_SLOT_TIMEOUT = 60000; // 60 seconds fast slot timeout
 
     // Configuration values
     private final int serverPort;
@@ -59,6 +69,11 @@ public class ServerConfiguration {
     private final List<String> prometheusAllowedIps;
     private final long circuitBreakerTimeout;
     private final int circuitBreakerThreshold;
+    private final boolean slowQuerySegregationEnabled;
+    private final int slowQuerySlotPercentage;
+    private final long slowQueryIdleTimeout;
+    private final long slowQuerySlowSlotTimeout;
+    private final long slowQueryFastSlotTimeout;
 
     public ServerConfiguration() {
         this.serverPort = getIntProperty(SERVER_PORT_KEY, DEFAULT_SERVER_PORT);
@@ -74,7 +89,11 @@ public class ServerConfiguration {
         this.prometheusAllowedIps = getListProperty(PROMETHEUS_ALLOWED_IPS_KEY, DEFAULT_PROMETHEUS_ALLOWED_IPS);
         this.circuitBreakerTimeout = getLongProperty(CIRCUIT_BREAKER_TIMEOUT_KEY, DEFAULT_CIRCUIT_BREAKER_TIMEOUT);
         this.circuitBreakerThreshold = getIntProperty(CIRCUIT_BREAKER_THRESHOLD_KEY, DEFAULT_CIRCUIT_BREAKER_THRESHOLD);
-
+        this.slowQuerySegregationEnabled = getBooleanProperty(SLOW_QUERY_SEGREGATION_ENABLED_KEY, DEFAULT_SLOW_QUERY_SEGREGATION_ENABLED);
+        this.slowQuerySlotPercentage = getIntProperty(SLOW_QUERY_SLOT_PERCENTAGE_KEY, DEFAULT_SLOW_QUERY_SLOT_PERCENTAGE);
+        this.slowQueryIdleTimeout = getLongProperty(SLOW_QUERY_IDLE_TIMEOUT_KEY, DEFAULT_SLOW_QUERY_IDLE_TIMEOUT);
+        this.slowQuerySlowSlotTimeout = getLongProperty(SLOW_QUERY_SLOW_SLOT_TIMEOUT_KEY, DEFAULT_SLOW_QUERY_SLOW_SLOT_TIMEOUT);
+        this.slowQueryFastSlotTimeout = getLongProperty(SLOW_QUERY_FAST_SLOT_TIMEOUT_KEY, DEFAULT_SLOW_QUERY_FAST_SLOT_TIMEOUT);
 
         logConfigurationSummary();
     }
@@ -168,6 +187,11 @@ public class ServerConfiguration {
         logger.info("  Prometheus Allowed IPs: {}", prometheusAllowedIps);
         logger.info("  Circuit Breaker Timeout: {} ms", circuitBreakerTimeout);
         logger.info("  Circuit Breaker Threshold: {} ", circuitBreakerThreshold);
+        logger.info("  Slow Query Segregation Enabled: {}", slowQuerySegregationEnabled);
+        logger.info("  Slow Query Slot Percentage: {}%", slowQuerySlotPercentage);
+        logger.info("  Slow Query Idle Timeout: {} ms", slowQueryIdleTimeout);
+        logger.info("  Slow Query Slow Slot Timeout: {} ms", slowQuerySlowSlotTimeout);
+        logger.info("  Slow Query Fast Slot Timeout: {} ms", slowQueryFastSlotTimeout);
     }
 
     // Getters
@@ -221,5 +245,25 @@ public class ServerConfiguration {
 
     public int getCircuitBreakerThreshold() {
         return circuitBreakerThreshold;
+    }
+
+    public boolean isSlowQuerySegregationEnabled() {
+        return slowQuerySegregationEnabled;
+    }
+
+    public int getSlowQuerySlotPercentage() {
+        return slowQuerySlotPercentage;
+    }
+
+    public long getSlowQueryIdleTimeout() {
+        return slowQueryIdleTimeout;
+    }
+
+    public long getSlowQuerySlowSlotTimeout() {
+        return slowQuerySlowSlotTimeout;
+    }
+
+    public long getSlowQueryFastSlotTimeout() {
+        return slowQueryFastSlotTimeout;
     }
 }

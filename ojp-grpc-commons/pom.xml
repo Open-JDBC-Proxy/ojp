@@ -15,8 +15,8 @@
     </parent>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
 
         <grpc.version>1.73.0</grpc.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>

@@ -107,6 +107,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
+    private final ServerConfiguration serverConfiguration;
+    private final Map<String, SlowQuerySegregationManager> segregationManagerMap = new ConcurrentHashMap<>();
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
     private final Map<String, DbName> dbNameMap = new ConcurrentHashMap<>();
 
@@ -133,6 +135,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             ds = new HikariDataSource(config);
             this.datasourceMap.put(connHash, ds);
+            
+            // Create slow query segregation manager for this datasource
+            createSegregationManagerForDatasource(connHash, config.getMaximumPoolSize());
         }
 
         this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
@@ -153,7 +158,48 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     public void executeUpdate(StatementRequest request, StreamObserver<OpResult> responseObserver) {
         log.info("Executing update {}", request.getSql());
         String stmtHash = SqlStatementXXHash.hashSqlQuery(request.getSql());
-        circuitBreaker.preCheck(stmtHash);
+        
+        try {
+            circuitBreaker.preCheck(stmtHash);
+            
+            // Get the appropriate segregation manager for this connection
+            String connHash = request.getSession().getConnHash();
+            SlowQuerySegregationManager segregationManager = getSegregationManagerForConnection(connHash);
+            
+            // Execute with slow query segregation
+            OpResult result = segregationManager.executeWithSegregation(stmtHash, () -> {
+                return executeUpdateInternal(request);
+            });
+            
+            responseObserver.onNext(result);
+            responseObserver.onCompleted();
+            circuitBreaker.onSuccess(stmtHash);
+            
+        } catch (SQLDataException e) {
+            circuitBreaker.onFailure(stmtHash, e);
+            log.error("SQL data failure during update execution: " + e.getMessage(), e);
+            sendSQLExceptionMetadata(e, responseObserver, SqlErrorType.SQL_DATA_EXCEPTION);
+        } catch (SQLException e) {
+            circuitBreaker.onFailure(stmtHash, e);
+            log.error("Failure during update execution: " + e.getMessage(), e);
+            sendSQLExceptionMetadata(e, responseObserver);
+        } catch (Exception e) {
+            log.error("Unexpected failure during update execution: " + e.getMessage(), e);
+            if (e.getCause() instanceof SQLException) {
+                circuitBreaker.onFailure(stmtHash, (SQLException) e.getCause());
+                sendSQLExceptionMetadata((SQLException) e.getCause(), responseObserver);
+            } else {
+                SQLException sqlException = new SQLException("Unexpected error: " + e.getMessage(), e);
+                circuitBreaker.onFailure(stmtHash, sqlException);
+                sendSQLExceptionMetadata(sqlException, responseObserver);
+            }
+        }
+    }
+    
+    /**
+     * Internal method for executing updates without segregation logic.
+     */
+    private OpResult executeUpdateInternal(StatementRequest request) throws SQLException {
         int updated = 0;
         SessionInfo returnSessionInfo = request.getSession();
         ConnectionSessionDTO dto = ConnectionSessionDTO.builder().build();
@@ -209,39 +255,30 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             }
 
             if (StatementRequestValidator.isAddBatchOperation(request)) {
-                responseObserver.onNext(opResultBuilder
+                return opResultBuilder
                         .setType(ResultType.UUID_STRING)
                         .setSession(returnSessionInfo)
-                        .setValue(ByteString.copyFrom(serialize(psUUID))).build());
+                        .setValue(ByteString.copyFrom(serialize(psUUID))).build();
             } else {
-                responseObserver.onNext(opResultBuilder
+                return opResultBuilder
                         .setType(ResultType.INTEGER)
                         .setSession(returnSessionInfo)
-                        .setValue(ByteString.copyFrom(serialize(updated))).build());
+                        .setValue(ByteString.copyFrom(serialize(updated))).build();
             }
-            responseObserver.onCompleted();
-            circuitBreaker.onSuccess(stmtHash);
-        } catch (SQLDataException e) {// Need a second catch just for the acquisition of the connection
-            circuitBreaker.onFailure(stmtHash, e);
-            log.error("SQL data failure during update execution: " + e.getMessage(), e);
-            sendSQLExceptionMetadata(e, responseObserver, SqlErrorType.SQL_DATA_EXCEPTION);
-        } catch (SQLException e) {// Need a second catch just for the acquisition of the connection
-            circuitBreaker.onFailure(stmtHash, e);
-            log.error("Failure during update execution: " + e.getMessage(), e);
-            sendSQLExceptionMetadata(e, responseObserver);
         } finally {
             //If there is no session, close statement and connection
             if (dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) {
-                assert stmt != null;
-                try {
-                    stmt.close();
-                } catch (SQLException e) {
-                    log.error("Failure closing statement: " + e.getMessage(), e);
-                }
-                try {
-                    stmt.getConnection().close();
-                } catch (SQLException e) {
-                    log.error("Failure closing connection: " + e.getMessage(), e);
+                if (stmt != null) {
+                    try {
+                        stmt.close();
+                    } catch (SQLException e) {
+                        log.error("Failure closing statement: " + e.getMessage(), e);
+                    }
+                    try {
+                        stmt.getConnection().close();
+                    } catch (SQLException e) {
+                        log.error("Failure closing connection: " + e.getMessage(), e);
+                    }
                 }
             }
         }
@@ -251,26 +288,54 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     public void executeQuery(StatementRequest request, StreamObserver<OpResult> responseObserver) {
         log.info("Executing query for {}", request.getSql());
         String stmtHash = SqlStatementXXHash.hashSqlQuery(request.getSql());
+        
         try {
             circuitBreaker.preCheck(stmtHash);
-            ConnectionSessionDTO dto = this.sessionConnection(request.getSession(), true);
-
-            List<Parameter> params = deserialize(request.getParameters().toByteArray(), List.class);
-            if (CollectionUtils.isNotEmpty(params)) {
-                PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params, request);
-                String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
-                this.handleResultSet(dto.getSession(), resultSetUUID, responseObserver);
-            } else {
-                Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
-                String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(),
-                        stmt.executeQuery(request.getSql()));
-                this.handleResultSet(dto.getSession(), resultSetUUID, responseObserver);
-            }
+            
+            // Get the appropriate segregation manager for this connection
+            String connHash = request.getSession().getConnHash();
+            SlowQuerySegregationManager segregationManager = getSegregationManagerForConnection(connHash);
+            
+            // Execute with slow query segregation
+            segregationManager.executeWithSegregation(stmtHash, () -> {
+                executeQueryInternal(request, responseObserver);
+                return null; // Void return for query execution
+            });
+            
             circuitBreaker.onSuccess(stmtHash);
         } catch (SQLException e) {
             circuitBreaker.onFailure(stmtHash, e);
             log.error("Failure during query execution: " + e.getMessage(), e);
             sendSQLExceptionMetadata(e, responseObserver);
+        } catch (Exception e) {
+            log.error("Unexpected failure during query execution: " + e.getMessage(), e);
+            if (e.getCause() instanceof SQLException) {
+                circuitBreaker.onFailure(stmtHash, (SQLException) e.getCause());
+                sendSQLExceptionMetadata((SQLException) e.getCause(), responseObserver);
+            } else {
+                SQLException sqlException = new SQLException("Unexpected error: " + e.getMessage(), e);
+                circuitBreaker.onFailure(stmtHash, sqlException);
+                sendSQLExceptionMetadata(sqlException, responseObserver);
+            }
+        }
+    }
+    
+    /**
+     * Internal method for executing queries without segregation logic.
+     */
+    private void executeQueryInternal(StatementRequest request, StreamObserver<OpResult> responseObserver) throws SQLException {
+        ConnectionSessionDTO dto = this.sessionConnection(request.getSession(), true);
+
+        List<Parameter> params = deserialize(request.getParameters().toByteArray(), List.class);
+        if (CollectionUtils.isNotEmpty(params)) {
+            PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params, request);
+            String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
+            this.handleResultSet(dto.getSession(), resultSetUUID, responseObserver);
+        } else {
+            Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
+            String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(),
+                    stmt.executeQuery(request.getSql()));
+            this.handleResultSet(dto.getSession(), resultSetUUID, responseObserver);
         }
     }
 
@@ -1119,6 +1184,46 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private void collectResultSetMetadata(SessionInfo session, String resultSetUUID, ResultSet rs) {
         this.sessionManager.registerAttr(session, RESULT_SET_METADATA_ATTR_PREFIX +
                 resultSetUUID, new HydratedResultSetMetadata(rs.getMetaData()));
+    }
+
+    /**
+     * Gets the appropriate slow query segregation manager for a connection hash.
+     * Returns a disabled manager if none exists for the connection.
+     */
+    private SlowQuerySegregationManager getSegregationManagerForConnection(String connHash) {
+        SlowQuerySegregationManager manager = segregationManagerMap.get(connHash);
+        if (manager == null) {
+            // Create a disabled manager as fallback
+            manager = new SlowQuerySegregationManager(1, 0, 0, 0, 0, false);
+            log.warn("No segregation manager found for connection {}, using disabled fallback", connHash);
+        }
+        return manager;
+    }
+
+    /**
+     * Creates a slow query segregation manager for a specific datasource.
+     * This is called when a new connection pool is created.
+     */
+    private void createSegregationManagerForDatasource(String connHash, int actualPoolSize) {
+        if (serverConfiguration.isSlowQuerySegregationEnabled()) {
+            SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
+                actualPoolSize,
+                serverConfiguration.getSlowQuerySlotPercentage(),
+                serverConfiguration.getSlowQueryIdleTimeout(),
+                serverConfiguration.getSlowQuerySlowSlotTimeout(),
+                serverConfiguration.getSlowQueryFastSlotTimeout(),
+                true
+            );
+            segregationManagerMap.put(connHash, manager);
+            log.info("Created SlowQuerySegregationManager for datasource {} with pool size {}", connHash, actualPoolSize);
+        } else {
+            // Create disabled manager
+            SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
+                1, 0, 0, 0, 0, false
+            );
+            segregationManagerMap.put(connHash, manager);
+            log.info("Created disabled SlowQuerySegregationManager for datasource {}", connHash);
+        }
     }
 
     /**
