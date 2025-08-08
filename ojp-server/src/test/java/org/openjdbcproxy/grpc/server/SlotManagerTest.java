@@ -13,8 +13,9 @@ public class SlotManagerTest {
 
     @BeforeEach
     public void setUp() {
-        // 10 total slots, 20% slow (2 slots), 80% fast (8 slots), 100ms idle timeout
-        slotManager = new SlotManager(10, 20, 100);
+        // 10 total slots, 20% slow (2 slots), 80% fast (8 slots), 10 second idle timeout
+        // Long timeout prevents borrowing in basic slot limit tests
+        slotManager = new SlotManager(10, 20, 10000);
     }
 
     @Test
@@ -22,7 +23,7 @@ public class SlotManagerTest {
         assertEquals(10, slotManager.getTotalSlots());
         assertEquals(2, slotManager.getSlowSlots());
         assertEquals(8, slotManager.getFastSlots());
-        assertEquals(100, slotManager.getIdleTimeoutMs());
+        assertEquals(10000, slotManager.getIdleTimeoutMs());
         assertTrue(slotManager.isEnabled());
         assertEquals(0, slotManager.getActiveSlowOperations());
         assertEquals(0, slotManager.getActiveFastOperations());
@@ -98,41 +99,47 @@ public class SlotManagerTest {
 
     @Test
     public void testSlotBorrowingFastToSlow() throws InterruptedException {
+        // Create a SlotManager with short idle timeout for borrowing tests
+        SlotManager borrowingManager = new SlotManager(10, 20, 100);
+        
         // Fill up slow slots
-        assertTrue(slotManager.acquireSlowSlot(1000));
-        assertTrue(slotManager.acquireSlowSlot(1000));
-        assertEquals(2, slotManager.getActiveSlowOperations());
+        assertTrue(borrowingManager.acquireSlowSlot(1000));
+        assertTrue(borrowingManager.acquireSlowSlot(1000));
+        assertEquals(2, borrowingManager.getActiveSlowOperations());
 
         // Try to acquire another slow slot immediately (should fail - no idle time yet)
-        assertFalse(slotManager.acquireSlowSlot(100));
+        assertFalse(borrowingManager.acquireSlowSlot(100));
 
         // Wait for idle timeout and try again (should still fail because fast slots aren't idle)
         Thread.sleep(150);
-        assertFalse(slotManager.acquireSlowSlot(100));
+        assertFalse(borrowingManager.acquireSlowSlot(100));
 
         // Release slow slots for cleanup
-        slotManager.releaseSlowSlot();
-        slotManager.releaseSlowSlot();
+        borrowingManager.releaseSlowSlot();
+        borrowingManager.releaseSlowSlot();
     }
 
     @Test
     public void testSlotBorrowingSlowToFast() throws InterruptedException {
+        // Create a SlotManager with short idle timeout for borrowing tests
+        SlotManager borrowingManager = new SlotManager(10, 20, 100);
+        
         // Fill up fast slots
         for (int i = 0; i < 8; i++) {
-            assertTrue(slotManager.acquireFastSlot(1000));
+            assertTrue(borrowingManager.acquireFastSlot(1000));
         }
-        assertEquals(8, slotManager.getActiveFastOperations());
+        assertEquals(8, borrowingManager.getActiveFastOperations());
 
         // Try to acquire another fast slot immediately (should fail - no idle time yet)
-        assertFalse(slotManager.acquireFastSlot(100));
+        assertFalse(borrowingManager.acquireFastSlot(100));
 
         // Wait for idle timeout and try again (should still fail because slow slots aren't idle)
         Thread.sleep(150);
-        assertFalse(slotManager.acquireFastSlot(100));
+        assertFalse(borrowingManager.acquireFastSlot(100));
 
         // Release fast slots for cleanup
         for (int i = 0; i < 8; i++) {
-            slotManager.releaseFastSlot();
+            borrowingManager.releaseFastSlot();
         }
     }
 

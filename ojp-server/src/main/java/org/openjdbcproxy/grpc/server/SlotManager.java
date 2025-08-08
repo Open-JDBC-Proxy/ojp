@@ -38,6 +38,8 @@ public class SlotManager {
     // Idle time tracking
     private final AtomicLong lastSlowActivity = new AtomicLong(System.currentTimeMillis());
     private final AtomicLong lastFastActivity = new AtomicLong(System.currentTimeMillis());
+    private final AtomicBoolean slowPoolEverActive = new AtomicBoolean(false);
+    private final AtomicBoolean fastPoolEverActive = new AtomicBoolean(false);
     
     // Configuration
     private final AtomicBoolean enabled = new AtomicBoolean(true);
@@ -88,6 +90,7 @@ public class SlotManager {
         }
         
         lastSlowActivity.set(System.currentTimeMillis());
+        slowPoolEverActive.set(true);
         
         // Try to acquire from slow pool first
         if (slowOperationSemaphore.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
@@ -124,6 +127,7 @@ public class SlotManager {
         }
         
         lastFastActivity.set(System.currentTimeMillis());
+        fastPoolEverActive.set(true);
         
         // Try to acquire from fast pool first
         if (fastOperationSemaphore.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
@@ -201,10 +205,11 @@ public class SlotManager {
     private boolean canBorrowFromFastToSlow() {
         long currentTime = System.currentTimeMillis();
         long fastIdleTime = currentTime - lastFastActivity.get();
-        boolean hasAvailableSlots = fastOperationSemaphore.availablePermits() > 0;
+        boolean hasAvailableSlots = fastOperationSemaphore.availablePermits() > 1;
         boolean isIdle = fastIdleTime >= idleTimeoutMs;
+        boolean wasEverActive = fastPoolEverActive.get();
         
-        return hasAvailableSlots && isIdle;
+        return hasAvailableSlots && isIdle && wasEverActive;
     }
     
     /**
@@ -213,10 +218,11 @@ public class SlotManager {
     private boolean canBorrowFromSlowToFast() {
         long currentTime = System.currentTimeMillis();
         long slowIdleTime = currentTime - lastSlowActivity.get();
-        boolean hasAvailableSlots = slowOperationSemaphore.availablePermits() > 0;
+        boolean hasAvailableSlots = slowOperationSemaphore.availablePermits() > 1;
         boolean isIdle = slowIdleTime >= idleTimeoutMs;
+        boolean wasEverActive = slowPoolEverActive.get();
         
-        return hasAvailableSlots && isIdle;
+        return hasAvailableSlots && isIdle && wasEverActive;
     }
     
     /**

@@ -41,6 +41,8 @@ ojp.server.slowQuerySegregation.slowSlotPercentage=20
 ojp.server.slowQuerySegregation.idleTimeout=10000
 ```
 
+📖 **[Complete Configuration Example](ojp-server-slow-query-example.properties)** - Full server configuration file with all available slow query segregation settings.
+
 ## Benefits
 
 1. **Prevents Resource Starvation**: Fast operations aren't blocked by slow ones
