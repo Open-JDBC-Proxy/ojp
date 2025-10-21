@@ -22,6 +22,7 @@ import com.openjproxy.grpc.StatementServiceGrpc;
 import com.openjproxy.grpc.TargetCall;
 import com.openjproxy.grpc.TransactionInfo;
 import com.openjproxy.grpc.TransactionStatus;
+import com.atomikos.jdbc.AtomikosDataSourceBean;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.grpc.stub.ServerCallStreamObserver;
@@ -40,6 +41,8 @@ import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.utils.DriverUtils;
+import org.openjproxy.grpc.server.pool.AtomikosDataSourceFactory;
+import org.openjproxy.grpc.server.pool.AtomikosLifecycle;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
@@ -53,6 +56,7 @@ import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.lob.LobProcessor;
 import org.openjproxy.grpc.server.utils.StatementRequestValidator;
 
+import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
 import java.io.ByteArrayInputStream;
@@ -107,7 +111,8 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 @RequiredArgsConstructor
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
 
-    private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
+    // Changed to Object to support both HikariDataSource and AtomikosDataSourceBean
+    private final Map<String, Object> datasourceMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
     
@@ -131,26 +136,62 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         String connHash = ConnectionHashGenerator.hashConnectionDetails(connectionDetails);
         log.info("connect connHash = {}, isXA = {}", connHash, connectionDetails.getIsXA());
 
-        HikariDataSource ds = this.datasourceMap.get(connHash);
+        Object ds = this.datasourceMap.get(connHash);
         if (ds == null) {
             try {
-                HikariConfig config = new HikariConfig();
-                config.setJdbcUrl(UrlParser.parseUrl(connectionDetails.getUrl()));
-                config.setUsername(connectionDetails.getUser());
-                config.setPassword(connectionDetails.getPassword());
+                if (connectionDetails.getIsXA()) {
+                    // Create Atomikos XA datasource
+                    log.info("Creating Atomikos XA datasource for connHash: {}", connHash);
+                    
+                    // Initialize Atomikos lifecycle if not already done
+                    AtomikosDataSourceFactory.AtomikosConfig atomikosConfig = 
+                            AtomikosDataSourceFactory.getAtomikosConfig(connectionDetails);
+                    AtomikosLifecycle.initialize(atomikosConfig.isLoggingEnabled(), atomikosConfig.getLogDir());
+                    
+                    // Create XADataSource using existing method
+                    String url = connectionDetails.getUrl();
+                    XADataSource xaDataSource = createXADataSource(url, connectionDetails);
+                    
+                    // Create unique resource name for Atomikos
+                    String uniqueResourceName = "ojp-xa-" + connHash.substring(0, Math.min(20, connHash.length()));
+                    
+                    // Create Atomikos datasource bean
+                    AtomikosDataSourceBean atomikosDS = AtomikosDataSourceFactory.createAtomikosDataSource(
+                            connectionDetails, xaDataSource, uniqueResourceName);
+                    
+                    // Initialize the datasource
+                    atomikosDS.init();
+                    
+                    ds = atomikosDS;
+                    this.datasourceMap.put(connHash, ds);
+                    
+                    // Create a slow query segregation manager for this datasource
+                    createSlowQuerySegregationManagerForDatasource(connHash, atomikosDS.getMaxPoolSize());
+                    
+                    log.info("Created new Atomikos XA datasource with connHash: {}, maxPoolSize: {}", 
+                            connHash, atomikosDS.getMaxPoolSize());
+                    
+                } else {
+                    // Create regular HikariCP datasource
+                    HikariConfig config = new HikariConfig();
+                    config.setJdbcUrl(UrlParser.parseUrl(connectionDetails.getUrl()));
+                    config.setUsername(connectionDetails.getUser());
+                    config.setPassword(connectionDetails.getPassword());
 
-                // Configure HikariCP using datasource-specific configuration
-                DataSourceConfigurationManager.DataSourceConfiguration dsConfig = 
-                        ConnectionPoolConfigurer.configureHikariPool(config, connectionDetails);
+                    // Configure HikariCP using datasource-specific configuration
+                    DataSourceConfigurationManager.DataSourceConfiguration dsConfig = 
+                            ConnectionPoolConfigurer.configureHikariPool(config, connectionDetails);
 
-                ds = new HikariDataSource(config);
-                this.datasourceMap.put(connHash, ds);
-                
-                // Create a slow query segregation manager for this datasource
-                createSlowQuerySegregationManagerForDatasource(connHash, config.getMaximumPoolSize());
-                
-                log.info("Created new HikariDataSource for dataSource '{}' with connHash: {}", 
-                        dsConfig.getDataSourceName(), connHash);
+                    HikariDataSource hikariDS = new HikariDataSource(config);
+                    ds = hikariDS;
+                    this.datasourceMap.put(connHash, ds);
+                    
+                    // Create a slow query segregation manager for this datasource
+                    createSlowQuerySegregationManagerForDatasource(connHash, config.getMaximumPoolSize());
+                    
+                    log.info("Created new HikariDataSource for dataSource '{}' with connHash: {}", 
+                            dsConfig.getDataSourceName(), connHash);
+                }
                 
             } catch (Exception e) {
                 log.error("Failed to create datasource for connection hash {}: {}", connHash, e.getMessage(), e);
@@ -916,8 +957,13 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             //Start a session if none started yet.
             if (StringUtils.isEmpty(sessionInfo.getSessionUUID())) {
-                Connection conn = this.datasourceMap.get(sessionInfo.getConnHash()).getConnection();
-                activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                Object dataSource = this.datasourceMap.get(sessionInfo.getConnHash());
+                if (dataSource instanceof DataSource) {
+                    Connection conn = ((DataSource) dataSource).getConnection();
+                    activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                } else {
+                    throw new SQLException("Invalid datasource type");
+                }
             }
             Connection sessionConnection = sessionManager.getConnection(activeSessionInfo);
             //Start a transaction
@@ -1202,20 +1248,35 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             }
         } else {
             // Get the datasource for this connection hash
-            HikariDataSource dataSource = this.datasourceMap.get(sessionInfo.getConnHash());
+            Object dataSource = this.datasourceMap.get(sessionInfo.getConnHash());
             if (dataSource == null) {
                 throw new SQLException("No datasource found for connection hash: " + sessionInfo.getConnHash());
             }
             
             try {
-                // Use enhanced connection acquisition with timeout protection
-                conn = ConnectionAcquisitionManager.acquireConnection(dataSource, sessionInfo.getConnHash());
-                log.debug("Successfully acquired connection from pool for hash: {}", sessionInfo.getConnHash());
+                // Handle both HikariDataSource and AtomikosDataSourceBean
+                // Both implement javax.sql.DataSource, so we can use that interface
+                if (dataSource instanceof DataSource) {
+                    DataSource ds = (DataSource) dataSource;
+                    
+                    // For HikariDataSource, use enhanced connection acquisition with timeout protection
+                    if (dataSource instanceof HikariDataSource) {
+                        conn = ConnectionAcquisitionManager.acquireConnection((HikariDataSource) dataSource, sessionInfo.getConnHash());
+                        log.debug("Successfully acquired connection from Hikari pool for hash: {}", sessionInfo.getConnHash());
+                    } else {
+                        // For AtomikosDataSourceBean or other DataSource types, use standard getConnection()
+                        // This provides lazy connection allocation for XA datasources
+                        conn = ds.getConnection();
+                        log.debug("Successfully acquired connection from pool for hash: {}", sessionInfo.getConnHash());
+                    }
+                } else {
+                    throw new SQLException("Unsupported datasource type: " + dataSource.getClass().getName());
+                }
             } catch (SQLException e) {
                 log.error("Failed to acquire connection from pool for hash: {}. Error: {}",
                     sessionInfo.getConnHash(), e.getMessage());
                 
-                // Re-throw the enhanced exception from ConnectionAcquisitionManager
+                // Re-throw the exception
                 throw e;
             }
             

@@ -77,6 +77,28 @@
             <version>6.2.1</version>
         </dependency>
 
+        <!-- Atomikos for XA transaction management -->
+        <!-- https://mvnrepository.com/artifact/com.atomikos/transactions-jdbc -->
+        <dependency>
+            <groupId>com.atomikos</groupId>
+            <artifactId>transactions-jdbc</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+        
+        <!-- https://mvnrepository.com/artifact/com.atomikos/transactions-jta -->
+        <dependency>
+            <groupId>com.atomikos</groupId>
+            <artifactId>transactions-jta</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+        
+        <!-- https://mvnrepository.com/artifact/jakarta.transaction/jakarta.transaction-api -->
+        <dependency>
+            <groupId>jakarta.transaction</groupId>
+            <artifactId>jakarta.transaction-api</artifactId>
+            <version>2.0.1</version>
+        </dependency>
+
         <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-collections4 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
