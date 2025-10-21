@@ -85,6 +85,14 @@ public class GrpcServer {
                 server.shutdownNow();
                 Thread.currentThread().interrupt();
             }
+            
+            // Shutdown Atomikos transaction manager if it was initialized
+            try {
+                org.openjproxy.grpc.server.pool.AtomikosLifecycle.shutdown();
+            } catch (Exception e) {
+                logger.warn("Error shutting down Atomikos: " + e.getMessage(), e);
+            }
+            
             logger.info("OJP gRPC Server shutdown complete");
         }));
 

@@ -7,3 +7,9 @@
 
 # ignore Maven Shade Plugin generated files
 dependency-reduced-pom.xml
+
+# Atomikos transaction logs
+atomikos-logs/
+*-atomikos-logs/
+*.log
+tmlog*.log
