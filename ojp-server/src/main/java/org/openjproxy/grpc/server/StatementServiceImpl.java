@@ -102,6 +102,7 @@ import static org.openjproxy.grpc.server.Constants.EMPTY_LIST;
 import static org.openjproxy.grpc.server.Constants.EMPTY_MAP;
 import static org.openjproxy.grpc.server.Constants.EMPTY_STRING;
 import static org.openjproxy.grpc.server.Constants.SHA_256;
+import static org.openjproxy.grpc.server.Constants.UTC_CALENDAR;
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 
 @Slf4j
@@ -1327,7 +1328,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         break;
                     }
                     case Types.DATE: {
-                        Date date = rs.getDate(i + 1);
+                        Date date = rs.getDate(i + 1, UTC_CALENDAR);
                         if ("YEAR".equalsIgnoreCase(colTypeName)) {
                             currentValue = date.toLocalDate().getYear();
                         } else {
@@ -1335,8 +1336,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         }
                         break;
                     }
+                    case Types.TIME: {
+                        currentValue = rs.getTime(i + 1, UTC_CALENDAR);
+                        break;
+                    }
                     case Types.TIMESTAMP: {
-                        currentValue = rs.getTimestamp(i + 1);
+                        currentValue = rs.getTimestamp(i + 1, UTC_CALENDAR);
                         break;
                     }
                     default: {
