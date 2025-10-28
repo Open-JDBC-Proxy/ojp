@@ -136,31 +136,21 @@ jobs:
           # Verify setting (should print 100)
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
-      - name: Set up JDK ${{ matrix.java-version }} for all modules
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ matrix.java-version }}
-          distribution: 'temurin'
-          cache: maven
-
-      - name: Build and Install (ojp-grpc-commons) with JDK ${{ matrix.java-version }}
-        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
-
-      - name: Test (ojp-grpc-commons)
-        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
-
-      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
-        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
-
-      - name: Set up JDK 22 for ojp-server
+      - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
         with:
           java-version: 22
           distribution: 'temurin'
           cache: maven
 
-      - name: Build (ojp-server) with JDK 22 using existing ojp-grpc-commons
-        run: mvn clean install -pl ojp-server -DskipTests -Dgpg.skip=true
+      - name: Build and Install (ojp-grpc-commons) with JDK 22
+        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-grpc-commons) with JDK 22
+        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
+
+      - name: Build (ojp-server) with JDK 22
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Test and Run (ojp-server)
         run: mvn verify -pl ojp-server -Prun-ojp-server > /tmp/ojp-server.log 2>&1 &
@@ -174,6 +164,9 @@ jobs:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
           cache: maven
+
+      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Test (ojp-jdbc-driver)
         run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true
