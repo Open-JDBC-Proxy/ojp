@@ -1,11 +1,9 @@
 package org.openjproxy.grpc.server;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
 /**
  * Reusable constants. Mainly to save memory by creating less repeated objects.
@@ -22,5 +20,4 @@ public class Constants {
     public static final String ORACLE_DRIVER_CLASS = "oracle.jdbc.OracleDriver";
     public static final String SQLSERVER_DRIVER_CLASS = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
     public static final String DB2_DRIVER_CLASS = "com.ibm.db2.jcc.DB2Driver";
-    public static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
 }

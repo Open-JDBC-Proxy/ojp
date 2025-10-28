@@ -35,6 +35,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.input.ReaderInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
+import org.openjproxy.grpc.dto.DateTimeDTO;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
@@ -102,7 +103,6 @@ import static org.openjproxy.grpc.server.Constants.EMPTY_LIST;
 import static org.openjproxy.grpc.server.Constants.EMPTY_MAP;
 import static org.openjproxy.grpc.server.Constants.EMPTY_STRING;
 import static org.openjproxy.grpc.server.Constants.SHA_256;
-import static org.openjproxy.grpc.server.Constants.UTC_CALENDAR;
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 
 @Slf4j
@@ -1328,20 +1328,22 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         break;
                     }
                     case Types.DATE: {
-                        Date date = rs.getDate(i + 1, UTC_CALENDAR);
+                        Date date = rs.getDate(i + 1);
                         if ("YEAR".equalsIgnoreCase(colTypeName)) {
                             currentValue = date.toLocalDate().getYear();
                         } else {
-                            currentValue = date;
+                            currentValue = DateTimeDTO.fromDate(date);
                         }
                         break;
                     }
                     case Types.TIME: {
-                        currentValue = rs.getTime(i + 1, UTC_CALENDAR);
+                        Time time = rs.getTime(i + 1);
+                        currentValue = DateTimeDTO.fromTime(time);
                         break;
                     }
                     case Types.TIMESTAMP: {
-                        currentValue = rs.getTimestamp(i + 1, UTC_CALENDAR);
+                        Timestamp timestamp = rs.getTimestamp(i + 1);
+                        currentValue = DateTimeDTO.fromTimestamp(timestamp);
                         break;
                     }
                     default: {

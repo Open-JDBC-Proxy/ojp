@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.client.GrpcExceptionHandler;
 import org.openjproxy.grpc.client.StatementService;
+import org.openjproxy.grpc.dto.DateTimeDTO;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -128,25 +129,41 @@ public class CallableStatement implements java.sql.CallableStatement {
     @Override
     public Date getDate(int parameterIndex) throws SQLException {
         log.debug("getDate: {}", parameterIndex);
-        return this.callProxy(CallType.CALL_GET, "Date", Date.class, List.of(parameterIndex));
+        Object result = this.callProxy(CallType.CALL_GET, "Date", Object.class, List.of(parameterIndex));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toDate();
+        }
+        return (Date) result;
     }
 
     @Override
     public Time getTime(int parameterIndex) throws SQLException {
         log.debug("getTime: {}", parameterIndex);
-        return this.callProxy(CallType.CALL_GET, "Time", Time.class, List.of(parameterIndex));
+        Object result = this.callProxy(CallType.CALL_GET, "Time", Object.class, List.of(parameterIndex));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toTime();
+        }
+        return (Time) result;
     }
 
     @Override
     public Timestamp getTimestamp(int parameterIndex) throws SQLException {
         log.debug("getTimestamp: {}", parameterIndex);
-        return this.callProxy(CallType.CALL_GET, "Timestamp", Timestamp.class, List.of(parameterIndex));
+        Object result = this.callProxy(CallType.CALL_GET, "Timestamp", Object.class, List.of(parameterIndex));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toTimestamp();
+        }
+        return (Timestamp) result;
     }
 
     @Override
     public Object getObject(int parameterIndex) throws SQLException {
         log.debug("getObject: {}", parameterIndex);
-        return this.callProxy(CallType.CALL_GET, "Object", Object.class, List.of(parameterIndex));
+        Object result = this.callProxy(CallType.CALL_GET, "Object", Object.class, List.of(parameterIndex));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toSqlType();
+        }
+        return result;
     }
 
     @Override
@@ -440,25 +457,41 @@ public class CallableStatement implements java.sql.CallableStatement {
     @Override
     public Date getDate(String parameterName) throws SQLException {
         log.debug("getDate: {}", parameterName);
-        return this.callProxy(CallType.CALL_GET, "Date", Date.class, List.of(parameterName));
+        Object result = this.callProxy(CallType.CALL_GET, "Date", Object.class, List.of(parameterName));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toDate();
+        }
+        return (Date) result;
     }
 
     @Override
     public Time getTime(String parameterName) throws SQLException {
         log.debug("getTime: {}", parameterName);
-        return this.callProxy(CallType.CALL_GET, "Time", Time.class, List.of(parameterName));
+        Object result = this.callProxy(CallType.CALL_GET, "Time", Object.class, List.of(parameterName));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toTime();
+        }
+        return (Time) result;
     }
 
     @Override
     public Timestamp getTimestamp(String parameterName) throws SQLException {
         log.debug("getTimestamp: {}", parameterName);
-        return this.callProxy(CallType.CALL_GET, "Timestamp", Timestamp.class, List.of(parameterName));
+        Object result = this.callProxy(CallType.CALL_GET, "Timestamp", Object.class, List.of(parameterName));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toTimestamp();
+        }
+        return (Timestamp) result;
     }
 
     @Override
     public Object getObject(String parameterName) throws SQLException {
         log.debug("getObject: {}", parameterName);
-        return this.callProxy(CallType.CALL_GET, "Object", Object.class, List.of(parameterName));
+        Object result = this.callProxy(CallType.CALL_GET, "Object", Object.class, List.of(parameterName));
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toSqlType();
+        }
+        return result;
     }
 
     @Override

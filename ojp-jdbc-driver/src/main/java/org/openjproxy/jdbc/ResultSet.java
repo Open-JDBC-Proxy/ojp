@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.client.StatementService;
+import org.openjproxy.grpc.dto.DateTimeDTO;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.jdbc.sqlserver.HydratedBlob;
 
@@ -344,6 +345,9 @@ public class ResultSet extends RemoteProxyResultSet {
             return null;
         }
         Object result = lastValueRead;
+        if (result instanceof DateTimeDTO) {
+            return ((DateTimeDTO) result).toDate();
+        }
         if (result instanceof Timestamp) {
             Timestamp timestamp = (Timestamp) result;
             return new Date(timestamp.getTime());
@@ -361,6 +365,9 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return null;
         }
+        if (lastValueRead instanceof DateTimeDTO) {
+            return ((DateTimeDTO) lastValueRead).toTime();
+        }
         return (Time) lastValueRead;
     }
 
@@ -373,6 +380,9 @@ public class ResultSet extends RemoteProxyResultSet {
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
         if (lastValueRead == null) {
             return null;
+        }
+        if (lastValueRead instanceof DateTimeDTO) {
+            return ((DateTimeDTO) lastValueRead).toTimestamp();
         }
         return (Timestamp) lastValueRead;
     }
@@ -648,6 +658,9 @@ public class ResultSet extends RemoteProxyResultSet {
             return super.getObject(columnIndex);
         }
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
+        if (lastValueRead instanceof DateTimeDTO) {
+            return ((DateTimeDTO) lastValueRead).toSqlType();
+        }
         return lastValueRead;
     }
 
