@@ -149,6 +149,9 @@ jobs:
       - name: Test (ojp-grpc-commons)
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
+      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
+
       - name: Set up JDK 22 for ojp-server
         uses: actions/setup-java@v4
         with:
@@ -157,7 +160,7 @@ jobs:
           cache: maven
 
       - name: Build (ojp-server) with JDK 22
-        run: mvn clean install -pl ojp-server -DskipTests -Dgpg.skip=true
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Test and Run (ojp-server)
         run: mvn verify -pl ojp-server -Prun-ojp-server > /tmp/ojp-server.log 2>&1 &
@@ -171,9 +174,6 @@ jobs:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
           cache: maven
-
-      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
-        run: mvn clean install -pl ojp-jdbc-driver -DskipTests -Dgpg.skip=true
 
       - name: Test (ojp-jdbc-driver)
         run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true
