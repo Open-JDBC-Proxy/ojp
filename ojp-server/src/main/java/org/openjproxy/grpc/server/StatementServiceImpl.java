@@ -84,12 +84,14 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1077,25 +1079,49 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             
             // Convert TemporalData objects back to Date/Time/Timestamp for method invocation
             if (paramsReceived != null && !paramsReceived.isEmpty()) {
+                log.debug("Parameters before TemporalData conversion: {}", 
+                    paramsReceived.stream().map(p -> p == null ? "null" : p.getClass().getName()).toList());
                 for (int i = 0; i < paramsReceived.size(); i++) {
                     Object param = paramsReceived.get(i);
                     if (param instanceof TemporalData) {
                         TemporalData temporalData = (TemporalData) param;
-                        // Determine which temporal type to create based on nanos
-                        // If nanos is set, it's a Timestamp; otherwise check timeMillis for Date/Time
-                        if (temporalData.getNanos() > 0 || temporalData.getTimeMillis() % 1000 != 0) {
-                            // Timestamp (has nanos or sub-second precision)
-                            Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
-                            timestamp.setNanos(temporalData.getNanos());
-                            paramsReceived.set(i, timestamp);
-                        } else {
-                            // Could be Date or Time - we'll use Date as default
-                            // The method matching should handle this appropriately
-                            Date date = new Date(temporalData.getTimeMillis());
-                            paramsReceived.set(i, date);
+                        try {
+                            // Determine which temporal type to create based on nanos
+                            // If nanos is set, it's a Timestamp; otherwise check timeMillis for Date/Time
+                            if (temporalData.getNanos() > 0 || temporalData.getTimeMillis() % 1000 != 0) {
+                                // Timestamp (has nanos or sub-second precision)
+                                Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
+                                timestamp.setNanos(temporalData.getNanos());
+                                paramsReceived.set(i, timestamp);
+                                log.debug("Converted TemporalData at index {} to Timestamp", i);
+                            } else {
+                                // Could be Date or Time - we'll use Date as default
+                                // The method matching should handle this appropriately
+                                Date date = new Date(temporalData.getTimeMillis());
+                                paramsReceived.set(i, date);
+                                log.debug("Converted TemporalData at index {} to Date", i);
+                            }
+                            
+                            // Check if there's a Calendar parameter following this TemporalData
+                            // If yes, replace it with a Calendar based on the timezone from TemporalData
+                            if (i + 1 < paramsReceived.size() && temporalData.getTimezoneId() != null) {
+                                Object nextParam = paramsReceived.get(i + 1);
+                                // The next param might be a Calendar (or serialized Calendar)
+                                // Replace it with a proper Calendar from the timezone
+                                if (nextParam != null) {
+                                    Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(temporalData.getTimezoneId()));
+                                    paramsReceived.set(i + 1, cal);
+                                    log.debug("Replaced Calendar at index {} with timezone {}", i + 1, temporalData.getTimezoneId());
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("Error converting TemporalData at index {}: {}", i, e.getMessage(), e);
+                            throw new RuntimeException("Failed to convert TemporalData: " + e.getMessage(), e);
                         }
                     }
                 }
+                log.debug("Parameters after TemporalData conversion: {}", 
+                    paramsReceived.stream().map(p -> p == null ? "null" : p.getClass().getName()).toList());
             }
             
             Class<?> clazz = resource.getClass();
