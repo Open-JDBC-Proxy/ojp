@@ -37,6 +37,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.dto.Parameter;
+import org.openjproxy.grpc.dto.TemporalData;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.utils.DriverUtils;
@@ -1073,6 +1074,30 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             List<Object> paramsReceived = (request.getTarget().getParams().size() > 0) ?
                     deserialize(request.getTarget().getParams().toByteArray(), List.class) : EMPTY_LIST;
+            
+            // Convert TemporalData objects back to Date/Time/Timestamp for method invocation
+            if (paramsReceived != null && !paramsReceived.isEmpty()) {
+                for (int i = 0; i < paramsReceived.size(); i++) {
+                    Object param = paramsReceived.get(i);
+                    if (param instanceof TemporalData) {
+                        TemporalData temporalData = (TemporalData) param;
+                        // Determine which temporal type to create based on nanos
+                        // If nanos is set, it's a Timestamp; otherwise check timeMillis for Date/Time
+                        if (temporalData.getNanos() > 0 || temporalData.getTimeMillis() % 1000 != 0) {
+                            // Timestamp (has nanos or sub-second precision)
+                            Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
+                            timestamp.setNanos(temporalData.getNanos());
+                            paramsReceived.set(i, timestamp);
+                        } else {
+                            // Could be Date or Time - we'll use Date as default
+                            // The method matching should handle this appropriately
+                            Date date = new Date(temporalData.getTimeMillis());
+                            paramsReceived.set(i, date);
+                        }
+                    }
+                }
+            }
+            
             Class<?> clazz = resource.getClass();
             if ((paramsReceived != null && paramsReceived.size() > 0) &&
                     ((CallType.CALL_RELEASE.equals(request.getTarget().getCallType()) &&
