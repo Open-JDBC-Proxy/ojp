@@ -153,7 +153,9 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Test and Run (ojp-server)
-        run: mvn verify -pl ojp-server -Prun-ojp-server > /tmp/ojp-server.log 2>&1 &
+        run: |
+          nohup java -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
         run: sleep 10
