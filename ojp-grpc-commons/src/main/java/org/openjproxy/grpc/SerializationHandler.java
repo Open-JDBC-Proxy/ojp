@@ -39,7 +39,6 @@ public class SerializationHandler {
             } else {
                 // Use standard Java serialization for other objects
                 dos.writeByte(TYPE_OTHER);
-                dos.flush();
                 try (ObjectOutputStream so = new ObjectOutputStream(bo)) {
                     so.writeObject(t);
                     so.flush();
@@ -75,11 +74,8 @@ public class SerializationHandler {
                 
                 case TYPE_OTHER:
                     // For other types, use standard deserialization
-                    // We need to create a new stream that starts after the type marker
-                    byte[] remainingBytes = new byte[byteArray.length - 1];
-                    System.arraycopy(byteArray, 1, remainingBytes, 0, remainingBytes.length);
-                    try (ByteArrayInputStream bi2 = new ByteArrayInputStream(remainingBytes);
-                         ObjectInputStream si = new ObjectInputStream(bi2)) {
+                    // The ObjectInputStream will read from the current position in the stream
+                    try (ObjectInputStream si = new ObjectInputStream(bi)) {
                         return type.cast(si.readObject());
                     }
                 
