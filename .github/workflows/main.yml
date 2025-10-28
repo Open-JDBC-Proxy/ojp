@@ -159,8 +159,8 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build (ojp-server) with JDK 22
-        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
+      - name: Build (ojp-server) with JDK 22 using existing ojp-grpc-commons
+        run: mvn clean install -pl ojp-server -DskipTests -Dgpg.skip=true
 
       - name: Test and Run (ojp-server)
         run: mvn verify -pl ojp-server -Prun-ojp-server > /tmp/ojp-server.log 2>&1 &
