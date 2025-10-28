@@ -17,6 +17,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.grpc.dto.Parameter;
+import org.openjproxy.grpc.dto.TemporalData;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,6 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.TimeZone;
 import java.util.TreeMap;
 
 import static org.openjproxy.grpc.SerializationHandler.deserialize;
@@ -286,11 +288,19 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setDate(int parameterIndex, Date x) throws SQLException {
         log.debug("setDate: {}, {}", parameterIndex, x);
         this.checkClosed();
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
         this.paramsMap.put(parameterIndex,
                 Parameter.builder()
                         .type(DATE)
                         .index(parameterIndex)
-                        .values(Arrays.asList(x))
+                        .values(Arrays.asList(temporalData))
                         .build());
     }
 
@@ -298,11 +308,19 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setTime(int parameterIndex, Time x) throws SQLException {
         log.debug("setTime: {}, {}", parameterIndex, x);
         this.checkClosed();
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
         this.paramsMap.put(parameterIndex,
                 Parameter.builder()
                         .type(TIME)
                         .index(parameterIndex)
-                        .values(Arrays.asList(x))
+                        .values(Arrays.asList(temporalData))
                         .build());
     }
 
@@ -310,11 +328,19 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
         log.debug("setTimestamp: {}, {}", parameterIndex, x);
         this.checkClosed();
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(x.getNanos())
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
         this.paramsMap.put(parameterIndex,
                 Parameter.builder()
                         .type(TIMESTAMP)
                         .index(parameterIndex)
-                        .values(Arrays.asList(x))
+                        .values(Arrays.asList(temporalData))
                         .build());
     }
 
@@ -476,11 +502,19 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         log.debug("setDate: {}, {}, {}", parameterIndex, x, cal);
         this.checkClosed();
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
         this.paramsMap.put(parameterIndex,
                 Parameter.builder()
                         .type(DATE)
                         .index(parameterIndex)
-                        .values(Arrays.asList(x, cal))
+                        .values(Arrays.asList(temporalData))
                         .build());
     }
 
@@ -488,11 +522,19 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         log.debug("setTime: {}, {}, {}", parameterIndex, x, cal);
         this.checkClosed();
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
         this.paramsMap.put(parameterIndex,
                 Parameter.builder()
                         .type(TIME)
                         .index(parameterIndex)
-                        .values(Arrays.asList(x, cal))
+                        .values(Arrays.asList(temporalData))
                         .build());
     }
 
@@ -500,11 +542,19 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         log.debug("setTimestamp: {}, {}, {}", parameterIndex, x, cal);
         this.checkClosed();
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(x.getNanos())
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
         this.paramsMap.put(parameterIndex,
                 Parameter.builder()
                         .type(TIMESTAMP)
                         .index(parameterIndex)
-                        .values(Arrays.asList(x, cal))
+                        .values(Arrays.asList(temporalData))
                         .build());
     }
 

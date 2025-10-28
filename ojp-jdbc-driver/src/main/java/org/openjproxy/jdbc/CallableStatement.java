@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.client.GrpcExceptionHandler;
 import org.openjproxy.grpc.client.StatementService;
+import org.openjproxy.grpc.dto.TemporalData;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -36,6 +37,7 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 import static org.openjproxy.grpc.SerializationHandler.deserialize;
 import static org.openjproxy.grpc.SerializationHandler.serialize;
@@ -308,19 +310,43 @@ public class CallableStatement implements java.sql.CallableStatement {
     @Override
     public void setDate(String parameterName, Date x) throws SQLException {
         log.debug("setDate: {}, {}", parameterName, x);
-        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterName, x));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterName, temporalData));
     }
 
     @Override
     public void setTime(String parameterName, Time x) throws SQLException {
         log.debug("setTime: {}, {}", parameterName, x);
-        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterName, x));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterName, temporalData));
     }
 
     @Override
     public void setTimestamp(String parameterName, Timestamp x) throws SQLException {
         log.debug("setTimestamp: {}, {}", parameterName, x);
-        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterName, x));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(x.getNanos())
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterName, temporalData));
     }
 
     @Override
@@ -362,19 +388,43 @@ public class CallableStatement implements java.sql.CallableStatement {
     @Override
     public void setDate(String parameterName, Date x, Calendar cal) throws SQLException {
         log.debug("setDate: {}, {}, <Calendar>", parameterName, x);
-        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterName, x, cal));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterName, temporalData, cal));
     }
 
     @Override
     public void setTime(String parameterName, Time x, Calendar cal) throws SQLException {
         log.debug("setTime: {}, {}, <Calendar>", parameterName, x);
-        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterName, x, cal));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterName, temporalData, cal));
     }
 
     @Override
     public void setTimestamp(String parameterName, Timestamp x, Calendar cal) throws SQLException {
         log.debug("setTimestamp: {}, {}, <Calendar>", parameterName, x);
-        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterName, x, cal));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(x.getNanos())
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterName, temporalData, cal));
     }
 
     @Override
@@ -807,19 +857,43 @@ public class CallableStatement implements java.sql.CallableStatement {
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
         log.debug("setDate: {}, {}", parameterIndex, x);
-        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterIndex, x));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterIndex, temporalData));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
         log.debug("setTime: {}, {}", parameterIndex, x);
-        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterIndex, x));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterIndex, temporalData));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
         log.debug("setTimestamp: {}, {}", parameterIndex, x);
-        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterIndex, x));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(x.getNanos())
+                    .timezoneId(TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterIndex, temporalData));
     }
 
     @Override
@@ -909,19 +983,43 @@ public class CallableStatement implements java.sql.CallableStatement {
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
         log.debug("setDate: {}, {}, <Calendar>", parameterIndex, x);
-        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterIndex, x, cal));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Date", Void.class, List.of(parameterIndex, temporalData, cal));
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
         log.debug("setTime: {}, {}, <Calendar>", parameterIndex, x);
-        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterIndex, x, cal));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(0)
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Time", Void.class, List.of(parameterIndex, temporalData, cal));
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         log.debug("setTimestamp: {}, {}, <Calendar>", parameterIndex, x);
-        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterIndex, x, cal));
+        TemporalData temporalData = null;
+        if (x != null) {
+            temporalData = TemporalData.builder()
+                    .timeMillis(x.getTime())
+                    .nanos(x.getNanos())
+                    .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
+                    .build();
+        }
+        this.callProxy(CallType.CALL_SET, "Timestamp", Void.class, List.of(parameterIndex, temporalData, cal));
     }
 
     @Override

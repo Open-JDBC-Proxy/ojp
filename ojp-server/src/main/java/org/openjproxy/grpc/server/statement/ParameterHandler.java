@@ -3,6 +3,7 @@ package org.openjproxy.grpc.server.statement;
 import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.dto.Parameter;
+import org.openjproxy.grpc.dto.TemporalData;
 import org.openjproxy.grpc.server.SessionManager;
 
 import java.io.ByteArrayInputStream;
@@ -15,7 +16,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.util.Calendar;
 import java.util.List;
+import java.util.TimeZone;
 
 /**
  * Handles parameter setting for prepared statements.
@@ -83,13 +86,47 @@ public class ParameterHandler {
                 ps.setByte(idx, ((byte[]) param.getValues().get(0))[0]);//Comes as an array of bytes with one element.
                 break;
             case DATE:
-                ps.setDate(idx, (Date) param.getValues().get(0));
+                if (param.getValues().get(0) == null) {
+                    ps.setDate(idx, null);
+                } else {
+                    TemporalData dateData = (TemporalData) param.getValues().get(0);
+                    Date date = new Date(dateData.getTimeMillis());
+                    if (dateData.getTimezoneId() != null) {
+                        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(dateData.getTimezoneId()));
+                        ps.setDate(idx, date, cal);
+                    } else {
+                        ps.setDate(idx, date);
+                    }
+                }
                 break;
             case TIME:
-                ps.setTime(idx, (Time) param.getValues().get(0));
+                if (param.getValues().get(0) == null) {
+                    ps.setTime(idx, null);
+                } else {
+                    TemporalData timeData = (TemporalData) param.getValues().get(0);
+                    Time time = new Time(timeData.getTimeMillis());
+                    if (timeData.getTimezoneId() != null) {
+                        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(timeData.getTimezoneId()));
+                        ps.setTime(idx, time, cal);
+                    } else {
+                        ps.setTime(idx, time);
+                    }
+                }
                 break;
             case TIMESTAMP:
-                ps.setTimestamp(idx, (Timestamp) param.getValues().get(0));
+                if (param.getValues().get(0) == null) {
+                    ps.setTimestamp(idx, null);
+                } else {
+                    TemporalData timestampData = (TemporalData) param.getValues().get(0);
+                    Timestamp timestamp = new Timestamp(timestampData.getTimeMillis());
+                    timestamp.setNanos(timestampData.getNanos());
+                    if (timestampData.getTimezoneId() != null) {
+                        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(timestampData.getTimezoneId()));
+                        ps.setTimestamp(idx, timestamp, cal);
+                    } else {
+                        ps.setTimestamp(idx, timestamp);
+                    }
+                }
                 break;
             //LOB types
             case BLOB:
