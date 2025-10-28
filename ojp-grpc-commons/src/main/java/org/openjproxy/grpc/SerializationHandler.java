@@ -51,19 +51,6 @@ public class SerializationHandler {
     }
 
     public static <T> T deserialize(byte[] byteArray, Class<T> type) {
-        // Check if this is the old format (ObjectOutputStream starts with 0xAC 0xED)
-        // If the first byte is 0xAC (172), it's the old format without type markers
-        if (byteArray.length > 0 && (byteArray[0] & 0xFF) == 0xAC) {
-            // Old format - deserialize normally without type markers
-            try (ByteArrayInputStream bi = new ByteArrayInputStream(byteArray);
-                 ObjectInputStream si = new ObjectInputStream(bi)) {
-                return type.cast(si.readObject());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-        
-        // New format with type markers
         try (ByteArrayInputStream bi = new ByteArrayInputStream(byteArray);
              DataInputStream dis = new DataInputStream(bi)) {
             

@@ -2,8 +2,6 @@ package openjproxy.grpc;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectOutputStream;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -72,27 +70,5 @@ public class SerializationHandlerTest {
         assertEquals(originalTimestamp, deserializedTimestamp);
         assertEquals(originalTimestamp.getTime(), deserializedTimestamp.getTime());
         assertEquals(originalTimestamp.getNanos(), deserializedTimestamp.getNanos());
-    }
-
-    @Test
-    public void backwardCompatibilityWithOldFormat() throws Exception {
-        // Simulate old serialization format (without type markers)
-        // This mimics data serialized by the old version of SerializationHandler
-        Exception oldException = new RuntimeException("legacy error");
-        
-        ByteArrayOutputStream bo = new ByteArrayOutputStream();
-        try (ObjectOutputStream oos = new ObjectOutputStream(bo)) {
-            oos.writeObject(oldException);
-            oos.flush();
-        }
-        byte[] oldFormatBytes = bo.toByteArray();
-        
-        // Verify first byte is 0xAC (ObjectOutputStream magic number)
-        assertEquals((byte) 0xAC, oldFormatBytes[0], "Old format should start with 0xAC");
-        
-        // New deserialize method should handle old format
-        Exception deserialized = deserialize(oldFormatBytes, Exception.class);
-        
-        assertEquals(oldException.getMessage(), deserialized.getMessage());
     }
 }
