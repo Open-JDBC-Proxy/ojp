@@ -96,4 +96,23 @@ class DateTimeDTOTest {
         assertThrows(IllegalStateException.class, () -> dateDto.toTime());
         assertThrows(IllegalStateException.class, () -> dateDto.toTimestamp());
     }
+
+    @Test
+    void testInvalidNanoseconds() {
+        DateTimeDTO dto = DateTimeDTO.builder()
+                .type(DateTimeDTO.DateTimeType.TIMESTAMP)
+                .milliseconds(System.currentTimeMillis())
+                .nanoseconds(1_000_000_000L) // Invalid: exceeds max value
+                .build();
+        
+        assertThrows(IllegalStateException.class, () -> dto.toTimestamp());
+        
+        DateTimeDTO negativeDto = DateTimeDTO.builder()
+                .type(DateTimeDTO.DateTimeType.TIMESTAMP)
+                .milliseconds(System.currentTimeMillis())
+                .nanoseconds(-1L) // Invalid: negative value
+                .build();
+        
+        assertThrows(IllegalStateException.class, () -> negativeDto.toTimestamp());
+    }
 }

@@ -106,6 +106,10 @@ public class DateTimeDTO implements Serializable {
             throw new IllegalStateException("Cannot convert " + type + " to Timestamp");
         }
         Timestamp timestamp = new Timestamp(milliseconds);
+        // Nanoseconds should be in range 0-999,999,999
+        if (nanoseconds < 0 || nanoseconds > 999_999_999) {
+            throw new IllegalStateException("Nanoseconds value out of range: " + nanoseconds);
+        }
         timestamp.setNanos((int) nanoseconds);
         return timestamp;
     }
@@ -114,9 +118,6 @@ public class DateTimeDTO implements Serializable {
      * Convert this DTO to the appropriate java.sql type based on its type field
      */
     public Object toSqlType() {
-        if (this == null) {
-            return null;
-        }
         switch (type) {
             case DATE:
                 return toDate();
