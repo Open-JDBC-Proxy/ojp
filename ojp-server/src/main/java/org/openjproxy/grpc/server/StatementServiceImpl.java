@@ -1079,6 +1079,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             
             // Convert TemporalData objects back to Date/Time/Timestamp for method invocation
             if (paramsReceived != null && !paramsReceived.isEmpty()) {
+                // Create a mutable copy of the list to allow modifications
+                paramsReceived = new ArrayList<>(paramsReceived);
+                
                 log.debug("Parameters before TemporalData conversion: {}", 
                     paramsReceived.stream().map(p -> p == null ? "null" : p.getClass().getName()).toList());
                 for (int i = 0; i < paramsReceived.size(); i++) {
