@@ -27,8 +27,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @Slf4j
 public class PostgresSlowQuerySegregationTest {
-    private static final int THREADS = 4500; // 15 threads/minute Number of worker threads
-    private static final int RAMPUP_MS = 5 * 60 * 60 * 1000; // 5hRamp-up window in milliseconds
+    private static final int THREADS = 3; // Number of worker threads
+    private static final int RAMPUP_MS = 30 * 1000; // 30 seconds Ramp-up window in milliseconds
 
     private static boolean isTestDisabled;
     private static Queue<Long> queryDurations = new ConcurrentLinkedQueue<>();
@@ -157,10 +157,10 @@ public class PostgresSlowQuerySegregationTest {
         System.out.println("Total test duration: " + totalTimeMs + " ms");
         System.out.printf("Average query duration: %.3f ms\n", avgQueryMs);
         System.out.println("Total query failures: " + numFailures);
-        //Assertions.assertEquals(216, numQueries);
-        //Assertions.assertEquals(0, numFailures);
-        //Assertions.assertTrue(totalTimeMs < 40000);
-        //Assertions.assertTrue(avgQueryMs < 40);
+        Assertions.assertEquals(216, numQueries);
+        Assertions.assertEquals(0, numFailures);
+        Assertions.assertTrue(totalTimeMs < 40000);
+        Assertions.assertTrue(avgQueryMs < 40);
     }
 
     private static void timeAndRun(Callable<Void> query) {
