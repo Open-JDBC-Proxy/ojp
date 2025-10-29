@@ -1092,14 +1092,21 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                             log.debug("Converting TemporalData at index {}: timeMillis={}, nanos={}, timezoneId={}", 
                                 i, temporalData.getTimeMillis(), temporalData.getNanos(), temporalData.getTimezoneId());
                             
-                            // Always convert to Timestamp since it's the most general type
-                            // and Java's method matching will automatically handle conversions:
-                            // - Timestamp can be passed to methods accepting Date, Time, or Timestamp
-                            // - Java will perform implicit conversions during method invocation
-                            Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
-                            timestamp.setNanos(temporalData.getNanos());
-                            paramsReceived.set(i, timestamp);
-                            log.debug("Converted TemporalData at index {} to Timestamp", i);
+                            // Convert to java.sql.Date by default for compatibility with setDate/setTime methods
+                            // Only use Timestamp if there are nanoseconds (sub-millisecond precision)
+                            if (temporalData.getNanos() % 1000000 != 0) {
+                                // Has sub-millisecond precision, use Timestamp
+                                Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
+                                timestamp.setNanos(temporalData.getNanos());
+                                paramsReceived.set(i, timestamp);
+                                log.debug("Converted TemporalData at index {} to Timestamp (has nanos)", i);
+                            } else {
+                                // No sub-millisecond precision, use java.sql.Date for better compatibility
+                                // java.sql.Date works for both setDate and setTime methods
+                                java.sql.Date date = new java.sql.Date(temporalData.getTimeMillis());
+                                paramsReceived.set(i, date);
+                                log.debug("Converted TemporalData at index {} to Date", i);
+                            }
                             
                             // Check if there's a Calendar parameter following this TemporalData
                             // If yes, replace it with a Calendar based on the timezone from TemporalData
