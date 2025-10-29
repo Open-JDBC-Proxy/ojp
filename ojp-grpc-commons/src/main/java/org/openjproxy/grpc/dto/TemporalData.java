@@ -19,7 +19,12 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class TemporalData implements Serializable {
     private static final long serialVersionUID = 1L;
-    
+
+    /**
+     * Type of temporal data (DATE, TIME, TIMESTAMP)
+     */
+    private TemporalDataType temporalDataType;
+
     /**
      * Time in milliseconds since epoch (UTC)
      */

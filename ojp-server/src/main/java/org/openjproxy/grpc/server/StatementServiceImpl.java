@@ -38,6 +38,7 @@ import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.dto.TemporalData;
+import org.openjproxy.grpc.dto.TemporalDataType;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.utils.DriverUtils;
@@ -1086,9 +1087,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     paramsReceived.stream().map(p -> p == null ? "null" : p.getClass().getName()).toList());
                 
                 // Determine which temporal type to use based on the method name
-                String methodName = callResourceRequest.getTargetCall().getMethodName().toLowerCase();
-                boolean isSetTime = methodName.contains("settime");
-                boolean isSetTimestamp = methodName.contains("settimestamp");
+                String methodName = request.getTarget().getResourceName().toLowerCase();
+                boolean isSetTime = methodName.contains("time");
+                boolean isSetTimestamp = methodName.contains("timestamp");
                 
                 for (int i = 0; i < paramsReceived.size(); i++) {
                     Object param = paramsReceived.get(i);
@@ -1099,13 +1100,13 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                                 i, temporalData.getTimeMillis(), temporalData.getNanos(), temporalData.getTimezoneId());
                             
                             // Convert based on method name or precision requirements
-                            if (temporalData.getNanos() % 1000000 != 0 || isSetTimestamp) {
+                            if (TemporalDataType.TIMESTAMP.equals(temporalData.getTemporalDataType())) {
                                 // Has sub-millisecond precision or method is setTimestamp, use Timestamp
                                 Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
                                 timestamp.setNanos(temporalData.getNanos());
                                 paramsReceived.set(i, timestamp);
                                 log.debug("Converted TemporalData at index {} to Timestamp", i);
-                            } else if (isSetTime) {
+                            } else if (TemporalDataType.TIME.equals(temporalData.getTemporalDataType())) {
                                 // Method is setTime, use java.sql.Time
                                 java.sql.Time time = new java.sql.Time(temporalData.getTimeMillis());
                                 paramsReceived.set(i, time);

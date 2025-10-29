@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.client.GrpcExceptionHandler;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.grpc.dto.TemporalData;
+import org.openjproxy.grpc.dto.TemporalDataType;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -313,6 +314,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.DATE)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(TimeZone.getDefault().getID())
@@ -327,6 +329,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIME)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(TimeZone.getDefault().getID())
@@ -341,6 +344,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIMESTAMP)
                     .timeMillis(x.getTime())
                     .nanos(x.getNanos())
                     .timezoneId(TimeZone.getDefault().getID())
@@ -391,6 +395,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.DATE)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
@@ -405,6 +410,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIME)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
@@ -419,6 +425,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIMESTAMP)
                     .timeMillis(x.getTime())
                     .nanos(x.getNanos())
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
@@ -860,6 +867,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.DATE)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(TimeZone.getDefault().getID())
@@ -874,6 +882,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIME)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(TimeZone.getDefault().getID())
@@ -888,6 +897,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIMESTAMP)
                     .timeMillis(x.getTime())
                     .nanos(x.getNanos())
                     .timezoneId(TimeZone.getDefault().getID())
@@ -986,6 +996,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.DATE)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
@@ -1000,6 +1011,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIME)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
@@ -1014,6 +1026,7 @@ public class CallableStatement implements java.sql.CallableStatement {
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIMESTAMP)
                     .timeMillis(x.getTime())
                     .nanos(x.getNanos())
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())

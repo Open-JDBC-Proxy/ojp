@@ -18,6 +18,7 @@ import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.dto.TemporalData;
+import org.openjproxy.grpc.dto.TemporalDataType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -291,6 +292,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.DATE)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(TimeZone.getDefault().getID())
@@ -311,6 +313,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIME)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(TimeZone.getDefault().getID())
@@ -331,6 +334,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIMESTAMP)
                     .timeMillis(x.getTime())
                     .nanos(x.getNanos())
                     .timezoneId(TimeZone.getDefault().getID())
@@ -505,6 +509,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.DATE)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
@@ -525,6 +530,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIME)
                     .timeMillis(x.getTime())
                     .nanos(0)
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
@@ -545,6 +551,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         TemporalData temporalData = null;
         if (x != null) {
             temporalData = TemporalData.builder()
+                    .temporalDataType(TemporalDataType.TIMESTAMP)
                     .timeMillis(x.getTime())
                     .nanos(x.getNanos())
                     .timezoneId(cal != null ? cal.getTimeZone().getID() : TimeZone.getDefault().getID())
