@@ -1092,21 +1092,14 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                             log.debug("Converting TemporalData at index {}: timeMillis={}, nanos={}, timezoneId={}", 
                                 i, temporalData.getTimeMillis(), temporalData.getNanos(), temporalData.getTimezoneId());
                             
-                            // Determine which temporal type to create based on nanos
-                            // If nanos is set, it's a Timestamp; otherwise check timeMillis for Date/Time
-                            if (temporalData.getNanos() > 0 || temporalData.getTimeMillis() % 1000 != 0) {
-                                // Timestamp (has nanos or sub-second precision)
-                                Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
-                                timestamp.setNanos(temporalData.getNanos());
-                                paramsReceived.set(i, timestamp);
-                                log.debug("Converted TemporalData at index {} to Timestamp", i);
-                            } else {
-                                // Could be Date or Time - we'll use Date as default
-                                // The method matching should handle this appropriately
-                                Date date = new Date(temporalData.getTimeMillis());
-                                paramsReceived.set(i, date);
-                                log.debug("Converted TemporalData at index {} to Date", i);
-                            }
+                            // Always convert to Timestamp since it's the most general type
+                            // and Java's method matching will automatically handle conversions:
+                            // - Timestamp can be passed to methods accepting Date, Time, or Timestamp
+                            // - Java will perform implicit conversions during method invocation
+                            Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
+                            timestamp.setNanos(temporalData.getNanos());
+                            paramsReceived.set(i, timestamp);
+                            log.debug("Converted TemporalData at index {} to Timestamp", i);
                             
                             // Check if there's a Calendar parameter following this TemporalData
                             // If yes, replace it with a Calendar based on the timezone from TemporalData
