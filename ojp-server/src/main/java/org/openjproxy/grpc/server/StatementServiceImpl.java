@@ -1084,6 +1084,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 
                 log.debug("Parameters before TemporalData conversion: {}", 
                     paramsReceived.stream().map(p -> p == null ? "null" : p.getClass().getName()).toList());
+                
+                // Determine which temporal type to use based on the method name
+                String methodName = callResourceRequest.getTargetCall().getMethodName().toLowerCase();
+                boolean isSetTime = methodName.contains("settime");
+                boolean isSetTimestamp = methodName.contains("settimestamp");
+                
                 for (int i = 0; i < paramsReceived.size(); i++) {
                     Object param = paramsReceived.get(i);
                     if (param instanceof TemporalData) {
@@ -1092,17 +1098,20 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                             log.debug("Converting TemporalData at index {}: timeMillis={}, nanos={}, timezoneId={}", 
                                 i, temporalData.getTimeMillis(), temporalData.getNanos(), temporalData.getTimezoneId());
                             
-                            // Convert to java.sql.Date by default for compatibility with setDate/setTime methods
-                            // Only use Timestamp if there are nanoseconds (sub-millisecond precision)
-                            if (temporalData.getNanos() % 1000000 != 0) {
-                                // Has sub-millisecond precision, use Timestamp
+                            // Convert based on method name or precision requirements
+                            if (temporalData.getNanos() % 1000000 != 0 || isSetTimestamp) {
+                                // Has sub-millisecond precision or method is setTimestamp, use Timestamp
                                 Timestamp timestamp = new Timestamp(temporalData.getTimeMillis());
                                 timestamp.setNanos(temporalData.getNanos());
                                 paramsReceived.set(i, timestamp);
-                                log.debug("Converted TemporalData at index {} to Timestamp (has nanos)", i);
+                                log.debug("Converted TemporalData at index {} to Timestamp", i);
+                            } else if (isSetTime) {
+                                // Method is setTime, use java.sql.Time
+                                java.sql.Time time = new java.sql.Time(temporalData.getTimeMillis());
+                                paramsReceived.set(i, time);
+                                log.debug("Converted TemporalData at index {} to Time", i);
                             } else {
-                                // No sub-millisecond precision, use java.sql.Date for better compatibility
-                                // java.sql.Date works for both setDate and setTime methods
+                                // Method is setDate or unknown, use java.sql.Date
                                 java.sql.Date date = new java.sql.Date(temporalData.getTimeMillis());
                                 paramsReceived.set(i, date);
                                 log.debug("Converted TemporalData at index {} to Date", i);
