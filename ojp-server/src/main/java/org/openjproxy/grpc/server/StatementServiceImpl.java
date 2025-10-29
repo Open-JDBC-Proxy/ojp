@@ -1086,6 +1086,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     if (param instanceof TemporalData) {
                         TemporalData temporalData = (TemporalData) param;
                         try {
+                            log.debug("Converting TemporalData at index {}: timeMillis={}, nanos={}, timezoneId={}", 
+                                i, temporalData.getTimeMillis(), temporalData.getNanos(), temporalData.getTimezoneId());
+                            
                             // Determine which temporal type to create based on nanos
                             // If nanos is set, it's a Timestamp; otherwise check timeMillis for Date/Time
                             if (temporalData.getNanos() > 0 || temporalData.getTimeMillis() % 1000 != 0) {
@@ -1106,6 +1109,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                             // If yes, replace it with a Calendar based on the timezone from TemporalData
                             if (i + 1 < paramsReceived.size() && temporalData.getTimezoneId() != null) {
                                 Object nextParam = paramsReceived.get(i + 1);
+                                log.debug("Next parameter at index {} is type: {}", i + 1, 
+                                    nextParam == null ? "null" : nextParam.getClass().getName());
                                 // The next param might be a Calendar (or serialized Calendar)
                                 // Replace it with a proper Calendar from the timezone
                                 if (nextParam != null) {
@@ -1115,8 +1120,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                                 }
                             }
                         } catch (Exception e) {
-                            log.error("Error converting TemporalData at index {}: {}", i, e.getMessage(), e);
-                            throw new RuntimeException("Failed to convert TemporalData: " + e.getMessage(), e);
+                            log.error("Error converting TemporalData at index {}: {} - TemporalData: {}", 
+                                i, e.getMessage(), temporalData, e);
+                            throw new RuntimeException("Failed to convert TemporalData at index " + i + 
+                                ": " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
                         }
                     }
                 }
