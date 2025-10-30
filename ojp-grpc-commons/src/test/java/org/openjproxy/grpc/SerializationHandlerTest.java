@@ -312,7 +312,6 @@ public class SerializationHandlerTest {
         
         // Example JSON output for documentation:
         // {"database":"testdb","timeout":"5000"}
-        System.out.println("Example JSON output for Properties: " + json);
     }
     
     @Test
@@ -326,12 +325,12 @@ public class SerializationHandlerTest {
         String timeJson = new String(serialize(time), StandardCharsets.UTF_8);
         String timestampJson = new String(serialize(timestamp), StandardCharsets.UTF_8);
         
-        // Example outputs for documentation:
-        System.out.println("DATE JSON: " + dateJson);
-        System.out.println("TIME JSON: " + timeJson);
-        System.out.println("TIMESTAMP JSON: " + timestampJson);
+        // Verify the JSON formats match ISO-8601 requirements
+        assertTrue(dateJson.contains("\"type\":\"DATE\""));
+        assertTrue(timeJson.contains("\"type\":\"TIME\""));
+        assertTrue(timestampJson.contains("\"type\":\"TIMESTAMP_INSTANT\""));
         
-        // Expected formats:
+        // Expected JSON output formats for documentation:
         // DATE: {"type":"DATE","value":"2024-06-27"}
         // TIME: {"type":"TIME","value":"14:30:00"}
         // TIMESTAMP: {"type":"TIMESTAMP_INSTANT","value":"2024-06-27T14:30:00.123456789Z"}
