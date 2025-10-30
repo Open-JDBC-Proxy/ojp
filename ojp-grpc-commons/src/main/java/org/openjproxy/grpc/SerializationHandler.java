@@ -7,7 +7,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
+import com.google.gson.reflect.TypeToken;
 
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Time;
@@ -186,6 +188,31 @@ public class SerializationHandler {
             return gson.fromJson(json, type);
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize object of type " + type.getName() + ": " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Deserializes JSON bytes (UTF-8) back into a Java object of the specified type.
+     * This method supports generic types like List&lt;Parameter&gt; using Java's Type system.
+     * 
+     * Example usage:
+     * <pre>
+     * Type listType = new TypeToken&lt;List&lt;Parameter&gt;&gt;(){}.getType();
+     * List&lt;Parameter&gt; params = deserialize(bytes, listType);
+     * </pre>
+     * 
+     * @param byteArray the JSON bytes to deserialize
+     * @param type the Type representing the target type (use TypeToken for generics)
+     * @param <T> the type parameter
+     * @return the deserialized object
+     * @throws RuntimeException if deserialization fails
+     */
+    public static <T> T deserialize(byte[] byteArray, Type type) {
+        try {
+            String json = new String(byteArray, StandardCharsets.UTF_8);
+            return gson.fromJson(json, type);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to deserialize object of type " + type.getTypeName() + ": " + e.getMessage(), e);
         }
     }
     

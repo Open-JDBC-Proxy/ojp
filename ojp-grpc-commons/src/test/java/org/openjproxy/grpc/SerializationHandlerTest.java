@@ -1,7 +1,9 @@
 package org.openjproxy.grpc;
 
+import com.google.gson.reflect.TypeToken;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Time;
@@ -64,6 +66,24 @@ public class SerializationHandlerTest {
         
         assertEquals(original.size(), deserialized.size());
         assertEquals(original, deserialized);
+    }
+
+    @Test
+    public void testSerializeDeserializeListWithTypeToken() {
+        // Test using TypeToken for proper generic type deserialization
+        List<String> original = Arrays.asList("item1", "item2", "item3");
+        byte[] bytes = serialize(original);
+        
+        // Use TypeToken to preserve generic type information
+        Type listType = new TypeToken<List<String>>(){}.getType();
+        List<String> deserialized = deserialize(bytes, listType);
+        
+        assertEquals(original.size(), deserialized.size());
+        assertEquals(original, deserialized);
+        // Verify elements are Strings, not LinkedTreeMap
+        for (Object item : deserialized) {
+            assertTrue(item instanceof String);
+        }
     }
 
     @Test
