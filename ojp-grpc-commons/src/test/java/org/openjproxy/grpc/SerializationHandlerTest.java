@@ -295,6 +295,93 @@ public class SerializationHandlerTest {
     }
     
     @Test
+    public void testByteArraySerializationAsBase64() {
+        // Test that byte arrays are serialized as Base64 strings, not JSON arrays
+        byte[] original = new byte[]{0x01, 0x02, 0x03, 0x04, 0x05};
+        
+        byte[] jsonBytes = serialize(original);
+        String json = new String(jsonBytes, StandardCharsets.UTF_8);
+        
+        // Should be a Base64 string, not a JSON array like [1,2,3,4,5]
+        assertFalse(json.contains("[1,2,3,4,5]"));
+        assertTrue(json.startsWith("\""));
+        assertTrue(json.endsWith("\""));
+        
+        // Should deserialize back correctly
+        byte[] deserialized = deserialize(jsonBytes, byte[].class);
+        assertArrayEquals(original, deserialized);
+    }
+    
+    @Test
+    public void testLargeByteArrayEfficiency() {
+        // Test that large byte arrays (like blobs) are efficiently serialized
+        byte[] original = new byte[1024 * 100]; // 100KB
+        for (int i = 0; i < original.length; i++) {
+            original[i] = (byte) (i % 256);
+        }
+        
+        long startTime = System.currentTimeMillis();
+        byte[] jsonBytes = serialize(original);
+        long serializeTime = System.currentTimeMillis() - startTime;
+        
+        // Serialization should be fast (< 1 second for 100KB)
+        assertTrue(serializeTime < 1000, "Serialization took too long: " + serializeTime + "ms");
+        
+        // JSON should be compact (Base64 is ~1.33x original size)
+        String json = new String(jsonBytes, StandardCharsets.UTF_8);
+        assertTrue(json.length() < original.length * 2, "JSON too large: " + json.length() + " bytes");
+        
+        // Should deserialize back correctly
+        startTime = System.currentTimeMillis();
+        byte[] deserialized = deserialize(jsonBytes, byte[].class);
+        long deserializeTime = System.currentTimeMillis() - startTime;
+        
+        assertTrue(deserializeTime < 1000, "Deserialization took too long: " + deserializeTime + "ms");
+        assertArrayEquals(original, deserialized);
+    }
+    
+    @Test
+    public void testByteArrayInList() {
+        // Test byte arrays inside a List (as used in Parameter.values)
+        List<Object> original = Arrays.asList(new byte[]{1, 2, 3}, "test", 42);
+        
+        byte[] jsonBytes = serialize(original);
+        String json = new String(jsonBytes, StandardCharsets.UTF_8);
+        
+        // Byte array should be Base64 encoded in the list
+        assertTrue(json.contains("\""));
+        
+        // Should deserialize back (note: Gson will deserialize to ArrayList)
+        List deserialized = deserialize(jsonBytes, List.class);
+        assertNotNull(deserialized);
+        assertEquals(3, deserialized.size());
+    }
+    
+    @Test
+    public void testNullByteArray() {
+        // Test null byte array handling
+        byte[] original = null;
+        byte[] jsonBytes = serialize(original);
+        String json = new String(jsonBytes, StandardCharsets.UTF_8);
+        
+        assertEquals("null", json);
+        
+        byte[] deserialized = deserialize(jsonBytes, byte[].class);
+        assertNull(deserialized);
+    }
+    
+    @Test
+    public void testEmptyByteArray() {
+        // Test empty byte array
+        byte[] original = new byte[0];
+        byte[] jsonBytes = serialize(original);
+        
+        byte[] deserialized = deserialize(jsonBytes, byte[].class);
+        assertNotNull(deserialized);
+        assertEquals(0, deserialized.length);
+    }
+    
+    @Test
     public void testJsonFormatExample() {
         // Integration test showing JSON output can be parsed by other languages
         Properties props = new Properties();

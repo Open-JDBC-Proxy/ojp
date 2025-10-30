@@ -3,7 +3,9 @@ package org.openjproxy.grpc;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
 
 import java.nio.charset.StandardCharsets;
@@ -18,6 +20,7 @@ import java.time.OffsetDateTime;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.TimeZone;
 
@@ -26,6 +29,7 @@ import java.util.TimeZone;
  * Protobuf Messages are NOT handled by this class - they use their native binary serialization.
  * Regular Java objects (Properties, Lists, primitives, temporal types) are serialized to JSON.
  * Temporal types (DATE, TIME, TIMESTAMP) are serialized using ISO-8601 format with metadata.
+ * Byte arrays are serialized as Base64 strings for efficiency.
  */
 public class SerializationHandler {
     
@@ -39,6 +43,24 @@ public class SerializationHandler {
     
     private static Gson createGson() {
         GsonBuilder builder = new GsonBuilder();
+        
+        // Custom serializer for byte arrays - use Base64 to avoid huge JSON arrays
+        builder.registerTypeAdapter(byte[].class, (JsonSerializer<byte[]>) (src, typeOfSrc, context) -> {
+            if (src == null) {
+                return null;
+            }
+            // Encode as Base64 string for efficient serialization of large binary data
+            return new JsonPrimitive(Base64.getEncoder().encodeToString(src));
+        });
+        
+        // Custom deserializer for byte arrays
+        builder.registerTypeAdapter(byte[].class, (JsonDeserializer<byte[]>) (json, typeOfT, context) -> {
+            if (json == null || json.isJsonNull()) {
+                return null;
+            }
+            // Decode from Base64 string
+            return Base64.getDecoder().decode(json.getAsString());
+        });
         
         // Custom serializer for java.sql.Date
         builder.registerTypeAdapter(Date.class, (JsonSerializer<Date>) (src, typeOfSrc, context) -> {
