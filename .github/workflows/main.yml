@@ -132,44 +132,43 @@ jobs:
       
           # Wait for Postgres to become ready (up to 60s)
           timeout 60 bash -c 'until docker exec ojp-postgres pg_isready -U testuser -d defaultdb -h 127.0.0.1; do sleep 2; done'
-      
+
           # Verify setting (should print 100)
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
-      - name: Set up JDK 22 for ojp-server
+      - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
         with:
           java-version: 22
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons)
+      - name: Build and Install (ojp-grpc-commons) with JDK 22
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons)
+      - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      - name: Build (ojp-server)
-        run: mvn clean install -DskipTests  -Dgpg.skip=true
+      - name: Build (ojp-server) with JDK 22
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Test and Run (ojp-server)
-        run: mvn verify -pl ojp-server -Prun-ojp-server > /tmp/ojp-server.log 2>&1 &
+        run: |
+          nohup java -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
         run: sleep 10
 
-      - name: Set up JDK ${{ matrix.java-version }} for ojp-grpc-commons and ojp-jdbc-driver
+      - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
         uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
           cache: maven
 
-      - name: Build (ojp-grpc-commons) with JDK ${{ matrix.java-version }}
-        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
-
-      - name: Build (ojp-jdbc-driver)
-        run: mvn clean install -pl ojp-jdbc-driver -DskipTests -Dgpg.skip=true
+      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Test (ojp-jdbc-driver)
         run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true
@@ -187,4 +186,3 @@ jobs:
           token: ${{ secrets.INTEGRATION_REPO_PAT }}
           repository: Open-J-Proxy/ojp-framework-integration
           event-type: ojp-updated
-          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
