@@ -101,7 +101,7 @@ public class SerializationHandlerTest {
 
     @Test
     public void testSerializeDeserializeListOfObjectsWithNumbers() {
-        // Test that numbers in List<Object> preserve their types (Integer, Long, Double)
+        // Test that numbers in List<Object> are converted to Long (integers) or Double (decimals)
         List<Object> original = Arrays.asList(42, 100L, 3.14, "text", true);
         byte[] bytes = serialize(original);
         
@@ -110,19 +110,27 @@ public class SerializationHandlerTest {
         
         assertEquals(original.size(), deserialized.size());
         
-        // Verify types are preserved correctly
-        assertTrue(deserialized.get(0) instanceof Number); // Integer becomes LazilyParsedNumber
-        assertTrue(deserialized.get(1) instanceof Number); // Long becomes LazilyParsedNumber
-        assertTrue(deserialized.get(2) instanceof Number); // Double becomes LazilyParsedNumber
+        // With LONG_OR_DOUBLE policy:
+        // - Integer values become Long
+        // - Long values become Long
+        // - Double values become Double
+        assertTrue(deserialized.get(0) instanceof Long); // Integer becomes Long
+        assertTrue(deserialized.get(1) instanceof Long); // Long stays Long
+        assertTrue(deserialized.get(2) instanceof Double); // Double stays Double
         assertTrue(deserialized.get(3) instanceof String);
         assertTrue(deserialized.get(4) instanceof Boolean);
         
-        // Verify values can be cast to expected types
+        // Verify values are correct
+        assertEquals(42L, deserialized.get(0));
+        assertEquals(100L, deserialized.get(1));
+        assertEquals(3.14, (Double)deserialized.get(2), 0.001);
+        assertEquals("text", deserialized.get(3));
+        assertEquals(true, deserialized.get(4));
+        
+        // Verify values work with number conversions
         assertEquals(42, ((Number)deserialized.get(0)).intValue());
         assertEquals(100L, ((Number)deserialized.get(1)).longValue());
         assertEquals(3.14, ((Number)deserialized.get(2)).doubleValue(), 0.001);
-        assertEquals("text", deserialized.get(3));
-        assertEquals(true, deserialized.get(4));
     }
 
     @Test
