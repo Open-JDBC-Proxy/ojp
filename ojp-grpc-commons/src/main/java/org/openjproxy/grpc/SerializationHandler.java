@@ -7,6 +7,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
+import com.google.gson.ToNumberPolicy;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
@@ -45,6 +46,10 @@ public class SerializationHandler {
     
     private static Gson createGson() {
         GsonBuilder builder = new GsonBuilder();
+        
+        // Use LAZILY_PARSED_NUMBER to preserve number types (Integer, Long, Double, etc.)
+        // This prevents all numbers from being deserialized as Double
+        builder.setObjectToNumberStrategy(ToNumberPolicy.LAZILY_PARSED_NUMBER);
         
         // Custom serializer for byte arrays - use Base64 to avoid huge JSON arrays
         builder.registerTypeAdapter(byte[].class, (JsonSerializer<byte[]>) (src, typeOfSrc, context) -> {

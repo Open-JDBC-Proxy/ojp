@@ -100,6 +100,32 @@ public class SerializationHandlerTest {
     }
 
     @Test
+    public void testSerializeDeserializeListOfObjectsWithNumbers() {
+        // Test that numbers in List<Object> preserve their types (Integer, Long, Double)
+        List<Object> original = Arrays.asList(42, 100L, 3.14, "text", true);
+        byte[] bytes = serialize(original);
+        
+        Type listType = new TypeToken<List<Object>>(){}.getType();
+        List<Object> deserialized = deserialize(bytes, listType);
+        
+        assertEquals(original.size(), deserialized.size());
+        
+        // Verify types are preserved correctly
+        assertTrue(deserialized.get(0) instanceof Number); // Integer becomes LazilyParsedNumber
+        assertTrue(deserialized.get(1) instanceof Number); // Long becomes LazilyParsedNumber
+        assertTrue(deserialized.get(2) instanceof Number); // Double becomes LazilyParsedNumber
+        assertTrue(deserialized.get(3) instanceof String);
+        assertTrue(deserialized.get(4) instanceof Boolean);
+        
+        // Verify values can be cast to expected types
+        assertEquals(42, ((Number)deserialized.get(0)).intValue());
+        assertEquals(100L, ((Number)deserialized.get(1)).longValue());
+        assertEquals(3.14, ((Number)deserialized.get(2)).doubleValue(), 0.001);
+        assertEquals("text", deserialized.get(3));
+        assertEquals(true, deserialized.get(4));
+    }
+
+    @Test
     public void testSerializeDeserializeSqlDate() {
         // Test java.sql.Date with ISO-8601 format
         LocalDate localDate = LocalDate.of(2024, 6, 27);
