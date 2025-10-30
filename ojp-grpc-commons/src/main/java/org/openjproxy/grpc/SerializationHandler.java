@@ -1,15 +1,11 @@
 package org.openjproxy.grpc;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonDeserializer;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-import com.google.gson.JsonSerializer;
-import com.google.gson.ToNumberPolicy;
+import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
@@ -33,6 +29,7 @@ import java.util.TimeZone;
  * Regular Java objects (Properties, Lists, primitives, temporal types) are serialized to JSON.
  * Temporal types (DATE, TIME, TIMESTAMP) are serialized using ISO-8601 format with metadata.
  * Byte arrays are serialized as Base64 strings for efficiency.
+ * Number types (Integer, Long, etc.) are serialized with type metadata to preserve exact types.
  */
 public class SerializationHandler {
     
@@ -44,11 +41,290 @@ public class SerializationHandler {
     private static final DateTimeFormatter TS_LOCAL_FMT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final DateTimeFormatter TS_INSTANT_FMT = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
     
+    /**
+     * Custom TypeAdapterFactory that wraps primitive wrapper types with type information.
+     */
+    private static class TypePreservingAdapterFactory implements TypeAdapterFactory {
+        @Override
+        public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
+            Class<? super T> rawType = type.getRawType();
+            
+            // Only handle boxed primitive types
+            if (rawType == Integer.class || rawType == Long.class || rawType == Short.class ||
+                rawType == Byte.class || rawType == Float.class || rawType == Double.class) {
+                
+                @SuppressWarnings("unchecked")
+                TypeAdapter<T> adapter = (TypeAdapter<T>) new TypeAdapter<Object>() {
+                    @Override
+                    public void write(JsonWriter out, Object value) throws IOException {
+                        if (value == null) {
+                            out.nullValue();
+                            return;
+                        }
+                        out.beginObject();
+                        out.name("@type").value(value.getClass().getSimpleName());
+                        out.name("value");
+                        if (value instanceof Integer) {
+                            out.value((Integer) value);
+                        } else if (value instanceof Long) {
+                            out.value((Long) value);
+                        } else if (value instanceof Short) {
+                            out.value((Short) value);
+                        } else if (value instanceof Byte) {
+                            out.value((Byte) value);
+                        } else if (value instanceof Float) {
+                            out.value((Float) value);
+                        } else if (value instanceof Double) {
+                            out.value((Double) value);
+                        }
+                        out.endObject();
+                    }
+                    
+                    @Override
+                    public Object read(JsonReader in) throws IOException {
+                        if (in.peek() == com.google.gson.stream.JsonToken.NULL) {
+                            in.nextNull();
+                            return null;
+                        }
+                        
+                        // Handle both wrapped and unwrapped formats for backward compatibility
+                        if (in.peek() == com.google.gson.stream.JsonToken.NUMBER) {
+                            // Unwrapped number - determine type based on TypeToken
+                            if (rawType == Integer.class) {
+                                return in.nextInt();
+                            } else if (rawType == Long.class) {
+                                return in.nextLong();
+                            } else if (rawType == Short.class) {
+                                return (short) in.nextInt();
+                            } else if (rawType == Byte.class) {
+                                return (byte) in.nextInt();
+                            } else if (rawType == Float.class) {
+                                return (float) in.nextDouble();
+                            } else if (rawType == Double.class) {
+                                return in.nextDouble();
+                            }
+                        }
+                        
+                        // Wrapped format with type information
+                        in.beginObject();
+                        String typeName = null;
+                        Number value = null;
+                        
+                        while (in.hasNext()) {
+                            String name = in.nextName();
+                            if ("@type".equals(name)) {
+                                typeName = in.nextString();
+                            } else if ("value".equals(name)) {
+                                // Read as double first, we'll convert based on type
+                                value = in.nextDouble();
+                            }
+                        }
+                        in.endObject();
+                        
+                        if (typeName != null && value != null) {
+                            switch (typeName) {
+                                case "Integer":
+                                    return value.intValue();
+                                case "Long":
+                                    return value.longValue();
+                                case "Short":
+                                    return value.shortValue();
+                                case "Byte":
+                                    return value.byteValue();
+                                case "Float":
+                                    return value.floatValue();
+                                case "Double":
+                                    return value.doubleValue();
+                            }
+                        }
+                        
+                        return value;
+                    }
+                };
+                return adapter;
+            }
+            
+            return null; // Let Gson handle other types normally
+        }
+    }
+    
+    /**
+     * Custom TypeAdapterFactory that handles type-tagged values in Object fields.
+     */
+    private static class ObjectTypeAdapterFactory implements TypeAdapterFactory {
+        @Override
+        public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
+            if (type.getRawType() != Object.class) {
+                return null;
+            }
+            
+            final TypeAdapter<Object> delegate = gson.getDelegateAdapter(this, TypeToken.get(Object.class));
+            final TypeAdapter<JsonElement> elementAdapter = gson.getAdapter(JsonElement.class);
+            
+            @SuppressWarnings("unchecked")
+            TypeAdapter<T> result = (TypeAdapter<T>) new TypeAdapter<Object>() {
+                @Override
+                public void write(JsonWriter out, Object value) throws IOException {
+                    delegate.write(out, value);
+                }
+                
+                @Override
+                public Object read(JsonReader in) throws IOException {
+                    JsonElement element = elementAdapter.read(in);
+                    
+                    if (element.isJsonNull()) {
+                        return null;
+                    }
+                    
+                    if (element.isJsonPrimitive()) {
+                        JsonPrimitive primitive = element.getAsJsonPrimitive();
+                        if (primitive.isBoolean()) {
+                            return primitive.getAsBoolean();
+                        }
+                        if (primitive.isNumber()) {
+                            Number num = primitive.getAsNumber();
+                            // Return Long for integers, Double for decimals
+                            if (num.doubleValue() == num.longValue()) {
+                                return num.longValue();
+                            }
+                            return num.doubleValue();
+                        }
+                        if (primitive.isString()) {
+                            return primitive.getAsString();
+                        }
+                    }
+                    
+                    if (element.isJsonArray()) {
+                        // Manually deserialize array elements to use our Object handler
+                        com.google.gson.JsonArray array = element.getAsJsonArray();
+                        java.util.List<Object> list = new java.util.ArrayList<>();
+                        for (JsonElement item : array) {
+                            // Recursively deserialize each element
+                            Object itemValue;
+                            if (item.isJsonPrimitive()) {
+                                JsonPrimitive prim = item.getAsJsonPrimitive();
+                                if (prim.isBoolean()) {
+                                    itemValue = prim.getAsBoolean();
+                                } else if (prim.isNumber()) {
+                                    Number num = prim.getAsNumber();
+                                    itemValue = (num.doubleValue() == num.longValue()) ? num.longValue() : num.doubleValue();
+                                } else {
+                                    itemValue = prim.getAsString();
+                                }
+                            } else if (item.isJsonObject()) {
+                                // Recursively handle objects
+                                JsonObject itemObj = item.getAsJsonObject();
+                                if (itemObj.has("@type") && itemObj.has("value")) {
+                                    String typeName = itemObj.get("@type").getAsString();
+                                    JsonElement value = itemObj.get("value");
+                                    switch (typeName) {
+                                        case "Integer":
+                                            itemValue = value.getAsInt();
+                                            break;
+                                        case "Long":
+                                            itemValue = value.getAsLong();
+                                            break;
+                                        case "Short":
+                                            itemValue = value.getAsShort();
+                                            break;
+                                        case "Byte":
+                                            itemValue = value.getAsByte();
+                                            break;
+                                        case "Float":
+                                            itemValue = value.getAsFloat();
+                                            break;
+                                        case "Double":
+                                            itemValue = value.getAsDouble();
+                                            break;
+                                        default:
+                                            itemValue = gson.fromJson(item, java.util.Map.class);
+                                    }
+                                } else {
+                                    itemValue = gson.fromJson(item, java.util.Map.class);
+                                }
+                            } else if (item.isJsonArray()) {
+                                itemValue = gson.fromJson(item, java.util.List.class);
+                            } else {
+                                itemValue = null;
+                            }
+                            list.add(itemValue);
+                        }
+                        return list;
+                    }
+                    
+                    if (element.isJsonObject()) {
+                        JsonObject obj = element.getAsJsonObject();
+                        
+                        // Check for type-tagged values
+                        if (obj.has("@type") && obj.has("value")) {
+                            String typeName = obj.get("@type").getAsString();
+                            JsonElement value = obj.get("value");
+                            
+                            switch (typeName) {
+                                case "Integer":
+                                    return value.getAsInt();
+                                case "Long":
+                                    return value.getAsLong();
+                                case "Short":
+                                    return value.getAsShort();
+                                case "Byte":
+                                    return value.getAsByte();
+                                case "Float":
+                                    return value.getAsFloat();
+                                case "Double":
+                                    return value.getAsDouble();
+                            }
+                        }
+                        
+                        // Check for temporal types
+                        if (obj.has("type")) {
+                            String typeName = obj.get("type").getAsString();
+                            switch (typeName) {
+                                case "DATE":
+                                    return Date.valueOf(LocalDate.parse(obj.get("value").getAsString(), DATE_FMT));
+                                case "TIME":
+                                    String timeValue = obj.get("value").getAsString();
+                                    if (timeValue.contains("+") || timeValue.contains("Z") || 
+                                        (timeValue.contains("-") && timeValue.length() > 8)) {
+                                        OffsetTime ot = OffsetTime.parse(timeValue);
+                                        return Time.valueOf(ot.toLocalTime());
+                                    } else {
+                                        LocalTime lt = LocalTime.parse(timeValue, TIME_FMT);
+                                        return Time.valueOf(lt);
+                                    }
+                                case "TIMESTAMP":
+                                    LocalDateTime ldt = LocalDateTime.parse(obj.get("value").getAsString(), TS_LOCAL_FMT);
+                                    Timestamp ts = Timestamp.valueOf(ldt);
+                                    ts.setNanos(ldt.getNano());
+                                    return ts;
+                                case "TIMESTAMP_INSTANT":
+                                    Instant instant = OffsetDateTime.parse(obj.get("value").getAsString(), TS_INSTANT_FMT).toInstant();
+                                    return Timestamp.from(instant);
+                            }
+                        }
+                        
+                        // Default: return as Map
+                        return gson.fromJson(element, java.util.Map.class);
+                    }
+                    
+                    return null;
+                }
+            };
+            
+            return result;
+        }
+    }
+    
     private static Gson createGson() {
         GsonBuilder builder = new GsonBuilder();
         
-        // Use LONG_OR_DOUBLE to convert numbers to Long (for integers) or Double (for decimals)
-        // This prevents casting issues while preserving number values
+        // Register custom Object adapter factory to handle type-tagged values
+        builder.registerTypeAdapterFactory(new ObjectTypeAdapterFactory());
+        
+        // Register our custom factory for type-preserving number serialization
+        builder.registerTypeAdapterFactory(new TypePreservingAdapterFactory());
+        
+        // Use LONG_OR_DOUBLE as fallback for untyped numbers
         builder.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE);
         
         // Custom serializer for byte arrays - use Base64 to avoid huge JSON arrays
