@@ -72,6 +72,13 @@
             <version>3.25.5</version>
         </dependency>
 
+        <!-- Gson for JSON serialization of Java objects -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.11.0</version>
+        </dependency>
+
         <!-- https://mvnrepository.com/artifact/kr.motd.maven/os-maven-plugin -->
         <dependency>
             <groupId>kr.motd.maven</groupId>
