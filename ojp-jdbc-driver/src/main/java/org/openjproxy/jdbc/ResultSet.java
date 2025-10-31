@@ -408,6 +408,15 @@ public class ResultSet extends RemoteProxyResultSet {
             return null;
         } else if (lastValueRead instanceof byte[]) {// Only used by SQL server
             return new ByteArrayInputStream((byte[]) lastValueRead);
+        } else if (lastValueRead instanceof String) {
+            // JSON deserialization: byte[] was serialized as Base64 string
+            // Decode it back to byte[] and create ByteArrayInputStream
+            try {
+                byte[] bytes = java.util.Base64.getDecoder().decode((String) lastValueRead);
+                return new ByteArrayInputStream(bytes);
+            } catch (IllegalArgumentException e) {
+                // Not a Base64 string, treat as LOB reference UUID (fallback to existing logic)
+            }
         }
         Object objUUID = lastValueRead;
         String lobRefUUID = String.valueOf(objUUID);
