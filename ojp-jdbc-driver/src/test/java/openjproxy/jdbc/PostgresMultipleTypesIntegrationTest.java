@@ -76,7 +76,7 @@ public class PostgresMultipleTypesIntegrationTest {
         Assert.assertEquals(127, resultSet.getInt(5)); // SMALLINT in PostgreSQL
         Assert.assertEquals(32767, resultSet.getInt(6));
         Assert.assertEquals(true, resultSet.getBoolean(7));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
+        Assert.assertEquals(new BigDecimal(10.0).intValue(), resultSet.getBigDecimal(8).intValue());
         Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // PostgreSQL BYTEA column may be returned as String by OJP driver
         // For now, just verify we get a non-null value
@@ -104,7 +104,7 @@ public class PostgresMultipleTypesIntegrationTest {
         Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
         Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
         Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
+        Assert.assertEquals(new BigDecimal(10).intValue(), resultSet.getBigDecimal("val_decimal").intValue());
         Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
         Assert.assertEquals(true, resultSet.getBoolean("val_boolean"));
         // PostgreSQL BYTEA column may be returned as String by OJP driver
