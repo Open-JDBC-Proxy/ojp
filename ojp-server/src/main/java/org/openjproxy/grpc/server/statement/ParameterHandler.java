@@ -102,7 +102,16 @@ public class ParameterHandler {
                 ps.setBytes(idx, (byte[]) param.getValues().get(0));
                 break;
             case BYTE:
-                ps.setByte(idx, ((byte[]) param.getValues().get(0))[0]);//Comes as an array of bytes with one element.
+                Object byteValue = param.getValues().get(0);
+                if (byteValue instanceof byte[]) {
+                    ps.setByte(idx, ((byte[]) byteValue)[0]);//Comes as an array of bytes with one element.
+                } else if (byteValue instanceof String) {
+                    // JSON deserialization: byte[] was serialized as Base64 string
+                    byte[] bytes = Base64.getDecoder().decode((String) byteValue);
+                    ps.setByte(idx, bytes[0]);
+                } else {
+                    ps.setByte(idx, ((byte[]) byteValue)[0]);
+                }
                 break;
             case SHORT:
                 // Use Number to handle JSON deserialization
