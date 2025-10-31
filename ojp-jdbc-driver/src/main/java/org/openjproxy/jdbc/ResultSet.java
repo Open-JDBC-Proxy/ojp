@@ -825,6 +825,13 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return null;
         }
+        if (lastValueRead instanceof BigDecimal) {
+            return (BigDecimal) lastValueRead;
+        }
+        if (lastValueRead instanceof Number) {
+            // JSON deserialization returns Long or Double, convert to BigDecimal
+            return BigDecimal.valueOf(((Number) lastValueRead).doubleValue());
+        }
         return (BigDecimal) lastValueRead;
     }
 
