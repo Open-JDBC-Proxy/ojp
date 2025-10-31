@@ -14,6 +14,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 
@@ -475,5 +476,35 @@ public class SerializationHandlerTest {
         // DATE: {"type":"DATE","value":"2024-06-27"}
         // TIME: {"type":"TIME","value":"14:30:00"}
         // TIMESTAMP: {"type":"TIMESTAMP_INSTANT","value":"2024-06-27T14:30:00.123456789Z"}
+    }
+
+    @Test
+    public void testByteArrayInListOfObjects() {
+        // Test that byte[] in List<Object> serializes to Base64 and deserializes back correctly
+        // This is important for BINARY_STREAM parameters
+        byte[] binaryData = new byte[]{1, 2, 3, 4, 5, (byte) 255, (byte) 128};
+        List<Object> original = Arrays.asList(binaryData, 42L);
+        
+        byte[] bytes = serialize(original);
+        
+        // Verify JSON contains Base64 string (with potentially escaped equals signs)
+        String json = new String(bytes, StandardCharsets.UTF_8);
+        assertTrue(json.contains("AQIDBAX"), "Expected Base64 encoded byte array in JSON");
+        
+        // Deserialize back
+        Type listType = new TypeToken<List<Object>>(){}.getType();
+        List<Object> deserialized = deserialize(bytes, listType);
+        
+        assertEquals(2, deserialized.size());
+        
+        // First element should be String (Base64) that can be decoded back to byte[]
+        assertTrue(deserialized.get(0) instanceof String, "Byte array becomes Base64 String after JSON round-trip");
+        String base64String = (String) deserialized.get(0);
+        byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+        assertArrayEquals(binaryData, decodedBytes, "Decoded bytes should match original");
+        
+        // Second element should be Long (from JSON number)
+        assertTrue(deserialized.get(1) instanceof Long);
+        assertEquals(42L, deserialized.get(1));
     }
 }

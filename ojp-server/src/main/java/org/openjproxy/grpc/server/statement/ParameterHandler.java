@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -126,7 +127,13 @@ public class ParameterHandler {
                 } else if (inputStreamValue instanceof byte[]) {
                     //DB2 require the full binary stream to be sent at once.
                     ps.setBinaryStream(idx, new ByteArrayInputStream((byte[]) inputStreamValue));
+                } else if (inputStreamValue instanceof String) {
+                    // JSON deserialization: byte[] was serialized as Base64 string
+                    // Decode it back to byte[] and create ByteArrayInputStream
+                    byte[] bytes = Base64.getDecoder().decode((String) inputStreamValue);
+                    ps.setBinaryStream(idx, new ByteArrayInputStream(bytes));
                 } else {
+                    // Assume it's an InputStream (should not happen with JSON serialization)
                     InputStream is = (InputStream) inputStreamValue;
                     if (param.getValues().size() > 1) {
                         // Use Number to handle JSON deserialization (Long stays Long)
