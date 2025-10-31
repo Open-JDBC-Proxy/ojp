@@ -31,7 +31,13 @@ import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
@@ -168,6 +174,86 @@ public class ResultSet extends RemoteProxyResultSet {
 
         return lastValueRead.toString();
     }
+    
+    /**
+     * Helper method to convert JSON-deserialized temporal objects (LinkedTreeMap) to java.sql.Date
+     */
+    @SuppressWarnings("unchecked")
+    private Date convertToDate(Object value) {
+        if (value instanceof Date) {
+            return (Date) value;
+        }
+        if (value instanceof Timestamp) {
+            return new Date(((Timestamp) value).getTime());
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: temporal types come as LinkedTreeMap
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            String valueStr = (String) map.get("value");
+            if ("DATE".equals(type)) {
+                LocalDate ld = LocalDate.parse(valueStr, DateTimeFormatter.ISO_LOCAL_DATE);
+                return Date.valueOf(ld);
+            }
+        }
+        return (Date) value;
+    }
+    
+    /**
+     * Helper method to convert JSON-deserialized temporal objects (LinkedTreeMap) to java.sql.Time
+     */
+    @SuppressWarnings("unchecked")
+    private Time convertToTime(Object value) {
+        if (value instanceof Time) {
+            return (Time) value;
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: temporal types come as LinkedTreeMap
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            String valueStr = (String) map.get("value");
+            if ("TIME".equals(type)) {
+                LocalTime lt;
+                // Handle TIME with offset (extract local time only)
+                if (valueStr.endsWith("Z") || (valueStr.contains("+") && valueStr.length() > 8) || 
+                    (valueStr.contains("-") && valueStr.lastIndexOf('-') > 2)) {
+                    OffsetTime ot = OffsetTime.parse(valueStr);
+                    lt = ot.toLocalTime();
+                } else {
+                    lt = LocalTime.parse(valueStr, DateTimeFormatter.ISO_LOCAL_TIME);
+                }
+                return Time.valueOf(lt);
+            }
+        }
+        return (Time) value;
+    }
+    
+    /**
+     * Helper method to convert JSON-deserialized temporal objects (LinkedTreeMap) to java.sql.Timestamp
+     */
+    @SuppressWarnings("unchecked")
+    private Timestamp convertToTimestamp(Object value) {
+        if (value instanceof Timestamp) {
+            return (Timestamp) value;
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: temporal types come as LinkedTreeMap
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            String valueStr = (String) map.get("value");
+            
+            if ("TIMESTAMP_INSTANT".equals(type)) {
+                // Parse as instant
+                Instant inst = OffsetDateTime.parse(valueStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant();
+                return Timestamp.from(inst);
+            } else if ("TIMESTAMP".equals(type)) {
+                // Parse as local date-time
+                LocalDateTime ldt = LocalDateTime.parse(valueStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                return Timestamp.valueOf(ldt);
+            }
+        }
+        return (Timestamp) value;
+    }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
@@ -193,8 +279,8 @@ public class ResultSet extends RemoteProxyResultSet {
             return 0;
         } else if (lastValueRead instanceof byte[]) {
             return ((byte[]) lastValueRead)[0];
-        } else if (lastValueRead instanceof Short) {
-            return (byte)(short) lastValueRead;
+        } else if (lastValueRead instanceof Number) {
+            return ((Number) lastValueRead).byteValue();
         }
         return (byte) lastValueRead;
     }
@@ -208,6 +294,9 @@ public class ResultSet extends RemoteProxyResultSet {
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
         if (lastValueRead == null) {
             return 0;
+        }
+        if (lastValueRead instanceof Number) {
+            return ((Number) lastValueRead).shortValue();
         }
         return (short) lastValueRead;
     }
@@ -223,14 +312,8 @@ public class ResultSet extends RemoteProxyResultSet {
             return 0;
         }
         Object value = lastValueRead;
-        if (value instanceof Integer) {
-            return (int) value;
-        } else if (value instanceof Long) {
-            Long lValue = (Long) value;
-            return lValue.intValue();
-        } else if (value instanceof Short) {
-            Short sValue = (Short) value;
-            return sValue.intValue();
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
         } else if (value instanceof Date) {
             Date dValue = (Date) value;
             LocalDate ld = LocalDate.ofEpochDay(dValue.getTime());
@@ -257,14 +340,8 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return 0;
         }
-        if (lastValueRead instanceof BigInteger) {
-            return ((BigInteger) lastValueRead).longValue();
-        }
-        if (lastValueRead instanceof Integer) {
-            return ((Integer) lastValueRead).longValue();
-        }
-        if (lastValueRead instanceof BigDecimal) {
-            return ((BigDecimal) lastValueRead).longValue();
+        if (lastValueRead instanceof Number) {
+            return ((Number) lastValueRead).longValue();
         }
         return (long) lastValueRead;
     }
@@ -280,9 +357,8 @@ public class ResultSet extends RemoteProxyResultSet {
             return 0;
         }
         Object value = lastValueRead;
-        if (value instanceof BigDecimal) {
-            BigDecimal bdValue = (BigDecimal) value;
-            return bdValue.floatValue();
+        if (value instanceof Number) {
+            return ((Number) value).floatValue();
         }
         return (float) value;
     }
@@ -298,9 +374,8 @@ public class ResultSet extends RemoteProxyResultSet {
             return 0d;
         }
         Object value = lastValueRead;
-        if (value instanceof BigDecimal) {
-            BigDecimal bdValue = (BigDecimal) value;
-            return bdValue.doubleValue();
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
         }
         return (double) value;
     }
@@ -315,6 +390,12 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return null;
         }
+        if (lastValueRead instanceof BigDecimal) {
+            return (BigDecimal) lastValueRead;
+        }
+        if (lastValueRead instanceof Number) {
+            return BigDecimal.valueOf(((Number) lastValueRead).doubleValue());
+        }
         return (BigDecimal) lastValueRead;
     }
 
@@ -326,9 +407,18 @@ public class ResultSet extends RemoteProxyResultSet {
             return super.getBytes(columnIndex);
         }
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
-        if (lastValueRead instanceof String) {// Means the server is treating it as a binary stream
-            InputStream is = this.getBinaryStream(columnIndex);
-            return is.readAllBytes();
+        if (lastValueRead == null) {
+            return null;
+        }
+        if (lastValueRead instanceof String) {
+            // JSON deserialization: byte[] was serialized as Base64 string
+            try {
+                return java.util.Base64.getDecoder().decode((String) lastValueRead);
+            } catch (IllegalArgumentException e) {
+                // Not Base64, treat as binary stream (LOB reference UUID)
+                InputStream is = this.getBinaryStream(columnIndex);
+                return is.readAllBytes();
+            }
         }
         return (byte[]) lastValueRead;
     }
@@ -343,12 +433,7 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return null;
         }
-        Object result = lastValueRead;
-        if (result instanceof Timestamp) {
-            Timestamp timestamp = (Timestamp) result;
-            return new Date(timestamp.getTime());
-        }
-        return (Date) result;
+        return convertToDate(lastValueRead);
     }
 
     @Override
@@ -361,7 +446,7 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return null;
         }
-        return (Time) lastValueRead;
+        return convertToTime(lastValueRead);
     }
 
     @Override
@@ -374,7 +459,7 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return null;
         }
-        return (Timestamp) lastValueRead;
+        return convertToTimestamp(lastValueRead);
     }
 
     @Override
