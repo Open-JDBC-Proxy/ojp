@@ -15,8 +15,16 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Handles parameter setting for prepared statements.
@@ -92,13 +100,13 @@ public class ParameterHandler {
                 ps.setShort(idx, ((Number) param.getValues().get(0)).shortValue());
                 break;
             case DATE:
-                ps.setDate(idx, (Date) param.getValues().get(0));
+                ps.setDate(idx, convertToDate(param.getValues().get(0)));
                 break;
             case TIME:
-                ps.setTime(idx, (Time) param.getValues().get(0));
+                ps.setTime(idx, convertToTime(param.getValues().get(0)));
                 break;
             case TIMESTAMP:
-                ps.setTimestamp(idx, (Timestamp) param.getValues().get(0));
+                ps.setTimestamp(idx, convertToTimestamp(param.getValues().get(0)));
                 break;
             //LOB types
             case BLOB:
@@ -155,5 +163,85 @@ public class ParameterHandler {
                 ps.setObject(idx, param.getValues().get(0));
                 break;
         }
+    }
+
+    /**
+     * Helper method to convert JSON-deserialized temporal objects (LinkedTreeMap) to java.sql.Date
+     */
+    @SuppressWarnings("unchecked")
+    private static Date convertToDate(Object value) {
+        if (value instanceof Date) {
+            return (Date) value;
+        }
+        if (value instanceof Timestamp) {
+            return new Date(((Timestamp) value).getTime());
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: temporal types come as LinkedTreeMap
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            String valueStr = (String) map.get("value");
+            if ("DATE".equals(type)) {
+                LocalDate ld = LocalDate.parse(valueStr, DateTimeFormatter.ISO_LOCAL_DATE);
+                return Date.valueOf(ld);
+            }
+        }
+        return (Date) value;
+    }
+
+    /**
+     * Helper method to convert JSON-deserialized temporal objects (LinkedTreeMap) to java.sql.Time
+     */
+    @SuppressWarnings("unchecked")
+    private static Time convertToTime(Object value) {
+        if (value instanceof Time) {
+            return (Time) value;
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: temporal types come as LinkedTreeMap
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            String valueStr = (String) map.get("value");
+            if ("TIME".equals(type)) {
+                LocalTime lt;
+                // Handle TIME with offset (extract local time only - wall clock semantics)
+                if (valueStr.endsWith("Z") || (valueStr.contains("+") && valueStr.length() > 8) || 
+                    (valueStr.contains("-") && valueStr.lastIndexOf('-') > 2)) {
+                    OffsetTime ot = OffsetTime.parse(valueStr);
+                    lt = ot.toLocalTime();
+                } else {
+                    lt = LocalTime.parse(valueStr, DateTimeFormatter.ISO_LOCAL_TIME);
+                }
+                return Time.valueOf(lt);
+            }
+        }
+        return (Time) value;
+    }
+
+    /**
+     * Helper method to convert JSON-deserialized temporal objects (LinkedTreeMap) to java.sql.Timestamp
+     */
+    @SuppressWarnings("unchecked")
+    private static Timestamp convertToTimestamp(Object value) {
+        if (value instanceof Timestamp) {
+            return (Timestamp) value;
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: temporal types come as LinkedTreeMap
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            String valueStr = (String) map.get("value");
+            
+            if ("TIMESTAMP_INSTANT".equals(type)) {
+                // Parse as instant with nanosecond precision
+                Instant inst = OffsetDateTime.parse(valueStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant();
+                return Timestamp.from(inst);
+            } else if ("TIMESTAMP".equals(type)) {
+                // Parse as local date-time
+                LocalDateTime ldt = LocalDateTime.parse(valueStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                return Timestamp.valueOf(ldt);
+            }
+        }
+        return (Timestamp) value;
     }
 }
