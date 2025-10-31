@@ -56,16 +56,19 @@ public class ParameterHandler {
         log.info("Adding parameter idx {} type {}", idx, param.getType().toString());
         switch (param.getType()) {
             case INT:
-                ps.setInt(idx, (int) param.getValues().get(0));
+                // Use Number to handle JSON deserialization (Long) or direct Integer
+                ps.setInt(idx, ((Number) param.getValues().get(0)).intValue());
                 break;
             case DOUBLE:
-                ps.setDouble(idx, (double) param.getValues().get(0));
+                // Use Number to handle JSON deserialization
+                ps.setDouble(idx, ((Number) param.getValues().get(0)).doubleValue());
                 break;
             case STRING:
                 ps.setString(idx, (String) param.getValues().get(0));
                 break;
             case LONG:
-                ps.setLong(idx, (long) param.getValues().get(0));
+                // Use Number to handle JSON deserialization
+                ps.setLong(idx, ((Number) param.getValues().get(0)).longValue());
                 break;
             case BOOLEAN:
                 ps.setBoolean(idx, (boolean) param.getValues().get(0));
@@ -74,13 +77,18 @@ public class ParameterHandler {
                 ps.setBigDecimal(idx, (BigDecimal) param.getValues().get(0));
                 break;
             case FLOAT:
-                ps.setFloat(idx, (float) param.getValues().get(0));
+                // Use Number to handle JSON deserialization
+                ps.setFloat(idx, ((Number) param.getValues().get(0)).floatValue());
                 break;
             case BYTES:
                 ps.setBytes(idx, (byte[]) param.getValues().get(0));
                 break;
             case BYTE:
                 ps.setByte(idx, ((byte[]) param.getValues().get(0))[0]);//Comes as an array of bytes with one element.
+                break;
+            case SHORT:
+                // Use Number to handle JSON deserialization
+                ps.setShort(idx, ((Number) param.getValues().get(0)).shortValue());
                 break;
             case DATE:
                 ps.setDate(idx, (Date) param.getValues().get(0));
@@ -121,7 +129,8 @@ public class ParameterHandler {
                 } else {
                     InputStream is = (InputStream) inputStreamValue;
                     if (param.getValues().size() > 1) {
-                        Long size = (Long) param.getValues().get(1);
+                        // Use Number to handle JSON deserialization (Long stays Long)
+                        Long size = ((Number) param.getValues().get(1)).longValue();
                         ps.setBinaryStream(idx, is, size);
                     } else {
                         ps.setBinaryStream(idx, is);
@@ -130,7 +139,8 @@ public class ParameterHandler {
                 break;
             }
             case NULL: {
-                int sqlType = (int) param.getValues().get(0);
+                // Use Number to handle JSON deserialization (int stored as Long)
+                int sqlType = ((Number) param.getValues().get(0)).intValue();
                 ps.setNull(idx, sqlType);
                 break;
             }
