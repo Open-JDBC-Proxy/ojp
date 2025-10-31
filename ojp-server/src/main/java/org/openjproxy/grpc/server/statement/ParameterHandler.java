@@ -84,7 +84,15 @@ public class ParameterHandler {
                 ps.setBoolean(idx, (boolean) param.getValues().get(0));
                 break;
             case BIG_DECIMAL:
-                ps.setBigDecimal(idx, (BigDecimal) param.getValues().get(0));
+                Object bigDecValue = param.getValues().get(0);
+                if (bigDecValue instanceof BigDecimal) {
+                    ps.setBigDecimal(idx, (BigDecimal) bigDecValue);
+                } else if (bigDecValue instanceof Number) {
+                    // JSON deserialization returns Long or Double, convert to BigDecimal
+                    ps.setBigDecimal(idx, BigDecimal.valueOf(((Number) bigDecValue).doubleValue()));
+                } else {
+                    ps.setBigDecimal(idx, (BigDecimal) bigDecValue);
+                }
                 break;
             case FLOAT:
                 // Use Number to handle JSON deserialization
