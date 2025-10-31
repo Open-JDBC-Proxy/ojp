@@ -1,2 +1,1 @@
 org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_postgresql://localhost:5432/defaultdb,testuser,testpassword,false
-org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_postgresql://localhost:5432/defaultdb,testuser,testpassword,true

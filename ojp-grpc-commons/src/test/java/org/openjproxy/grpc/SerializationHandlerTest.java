@@ -33,6 +33,40 @@ import static org.openjproxy.grpc.SerializationHandler.serialize;
 public class SerializationHandlerTest {
 
     @Test
+    public void testSerializeDeserializeListWithStringAndInteger() {
+        // Test basic primitive wrapper
+        String originalString = "hello";
+        int originalPrimitiveInt = 42;
+        List<Object> list = new ArrayList<>();
+        list.add(originalString);
+        list.add(originalPrimitiveInt);
+        byte[] bytes = serialize(list);
+        List<Object>  deserializedList = deserialize(bytes, List.class);
+
+        assertEquals(deserializedList.get(0), originalString);
+        assertEquals("java.lang.Integer", deserializedList.get(1).getClass().getName());
+        assertEquals(originalPrimitiveInt+"", deserializedList.get(1)+"");
+
+    }
+
+    @Test
+    public void testSerializeDeserializeListWithStringAndArrayWithInteger() {
+        // Test basic primitive wrapper
+        String originalString = "hello";
+        int[] colIndexes = {1};
+        List<Object> list = new ArrayList<>();
+        list.add(originalString);
+        list.add(colIndexes);
+        byte[] bytes = serialize(list);
+        List<Object>  deserializedList = deserialize(bytes, List.class);
+
+        assertEquals(deserializedList.get(0), originalString);
+        assertTrue(deserializedList.get(1).getClass().getName().startsWith("[I"));
+        assertEquals( colIndexes[0]+"", ((int[])deserializedList.get(1))[0]+"");
+
+    }
+
+    @Test
     public void testSerializeDeserializeInteger() {
         // Test basic primitive wrapper
         Integer original = 42;
@@ -110,19 +144,15 @@ public class SerializationHandlerTest {
         List<Object> deserialized = deserialize(bytes, listType);
         
         assertEquals(original.size(), deserialized.size());
-        
-        // With LONG_OR_DOUBLE policy:
-        // - Integer values become Long
-        // - Long values become Long
-        // - Double values become Double
-        assertTrue(deserialized.get(0) instanceof Long); // Integer becomes Long
+
+        assertTrue(deserialized.get(0) instanceof Integer); // Integer becomes Long
         assertTrue(deserialized.get(1) instanceof Long); // Long stays Long
         assertTrue(deserialized.get(2) instanceof Double); // Double stays Double
         assertTrue(deserialized.get(3) instanceof String);
         assertTrue(deserialized.get(4) instanceof Boolean);
         
         // Verify values are correct
-        assertEquals(42L, deserialized.get(0));
+        assertEquals(42, deserialized.get(0));
         assertEquals(100L, deserialized.get(1));
         assertEquals(3.14, (Double)deserialized.get(2), 0.001);
         assertEquals("text", deserialized.get(3));
