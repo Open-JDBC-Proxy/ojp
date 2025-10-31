@@ -99,7 +99,15 @@ public class ParameterHandler {
                 ps.setFloat(idx, ((Number) param.getValues().get(0)).floatValue());
                 break;
             case BYTES:
-                ps.setBytes(idx, (byte[]) param.getValues().get(0));
+                Object bytesValue = param.getValues().get(0);
+                if (bytesValue instanceof byte[]) {
+                    ps.setBytes(idx, (byte[]) bytesValue);
+                } else if (bytesValue instanceof String) {
+                    // JSON deserialization: byte[] was serialized as Base64 string
+                    ps.setBytes(idx, Base64.getDecoder().decode((String) bytesValue));
+                } else {
+                    ps.setBytes(idx, (byte[]) bytesValue);
+                }
                 break;
             case BYTE:
                 Object byteValue = param.getValues().get(0);
