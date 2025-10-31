@@ -26,6 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Calendar;
 import java.util.TimeZone;
+import java.util.UUID;
 
 /**
  * Handles serialization of Java objects to and from JSON byte arrays.
@@ -155,6 +156,31 @@ public class SerializationHandler {
                 }
             }
             throw new IllegalArgumentException("Invalid TIMESTAMP JSON format");
+        });
+        
+        // Custom serializer for UUID
+        builder.registerTypeAdapter(UUID.class, (JsonSerializer<UUID>) (src, typeOfSrc, context) -> {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("type", "UUID");
+            obj.addProperty("value", src.toString());
+            return obj;
+        });
+        
+        // Custom deserializer for UUID
+        builder.registerTypeAdapter(UUID.class, (JsonDeserializer<UUID>) (json, typeOfT, context) -> {
+            if (json == null || json.isJsonNull()) {
+                return null;
+            }
+            if (json.isJsonObject()) {
+                JsonObject obj = json.getAsJsonObject();
+                String type = obj.get("type").getAsString();
+                if ("UUID".equals(type)) {
+                    String value = obj.get("value").getAsString();
+                    return UUID.fromString(value);
+                }
+            }
+            // Fallback: try parsing as plain string (backward compatibility)
+            return UUID.fromString(json.getAsString());
         });
         
         return builder.create();

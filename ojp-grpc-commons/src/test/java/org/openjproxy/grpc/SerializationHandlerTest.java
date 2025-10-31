@@ -507,4 +507,40 @@ public class SerializationHandlerTest {
         assertTrue(deserialized.get(1) instanceof Long);
         assertEquals(42L, deserialized.get(1));
     }
+    
+    @Test
+    public void testSerializeDeserializeUUID() {
+        // Test UUID serialization/deserialization
+        java.util.UUID original = java.util.UUID.randomUUID();
+        byte[] bytes = serialize(original);
+        java.util.UUID deserialized = deserialize(bytes, java.util.UUID.class);
+        
+        assertEquals(original, deserialized);
+        
+        // Verify it's JSON with metadata envelope
+        String json = new String(bytes, StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"type\":\"UUID\""));
+        assertTrue(json.contains("\"value\":\"" + original.toString() + "\""));
+    }
+    
+    @Test
+    public void testUUIDInListOfObjects() {
+        // Test UUID within List<Object> (common use case in Parameter.values)
+        java.util.UUID uuid = java.util.UUID.randomUUID();
+        List<Object> original = Arrays.asList(uuid, "test", 123);
+        
+        byte[] bytes = serialize(original);
+        Type listType = new TypeToken<List<Object>>(){}.getType();
+        List<Object> deserialized = deserialize(bytes, listType);
+        
+        assertNotNull(deserialized);
+        assertEquals(3, deserialized.size());
+        
+        // First element is UUID - should be a Map (LinkedTreeMap) after JSON deserialization
+        assertTrue(deserialized.get(0) instanceof java.util.Map);
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> uuidMap = (java.util.Map<String, Object>) deserialized.get(0);
+        assertEquals("UUID", uuidMap.get("type"));
+        assertEquals(uuid.toString(), uuidMap.get("value"));
+    }
 }

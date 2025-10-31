@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.openjproxy.grpc.SerializationHandler.deserialize;
@@ -253,6 +254,35 @@ public class ResultSet extends RemoteProxyResultSet {
             }
         }
         return (Timestamp) value;
+    }
+    
+    /**
+     * Helper method to convert JSON-deserialized UUID objects (LinkedTreeMap) to java.util.UUID
+     */
+    @SuppressWarnings("unchecked")
+    private UUID convertToUUID(Object value) {
+        if (value instanceof UUID) {
+            return (UUID) value;
+        }
+        if (value instanceof String) {
+            // Try to parse as UUID (in case it was serialized as plain string)
+            try {
+                return UUID.fromString((String) value);
+            } catch (IllegalArgumentException e) {
+                // Not a UUID, will throw ClassCastException below
+                throw new ClassCastException("Cannot convert String to UUID: " + e.getMessage());
+            }
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: {"type":"UUID","value":"..."}
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            if ("UUID".equals(type)) {
+                String valueStr = (String) map.get("value");
+                return UUID.fromString(valueStr);
+            }
+        }
+        return (UUID) value;
     }
 
     @Override
@@ -742,6 +772,17 @@ public class ResultSet extends RemoteProxyResultSet {
             return super.getObject(columnIndex);
         }
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
+        
+        // Handle UUID conversion from JSON deserialization
+        if (lastValueRead instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) lastValueRead;
+            String type = (String) map.get("type");
+            if ("UUID".equals(type)) {
+                return convertToUUID(lastValueRead);
+            }
+        }
+        
         return lastValueRead;
     }
 

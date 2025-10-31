@@ -25,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Handles parameter setting for prepared statements.
@@ -160,7 +161,9 @@ public class ParameterHandler {
                 break;
             }
             default:
-                ps.setObject(idx, param.getValues().get(0));
+                // Handle UUID conversion from JSON-deserialized Map
+                Object value = param.getValues().get(0);
+                ps.setObject(idx, convertToUUID(value));
                 break;
         }
     }
@@ -243,5 +246,35 @@ public class ParameterHandler {
             }
         }
         return (Timestamp) value;
+    }
+    
+    /**
+     * Helper method to convert JSON-deserialized UUID objects (LinkedTreeMap) to java.util.UUID
+     */
+    @SuppressWarnings("unchecked")
+    private static Object convertToUUID(Object value) {
+        if (value instanceof UUID) {
+            return value;
+        }
+        if (value instanceof String) {
+            // Try to parse as UUID (in case it was serialized as plain string)
+            try {
+                return UUID.fromString((String) value);
+            } catch (IllegalArgumentException e) {
+                // Not a UUID, return as is
+                return value;
+            }
+        }
+        if (value instanceof Map) {
+            // JSON deserialization: {"type":"UUID","value":"..."}
+            Map<String, Object> map = (Map<String, Object>) value;
+            String type = (String) map.get("type");
+            if ("UUID".equals(type)) {
+                String valueStr = (String) map.get("value");
+                return UUID.fromString(valueStr);
+            }
+        }
+        // Return as is if not a UUID
+        return value;
     }
 }
