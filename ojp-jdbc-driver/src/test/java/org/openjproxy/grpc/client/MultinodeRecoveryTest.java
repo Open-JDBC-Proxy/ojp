@@ -15,9 +15,19 @@ import static org.junit.jupiter.api.Assertions.*;
  * - Server 1 (port 10591) has been restarted and is now healthy
  * - Server 2 (port 10592) is running
  * - Postgres database is accessible at localhost:5432
+ * 
+ * These tests are disabled by default and only run when the system property
+ * 'multinode.tests.enabled' is set to 'true'.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class MultinodeRecoveryTest {
+    
+    @BeforeAll
+    static void checkIfEnabled() {
+        String enabled = System.getProperty("multinode.tests.enabled", "false");
+        Assumptions.assumeTrue("true".equalsIgnoreCase(enabled), 
+                "Multinode recovery tests are disabled. Set -Dmultinode.tests.enabled=true to enable.");
+    }
 
     private static final String MULTINODE_URL = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
     private static final String POSTGRES_USER = "testuser";

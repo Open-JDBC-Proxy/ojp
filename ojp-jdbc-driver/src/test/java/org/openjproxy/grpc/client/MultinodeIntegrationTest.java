@@ -12,9 +12,22 @@ import static org.junit.jupiter.api.Assertions.*;
  * Integration tests for multinode functionality.
  * These tests require two OJP servers running on ports 10591 and 10592,
  * and a Postgres database accessible at localhost:5432.
+ * 
+ * These tests are disabled by default and only run when the system property
+ * 'multinode.tests.enabled' is set to 'true'.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class MultinodeIntegrationTest {
+    
+    private static boolean testsEnabled = false;
+    
+    @BeforeAll
+    static void checkIfEnabled() {
+        String enabled = System.getProperty("multinode.tests.enabled", "false");
+        testsEnabled = "true".equalsIgnoreCase(enabled);
+        Assumptions.assumeTrue(testsEnabled, 
+                "Multinode integration tests are disabled. Set -Dmultinode.tests.enabled=true to enable.");
+    }
 
     private static final String MULTINODE_URL = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
     private static final String POSTGRES_USER = "testuser";
@@ -22,6 +35,10 @@ class MultinodeIntegrationTest {
 
     @BeforeAll
     static void setUp() throws SQLException {
+        if (!testsEnabled) {
+            return; // Skip setup if tests are disabled
+        }
+        
         // Register the driver
         DriverManager.registerDriver(new Driver());
         
@@ -39,6 +56,10 @@ class MultinodeIntegrationTest {
 
     @AfterAll
     static void tearDown() throws SQLException {
+        if (!testsEnabled) {
+            return; // Skip teardown if tests are disabled
+        }
+        
         // Clean up test table
         try (Connection directConn = DriverManager.getConnection(
                 "jdbc:postgresql://localhost:5432/defaultdb", POSTGRES_USER, POSTGRES_PASSWORD)) {
