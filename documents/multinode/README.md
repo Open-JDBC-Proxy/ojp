@@ -62,11 +62,28 @@ ojp.connection.pool.connectionTimeout=15000
 # Multinode configuration (configurable via properties)
 ojp.multinode.retryAttempts=-1        # -1 for infinite retry, or positive number
 ojp.multinode.retryDelayMs=5000       # milliseconds between retry attempts
+
+# XA (distributed transaction) configuration
+ojp.xa.maxTransactions=50              # Maximum concurrent XA transactions (divided among servers)
+ojp.xa.startTimeout=30000              # XA transaction start timeout in milliseconds
 ```
 
 ### Server-Side Configuration
 
-Each OJP server in a multinode setup should be configured identically with the same database connection settings. The servers will automatically coordinate pool sizes based on the number of active servers in the cluster.
+Each OJP server in a multinode setup should be configured identically with the same database connection settings. The servers will automatically coordinate both connection pool sizes and XA transaction limits based on the number of active servers in the cluster.
+
+**Regular Connection Pools**: Pool sizes (`maximumPoolSize`, `minimumIdle`) are divided among healthy servers. When a server fails, remaining servers increase their pool sizes to maintain total capacity.
+
+**XA Transaction Limits**: Similarly, the maximum number of concurrent XA transactions (`ojp.xa.maxTransactions`) is divided among healthy servers. This ensures that the global transaction limit is respected while enabling high availability.
+
+#### XA Multinode Example
+
+With 3 OJP servers and `ojp.xa.maxTransactions=30`:
+- **Normal operation**: Each server allows max 10 concurrent XA transactions
+- **One server fails**: Remaining 2 servers increase to max 15 XA transactions each
+- **Server recovers**: All 3 servers rebalance back to max 10 XA transactions each
+
+This automatic coordination prevents exceeding database connection or transaction limits while maintaining fault tolerance.
 
 ## How It Works
 
@@ -112,10 +129,20 @@ Each OJP server in a multinode setup should be configured identically with the s
 
 ### Server Setup
 
-1. **Identical Configuration**: All OJP servers should have identical database connection settings
-2. **Shared Database**: All servers should connect to the same database instance or cluster
-3. **Network Reliability**: Ensure reliable network connectivity between clients and all servers
-4. **Automatic Pool Coordination**: When multiple OJP servers are configured in a multinode setup:
+1. **Minimum 3-Node Production Configuration (Recommended)**: Deploy at least 3 OJP servers in production environments
+   - **Reason**: Distributes load impact during failures across remaining nodes
+   - **Example**: With `maximumPoolSize=30` and 3 nodes:
+     - Normal operation: Each server handles 10 connections
+     - One node fails: Remaining 2 servers increase to 15 connections each (50% increase)
+   - **Comparison with 2-node setup**:
+     - Normal operation: Each server handles 15 connections  
+     - One node fails: Remaining server must handle all 30 connections (100% increase)
+     - This can overwhelm the remaining server and reduce reliability
+   - **Benefits of 3+ nodes**: Lower impact per server during failures, better fault tolerance, smoother load distribution
+2. **Identical Configuration**: All OJP servers should have identical database connection settings
+3. **Shared Database**: All servers should connect to the same database instance or cluster
+4. **Network Reliability**: Ensure reliable network connectivity between clients and all servers
+5. **Automatic Pool Coordination**: When multiple OJP servers are configured in a multinode setup:
    - Pool sizes are automatically divided among servers (e.g., with `maximumPoolSize=20` and 2 servers, each gets max 10 connections)
    - When a server becomes unhealthy, remaining servers automatically increase their pool sizes to maintain capacity
    - When an unhealthy server recovers, all servers rebalance back to the divided pool sizes

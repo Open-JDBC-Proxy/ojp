@@ -119,6 +119,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // Server configuration for creating segregation managers
     private final ServerConfiguration serverConfiguration;
     
+    // Multinode XA coordinator for distributing transaction limits
+    private static final MultinodeXaCoordinator xaCoordinator = new MultinodeXaCoordinator();
+    
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
     private final Map<String, DbName> dbNameMap = new ConcurrentHashMap<>();
 
@@ -177,9 +180,24 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
+            // Check if multinode configuration is present for XA coordination
+            List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
+            int actualMaxXaTransactions = maxXaTransactions;
+            
+            if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
+                // Multinode: calculate divided XA transaction limits
+                MultinodeXaCoordinator.XaAllocation xaAllocation = 
+                        xaCoordinator.calculateXaLimits(connHash, maxXaTransactions, serverEndpoints);
+                
+                actualMaxXaTransactions = xaAllocation.getCurrentMaxTransactions();
+                
+                log.info("Multinode XA coordination enabled for {}: {} servers, divided max transactions: {}", 
+                        connHash, serverEndpoints.size(), actualMaxXaTransactions);
+            }
+            
             // Initialize or retrieve XA transaction limiter for this connection
             XaTransactionLimiter xaLimiter = ((SessionManagerImpl) sessionManager)
-                    .getOrCreateXaLimiter(connHash, maxXaTransactions, xaStartTimeoutMillis);
+                    .getOrCreateXaLimiter(connHash, actualMaxXaTransactions, xaStartTimeoutMillis);
             log.info("XA limiter for connHash {}: max={}, active={}/{}", 
                     connHash, xaLimiter.getMaxTransactions(), 
                     xaLimiter.getActiveTransactions(), xaLimiter.getMaxTransactions());
@@ -195,8 +213,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     this.xaDataSourceMap.put(connHash, xaDataSource);
                     
                     // Create slow query segregation manager for XA datasource
-                    // Use maxXaTransactions as the pool size for XA operations
-                    createSlowQuerySegregationManagerForDatasource(connHash, maxXaTransactions);
+                    // Use actualMaxXaTransactions as the pool size for XA operations
+                    createSlowQuerySegregationManagerForDatasource(connHash, actualMaxXaTransactions);
                     
                     log.info("Created new native XADataSource for XA pass-through with connHash: {}", connHash);
                     
