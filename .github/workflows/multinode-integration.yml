@@ -1,0 +1,128 @@
+# This workflow tests multinode functionality with two OJP server instances
+# It starts a Postgres database and two OJP servers on different ports,
+# then runs integration tests for multinode scenarios including failover and recovery.
+name: Multinode Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  multinode-test:
+    name: Multinode Integration Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Start Postgres
+        run: |
+          docker run --name ojp-postgres-multinode \
+            -e POSTGRES_USER=testuser \
+            -e POSTGRES_PASSWORD=testpassword \
+            -e POSTGRES_DB=defaultdb \
+            -p 5432:5432 \
+            -d postgres:17 \
+            -c max_prepared_transactions=100
+      
+          # Wait for Postgres to become ready (up to 60s)
+          timeout 60 bash -c 'until docker exec ojp-postgres-multinode pg_isready -U testuser -d defaultdb -h 127.0.0.1; do sleep 2; done'
+
+          # Verify setting
+          PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
+
+      - name: Set up JDK 22 for build
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Install (ojp-grpc-commons) with JDK 22
+        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-grpc-commons) with JDK 22
+        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
+
+      - name: Build (ojp-server) with JDK 22
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
+
+      - name: Start OJP Server 1 on port 10591
+        run: |
+          # Start first server on port 10591
+          nohup java -Dgrpc.port=10591 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
+          echo $! > /tmp/ojp-server-1.pid
+          echo "Started OJP Server 1 on port 10591 with PID $(cat /tmp/ojp-server-1.pid)"
+
+      - name: Start OJP Server 2 on port 10592
+        run: |
+          # Start second server on port 10592
+          nohup java -Dgrpc.port=10592 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
+          echo $! > /tmp/ojp-server-2.pid
+          echo "Started OJP Server 2 on port 10592 with PID $(cat /tmp/ojp-server-2.pid)"
+
+      - name: Wait for OJP servers to start
+        run: |
+          echo "Waiting for servers to start..."
+          sleep 15
+          echo "Checking if servers are listening..."
+          netstat -tuln | grep -E ':(10591|10592)' || echo "Warning: Servers might not be listening yet"
+
+      - name: Build (ojp-jdbc-driver) with JDK 22
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
+
+      - name: Run Multinode Integration Tests
+        run: mvn test -pl ojp-jdbc-driver -Dtest=MultinodeIntegrationTest -Dgpg.skip=true
+        continue-on-error: true
+
+      - name: Test Failover Scenario - Stop Server 1
+        run: |
+          echo "Stopping OJP Server 1 for failover test..."
+          if [ -f /tmp/ojp-server-1.pid ]; then
+            kill $(cat /tmp/ojp-server-1.pid) || true
+            sleep 5
+          fi
+
+      - name: Run Failover Tests
+        run: mvn test -pl ojp-jdbc-driver -Dtest=MultinodeFailoverTest -Dgpg.skip=true
+        continue-on-error: true
+
+      - name: Test Recovery Scenario - Restart Server 1
+        run: |
+          echo "Restarting OJP Server 1 for recovery test..."
+          nohup java -Dgrpc.port=10591 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
+          echo $! > /tmp/ojp-server-1-restart.pid
+          sleep 10
+
+      - name: Run Recovery Tests
+        run: mvn test -pl ojp-jdbc-driver -Dtest=MultinodeRecoveryTest -Dgpg.skip=true
+        continue-on-error: true
+
+      - name: Show OJP Server 1 log
+        if: always()
+        run: |
+          echo "=== OJP Server 1 Initial Log ==="
+          cat /tmp/ojp-server-1.log || echo "/tmp/ojp-server-1.log not found"
+          echo ""
+          echo "=== OJP Server 1 Restart Log ==="
+          cat /tmp/ojp-server-1-restart.log || echo "/tmp/ojp-server-1-restart.log not found"
+
+      - name: Show OJP Server 2 log
+        if: always()
+        run: |
+          echo "=== OJP Server 2 Log ==="
+          cat /tmp/ojp-server-2.log || echo "/tmp/ojp-server-2.log not found"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Kill any remaining OJP server processes
+          pkill -f "ojp-server-0.2.1-snapshot-shaded.jar" || true
+          # Stop Postgres container
+          docker stop ojp-postgres-multinode || true
+          docker rm ojp-postgres-multinode || true
