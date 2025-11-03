@@ -246,7 +246,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
                 // Configure HikariCP using datasource-specific configuration
                 DataSourceConfigurationManager.DataSourceConfiguration dsConfig = 
-                        ConnectionPoolConfigurer.configureHikariPool(config, connectionDetails);
+                        ConnectionPoolConfigurer.configureHikariPool(config, connectionDetails, connHash);
 
                 ds = new HikariDataSource(config);
                 this.datasourceMap.put(connHash, ds);

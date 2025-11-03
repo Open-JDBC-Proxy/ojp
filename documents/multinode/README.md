@@ -1,8 +1,8 @@
-# OJP Multinode Configuration Guide
+# Open J Proxy Multinode Configuration Guide
 
 ## Overview
 
-OJP (Open JDBC Proxy) supports multinode deployment for high availability, load distribution, and fault tolerance. The multinode functionality allows JDBC clients to connect to multiple OJP servers simultaneously, providing automatic failover and load balancing capabilities.
+Open J Proxy supports multinode deployment for high availability, load distribution, and fault tolerance. The multinode functionality allows JDBC clients to connect to multiple OJP servers simultaneously, providing automatic failover and load balancing capabilities.
 
 ## Features
 
@@ -91,7 +91,11 @@ Each OJP server in a multinode setup should be configured identically with the s
 
 ### Failure Handling
 
-1. **Server Failure Detection**: Servers are marked unhealthy when gRPC calls fail
+1. **Server Failure Detection**: Servers are marked unhealthy only for connection-level failures
+   - Connection failures (cannot reach the server)
+   - Timeout errors (server not responding)
+   - gRPC communication errors
+   - Database-level errors (e.g., table not found, syntax errors) do NOT mark servers as unhealthy
 2. **Automatic Retry**: Failed requests are retried on other healthy servers (for non-session operations)
 3. **Recovery Attempts**: Unhealthy servers are periodically tested for recovery
 4. **Graceful Degradation**: System continues operating with remaining healthy servers
@@ -111,11 +115,18 @@ Each OJP server in a multinode setup should be configured identically with the s
 1. **Identical Configuration**: All OJP servers should have identical database connection settings
 2. **Shared Database**: All servers should connect to the same database instance or cluster
 3. **Network Reliability**: Ensure reliable network connectivity between clients and all servers
-4. **Resource Planning**: Plan total connection pool capacity across all servers
+4. **Automatic Pool Coordination**: When multiple OJP servers are configured in a multinode setup:
+   - Pool sizes are automatically divided among servers (e.g., with `maximumPoolSize=20` and 2 servers, each gets max 10 connections)
+   - When a server becomes unhealthy, remaining servers automatically increase their pool sizes to maintain capacity
+   - When an unhealthy server recovers, all servers rebalance back to the divided pool sizes
+   - This ensures the global pool limits are respected while maintaining high availability
 
 ### Client Configuration
 
-1. **Connection Pool Sizing**: Consider total pool capacity across all servers when configuring `maximumPoolSize`
+1. **Connection Pool Sizing**: Configure `maximumPoolSize` and `minimumIdle` based on your total capacity needs
+   - The OJP servers will automatically divide these values among themselves
+   - Example: With `maximumPoolSize=20` and 3 servers, each server maintains max 7 connections (rounded up)
+   - If one server fails, the remaining 2 servers each increase to max 10 connections
 2. **Health Check Frequency**: Configure appropriate retry delays to balance responsiveness and resource usage
 3. **DNS Configuration**: Use DNS names instead of IP addresses when possible for easier maintenance
 

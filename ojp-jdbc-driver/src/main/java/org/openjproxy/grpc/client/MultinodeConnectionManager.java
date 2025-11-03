@@ -242,10 +242,20 @@ public class MultinodeConnectionManager {
     }
     
     private void handleServerFailure(ServerEndpoint endpoint, Exception exception) {
+        // Only mark server unhealthy for connection-level failures
+        // Database-level errors (e.g., table not found, syntax errors) should not affect server health
+        boolean shouldMarkUnhealthy = isConnectionLevelError(exception);
+        
+        if (!shouldMarkUnhealthy) {
+            log.debug("Server {} encountered database-level error, not marking unhealthy: {}", 
+                    endpoint.getAddress(), exception.getMessage());
+            return;
+        }
+        
         endpoint.setHealthy(false);
         endpoint.setLastFailureTime(System.currentTimeMillis());
         
-        log.warn("Marked server {} as unhealthy due to: {}", 
+        log.warn("Marked server {} as unhealthy due to connection-level error: {}", 
                 endpoint.getAddress(), exception.getMessage());
         
         // Remove the failed channel
@@ -257,6 +267,43 @@ public class MultinodeConnectionManager {
                 log.debug("Error shutting down channel for {}: {}", endpoint.getAddress(), e.getMessage());
             }
         }
+    }
+    
+    /**
+     * Determines if an exception represents a connection-level error that should mark a server unhealthy.
+     * Connection-level errors include:
+     * - UNAVAILABLE: Server not reachable
+     * - DEADLINE_EXCEEDED: Request timeout
+     * - CANCELLED: Connection cancelled
+     * - UNKNOWN: Connection-related unknown errors
+     * 
+     * Database-level errors (e.g., table not found, syntax errors) do not mark servers unhealthy.
+     */
+    private boolean isConnectionLevelError(Exception exception) {
+        if (exception instanceof io.grpc.StatusRuntimeException) {
+            io.grpc.StatusRuntimeException statusException = (io.grpc.StatusRuntimeException) exception;
+            io.grpc.Status.Code code = statusException.getStatus().getCode();
+            
+            // Only these status codes indicate connection-level failures
+            return code == io.grpc.Status.Code.UNAVAILABLE ||
+                   code == io.grpc.Status.Code.DEADLINE_EXCEEDED ||
+                   code == io.grpc.Status.Code.CANCELLED ||
+                   (code == io.grpc.Status.Code.UNKNOWN && 
+                    statusException.getMessage() != null && 
+                    (statusException.getMessage().contains("connection") || 
+                     statusException.getMessage().contains("Connection")));
+        }
+        
+        // For non-gRPC exceptions, check for connection-related keywords
+        String message = exception.getMessage();
+        if (message != null) {
+            String lowerMessage = message.toLowerCase();
+            return lowerMessage.contains("connection") || 
+                   lowerMessage.contains("timeout") ||
+                   lowerMessage.contains("unavailable");
+        }
+        
+        return false; // Default to not marking unhealthy for unknown errors
     }
     
     private void attemptServerRecovery() {
