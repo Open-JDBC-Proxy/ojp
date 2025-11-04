@@ -53,11 +53,38 @@ public class MultinodeStatementService implements StatementService {
     
     /**
      * Gets or creates a StatementServiceGrpcClient for a specific server endpoint.
+     * The client is initialized with a URL that contains only this specific endpoint.
      */
     private StatementServiceGrpcClient getClient(ServerEndpoint endpoint) {
         return clientMap.computeIfAbsent(endpoint, ep -> {
             log.debug("Creating new StatementServiceGrpcClient for endpoint: {}", ep.getAddress());
-            return new StatementServiceGrpcClient();
+            StatementServiceGrpcClient client = new StatementServiceGrpcClient();
+            
+            // Initialize the client's gRPC stubs by creating a single-endpoint URL
+            // and triggering the initialization through connect (which calls grpcChannelOpenAndStubsInitialized)
+            String singleEndpointUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(originalUrl, ep);
+            
+            // Create minimal ConnectionDetails to trigger stub initialization
+            ConnectionDetails initDetails = ConnectionDetails.newBuilder()
+                .setUrl(singleEndpointUrl)
+                .setUser("")
+                .setPassword("")
+                .setClientUUID("")
+                .build();
+            
+            try {
+                // Call connect to initialize the stubs
+                // This will fail since we don't have valid credentials, but that's okay -
+                // the stubs will be initialized which is what we need
+                client.connect(initDetails);
+            } catch (Exception e) {
+                // Expected exception - we only needed to initialize the stubs
+                // The actual connection will be made by the connection manager
+                log.debug("Initialized gRPC stubs for endpoint: {} (exception during init: {})", 
+                    ep.getAddress(), e.getMessage());
+            }
+            
+            return client;
         });
     }
     
