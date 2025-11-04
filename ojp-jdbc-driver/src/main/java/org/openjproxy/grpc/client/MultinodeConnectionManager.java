@@ -131,14 +131,17 @@ public class MultinodeConnectionManager {
                 String sessionKey = null;
                 if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
                     sessionKey = sessionInfo.getSessionUUID();
+                    log.info("Using sessionUUID as session key: {}", sessionKey);
                 } else if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
                     sessionKey = sessionInfo.getConnHash();
-                    log.debug("SessionUUID is empty, using connHash as session key: {}", sessionKey);
+                    log.info("SessionUUID is empty, using connHash as session key: {}", sessionKey);
                 }
                 
                 if (sessionKey != null) {
                     sessionToServerMap.put(sessionKey, selectedServer);
-                    log.debug("Session {} associated with server {}", sessionKey, selectedServer.getAddress());
+                    log.info("Session {} bound to server {}", sessionKey, selectedServer.getAddress());
+                } else {
+                    log.warn("No session key available for binding (sessionUUID and connHash both empty)");
                 }
                 
                 log.debug("Successfully connected to server {}", selectedServer.getAddress());
@@ -199,13 +202,16 @@ public class MultinodeConnectionManager {
         if (sessionInfo != null) {
             if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
                 sessionKey = sessionInfo.getSessionUUID();
+                log.info("Looking up server for sessionUUID: {}", sessionKey);
             } else if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
                 sessionKey = sessionInfo.getConnHash();
+                log.info("Looking up server for connHash: {}", sessionKey);
             }
         }
         
         if (sessionKey == null) {
             // No session identifier, use round-robin
+            log.info("No session identifier available, using round-robin selection");
             return selectHealthyServer();
         }
         
@@ -213,9 +219,13 @@ public class MultinodeConnectionManager {
         
         // PR #39 review comment #3: Throw exception if session server is unhealthy or not found
         if (sessionServer == null) {
+            log.error("Session {} has no associated server. Available sessions: {}", 
+                    sessionKey, sessionToServerMap.keySet());
             throw new SQLException("Session " + sessionKey + 
                     " has no associated server. Session may have expired or server may be unavailable.");
         }
+        
+        log.info("Session {} is bound to server {}", sessionKey, sessionServer.getAddress());
         
         if (!sessionServer.isHealthy()) {
             // Remove from map and throw exception - do NOT fall back to round-robin
