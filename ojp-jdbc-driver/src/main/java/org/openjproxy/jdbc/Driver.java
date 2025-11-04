@@ -34,14 +34,14 @@ public class Driver implements java.sql.Driver {
         }
     }
 
-    private static StatementService statementService;
+    private static StatementService defaultStatementService;
 
     public Driver() {
-        if (statementService == null) {
+        if (defaultStatementService == null) {
             synchronized (Driver.class) {
-                if (statementService == null) {
-                    log.debug("Initializing StatementServiceGrpcClient");
-                    statementService = new StatementServiceGrpcClient();
+                if (defaultStatementService == null) {
+                    log.debug("Initializing default StatementServiceGrpcClient");
+                    defaultStatementService = new StatementServiceGrpcClient();
                 }
             }
         }
@@ -57,6 +57,23 @@ public class Driver implements java.sql.Driver {
         String dataSourceName = urlParseResult.dataSourceName;
         
         log.debug("Parsed URL - clean: {}, dataSource: {}", cleanUrl, dataSourceName);
+        
+        // Check if this is a multinode URL
+        MultinodeUrlParser.ParseResult multinodeParseResult = MultinodeUrlParser.parse(cleanUrl);
+        StatementService statementService;
+        
+        if (multinodeParseResult.isMultinode()) {
+            // Create a multinode statement service
+            log.info("Detected multinode URL with {} endpoints", multinodeParseResult.getEndpoints().size());
+            MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(
+                    multinodeParseResult.getEndpoints());
+            statementService = new org.openjproxy.grpc.client.MultinodeStatementService(
+                    connectionManager, cleanUrl);
+        } else {
+            // Use the default single-node service
+            log.debug("Using single-node StatementService");
+            statementService = defaultStatementService;
+        }
         
         // Load ojp.properties file and extract datasource-specific configuration
         Properties ojpProperties = loadOjpPropertiesForDataSource(dataSourceName);
