@@ -48,6 +48,22 @@ public class ServerEndpoint {
         this.lastFailureTime = lastFailureTime;
     }
 
+    /**
+     * Marks this server as healthy.
+     */
+    public void markHealthy() {
+        this.healthy = true;
+        this.lastFailureTime = 0;
+    }
+
+    /**
+     * Marks this server as unhealthy.
+     */
+    public void markUnhealthy() {
+        this.healthy = false;
+        this.lastFailureTime = System.currentTimeMillis();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

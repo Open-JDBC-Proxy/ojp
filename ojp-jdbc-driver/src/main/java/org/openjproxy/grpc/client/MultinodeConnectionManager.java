@@ -167,6 +167,18 @@ public class MultinodeConnectionManager {
     }
     
     /**
+     * Selects a server for a new request using round-robin.
+     * For non-session requests or new sessions.
+     */
+    public ServerEndpoint selectServer() throws SQLException {
+        ServerEndpoint server = selectHealthyServer();
+        if (server == null) {
+            throw new SQLException("No healthy servers available");
+        }
+        return server;
+    }
+    
+    /**
      * Gets the appropriate server for a session-bound request.
      * 
      * Addressing PR #39 review comment #3:
@@ -279,7 +291,7 @@ public class MultinodeConnectionManager {
      * 
      * Database-level errors (e.g., table not found, syntax errors) do not mark servers unhealthy.
      */
-    private boolean isConnectionLevelError(Exception exception) {
+    public boolean isConnectionLevelError(Exception exception) {
         if (exception instanceof io.grpc.StatusRuntimeException) {
             io.grpc.StatusRuntimeException statusException = (io.grpc.StatusRuntimeException) exception;
             io.grpc.Status.Code code = statusException.getStatus().getCode();
@@ -343,6 +355,20 @@ public class MultinodeConnectionManager {
      */
     public List<ServerEndpoint> getServerEndpoints() {
         return List.copyOf(serverEndpoints);
+    }
+    
+    /**
+     * Gets the configured number of retry attempts.
+     */
+    public int getRetryAttempts() {
+        return retryAttempts;
+    }
+    
+    /**
+     * Gets the configured retry delay in milliseconds.
+     */
+    public long getRetryDelayMs() {
+        return retryDelayMs;
     }
     
     /**

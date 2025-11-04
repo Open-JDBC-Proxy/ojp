@@ -6,6 +6,8 @@ import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.client.MultinodeUrlParser;
+import org.openjproxy.grpc.client.ServerEndpoint;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.grpc.client.StatementServiceGrpcClient;
 
@@ -16,8 +18,10 @@ import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.openjproxy.jdbc.Constants.PASSWORD;
 import static org.openjproxy.jdbc.Constants.USER;
@@ -34,17 +38,11 @@ public class Driver implements java.sql.Driver {
         }
     }
 
-    private static StatementService statementService;
+    // Cache of statement services keyed by server configuration
+    private static final Map<String, StatementService> statementServiceCache = new ConcurrentHashMap<>();
 
     public Driver() {
-        if (statementService == null) {
-            synchronized (Driver.class) {
-                if (statementService == null) {
-                    log.debug("Initializing StatementServiceGrpcClient");
-                    statementService = new StatementServiceGrpcClient();
-                }
-            }
-        }
+        // Services are created per-URL configuration in connect()
     }
 
     @Override
@@ -57,6 +55,9 @@ public class Driver implements java.sql.Driver {
         String dataSourceName = urlParseResult.dataSourceName;
         
         log.debug("Parsed URL - clean: {}, dataSource: {}", cleanUrl, dataSourceName);
+        
+        // Detect multinode vs single-node configuration
+        StatementService statementService = getOrCreateStatementService(cleanUrl);
         
         // Load ojp.properties file and extract datasource-specific configuration
         Properties ojpProperties = loadOjpPropertiesForDataSource(dataSourceName);
@@ -80,6 +81,46 @@ public class Driver implements java.sql.Driver {
         SessionInfo sessionInfo = statementService.connect(connBuilder.build());
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
         return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
+    }
+    
+    /**
+     * Gets or creates a StatementService implementation based on the URL.
+     * Currently uses the first server from multinode URLs.
+     * TODO: Implement full multinode support with load balancing and failover.
+     */
+    private StatementService getOrCreateStatementService(String url) {
+        try {
+            // Try to parse as multinode URL
+            List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(url);
+            
+            if (endpoints.size() > 1) {
+                // Multinode configuration detected
+                // For now, use the first server - full multinode support is in progress
+                log.warn("Multinode URL detected with {} endpoints. Using first endpoint {} for now. " +
+                        "Full multinode support with load balancing and failover is under development.",
+                        endpoints.size(), endpoints.get(0).getAddress());
+                
+                String cacheKey = "single:" + endpoints.get(0).getAddress();
+                return statementServiceCache.computeIfAbsent(cacheKey, k -> {
+                    log.debug("Creating StatementServiceGrpcClient for first endpoint");
+                    return new StatementServiceGrpcClient();
+                });
+            } else {
+                // Single-node configuration - use traditional client
+                String cacheKey = "single:" + endpoints.get(0).getAddress();
+                return statementServiceCache.computeIfAbsent(cacheKey, k -> {
+                    log.debug("Creating StatementServiceGrpcClient for single-node");
+                    return new StatementServiceGrpcClient();
+                });
+            }
+        } catch (IllegalArgumentException e) {
+            // URL parsing failed, fall back to single-node client
+            log.debug("URL not recognized as multinode format, using single-node client: {}", e.getMessage());
+            return statementServiceCache.computeIfAbsent("default", k -> {
+                log.debug("Creating default StatementServiceGrpcClient");
+                return new StatementServiceGrpcClient();
+            });
+        }
     }
     
     
