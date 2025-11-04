@@ -110,4 +110,22 @@ public class MultinodeUrlParser {
                 .map(ServerEndpoint::getAddress)
                 .collect(Collectors.joining(","));
     }
+    
+    /**
+     * Replaces the server list in a multinode URL with a single endpoint.
+     * This is useful for converting multinode URLs to single-node format.
+     * 
+     * @param url The original OJP URL (possibly with multiple endpoints)
+     * @param endpoint The single endpoint to use
+     * @return The URL with the server list replaced by a single endpoint
+     */
+    public static String replaceBracketsWithSingleEndpoint(String url, ServerEndpoint endpoint) {
+        if (url == null || endpoint == null) {
+            throw new IllegalArgumentException("URL and endpoint cannot be null");
+        }
+        
+        // Replace the entire [server1:port1,server2:port2,...] section with [singleHost:singlePort]
+        // The pattern includes "ojp" so we need to keep it in the replacement
+        return url.replaceAll(CommonConstants.OJP_REGEX_PATTERN, "ojp[" + endpoint.getAddress() + "]");
+    }
 }

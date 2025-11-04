@@ -194,4 +194,31 @@ class MultinodeUrlParserTest {
             }, "Should successfully parse URL: " + url);
         }
     }
+
+    @Test
+    void testReplaceBracketsWithSingleEndpoint() {
+        String multinodeUrl = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
+        List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(multinodeUrl);
+        
+        ServerEndpoint first = endpoints.get(0);
+        String singleUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(multinodeUrl, first);
+        
+        assertEquals("jdbc:ojp[localhost:10591]_postgresql://localhost:5432/defaultdb", singleUrl);
+        
+        // Verify the single URL can be parsed
+        List<ServerEndpoint> singleEndpoints = MultinodeUrlParser.parseServerEndpoints(singleUrl);
+        assertEquals(1, singleEndpoints.size());
+        assertEquals("localhost:10591", singleEndpoints.get(0).getAddress());
+    }
+    
+    @Test
+    void testReplaceBracketsWithSecondEndpoint() {
+        String multinodeUrl = "jdbc:ojp[server1:1059,server2:2059,server3:3059]_postgresql://localhost:5432/db";
+        List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(multinodeUrl);
+        
+        ServerEndpoint second = endpoints.get(1);
+        String singleUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(multinodeUrl, second);
+        
+        assertEquals("jdbc:ojp[server2:2059]_postgresql://localhost:5432/db", singleUrl);
+    }
 }
