@@ -58,7 +58,7 @@ public class MultinodeStatementService implements StatementService {
      */
     private StatementServiceGrpcClient getClient(ServerEndpoint endpoint) {
         return clientMap.computeIfAbsent(endpoint, ep -> {
-            log.debug("Creating new StatementServiceGrpcClient for endpoint: {}", ep.getAddress());
+            log.info("Creating new StatementServiceGrpcClient for endpoint: {}", ep.getAddress());
             
             // Get the channel and stubs from the connection manager
             // This ensures we use the SAME channel as the connection, maintaining session continuity
@@ -69,6 +69,11 @@ public class MultinodeStatementService implements StatementService {
                 log.error("Unable to get channel and stub for endpoint: {}", ep.getAddress());
                 throw new RuntimeException("Unable to initialize client for endpoint: " + ep.getAddress());
             }
+            
+            log.info("Got channel and stub for endpoint {}: blockingStub={}, asyncStub={}", 
+                ep.getAddress(), 
+                System.identityHashCode(channelAndStub.blockingStub),
+                System.identityHashCode(channelAndStub.asyncStub));
             
             // Create a client and inject the connection manager's stubs into it
             // This ensures all operations use the same gRPC connection where the session was created
@@ -88,10 +93,10 @@ public class MultinodeStatementService implements StatementService {
                 asyncStubField.setAccessible(true);
                 asyncStubField.set(client, channelAndStub.asyncStub);
                 
-                log.debug("Initialized StatementServiceGrpcClient with connection manager's stubs for endpoint: {}", 
+                log.info("Initialized StatementServiceGrpcClient with connection manager's stubs for endpoint: {}", 
                     ep.getAddress());
             } catch (Exception e) {
-                log.error("Failed to initialize client for endpoint {}: {}", ep.getAddress(), e.getMessage());
+                log.error("Failed to initialize client for endpoint {}: {}", ep.getAddress(), e.getMessage(), e);
                 throw new RuntimeException("Failed to initialize client for endpoint: " + ep.getAddress(), e);
             }
             
@@ -302,6 +307,10 @@ public class MultinodeStatementService implements StatementService {
         // Get the appropriate server based on session binding or round-robin
         ServerEndpoint server = connectionManager.getServerForSession(sessionInfo);
         
+        log.info("executeWithSessionStickiness: session={}, server={}", 
+            sessionInfo != null ? sessionInfo.getSessionUUID() : "null", 
+            server != null ? server.getAddress() : "null");
+        
         try {
             // Get the channel and stub for the selected server
             MultinodeConnectionManager.ChannelAndStub channelAndStub = 
@@ -311,8 +320,15 @@ public class MultinodeStatementService implements StatementService {
                 throw new SQLException("Unable to get channel for server: " + server.getAddress());
             }
             
+            log.info("Got channelAndStub for server {}: blockingStub={}, asyncStub={}", 
+                server.getAddress(),
+                System.identityHashCode(channelAndStub.blockingStub),
+                System.identityHashCode(channelAndStub.asyncStub));
+            
             // Get or create the client for this endpoint
             StatementServiceGrpcClient client = getClient(server);
+            
+            log.info("Using client for server {}, about to execute operation", server.getAddress());
             
             // Execute the operation
             return operation.apply(client);
