@@ -127,10 +127,18 @@ public class MultinodeConnectionManager {
                 selectedServer.setLastFailureTime(0);
                 
                 // Associate session with server for session stickiness
+                // Use sessionUUID if available, otherwise fall back to connHash
+                String sessionKey = null;
                 if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
-                    sessionToServerMap.put(sessionInfo.getSessionUUID(), selectedServer);
-                    log.debug("Session {} associated with server {}", 
-                            sessionInfo.getSessionUUID(), selectedServer.getAddress());
+                    sessionKey = sessionInfo.getSessionUUID();
+                } else if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
+                    sessionKey = sessionInfo.getConnHash();
+                    log.debug("SessionUUID is empty, using connHash as session key: {}", sessionKey);
+                }
+                
+                if (sessionKey != null) {
+                    sessionToServerMap.put(sessionKey, selectedServer);
+                    log.debug("Session {} associated with server {}", sessionKey, selectedServer.getAddress());
                 }
                 
                 log.debug("Successfully connected to server {}", selectedServer.getAddress());
@@ -186,24 +194,33 @@ public class MultinodeConnectionManager {
      * instead of falling back to round-robin routing.
      */
     public ServerEndpoint getServerForSession(SessionInfo sessionInfo) throws SQLException {
-        if (sessionInfo == null || sessionInfo.getSessionUUID() == null || 
-            sessionInfo.getSessionUUID().isEmpty()) {
-            // No session or session UUID, use round-robin
+        // Try to get session key - preferring sessionUUID, falling back to connHash
+        String sessionKey = null;
+        if (sessionInfo != null) {
+            if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
+                sessionKey = sessionInfo.getSessionUUID();
+            } else if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
+                sessionKey = sessionInfo.getConnHash();
+            }
+        }
+        
+        if (sessionKey == null) {
+            // No session identifier, use round-robin
             return selectHealthyServer();
         }
         
-        ServerEndpoint sessionServer = sessionToServerMap.get(sessionInfo.getSessionUUID());
+        ServerEndpoint sessionServer = sessionToServerMap.get(sessionKey);
         
         // PR #39 review comment #3: Throw exception if session server is unhealthy or not found
         if (sessionServer == null) {
-            throw new SQLException("Session " + sessionInfo.getSessionUUID() + 
+            throw new SQLException("Session " + sessionKey + 
                     " has no associated server. Session may have expired or server may be unavailable.");
         }
         
         if (!sessionServer.isHealthy()) {
             // Remove from map and throw exception - do NOT fall back to round-robin
-            sessionToServerMap.remove(sessionInfo.getSessionUUID());
-            throw new SQLException("Session " + sessionInfo.getSessionUUID() + 
+            sessionToServerMap.remove(sessionKey);
+            throw new SQLException("Session " + sessionKey + 
                     " is bound to server " + sessionServer.getAddress() + 
                     " which is currently unavailable. Cannot continue with this session.");
         }
