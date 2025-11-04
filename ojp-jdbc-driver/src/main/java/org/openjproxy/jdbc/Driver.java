@@ -83,9 +83,15 @@ public class Driver implements java.sql.Driver {
         }
         
         log.info("Calling connect() on statement service with URL: {}", connectionUrl);
-        SessionInfo sessionInfo = statementService.connect(connBuilder.build());
-        log.info("Connection established - sessionUUID: {}, connHash: {}", 
-                sessionInfo.getSessionUUID(), sessionInfo.getConnHash());
+        SessionInfo sessionInfo;
+        try {
+            sessionInfo = statementService.connect(connBuilder.build());
+            log.info("Connection established - sessionUUID: {}, connHash: {}", 
+                    sessionInfo.getSessionUUID(), sessionInfo.getConnHash());
+        } catch (Exception e) {
+            log.error("Failed to establish connection", e);
+            throw e;
+        }
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
         return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
     }
