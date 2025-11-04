@@ -53,15 +53,15 @@ public class MultinodeStatementService implements StatementService {
     
     /**
      * Gets or creates a StatementServiceGrpcClient for a specific server endpoint.
-     * The client is initialized with stubs from the MultinodeConnectionManager to avoid
-     * duplicate channel creation and connection attempts.
+     * The client uses the same gRPC channel and stubs as the MultinodeConnectionManager
+     * to ensure session continuity.
      */
     private StatementServiceGrpcClient getClient(ServerEndpoint endpoint) {
         return clientMap.computeIfAbsent(endpoint, ep -> {
             log.debug("Creating new StatementServiceGrpcClient for endpoint: {}", ep.getAddress());
             
             // Get the channel and stubs from the connection manager
-            // The connection manager has already created and manages these
+            // This ensures we use the SAME channel as the connection, maintaining session continuity
             MultinodeConnectionManager.ChannelAndStub channelAndStub = 
                     connectionManager.getChannelAndStub(ep);
             
@@ -70,24 +70,26 @@ public class MultinodeStatementService implements StatementService {
                 throw new RuntimeException("Unable to initialize client for endpoint: " + ep.getAddress());
             }
             
-            // Create a wrapper client that uses the connection manager's stubs
-            // We need to use reflection or a different approach since StatementServiceGrpcClient
-            // manages its own stubs privately
+            // Create a client and inject the connection manager's stubs into it
+            // This ensures all operations use the same gRPC connection where the session was created
             StatementServiceGrpcClient client = new StatementServiceGrpcClient();
             
-            // Initialize the client's stubs by calling a method that parses the URL
-            // This will create the stubs without actually connecting
-            String singleEndpointUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(originalUrl, ep);
-            
             try {
-                // Use reflection to call the private grpcChannelOpenAndStubsInitialized method
-                // This initializes the stubs without making a connection attempt
-                java.lang.reflect.Method initMethod = StatementServiceGrpcClient.class
-                    .getDeclaredMethod("grpcChannelOpenAndStubsInitialized", String.class);
-                initMethod.setAccessible(true);
-                initMethod.invoke(client, singleEndpointUrl);
+                // Use reflection to set the stubs to the connection manager's stubs
+                // This is necessary because StatementServiceGrpcClient doesn't have a constructor
+                // that accepts stubs, and we need to use the same channel for session continuity
+                java.lang.reflect.Field blockingStubField = StatementServiceGrpcClient.class
+                    .getDeclaredField("statemetServiceBlockingStub");
+                blockingStubField.setAccessible(true);
+                blockingStubField.set(client, channelAndStub.blockingStub);
                 
-                log.debug("Initialized gRPC stubs for endpoint: {}", ep.getAddress());
+                java.lang.reflect.Field asyncStubField = StatementServiceGrpcClient.class
+                    .getDeclaredField("statemetServiceStub");
+                asyncStubField.setAccessible(true);
+                asyncStubField.set(client, channelAndStub.asyncStub);
+                
+                log.debug("Initialized StatementServiceGrpcClient with connection manager's stubs for endpoint: {}", 
+                    ep.getAddress());
             } catch (Exception e) {
                 log.error("Failed to initialize client for endpoint {}: {}", ep.getAddress(), e.getMessage());
                 throw new RuntimeException("Failed to initialize client for endpoint: " + ep.getAddress(), e);
