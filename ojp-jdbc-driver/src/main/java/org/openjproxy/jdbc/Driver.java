@@ -6,6 +6,8 @@ import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.client.MultinodeConnectionManager;
+import org.openjproxy.grpc.client.MultinodeStatementService;
 import org.openjproxy.grpc.client.MultinodeUrlParser;
 import org.openjproxy.grpc.client.ServerEndpoint;
 import org.openjproxy.grpc.client.StatementService;
@@ -101,8 +103,8 @@ public class Driver implements java.sql.Driver {
     /**
      * Gets or creates a StatementService implementation based on the URL.
      * Returns both the service and the connection URL (which may be modified for multinode).
-     * Currently uses the first server from multinode URLs.
-     * TODO: Implement full multinode support with load balancing and failover.
+     * For multinode URLs, creates a MultinodeStatementService with load balancing and failover.
+     * For single-node URLs, creates a StatementServiceGrpcClient.
      */
     private ServiceAndUrl getOrCreateStatementService(String url) {
         try {
@@ -110,22 +112,24 @@ public class Driver implements java.sql.Driver {
             List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(url);
             
             if (endpoints.size() > 1) {
-                // Multinode configuration detected
-                // For now, use the first server - full multinode support is in progress
-                log.warn("Multinode URL detected with {} endpoints. Using first endpoint {} for now. " +
-                        "Full multinode support with load balancing and failover is under development.",
-                        endpoints.size(), endpoints.get(0).getAddress());
+                // Multinode configuration detected - use MultinodeStatementService
+                log.info("Multinode URL detected with {} endpoints: {}", 
+                        endpoints.size(), MultinodeUrlParser.formatServerList(endpoints));
                 
-                // Replace the multinode server list with just the first endpoint
-                String singleEndpointUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(url, endpoints.get(0));
-                
-                String cacheKey = "single:" + endpoints.get(0).getAddress();
+                // Create a cache key based on all endpoints to ensure same config reuses same service
+                String cacheKey = "multinode:" + MultinodeUrlParser.formatServerList(endpoints);
                 StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
-                    log.debug("Creating StatementServiceGrpcClient for first endpoint");
-                    return new StatementServiceGrpcClient();
+                    log.debug("Creating MultinodeStatementService for endpoints: {}", 
+                            MultinodeUrlParser.formatServerList(endpoints));
+                    MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(endpoints);
+                    return new MultinodeStatementService(connectionManager, url);
                 });
                 
-                return new ServiceAndUrl(service, singleEndpointUrl);
+                // For multinode, we need to pass a URL that can be parsed by the server
+                // Use the original URL with the first endpoint for connection metadata
+                String connectionUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(url, endpoints.get(0));
+                
+                return new ServiceAndUrl(service, connectionUrl);
             } else {
                 // Single-node configuration - use traditional client
                 String cacheKey = "single:" + endpoints.get(0).getAddress();
