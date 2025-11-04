@@ -46,12 +46,13 @@ public class MultinodeUrlParser {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Endpoint endpoint = (Endpoint) o;
-            return port == endpoint.port && host.equals(endpoint.host);
+            return port == endpoint.port && 
+                   (host == null ? endpoint.host == null : host.equals(endpoint.host));
         }
         
         @Override
         public int hashCode() {
-            return 31 * host.hashCode() + port;
+            return 31 * (host == null ? 0 : host.hashCode()) + port;
         }
     }
     

@@ -96,7 +96,7 @@ public class MultinodeStatementService implements StatementService {
                 T result = operation.execute(client);
                 connectionManager.markServerHealthy(boundServer);
                 return result;
-            } catch (Exception e) {
+            } catch (SQLException e) {
                 if (connectionManager.isConnectionLevelError(e)) {
                     connectionManager.markServerUnhealthy(boundServer);
                     log.error("Connection error on bound server {} for session {}: {}",
