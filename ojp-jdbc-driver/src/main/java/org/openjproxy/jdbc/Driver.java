@@ -82,7 +82,10 @@ public class Driver implements java.sql.Driver {
             log.debug("Loaded ojp.properties with {} properties for dataSource: {}", ojpProperties.size(), dataSourceName);
         }
         
+        log.info("Calling connect() on statement service with URL: {}", connectionUrl);
         SessionInfo sessionInfo = statementService.connect(connBuilder.build());
+        log.info("Connection established - sessionUUID: {}, connHash: {}", 
+                sessionInfo.getSessionUUID(), sessionInfo.getConnHash());
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
         return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
     }
