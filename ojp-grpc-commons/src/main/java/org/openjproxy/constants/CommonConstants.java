@@ -33,6 +33,10 @@ public class CommonConstants {
     public static final String CONNECTION_TIMEOUT_PROPERTY = "ojp.connection.pool.connectionTimeout";
     public static final String MAX_XA_TRANSACTIONS_PROPERTY = "ojp.xa.maxTransactions";
     public static final String XA_START_TIMEOUT_PROPERTY = "ojp.xa.startTimeoutMillis";
+    
+    // Multinode configuration property keys
+    public static final String MULTINODE_RETRY_ATTEMPTS_PROPERTY = "ojp.multinode.retryAttempts";
+    public static final String MULTINODE_RETRY_DELAY_PROPERTY = "ojp.multinode.retryDelayMs";
 
     // HikariCP default connection pool settings - optimized for high concurrency
     // ISSUE #29 FIX: Updated these values to prevent indefinite blocking under high load
@@ -45,4 +49,8 @@ public class CommonConstants {
     // XA Transaction settings
     public static final int DEFAULT_MAX_XA_TRANSACTIONS = 50;  // Maximum concurrent XA transactions
     public static final long DEFAULT_XA_START_TIMEOUT_MILLIS = 60000;  // 60 seconds timeout for acquiring XA slot
+    
+    // Multinode configuration defaults - addressing PR #39 review comment #1
+    public static final int DEFAULT_MULTINODE_RETRY_ATTEMPTS = -1;  // -1 = retry indefinitely
+    public static final long DEFAULT_MULTINODE_RETRY_DELAY_MS = 5000;  // 5 seconds between retries
 }

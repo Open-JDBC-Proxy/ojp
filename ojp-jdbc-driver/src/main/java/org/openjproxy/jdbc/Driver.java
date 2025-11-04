@@ -6,6 +6,10 @@ import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.client.MultinodeConnectionManager;
+import org.openjproxy.grpc.client.MultinodeStatementService;
+import org.openjproxy.grpc.client.MultinodeUrlParser;
+import org.openjproxy.grpc.client.ServerEndpoint;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.grpc.client.StatementServiceGrpcClient;
 
@@ -16,8 +20,10 @@ import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.openjproxy.jdbc.Constants.PASSWORD;
 import static org.openjproxy.jdbc.Constants.USER;
@@ -34,17 +40,11 @@ public class Driver implements java.sql.Driver {
         }
     }
 
-    private static StatementService statementService;
+    // Cache of statement services keyed by server configuration
+    private static final Map<String, StatementService> statementServiceCache = new ConcurrentHashMap<>();
 
     public Driver() {
-        if (statementService == null) {
-            synchronized (Driver.class) {
-                if (statementService == null) {
-                    log.debug("Initializing StatementServiceGrpcClient");
-                    statementService = new StatementServiceGrpcClient();
-                }
-            }
-        }
+        // Services are created per-URL configuration in connect()
     }
 
     @Override
@@ -58,11 +58,16 @@ public class Driver implements java.sql.Driver {
         
         log.debug("Parsed URL - clean: {}, dataSource: {}", cleanUrl, dataSourceName);
         
+        // Detect multinode vs single-node configuration and get the URL to use for connection
+        ServiceAndUrl serviceAndUrl = getOrCreateStatementService(cleanUrl);
+        StatementService statementService = serviceAndUrl.service;
+        String connectionUrl = serviceAndUrl.connectionUrl;
+        
         // Load ojp.properties file and extract datasource-specific configuration
         Properties ojpProperties = loadOjpPropertiesForDataSource(dataSourceName);
         
         ConnectionDetails.Builder connBuilder = ConnectionDetails.newBuilder()
-                .setUrl(cleanUrl)
+                .setUrl(connectionUrl)  // Use the possibly-modified URL with single endpoint
                 .setUser((String) ((info.get(USER) != null)? info.get(USER) : ""))
                 .setPassword((String) ((info.get(PASSWORD) != null) ? info.get(PASSWORD) : ""))
                 .setClientUUID(ClientUUID.getUUID());
@@ -80,6 +85,71 @@ public class Driver implements java.sql.Driver {
         SessionInfo sessionInfo = statementService.connect(connBuilder.build());
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
         return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
+    }
+    
+    /**
+     * Helper class to return both the service and the connection URL.
+     */
+    private static class ServiceAndUrl {
+        final StatementService service;
+        final String connectionUrl;
+        
+        ServiceAndUrl(StatementService service, String connectionUrl) {
+            this.service = service;
+            this.connectionUrl = connectionUrl;
+        }
+    }
+    
+    /**
+     * Gets or creates a StatementService implementation based on the URL.
+     * Returns both the service and the connection URL (which may be modified for multinode).
+     * For multinode URLs, creates a MultinodeStatementService with load balancing and failover.
+     * For single-node URLs, creates a StatementServiceGrpcClient.
+     */
+    private ServiceAndUrl getOrCreateStatementService(String url) {
+        try {
+            // Try to parse as multinode URL
+            List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(url);
+            
+            if (endpoints.size() > 1) {
+                // Multinode configuration detected - use MultinodeStatementService
+                log.info("Multinode URL detected with {} endpoints: {}", 
+                        endpoints.size(), MultinodeUrlParser.formatServerList(endpoints));
+                
+                // Create a cache key based on all endpoints to ensure same config reuses same service
+                String cacheKey = "multinode:" + MultinodeUrlParser.formatServerList(endpoints);
+                StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
+                    log.debug("Creating MultinodeStatementService for endpoints: {}", 
+                            MultinodeUrlParser.formatServerList(endpoints));
+                    MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(endpoints);
+                    return new MultinodeStatementService(connectionManager, url);
+                });
+                
+                // For multinode, we need to pass a URL that can be parsed by the server
+                // Use the original URL with the first endpoint for connection metadata
+                String connectionUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(url, endpoints.get(0));
+                
+                return new ServiceAndUrl(service, connectionUrl);
+            } else {
+                // Single-node configuration - use traditional client
+                String cacheKey = "single:" + endpoints.get(0).getAddress();
+                StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
+                    log.debug("Creating StatementServiceGrpcClient for single-node");
+                    return new StatementServiceGrpcClient();
+                });
+                
+                return new ServiceAndUrl(service, url);
+            }
+        } catch (IllegalArgumentException e) {
+            // URL parsing failed, fall back to single-node client
+            log.debug("URL not recognized as multinode format, using single-node client: {}", e.getMessage());
+            StatementService service = statementServiceCache.computeIfAbsent("default", k -> {
+                log.debug("Creating default StatementServiceGrpcClient");
+                return new StatementServiceGrpcClient();
+            });
+            
+            return new ServiceAndUrl(service, url);
+        }
     }
     
     

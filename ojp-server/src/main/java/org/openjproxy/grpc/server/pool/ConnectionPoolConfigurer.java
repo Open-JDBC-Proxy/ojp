@@ -5,27 +5,33 @@ import com.zaxxer.hikari.HikariConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.server.MultinodePoolCoordinator;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 /**
  * Utility class responsible for configuring HikariCP connection pools.
  * Extracted from StatementServiceImpl to reduce its responsibilities.
- * Updated to support multi-datasource configuration.
+ * Updated to support multi-datasource configuration and multinode pool coordination.
  */
 @Slf4j
 public class ConnectionPoolConfigurer {
 
+    private static final MultinodePoolCoordinator poolCoordinator = new MultinodePoolCoordinator();
+
     /**
      * Configures a HikariCP connection pool with connection details and client properties.
-     * Now supports multi-datasource configuration through DataSourceConfigurationManager.
+     * Now supports multi-datasource configuration and multinode pool coordination.
      *
      * @param config            The HikariConfig to configure
      * @param connectionDetails The connection details containing properties
+     * @param connHash          Connection hash for tracking pool allocations
      * @return The datasource configuration used for this pool
      */
-    public static DataSourceConfigurationManager.DataSourceConfiguration configureHikariPool(HikariConfig config, ConnectionDetails connectionDetails) {
+    public static DataSourceConfigurationManager.DataSourceConfiguration configureHikariPool(
+            HikariConfig config, ConnectionDetails connectionDetails, String connHash) {
         Properties clientProperties = extractClientProperties(connectionDetails);
         
         // Get datasource-specific configuration
@@ -37,9 +43,26 @@ public class ConnectionPoolConfigurer {
         config.addDataSourceProperty("prepStmtCacheSize", "250");
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
 
-        // Configure HikariCP pool settings using datasource-specific configuration
-        config.setMaximumPoolSize(dsConfig.getMaximumPoolSize());
-        config.setMinimumIdle(dsConfig.getMinimumIdle());
+        // Check if multinode configuration is present
+        List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
+        int maxPoolSize = dsConfig.getMaximumPoolSize();
+        int minIdle = dsConfig.getMinimumIdle();
+        
+        if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
+            // Multinode: calculate divided pool sizes
+            MultinodePoolCoordinator.PoolAllocation allocation = 
+                    poolCoordinator.calculatePoolSizes(connHash, maxPoolSize, minIdle, serverEndpoints);
+            
+            maxPoolSize = allocation.getCurrentMaxPoolSize();
+            minIdle = allocation.getCurrentMinIdle();
+            
+            log.info("Multinode pool coordination enabled for {}: {} servers, divided pool sizes: max={}, min={}", 
+                    connHash, serverEndpoints.size(), maxPoolSize, minIdle);
+        }
+
+        // Configure HikariCP pool settings
+        config.setMaximumPoolSize(maxPoolSize);
+        config.setMinimumIdle(minIdle);
         config.setIdleTimeout(dsConfig.getIdleTimeout());
         config.setMaxLifetime(dsConfig.getMaxLifetime());
         config.setConnectionTimeout(dsConfig.getConnectionTimeout());
@@ -61,6 +84,21 @@ public class ConnectionPoolConfigurer {
                 config.getConnectionTimeout(), poolName);
                 
         return dsConfig;
+    }
+
+    /**
+     * Legacy method for backward compatibility - calls new method with null connHash.
+     */
+    public static DataSourceConfigurationManager.DataSourceConfiguration configureHikariPool(
+            HikariConfig config, ConnectionDetails connectionDetails) {
+        return configureHikariPool(config, connectionDetails, null);
+    }
+    
+    /**
+     * Gets the multinode pool coordinator instance.
+     */
+    public static MultinodePoolCoordinator getPoolCoordinator() {
+        return poolCoordinator;
     }
 
     /**
