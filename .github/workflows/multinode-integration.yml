@@ -54,17 +54,17 @@ jobs:
 
       - name: Start OJP Server 1 on port 10591
         run: |
-          # Start first server on port 10591
-          nohup java -Dgrpc.port=10591 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
+          # Start first server on port 10591 with Prometheus on 9159
+          nohup java -Dgrpc.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
           echo $! > /tmp/ojp-server-1.pid
-          echo "Started OJP Server 1 on port 10591 with PID $(cat /tmp/ojp-server-1.pid)"
+          echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9159 with PID $(cat /tmp/ojp-server-1.pid)"
 
       - name: Start OJP Server 2 on port 10592
         run: |
-          # Start second server on port 10592
-          nohup java -Dgrpc.port=10592 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
+          # Start second server on port 10592 with Prometheus on 9160
+          nohup java -Dgrpc.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
           echo $! > /tmp/ojp-server-2.pid
-          echo "Started OJP Server 2 on port 10592 with PID $(cat /tmp/ojp-server-2.pid)"
+          echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9160 with PID $(cat /tmp/ojp-server-2.pid)"
 
       - name: Wait for OJP servers to start
         run: |
@@ -95,7 +95,7 @@ jobs:
       - name: Test Recovery Scenario - Restart Server 1
         run: |
           echo "Restarting OJP Server 1 for recovery test..."
-          nohup java -Dgrpc.port=10591 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
+          nohup java -Dgrpc.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-1-restart.pid
           sleep 10
 
