@@ -91,54 +91,54 @@ public class MultinodeConnectionManager {
     }
     
     /**
-     * Establishes a connection using round-robin routing among healthy servers.
+     * Establishes a connection by calling connect() on ALL servers.
+     * This ensures all servers have the datasource information so that subsequent operations
+     * can be routed to any server via round-robin when no session is bound.
+     * 
+     * Returns the SessionInfo from the first successful connection.
      */
     public SessionInfo connect(ConnectionDetails connectionDetails) throws SQLException {
-        int attempts = 0;
+        SessionInfo primarySessionInfo = null;
         SQLException lastException = null;
+        int successfulConnections = 0;
         
-        while (retryAttempts == -1 || attempts < retryAttempts) {
-            ServerEndpoint selectedServer = selectHealthyServer();
-            
-            if (selectedServer == null) {
-                // No healthy servers available, wait and retry
-                if (attempts > 0) {
-                    try {
-                        Thread.sleep(retryDelayMs);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new SQLException("Connection attempt interrupted", e);
-                    }
-                }
-                attempts++;
+        // Try to connect to all servers
+        for (ServerEndpoint server : serverEndpoints) {
+            if (!server.isHealthy()) {
+                log.debug("Skipping unhealthy server: {}", server.getAddress());
                 continue;
             }
             
             try {
-                ChannelAndStub channelAndStub = channelMap.get(selectedServer);
+                ChannelAndStub channelAndStub = channelMap.get(server);
                 if (channelAndStub == null) {
-                    channelAndStub = createChannelAndStub(selectedServer);
+                    channelAndStub = createChannelAndStub(server);
                 }
                 
+                log.info("Connecting to server {}", server.getAddress());
                 SessionInfo sessionInfo = channelAndStub.blockingStub.connect(connectionDetails);
                 
                 // Mark server as healthy
-                selectedServer.setHealthy(true);
-                selectedServer.setLastFailureTime(0);
+                server.setHealthy(true);
+                server.setLastFailureTime(0);
                 
                 // Associate session with server for session stickiness
-                // Only bind if sessionUUID is present - without session ID, any server is equally good
-                String sessionKey = null;
+                // Only bind if sessionUUID is present
                 if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
-                    sessionKey = sessionInfo.getSessionUUID();
-                    sessionToServerMap.put(sessionKey, selectedServer);
-                    log.info("Session {} bound to server {}", sessionKey, selectedServer.getAddress());
+                    String sessionKey = sessionInfo.getSessionUUID();
+                    sessionToServerMap.put(sessionKey, server);
+                    log.info("Session {} bound to server {}", sessionKey, server.getAddress());
                 } else {
-                    log.info("No sessionUUID present, session not bound to specific server");
+                    log.info("No sessionUUID from server {}, session not bound", server.getAddress());
                 }
                 
-                log.debug("Successfully connected to server {}", selectedServer.getAddress());
-                return sessionInfo;
+                log.info("Successfully connected to server {}", server.getAddress());
+                successfulConnections++;
+                
+                // Use the first successful connection as the primary
+                if (primarySessionInfo == null) {
+                    primarySessionInfo = sessionInfo;
+                }
                 
             } catch (StatusRuntimeException e) {
                 try {
@@ -147,27 +147,20 @@ public class MultinodeConnectionManager {
                 } catch (SQLException sqlEx) {
                     lastException = sqlEx;
                 }
-                handleServerFailure(selectedServer, e);
+                handleServerFailure(server, e);
                 
                 log.warn("Connection failed to server {}: {}", 
-                        selectedServer.getAddress(), lastException.getMessage());
-                
-                attempts++;
-                if (retryAttempts != -1 && attempts >= retryAttempts) {
-                    break;
-                }
-                
-                try {
-                    Thread.sleep(retryDelayMs);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new SQLException("Connection attempt interrupted", ie);
-                }
+                        server.getAddress(), lastException.getMessage());
             }
         }
         
-        throw new SQLException("Failed to connect to any server after " + attempts + " attempts. " +
-                "Last error: " + (lastException != null ? lastException.getMessage() : "No healthy servers available"));
+        if (primarySessionInfo == null) {
+            throw new SQLException("Failed to connect to any server. " +
+                    "Last error: " + (lastException != null ? lastException.getMessage() : "No healthy servers available"));
+        }
+        
+        log.info("Connected to {} out of {} servers", successfulConnections, serverEndpoints.size());
+        return primarySessionInfo;
     }
     
     /**
