@@ -145,6 +145,13 @@ public class SessionManagerImpl implements SessionManager {
         log.info("Terminating session -> " + sessionInfo.getSessionUUID());
         Session targetSession = this.sessionMap.remove(sessionInfo.getSessionUUID());
 
+        // Handle case where session doesn't exist on this server (multinode scenario)
+        if (targetSession == null) {
+            log.debug("Session {} not found on this server, may have been created on another server", 
+                    sessionInfo.getSessionUUID());
+            return;
+        }
+
         if (TransactionStatus.TRX_ACTIVE.equals(sessionInfo.getTransactionInfo().getTransactionStatus())) {
             if (!targetSession.getConnection().getAutoCommit()) {
                 log.info("Rolling back active transaction");
