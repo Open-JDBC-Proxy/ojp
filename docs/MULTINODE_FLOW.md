@@ -8,6 +8,84 @@ This document describes the exact flow of method calls and data in the Open-J-Pr
 3. [Session Establishment and Binding](#session-establishment-and-binding)
 4. [Server Selection (Affinity vs Round-Robin)](#server-selection-affinity-vs-round-robin)
 5. [Datasource Creation and Retrieval](#datasource-creation-and-retrieval)
+6. [TargetServer Field and Session Stickiness](#targetserver-field-and-session-stickiness)
+
+---
+
+## TargetServer Field and Session Stickiness
+
+### Overview
+
+The `targetServer` field in `SessionInfo` enables explicit server identification and binding for session stickiness in multinode deployments. This field ensures that once a session is established on a specific server, all subsequent operations for that session are routed to the same server.
+
+### Format
+
+The `targetServer` field uses the format: `host:port`
+
+Example: `server1:10591`
+
+### Binding Lifecycle
+
+#### 1. Session Creation and Binding
+
+When a client connects to a multinode cluster:
+
+1. **Server Populates targetServer**: Each server that receives a `connect()` request populates the `targetServer` field in the `SessionInfo` response with its own `host:port`.
+
+2. **Client Reads and Binds**: Upon receiving the response, the client reads the `targetServer` field and binds the session:
+   ```java
+   if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
+       String targetServer = sessionInfo.getTargetServer();
+       if (targetServer != null && !targetServer.isEmpty()) {
+           connectionManager.bindSession(sessionInfo.getSessionUUID(), targetServer);
+       }
+   }
+   ```
+
+3. **Binding Storage**: The binding is stored in a `ConcurrentHashMap<String, ServerEndpoint>` keyed by `sessionUUID`.
+
+#### 2. Session-Bound Request Routing
+
+When executing operations with a bound session:
+
+1. **Client Looks Up Binding**: Before making an RPC, the client checks if the session is bound:
+   ```java
+   String targetServer = connectionManager.getBoundTargetServer(sessionUUID);
+   ```
+
+2. **Route to Bound Server**: If a binding exists, the RPC is routed to that specific server. If no binding exists, round-robin selection is used.
+
+3. **Server Echoes targetServer**: The server includes the `targetServer` field in all `SessionInfo` responses, maintaining the binding throughout the session lifecycle.
+
+#### 3. Session Termination and Unbinding
+
+When a session is terminated:
+
+1. **Client Calls terminateSession**: The client sends a `terminateSession` RPC to the server(s) that received the original `connect()` call.
+
+2. **Unbinding**: The client removes the session binding:
+   ```java
+   connectionManager.unbindSession(sessionUUID);
+   ```
+
+3. **Cleanup**: The session-to-server mapping is removed from the connection manager's internal map.
+
+### Backward Compatibility
+
+The `targetServer` field is optional and backward compatible:
+
+- **New clients with old servers**: Clients handle missing `targetServer` gracefully by falling back to existing session binding mechanisms.
+- **Old clients with new servers**: Servers populate `targetServer`, but older clients simply ignore it.
+
+### Error Handling
+
+- **Bound Server Unavailable**: If a session is bound to a server that becomes unavailable, the client throws an exception rather than silently failing over to another server. This enforces strict session stickiness and prevents data consistency issues.
+
+- **Invalid targetServer**: If the client receives a `targetServer` that doesn't match any configured endpoint, the binding is not created and the session uses round-robin routing.
+
+### Thread Safety
+
+All session binding operations (`bindSession`, `getBoundTargetServer`, `unbindSession`) are thread-safe, using `ConcurrentHashMap` for internal storage.
 
 ---
 
@@ -65,29 +143,43 @@ return sessionInfo;
 **`MultinodeConnectionManager.connect(ConnectionDetails details)`**
 
 ```java
-// Round-robin server selection
-ServerEndpoint selectedServer = selectHealthyServer();
-
-// Get pre-initialized channel and stub for this server
-ChannelAndStub channelAndStub = channelMap.get(selectedServer);
-
-// Make gRPC call to establish session
-SessionInfo sessionInfo = channelAndStub.blockingStub.connect(connectionDetails);
-
-// Session binding logic (NEW behavior after removing connHash fallback)
-if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
-    // Bind session to this specific server
-    sessionToServerMap.put(sessionInfo.getSessionUUID(), selectedServer);
-    log.info("Session {} bound to server {}", sessionUUID, server);
-} else {
-    // No sessionUUID - no binding, operations will use round-robin
-    log.info("No sessionUUID present, session not bound to specific server");
+// Try to connect to all servers (to ensure datasources are created on all nodes)
+for (ServerEndpoint server : serverEndpoints) {
+    // Get pre-initialized channel and stub for this server
+    ChannelAndStub channelAndStub = channelMap.get(server);
+    
+    // Make gRPC call to establish session
+    SessionInfo sessionInfo = channelAndStub.blockingStub.connect(connectionDetails);
+    
+    // NEW: Session binding using targetServer field
+    if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
+        String targetServer = sessionInfo.getTargetServer();
+        if (targetServer != null && !targetServer.isEmpty()) {
+            // Use the server-returned targetServer as authoritative for binding
+            bindSession(sessionInfo.getSessionUUID(), targetServer);
+            log.info("Session {} bound to target server {} (from response)", 
+                    sessionInfo.getSessionUUID(), targetServer);
+        } else {
+            // Fallback: bind using current server endpoint if targetServer not provided
+            String serverAddress = server.getHost() + ":" + server.getPort();
+            sessionToServerMap.put(sessionInfo.getSessionUUID(), server);
+            log.info("Session {} bound to server {} (fallback, no targetServer in response)", 
+                    sessionInfo.getSessionUUID(), serverAddress);
+        }
+    } else {
+        // No sessionUUID - no binding, operations will use round-robin
+        log.info("No sessionUUID present, session not bound to specific server");
+    }
 }
 
-return sessionInfo;
+return primarySessionInfo;
 ```
 
-**Key Point:** Session is ONLY bound to a server if `sessionUUID` is present in the response. Without it, subsequent operations use round-robin selection.
+**Key Points:** 
+- Session binding now uses the `targetServer` field from the server response as authoritative.
+- The server populates `targetServer` with its `host:port` in all SessionInfo responses.
+- Client reads `targetServer` and calls `bindSession(sessionUUID, targetServer)` to establish the binding.
+- If `targetServer` is missing, falls back to direct ServerEndpoint binding for backward compatibility.
 
 ### 3. Executing Operations (Query/Update)
 
