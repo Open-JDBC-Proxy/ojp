@@ -21,6 +21,7 @@ public class SessionInfoUtils {
                 .setSessionUUID(activeSessionInfo.getSessionUUID())
                 .setSessionStatus(activeSessionInfo.getSessionStatus())
                 .setTransactionInfo(activeSessionInfo.getTransactionInfo())
+                .setIsXA(activeSessionInfo.getIsXA())
                 .setTargetServer(activeSessionInfo.getTargetServer());
     }
     

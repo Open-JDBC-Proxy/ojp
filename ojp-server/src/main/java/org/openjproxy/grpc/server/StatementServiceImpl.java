@@ -119,6 +119,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // Server configuration for creating segregation managers
     private final ServerConfiguration serverConfiguration;
     
+    // Cached hostname for targetServer field (lazy-initialized)
+    private volatile String cachedHostname = null;
+    
     // Multinode XA coordinator for distributing transaction limits
     private static final MultinodeXaCoordinator xaCoordinator = new MultinodeXaCoordinator();
     
@@ -143,15 +146,22 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             return incomingSessionInfo.getTargetServer();
         }
         
-        // Otherwise, construct from server's hostname and port
-        try {
-            String hostname = java.net.InetAddress.getLocalHost().getHostName();
-            int port = serverConfiguration.getServerPort();
-            return hostname + ":" + port;
-        } catch (Exception e) {
-            log.warn("Failed to get hostname, using localhost: {}", e.getMessage());
-            return "localhost:" + serverConfiguration.getServerPort();
+        // Get or initialize cached hostname (lazy initialization with double-check locking)
+        if (cachedHostname == null) {
+            synchronized (this) {
+                if (cachedHostname == null) {
+                    try {
+                        cachedHostname = java.net.InetAddress.getLocalHost().getHostName();
+                    } catch (Exception e) {
+                        log.warn("Failed to get hostname, using localhost: {}", e.getMessage());
+                        cachedHostname = "localhost";
+                    }
+                }
+            }
         }
+        
+        // Construct targetServer from cached hostname and port
+        return cachedHostname + ":" + serverConfiguration.getServerPort();
     }
 
     @Override
