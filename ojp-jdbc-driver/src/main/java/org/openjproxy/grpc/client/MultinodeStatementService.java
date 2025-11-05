@@ -106,6 +106,7 @@ public class MultinodeStatementService implements StatementService {
     
     /**
      * Checks if a session was created (sessionUUID went from empty to non-empty) and binds it to the server.
+     * Also ensures existing sessions remain bound to the correct server.
      * This is called after operations that may create a session (e.g., startTransaction).
      * 
      * @param requestSessionInfo The SessionInfo sent in the request
@@ -121,19 +122,35 @@ public class MultinodeStatementService implements StatementService {
                                       responseSessionInfo.getSessionUUID() != null && 
                                       !responseSessionInfo.getSessionUUID().isEmpty();
         
-        if (requestHadNoSession && responseHasSession) {
-            // Session was created - bind it to the server
+        if (responseHasSession) {
+            String sessionUUID = responseSessionInfo.getSessionUUID();
             String targetServer = responseSessionInfo.getTargetServer();
-            if (targetServer != null && !targetServer.isEmpty()) {
-                connectionManager.bindSession(responseSessionInfo.getSessionUUID(), targetServer);
-                log.info("Session {} created and bound to target server {}", 
-                        responseSessionInfo.getSessionUUID(), targetServer);
+            
+            // Check if session is already bound
+            String currentBinding = connectionManager.getBoundTargetServer(sessionUUID);
+            
+            if (currentBinding == null) {
+                // Session not bound yet - bind it now
+                if (targetServer != null && !targetServer.isEmpty()) {
+                    connectionManager.bindSession(sessionUUID, targetServer);
+                    log.info("Session {} bound to target server {}", sessionUUID, targetServer);
+                } else {
+                    // Fallback: use server address if targetServer not provided
+                    String serverAddress = server.getHost() + ":" + server.getPort();
+                    connectionManager.bindSession(sessionUUID, serverAddress);
+                    log.info("Session {} bound to server {} (no targetServer in response)", 
+                            sessionUUID, serverAddress);
+                }
             } else {
-                // Fallback: use server address if targetServer not provided
-                String serverAddress = server.getHost() + ":" + server.getPort();
-                connectionManager.bindSession(responseSessionInfo.getSessionUUID(), serverAddress);
-                log.info("Session {} created and bound to server {} (no targetServer in response)", 
-                        responseSessionInfo.getSessionUUID(), serverAddress);
+                // Session already bound - verify it matches
+                String expectedServer = (targetServer != null && !targetServer.isEmpty()) 
+                    ? targetServer 
+                    : (server.getHost() + ":" + server.getPort());
+                
+                if (!currentBinding.equals(expectedServer)) {
+                    log.warn("Session {} binding mismatch - currently bound to {}, response indicates {}", 
+                            sessionUUID, currentBinding, expectedServer);
+                }
             }
         }
     }
