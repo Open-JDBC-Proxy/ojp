@@ -147,7 +147,7 @@ public class SessionManagerImpl implements SessionManager {
 
         // Handle case where session doesn't exist on this server (multinode scenario)
         if (targetSession == null) {
-            log.debug("Session {} not found on this server, may have been created on another server", 
+            log.warn("Session {} not found on this server - may have been created on another server or already terminated", 
                     sessionInfo.getSessionUUID());
             return;
         }

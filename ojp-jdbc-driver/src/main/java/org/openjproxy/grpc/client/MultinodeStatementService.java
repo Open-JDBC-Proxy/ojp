@@ -104,6 +104,105 @@ public class MultinodeStatementService implements StatementService {
         });
     }
     
+    /**
+     * Checks if a session was created (sessionUUID went from empty to non-empty) and binds it to the server.
+     * This is called after operations that may create a session (e.g., startTransaction).
+     * 
+     * @param requestSessionInfo The SessionInfo sent in the request
+     * @param responseSessionInfo The SessionInfo received in the response
+     * @param server The server that handled the request
+     */
+    private void checkAndBindSession(SessionInfo requestSessionInfo, SessionInfo responseSessionInfo, ServerEndpoint server) {
+        // Check if session was created in this call (request had no UUID, response has UUID)
+        boolean requestHadNoSession = requestSessionInfo == null || 
+                                      requestSessionInfo.getSessionUUID() == null || 
+                                      requestSessionInfo.getSessionUUID().isEmpty();
+        boolean responseHasSession = responseSessionInfo != null && 
+                                      responseSessionInfo.getSessionUUID() != null && 
+                                      !responseSessionInfo.getSessionUUID().isEmpty();
+        
+        if (requestHadNoSession && responseHasSession) {
+            // Session was created - bind it to the server
+            String targetServer = responseSessionInfo.getTargetServer();
+            if (targetServer != null && !targetServer.isEmpty()) {
+                connectionManager.bindSession(responseSessionInfo.getSessionUUID(), targetServer);
+                log.info("Session {} created and bound to target server {}", 
+                        responseSessionInfo.getSessionUUID(), targetServer);
+            } else {
+                // Fallback: use server address if targetServer not provided
+                String serverAddress = server.getHost() + ":" + server.getPort();
+                connectionManager.bindSession(responseSessionInfo.getSessionUUID(), serverAddress);
+                log.info("Session {} created and bound to server {} (no targetServer in response)", 
+                        responseSessionInfo.getSessionUUID(), serverAddress);
+            }
+        }
+    }
+    
+    /**
+     * Executes an operation that returns SessionInfo with session stickiness and binding check.
+     * This wrapper handles binding newly-created sessions to servers.
+     * 
+     * @param requestSessionInfo The session info for determining which server to use
+     * @param operation The operation to execute
+     * @return The SessionInfo result
+     * @throws SQLException if the operation fails
+     */
+    private SessionInfo executeWithSessionStickinessAndBinding(SessionInfo requestSessionInfo, 
+                                                                ThrowingFunction<StatementServiceGrpcClient, SessionInfo> operation) 
+            throws SQLException {
+        // Get the appropriate server based on session binding or round-robin
+        ServerEndpoint server = connectionManager.getServerForSession(requestSessionInfo);
+        
+        log.info("executeWithSessionStickinessAndBinding: session={}, server={}", 
+            requestSessionInfo != null ? requestSessionInfo.getSessionUUID() : "null", 
+            server != null ? server.getAddress() : "null");
+        
+        try {
+            // Get the channel and stub for the selected server
+            MultinodeConnectionManager.ChannelAndStub channelAndStub = 
+                    connectionManager.getChannelAndStub(server);
+            
+            if (channelAndStub == null) {
+                throw new SQLException("Unable to get channel for server: " + server.getAddress());
+            }
+            
+            // Get or create the client for this endpoint
+            StatementServiceGrpcClient client = getClient(server);
+            
+            // Execute the operation
+            SessionInfo responseSessionInfo = operation.apply(client);
+            
+            // Check if a session was created and bind it
+            checkAndBindSession(requestSessionInfo, responseSessionInfo, server);
+            
+            return responseSessionInfo;
+            
+        } catch (StatusRuntimeException e) {
+            // Let GrpcExceptionHandler convert the exception
+            SQLException sqlEx;
+            try {
+                throw GrpcExceptionHandler.handle(e);
+            } catch (SQLException ex) {
+                sqlEx = ex;
+            }
+            
+            // Only mark server unhealthy for connection-level errors
+            if (connectionManager.isConnectionLevelError(e)) {
+                log.warn("Connection-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            } else {
+                log.debug("Database-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            }
+            
+            throw sqlEx;
+            
+        } catch (SQLException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SQLException("Unexpected error executing operation on server " + 
+                    server.getAddress() + ": " + e.getMessage(), e);
+        }
+    }
+    
     @Override
     public SessionInfo connect(ConnectionDetails connectionDetails) throws SQLException {
         // Use the connection manager to handle connection with retry and failover logic
@@ -164,32 +263,57 @@ public class MultinodeStatementService implements StatementService {
     @Override
     public void terminateSession(SessionInfo session) {
         try {
-            // Get the list of servers that received connect() for this connection
-            List<ServerEndpoint> serversToTerminate = connectionManager.getServersForConnHash(
-                    session != null ? session.getConnHash() : null);
-            
-            if (serversToTerminate != null && !serversToTerminate.isEmpty()) {
-                // Terminate session on ALL servers that received connect()
-                log.info("Terminating session on {} servers", serversToTerminate.size());
-                for (ServerEndpoint server : serversToTerminate) {
+            // For sessions with a UUID, terminate only on the bound server
+            if (session != null && session.getSessionUUID() != null && !session.getSessionUUID().isEmpty()) {
+                String boundServer = connectionManager.getBoundTargetServer(session.getSessionUUID());
+                if (boundServer != null) {
+                    // Session is bound - terminate on that specific server
+                    log.info("Terminating session {} on bound server {}", session.getSessionUUID(), boundServer);
                     try {
+                        ServerEndpoint server = connectionManager.getServerForSession(session);
                         StatementServiceGrpcClient client = getClient(server);
                         client.terminateSession(session);
-                        log.debug("Terminated session on server {}", server.getAddress());
-                    } catch (Exception e) {
-                        log.warn("Error terminating session on server {}: {}", 
-                                server.getAddress(), e.getMessage());
-                        // Continue to terminate on other servers
+                        log.info("Successfully terminated session {} on server {}", 
+                                session.getSessionUUID(), server.getAddress());
+                    } catch (SQLException e) {
+                        log.warn("Error terminating session {} on bound server: {}", 
+                                session.getSessionUUID(), e.getMessage());
+                    }
+                } else {
+                    // Session not bound - try all servers that received connect()
+                    log.info("Session {} not bound, attempting termination on all connected servers", 
+                            session.getSessionUUID());
+                    List<ServerEndpoint> serversToTerminate = connectionManager.getServersForConnHash(
+                            session.getConnHash());
+                    if (serversToTerminate != null && !serversToTerminate.isEmpty()) {
+                        for (ServerEndpoint server : serversToTerminate) {
+                            try {
+                                StatementServiceGrpcClient client = getClient(server);
+                                client.terminateSession(session);
+                                log.debug("Terminated session on server {}", server.getAddress());
+                            } catch (Exception e) {
+                                log.warn("Error terminating session on server {}: {}", 
+                                        server.getAddress(), e.getMessage());
+                            }
+                        }
                     }
                 }
             } else {
-                // Fallback to terminating on the session-bound server (if any)
-                try {
-                    ServerEndpoint server = connectionManager.getServerForSession(session);
-                    StatementServiceGrpcClient client = getClient(server);
-                    client.terminateSession(session);
-                } catch (SQLException e) {
-                    log.warn("Error terminating session via fallback: {}", e.getMessage());
+                // No session UUID - try terminating on all servers that received connect()
+                log.info("No sessionUUID, attempting termination on all connected servers");
+                List<ServerEndpoint> serversToTerminate = connectionManager.getServersForConnHash(
+                        session != null ? session.getConnHash() : null);
+                if (serversToTerminate != null && !serversToTerminate.isEmpty()) {
+                    for (ServerEndpoint server : serversToTerminate) {
+                        try {
+                            StatementServiceGrpcClient client = getClient(server);
+                            client.terminateSession(session);
+                            log.debug("Terminated session on server {}", server.getAddress());
+                        } catch (Exception e) {
+                            log.warn("Error terminating session on server {}: {}", 
+                                    server.getAddress(), e.getMessage());
+                        }
+                    }
                 }
             }
             
@@ -204,21 +328,21 @@ public class MultinodeStatementService implements StatementService {
     
     @Override
     public SessionInfo startTransaction(SessionInfo session) throws SQLException {
-        return executeWithSessionStickiness(session, client -> 
+        return executeWithSessionStickinessAndBinding(session, client -> 
             client.startTransaction(session)
         );
     }
     
     @Override
     public SessionInfo commitTransaction(SessionInfo session) throws SQLException {
-        return executeWithSessionStickiness(session, client -> 
+        return executeWithSessionStickinessAndBinding(session, client -> 
             client.commitTransaction(session)
         );
     }
     
     @Override
     public SessionInfo rollbackTransaction(SessionInfo session) throws SQLException {
-        return executeWithSessionStickiness(session, client -> 
+        return executeWithSessionStickinessAndBinding(session, client -> 
             client.rollbackTransaction(session)
         );
     }
