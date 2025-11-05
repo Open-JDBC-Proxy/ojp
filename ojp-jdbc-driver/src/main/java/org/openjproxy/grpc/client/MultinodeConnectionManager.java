@@ -221,10 +221,11 @@ public class MultinodeConnectionManager {
         
         // Session must be bound - throw exception if not found
         if (sessionServer == null) {
-            log.error("Session {} has no associated server. Available sessions: {}", 
+            log.error("Session {} has no associated server. Available sessions: {}. This indicates the session binding was lost.", 
                     sessionKey, sessionToServerMap.keySet());
             throw new SQLException("Session " + sessionKey + 
-                    " has no associated server. Session may have expired or server may be unavailable.");
+                    " has no associated server. Session may have expired or server may be unavailable. " +
+                    "Available bound sessions: " + sessionToServerMap.keySet());
         }
         
         log.info("Session {} is bound to server {}", sessionKey, sessionServer.getAddress());

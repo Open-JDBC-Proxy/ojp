@@ -133,12 +133,12 @@ public class MultinodeStatementService implements StatementService {
                 // Session not bound yet - bind it now
                 if (targetServer != null && !targetServer.isEmpty()) {
                     connectionManager.bindSession(sessionUUID, targetServer);
-                    log.info("Session {} bound to target server {}", sessionUUID, targetServer);
+                    log.info("Session {} bound to target server {} (was unbound)", sessionUUID, targetServer);
                 } else {
                     // Fallback: use server address if targetServer not provided
                     String serverAddress = server.getHost() + ":" + server.getPort();
                     connectionManager.bindSession(sessionUUID, serverAddress);
-                    log.info("Session {} bound to server {} (no targetServer in response)", 
+                    log.warn("Session {} bound to server {} (no targetServer in response, was unbound)", 
                             sessionUUID, serverAddress);
                 }
             } else {
@@ -148,8 +148,16 @@ public class MultinodeStatementService implements StatementService {
                     : (server.getHost() + ":" + server.getPort());
                 
                 if (!currentBinding.equals(expectedServer)) {
-                    log.warn("Session {} binding mismatch - currently bound to {}, response indicates {}", 
+                    log.error("Session {} binding mismatch - currently bound to {}, response indicates {}. Re-binding to response server.", 
                             sessionUUID, currentBinding, expectedServer);
+                    // Re-bind to the server that actually handled the request
+                    if (targetServer != null && !targetServer.isEmpty()) {
+                        connectionManager.bindSession(sessionUUID, targetServer);
+                    } else {
+                        connectionManager.bindSession(sessionUUID, expectedServer);
+                    }
+                } else {
+                    log.debug("Session {} binding verified: {}", sessionUUID, currentBinding);
                 }
             }
         }
