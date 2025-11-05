@@ -446,7 +446,7 @@ public class MultinodeConnectionManager {
      * @param sessionUUID The session identifier
      * @return The server endpoint string (host:port) if bound, null otherwise
      */
-    public String getServerForSession(String sessionUUID) {
+    public String getBoundTargetServer(String sessionUUID) {
         if (sessionUUID == null || sessionUUID.isEmpty()) {
             return null;
         }
