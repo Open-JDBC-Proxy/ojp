@@ -123,7 +123,9 @@ public class Connection implements java.sql.Connection {
     @Override
     public void close() throws SQLException {
         log.debug("close called");
-        if (StringUtils.isNotEmpty(this.session.getSessionUUID())) {
+        // Always call terminateSession to ensure server-side resources are released
+        // This is critical for multinode scenarios where connect() may have been called on multiple servers
+        if (this.session != null) {
             this.statementService.terminateSession(this.session);
             this.session = null;
         }

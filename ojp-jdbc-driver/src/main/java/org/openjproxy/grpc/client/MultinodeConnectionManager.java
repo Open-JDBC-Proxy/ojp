@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +34,7 @@ public class MultinodeConnectionManager {
     private final List<ServerEndpoint> serverEndpoints;
     private final Map<ServerEndpoint, ChannelAndStub> channelMap;
     private final Map<String, ServerEndpoint> sessionToServerMap; // sessionUUID -> server
+    private final Map<String, List<ServerEndpoint>> connHashToServersMap; // connHash -> list of servers that received connect()
     private final AtomicInteger roundRobinCounter;
     private final int retryAttempts;
     private final long retryDelayMs;
@@ -51,6 +53,7 @@ public class MultinodeConnectionManager {
         this.serverEndpoints = List.copyOf(serverEndpoints);
         this.channelMap = new ConcurrentHashMap<>();
         this.sessionToServerMap = new ConcurrentHashMap<>();
+        this.connHashToServersMap = new ConcurrentHashMap<>();
         this.roundRobinCounter = new AtomicInteger(0);
         this.retryAttempts = retryAttempts;
         this.retryDelayMs = retryDelayMs;
@@ -101,6 +104,7 @@ public class MultinodeConnectionManager {
         SessionInfo primarySessionInfo = null;
         SQLException lastException = null;
         int successfulConnections = 0;
+        List<ServerEndpoint> connectedServers = new ArrayList<>();
         
         // Try to connect to all servers
         for (ServerEndpoint server : serverEndpoints) {
@@ -135,6 +139,9 @@ public class MultinodeConnectionManager {
                 log.info("Successfully connected to server {}", server.getAddress());
                 successfulConnections++;
                 
+                // Track that this server received a connect() call
+                connectedServers.add(server);
+                
                 // Use the first successful connection as the primary
                 if (primarySessionInfo == null) {
                     primarySessionInfo = sessionInfo;
@@ -157,6 +164,13 @@ public class MultinodeConnectionManager {
         if (primarySessionInfo == null) {
             throw new SQLException("Failed to connect to any server. " +
                     "Last error: " + (lastException != null ? lastException.getMessage() : "No healthy servers available"));
+        }
+        
+        // Track which servers received connect() for this connection hash
+        // This is used during terminateSession() to ensure all servers are cleaned up
+        if (primarySessionInfo.getConnHash() != null && !primarySessionInfo.getConnHash().isEmpty()) {
+            connHashToServersMap.put(primarySessionInfo.getConnHash(), new ArrayList<>(connectedServers));
+            log.info("Tracked {} servers for connection hash {}", connectedServers.size(), primarySessionInfo.getConnHash());
         }
         
         log.info("Connected to {} out of {} servers", successfulConnections, serverEndpoints.size());
@@ -361,12 +375,38 @@ public class MultinodeConnectionManager {
     
     /**
      * Terminates a session and removes its server association.
+     * Also cleans up the connection hash mapping used to track which servers received connect() calls.
      */
     public void terminateSession(SessionInfo sessionInfo) {
-        if (sessionInfo != null && sessionInfo.getSessionUUID() != null) {
-            sessionToServerMap.remove(sessionInfo.getSessionUUID());
-            log.debug("Removed session {} from server association map", sessionInfo.getSessionUUID());
+        if (sessionInfo != null) {
+            // Remove session binding if sessionUUID is present
+            if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
+                sessionToServerMap.remove(sessionInfo.getSessionUUID());
+                log.debug("Removed session {} from server association map", sessionInfo.getSessionUUID());
+            }
+            
+            // Remove connection hash mapping if present
+            if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
+                connHashToServersMap.remove(sessionInfo.getConnHash());
+                log.debug("Removed connection hash {} from server tracking map", sessionInfo.getConnHash());
+            }
         }
+    }
+    
+    /**
+     * Gets the list of servers that received connect() for a given connection hash.
+     * This is used during terminateSession() to ensure all servers that received connect()
+     * also receive terminateSession() so they can clean up their resources properly.
+     * 
+     * @param connHash The connection hash
+     * @return List of servers that received connect(), or null if not tracked
+     */
+    public List<ServerEndpoint> getServersForConnHash(String connHash) {
+        if (connHash == null || connHash.isEmpty()) {
+            return null;
+        }
+        List<ServerEndpoint> servers = connHashToServersMap.get(connHash);
+        return servers != null ? new ArrayList<>(servers) : null;
     }
     
     /**

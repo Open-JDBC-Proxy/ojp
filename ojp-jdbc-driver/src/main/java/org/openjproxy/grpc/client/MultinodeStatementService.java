@@ -164,11 +164,38 @@ public class MultinodeStatementService implements StatementService {
     @Override
     public void terminateSession(SessionInfo session) {
         try {
-            ServerEndpoint server = connectionManager.getServerForSession(session);
-            StatementServiceGrpcClient client = getClient(server);
-            client.terminateSession(session);
+            // Get the list of servers that received connect() for this connection
+            List<ServerEndpoint> serversToTerminate = connectionManager.getServersForConnHash(
+                    session != null ? session.getConnHash() : null);
+            
+            if (serversToTerminate != null && !serversToTerminate.isEmpty()) {
+                // Terminate session on ALL servers that received connect()
+                log.info("Terminating session on {} servers", serversToTerminate.size());
+                for (ServerEndpoint server : serversToTerminate) {
+                    try {
+                        StatementServiceGrpcClient client = getClient(server);
+                        client.terminateSession(session);
+                        log.debug("Terminated session on server {}", server.getAddress());
+                    } catch (Exception e) {
+                        log.warn("Error terminating session on server {}: {}", 
+                                server.getAddress(), e.getMessage());
+                        // Continue to terminate on other servers
+                    }
+                }
+            } else {
+                // Fallback to terminating on the session-bound server (if any)
+                try {
+                    ServerEndpoint server = connectionManager.getServerForSession(session);
+                    StatementServiceGrpcClient client = getClient(server);
+                    client.terminateSession(session);
+                } catch (SQLException e) {
+                    log.warn("Error terminating session via fallback: {}", e.getMessage());
+                }
+            }
+            
+            // Clean up connection manager's session tracking
             connectionManager.terminateSession(session);
-        } catch (SQLException e) {
+        } catch (Exception e) {
             log.warn("Error terminating session {}: {}", 
                     session != null ? session.getSessionUUID() : "null", e.getMessage());
             // Best effort - don't throw exception for terminate
