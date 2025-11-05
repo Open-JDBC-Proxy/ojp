@@ -381,7 +381,7 @@ public class MultinodeConnectionManager {
         if (sessionInfo != null) {
             // Remove session binding if sessionUUID is present
             if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
-                sessionToServerMap.remove(sessionInfo.getSessionUUID());
+                unbindSession(sessionInfo.getSessionUUID());
                 log.debug("Removed session {} from server association map", sessionInfo.getSessionUUID());
             }
             
@@ -389,6 +389,76 @@ public class MultinodeConnectionManager {
             if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
                 connHashToServersMap.remove(sessionInfo.getConnHash());
                 log.debug("Removed connection hash {} from server tracking map", sessionInfo.getConnHash());
+            }
+        }
+    }
+    
+    /**
+     * Binds a session UUID to a target server endpoint (host:port format).
+     * This is used for session stickiness - subsequent operations with this sessionUUID
+     * will be routed to the bound server.
+     * 
+     * @param sessionUUID The session identifier
+     * @param targetServer The target server in host:port format
+     */
+    public void bindSession(String sessionUUID, String targetServer) {
+        if (sessionUUID == null || sessionUUID.isEmpty()) {
+            log.warn("Attempted to bind session with null or empty sessionUUID");
+            return;
+        }
+        
+        if (targetServer == null || targetServer.isEmpty()) {
+            log.warn("Attempted to bind session {} with null or empty targetServer", sessionUUID);
+            return;
+        }
+        
+        // Find the matching ServerEndpoint for this targetServer string
+        ServerEndpoint matchingEndpoint = null;
+        for (ServerEndpoint endpoint : serverEndpoints) {
+            String endpointAddress = endpoint.getHost() + ":" + endpoint.getPort();
+            if (endpointAddress.equals(targetServer)) {
+                matchingEndpoint = endpoint;
+                break;
+            }
+        }
+        
+        if (matchingEndpoint != null) {
+            sessionToServerMap.put(sessionUUID, matchingEndpoint);
+            log.info("Bound session {} to target server {}", sessionUUID, targetServer);
+        } else {
+            log.warn("Could not find matching endpoint for targetServer: {}", targetServer);
+        }
+    }
+    
+    /**
+     * Gets the bound server for a given session UUID.
+     * 
+     * @param sessionUUID The session identifier
+     * @return The server endpoint string (host:port) if bound, null otherwise
+     */
+    public String getServerForSession(String sessionUUID) {
+        if (sessionUUID == null || sessionUUID.isEmpty()) {
+            return null;
+        }
+        
+        ServerEndpoint endpoint = sessionToServerMap.get(sessionUUID);
+        if (endpoint != null) {
+            return endpoint.getHost() + ":" + endpoint.getPort();
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Removes the session binding for a given session UUID.
+     * 
+     * @param sessionUUID The session identifier
+     */
+    public void unbindSession(String sessionUUID) {
+        if (sessionUUID != null && !sessionUUID.isEmpty()) {
+            ServerEndpoint removed = sessionToServerMap.remove(sessionUUID);
+            if (removed != null) {
+                log.debug("Unbound session {} from server {}", sessionUUID, removed.getAddress());
             }
         }
     }

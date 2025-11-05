@@ -131,6 +131,29 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         DriverUtils.registerDrivers();
     }
 
+    /**
+     * Gets the server's target server identifier in host:port format.
+     * Uses the incoming request's targetServer if present, otherwise constructs from hostname and port.
+     */
+    private String getTargetServer(SessionInfo incomingSessionInfo) {
+        // If incoming session already has targetServer, echo it back
+        if (incomingSessionInfo != null && 
+            incomingSessionInfo.getTargetServer() != null && 
+            !incomingSessionInfo.getTargetServer().isEmpty()) {
+            return incomingSessionInfo.getTargetServer();
+        }
+        
+        // Otherwise, construct from server's hostname and port
+        try {
+            String hostname = java.net.InetAddress.getLocalHost().getHostName();
+            int port = serverConfiguration.getServerPort();
+            return hostname + ":" + port;
+        } catch (Exception e) {
+            log.warn("Failed to get hostname, using localhost: {}", e.getMessage());
+            return "localhost:" + serverConfiguration.getServerPort();
+        }
+    }
+
     @Override
     public void connect(ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
         String connHash = ConnectionHashGenerator.hashConnectionDetails(connectionDetails);
@@ -238,6 +261,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 SessionInfo sessionInfo = this.sessionManager.createXASession(
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
+                // Add targetServer to the session info
+                sessionInfo = SessionInfoUtils.withTargetServer(sessionInfo, getTargetServer(null));
+                
                 log.info("Created XA session with UUID: {} for client: {}", 
                         sessionInfo.getSessionUUID(), connectionDetails.getClientUUID());
                 
@@ -290,6 +316,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 .setConnHash(connHash)
                 .setClientUUID(connectionDetails.getClientUUID())
                 .setIsXA(false)
+                .setTargetServer(getTargetServer(null))
                 .build();
 
         responseObserver.onNext(sessionInfo);
@@ -960,6 +987,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             if (StringUtils.isEmpty(sessionInfo.getSessionUUID())) {
                 Connection conn = this.datasourceMap.get(sessionInfo.getConnHash()).getConnection();
                 activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                // Add targetServer to the newly created session
+                activeSessionInfo = SessionInfoUtils.withTargetServer(activeSessionInfo, getTargetServer(sessionInfo));
             }
             Connection sessionConnection = sessionManager.getConnection(activeSessionInfo);
             //Start a transaction
@@ -972,6 +1001,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(activeSessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
+            // Ensure targetServer is set in response
+            if (sessionInfoBuilder.getTargetServer() == null || sessionInfoBuilder.getTargetServer().isEmpty()) {
+                sessionInfoBuilder.setTargetServer(getTargetServer(sessionInfo));
+            }
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
@@ -996,6 +1029,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
+            // Ensure targetServer is set in response
+            if (sessionInfoBuilder.getTargetServer() == null || sessionInfoBuilder.getTargetServer().isEmpty()) {
+                sessionInfoBuilder.setTargetServer(getTargetServer(sessionInfo));
+            }
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
@@ -1020,6 +1057,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
+            // Ensure targetServer is set in response
+            if (sessionInfoBuilder.getTargetServer() == null || sessionInfoBuilder.getTargetServer().isEmpty()) {
+                sessionInfoBuilder.setTargetServer(getTargetServer(sessionInfo));
+            }
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
