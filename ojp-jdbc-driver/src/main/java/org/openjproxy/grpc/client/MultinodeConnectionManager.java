@@ -126,12 +126,22 @@ public class MultinodeConnectionManager {
                 server.setHealthy(true);
                 server.setLastFailureTime(0);
                 
-                // Associate session with server for session stickiness
-                // Only bind if sessionUUID is present
+                // NEW: Use targetServer-based binding if available
+                // Bind session using targetServer from response if both sessionUUID and targetServer are present
                 if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
-                    String sessionKey = sessionInfo.getSessionUUID();
-                    sessionToServerMap.put(sessionKey, server);
-                    log.info("Session {} bound to server {}", sessionKey, server.getAddress());
+                    String targetServer = sessionInfo.getTargetServer();
+                    if (targetServer != null && !targetServer.isEmpty()) {
+                        // Use the server-returned targetServer as authoritative for binding
+                        bindSession(sessionInfo.getSessionUUID(), targetServer);
+                        log.info("Session {} bound to target server {} (from response)", 
+                                sessionInfo.getSessionUUID(), targetServer);
+                    } else {
+                        // Fallback: bind using current server endpoint if targetServer not provided
+                        String serverAddress = server.getHost() + ":" + server.getPort();
+                        sessionToServerMap.put(sessionInfo.getSessionUUID(), server);
+                        log.info("Session {} bound to server {} (fallback, no targetServer in response)", 
+                                sessionInfo.getSessionUUID(), serverAddress);
+                    }
                 } else {
                     log.info("No sessionUUID from server {}, session not bound", server.getAddress());
                 }
