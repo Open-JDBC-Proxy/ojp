@@ -204,11 +204,10 @@ public class MultinodeConnectionManager {
      * 
      * If sessionKey is null, returns a round-robin selected server.
      * If sessionKey is not null, returns the server bound to that session.
-     * If session has no binding, uses round-robin (allows rebinding later).
      * 
      * @param sessionKey the session identifier (sessionUUID), or null for round-robin
      * @return the server endpoint to use
-     * @throws SQLException if session exists but server is unavailable
+     * @throws SQLException if session exists but server is unavailable or not bound
      */
     public ServerEndpoint affinityServer(String sessionKey) throws SQLException {
         if (sessionKey == null || sessionKey.isEmpty()) {
@@ -220,11 +219,12 @@ public class MultinodeConnectionManager {
         log.info("Looking up server for session: {}", sessionKey);
         ServerEndpoint sessionServer = sessionToServerMap.get(sessionKey);
         
-        // If session not bound, use round-robin (will be bound after operation succeeds)
+        // Session must be bound - throw exception if not found
         if (sessionServer == null) {
-            log.warn("Session {} has no associated server, using round-robin (will rebind after operation)", 
-                    sessionKey);
-            return selectHealthyServer();
+            log.error("Session {} has no associated server. Available sessions: {}", 
+                    sessionKey, sessionToServerMap.keySet());
+            throw new SQLException("Session " + sessionKey + 
+                    " has no associated server. Session may have expired or server may be unavailable.");
         }
         
         log.info("Session {} is bound to server {}", sessionKey, sessionServer.getAddress());
@@ -433,10 +433,19 @@ public class MultinodeConnectionManager {
         }
         
         if (matchingEndpoint != null) {
-            sessionToServerMap.put(sessionUUID, matchingEndpoint);
-            log.info("Bound session {} to target server {}", sessionUUID, targetServer);
+            ServerEndpoint previous = sessionToServerMap.put(sessionUUID, matchingEndpoint);
+            if (previous == null) {
+                log.info("Bound session {} to target server {}", sessionUUID, targetServer);
+            } else {
+                log.info("Rebound session {} from {} to target server {}", 
+                        sessionUUID, previous.getAddress(), targetServer);
+            }
         } else {
-            log.warn("Could not find matching endpoint for targetServer: {}", targetServer);
+            log.warn("Could not find matching endpoint for targetServer: {}. Available endpoints: {}", 
+                    targetServer, 
+                    serverEndpoints.stream()
+                            .map(e -> e.getHost() + ":" + e.getPort())
+                            .collect(java.util.stream.Collectors.joining(", ")));
         }
     }
     
