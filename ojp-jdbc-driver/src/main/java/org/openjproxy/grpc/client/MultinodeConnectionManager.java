@@ -204,13 +204,14 @@ public class MultinodeConnectionManager {
      * 
      * If sessionKey is null, returns a round-robin selected server.
      * If sessionKey is not null, returns the server bound to that session.
+     * If session has no binding, uses round-robin (allows rebinding later).
      * 
      * @param sessionKey the session identifier (sessionUUID), or null for round-robin
      * @return the server endpoint to use
      * @throws SQLException if session exists but server is unavailable
      */
     public ServerEndpoint affinityServer(String sessionKey) throws SQLException {
-        if (sessionKey == null) {
+        if (sessionKey == null || sessionKey.isEmpty()) {
             // No session identifier, use round-robin
             log.info("No session key, using round-robin selection");
             return selectHealthyServer();
@@ -219,12 +220,11 @@ public class MultinodeConnectionManager {
         log.info("Looking up server for session: {}", sessionKey);
         ServerEndpoint sessionServer = sessionToServerMap.get(sessionKey);
         
-        // Throw exception if session server is unhealthy or not found
+        // If session not bound, use round-robin (will be bound after operation succeeds)
         if (sessionServer == null) {
-            log.error("Session {} has no associated server. Available sessions: {}", 
-                    sessionKey, sessionToServerMap.keySet());
-            throw new SQLException("Session " + sessionKey + 
-                    " has no associated server. Session may have expired or server may be unavailable.");
+            log.warn("Session {} has no associated server, using round-robin (will rebind after operation)", 
+                    sessionKey);
+            return selectHealthyServer();
         }
         
         log.info("Session {} is bound to server {}", sessionKey, sessionServer.getAddress());
