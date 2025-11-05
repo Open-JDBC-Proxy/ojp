@@ -127,21 +127,14 @@ public class MultinodeConnectionManager {
                 selectedServer.setLastFailureTime(0);
                 
                 // Associate session with server for session stickiness
-                // Use sessionUUID if available, otherwise fall back to connHash
+                // Only bind if sessionUUID is present - without session ID, any server is equally good
                 String sessionKey = null;
                 if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
                     sessionKey = sessionInfo.getSessionUUID();
-                    log.info("Using sessionUUID as session key: {}", sessionKey);
-                } else if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
-                    sessionKey = sessionInfo.getConnHash();
-                    log.info("SessionUUID is empty, using connHash as session key: {}", sessionKey);
-                }
-                
-                if (sessionKey != null) {
                     sessionToServerMap.put(sessionKey, selectedServer);
                     log.info("Session {} bound to server {}", sessionKey, selectedServer.getAddress());
                 } else {
-                    log.warn("No session key available for binding (sessionUUID and connHash both empty)");
+                    log.info("No sessionUUID present, session not bound to specific server");
                 }
                 
                 log.debug("Successfully connected to server {}", selectedServer.getAddress());
@@ -190,34 +183,26 @@ public class MultinodeConnectionManager {
     }
     
     /**
-     * Gets the appropriate server for a session-bound request.
+     * Gets the appropriate server based on session affinity.
      * 
-     * Addressing PR #39 review comment #3:
-     * Throws SQLException if a session exists and its bound server is unavailable,
-     * instead of falling back to round-robin routing.
+     * If sessionKey is null, returns a round-robin selected server.
+     * If sessionKey is not null, returns the server bound to that session.
+     * 
+     * @param sessionKey the session identifier (sessionUUID), or null for round-robin
+     * @return the server endpoint to use
+     * @throws SQLException if session exists but server is unavailable
      */
-    public ServerEndpoint getServerForSession(SessionInfo sessionInfo) throws SQLException {
-        // Try to get session key - preferring sessionUUID, falling back to connHash
-        String sessionKey = null;
-        if (sessionInfo != null) {
-            if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
-                sessionKey = sessionInfo.getSessionUUID();
-                log.info("Looking up server for sessionUUID: {}", sessionKey);
-            } else if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
-                sessionKey = sessionInfo.getConnHash();
-                log.info("Looking up server for connHash: {}", sessionKey);
-            }
-        }
-        
+    public ServerEndpoint affinityServer(String sessionKey) throws SQLException {
         if (sessionKey == null) {
             // No session identifier, use round-robin
-            log.info("No session identifier available, using round-robin selection");
+            log.info("No session key, using round-robin selection");
             return selectHealthyServer();
         }
         
+        log.info("Looking up server for session: {}", sessionKey);
         ServerEndpoint sessionServer = sessionToServerMap.get(sessionKey);
         
-        // PR #39 review comment #3: Throw exception if session server is unhealthy or not found
+        // Throw exception if session server is unhealthy or not found
         if (sessionServer == null) {
             log.error("Session {} has no associated server. Available sessions: {}", 
                     sessionKey, sessionToServerMap.keySet());
@@ -236,6 +221,20 @@ public class MultinodeConnectionManager {
         }
         
         return sessionServer;
+    }
+    
+    /**
+     * Gets the appropriate server for a session-bound request.
+     * 
+     * @deprecated Use affinityServer(String sessionKey) instead
+     */
+    @Deprecated
+    public ServerEndpoint getServerForSession(SessionInfo sessionInfo) throws SQLException {
+        String sessionKey = null;
+        if (sessionInfo != null && sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
+            sessionKey = sessionInfo.getSessionUUID();
+        }
+        return affinityServer(sessionKey);
     }
     
     /**
