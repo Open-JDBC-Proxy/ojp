@@ -164,6 +164,158 @@ public class MultinodeStatementService implements StatementService {
     }
     
     /**
+     * Executes an operation that returns OpResult with session stickiness and binding check.
+     * This wrapper handles binding newly-created sessions to servers.
+     * 
+     * @param requestSessionInfo The session info for determining which server to use
+     * @param operation The operation to execute
+     * @return The OpResult result
+     * @throws SQLException if the operation fails
+     */
+    private OpResult executeOpResultWithSessionStickinessAndBinding(SessionInfo requestSessionInfo, 
+                                                                      ThrowingFunction<StatementServiceGrpcClient, OpResult> operation) 
+            throws SQLException {
+        // Get the appropriate server based on session binding or round-robin
+        ServerEndpoint server = connectionManager.getServerForSession(requestSessionInfo);
+        
+        log.debug("executeOpResultWithSessionStickinessAndBinding: session={}, server={}", 
+            requestSessionInfo != null ? requestSessionInfo.getSessionUUID() : "null", 
+            server != null ? server.getAddress() : "null");
+        
+        try {
+            // Get the channel and stub for the selected server
+            MultinodeConnectionManager.ChannelAndStub channelAndStub = 
+                    connectionManager.getChannelAndStub(server);
+            
+            if (channelAndStub == null) {
+                throw new SQLException("Unable to get channel for server: " + server.getAddress());
+            }
+            
+            // Get or create the client for this endpoint
+            StatementServiceGrpcClient client = getClient(server);
+            
+            // Execute the operation
+            OpResult result = operation.apply(client);
+            
+            // Check if result contains a session and bind it
+            if (result != null && result.hasSession()) {
+                SessionInfo responseSessionInfo = result.getSession();
+                checkAndBindSession(requestSessionInfo, responseSessionInfo, server);
+            }
+            
+            return result;
+            
+        } catch (StatusRuntimeException e) {
+            // Let GrpcExceptionHandler convert the exception
+            SQLException sqlEx;
+            try {
+                throw GrpcExceptionHandler.handle(e);
+            } catch (SQLException ex) {
+                sqlEx = ex;
+            }
+            
+            // Only mark server unhealthy for connection-level errors
+            if (connectionManager.isConnectionLevelError(e)) {
+                log.warn("Connection-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            } else {
+                log.debug("Database-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            }
+            
+            throw sqlEx;
+        } catch (SQLException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SQLException("Unexpected error executing operation: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Executes an operation that returns Iterator<OpResult> with session stickiness and binding check.
+     * This wrapper handles binding newly-created sessions to servers by checking the first result.
+     * 
+     * @param requestSessionInfo The session info for determining which server to use
+     * @param operation The operation to execute
+     * @return The Iterator<OpResult> result
+     * @throws SQLException if the operation fails
+     */
+    private Iterator<OpResult> executeIteratorWithSessionStickinessAndBinding(SessionInfo requestSessionInfo, 
+                                                                                ThrowingFunction<StatementServiceGrpcClient, Iterator<OpResult>> operation) 
+            throws SQLException {
+        // Get the appropriate server based on session binding or round-robin
+        ServerEndpoint server = connectionManager.getServerForSession(requestSessionInfo);
+        
+        log.debug("executeIteratorWithSessionStickinessAndBinding: session={}, server={}", 
+            requestSessionInfo != null ? requestSessionInfo.getSessionUUID() : "null", 
+            server != null ? server.getAddress() : "null");
+        
+        try {
+            // Get the channel and stub for the selected server
+            MultinodeConnectionManager.ChannelAndStub channelAndStub = 
+                    connectionManager.getChannelAndStub(server);
+            
+            if (channelAndStub == null) {
+                throw new SQLException("Unable to get channel for server: " + server.getAddress());
+            }
+            
+            // Get or create the client for this endpoint
+            StatementServiceGrpcClient client = getClient(server);
+            
+            // Execute the operation
+            Iterator<OpResult> resultIterator = operation.apply(client);
+            
+            // Wrap the iterator to check and bind session from the first result
+            return new Iterator<OpResult>() {
+                private boolean firstResultProcessed = false;
+                
+                @Override
+                public boolean hasNext() {
+                    return resultIterator.hasNext();
+                }
+                
+                @Override
+                public OpResult next() {
+                    OpResult result = resultIterator.next();
+                    
+                    // Check and bind session from the first result
+                    if (!firstResultProcessed && result != null && result.hasSession()) {
+                        SessionInfo responseSessionInfo = result.getSession();
+                        try {
+                            checkAndBindSession(requestSessionInfo, responseSessionInfo, server);
+                        } catch (Exception e) {
+                            log.warn("Failed to check/bind session from query result: {}", e.getMessage());
+                        }
+                        firstResultProcessed = true;
+                    }
+                    
+                    return result;
+                }
+            };
+            
+        } catch (StatusRuntimeException e) {
+            // Let GrpcExceptionHandler convert the exception
+            SQLException sqlEx;
+            try {
+                throw GrpcExceptionHandler.handle(e);
+            } catch (SQLException ex) {
+                sqlEx = ex;
+            }
+            
+            // Only mark server unhealthy for connection-level errors
+            if (connectionManager.isConnectionLevelError(e)) {
+                log.warn("Connection-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            } else {
+                log.debug("Database-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            }
+            
+            throw sqlEx;
+        } catch (SQLException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SQLException("Unexpected error executing operation: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
      * Executes an operation that returns SessionInfo with session stickiness and binding check.
      * This wrapper handles binding newly-created sessions to servers.
      * 
@@ -243,7 +395,7 @@ public class MultinodeStatementService implements StatementService {
     @Override
     public OpResult executeUpdate(SessionInfo sessionInfo, String sql, List<Parameter> params, 
                                   String statementUUID, Map<String, Object> properties) throws SQLException {
-        return executeWithSessionStickiness(sessionInfo, client -> 
+        return executeOpResultWithSessionStickinessAndBinding(sessionInfo, client -> 
             client.executeUpdate(sessionInfo, sql, params, statementUUID, properties)
         );
     }
@@ -257,7 +409,8 @@ public class MultinodeStatementService implements StatementService {
     @Override
     public Iterator<OpResult> executeQuery(SessionInfo sessionInfo, String sql, List<Parameter> params, 
                                            String statementUUID, Map<String, Object> properties) throws SQLException {
-        return executeWithSessionStickiness(sessionInfo, client -> 
+        // For executeQuery, we execute with binding check and wrap the iterator to check subsequent results
+        return executeIteratorWithSessionStickinessAndBinding(sessionInfo, client -> 
             client.executeQuery(sessionInfo, sql, params, statementUUID, properties)
         );
     }
