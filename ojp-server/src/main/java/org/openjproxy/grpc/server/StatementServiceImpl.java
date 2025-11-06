@@ -119,9 +119,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // Server configuration for creating segregation managers
     private final ServerConfiguration serverConfiguration;
     
-    // Cached hostname for targetServer field (lazy-initialized)
-    private volatile String cachedHostname = null;
-    
     // Multinode XA coordinator for distributing transaction limits
     private static final MultinodeXaCoordinator xaCoordinator = new MultinodeXaCoordinator();
     
@@ -135,33 +132,19 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
 
     /**
-     * Gets the server's target server identifier in host:port format.
-     * Uses the incoming request's targetServer if present, otherwise constructs from hostname and port.
+     * Gets the target server identifier from the incoming request.
+     * Simply echoes back what the client sent without any override.
      */
     private String getTargetServer(SessionInfo incomingSessionInfo) {
-        // If incoming session already has targetServer, echo it back
+        // Echo back the targetServer from incoming request, or return empty string if not present
         if (incomingSessionInfo != null && 
             incomingSessionInfo.getTargetServer() != null && 
             !incomingSessionInfo.getTargetServer().isEmpty()) {
             return incomingSessionInfo.getTargetServer();
         }
         
-        // Get or initialize cached hostname (lazy initialization with double-check locking)
-        if (cachedHostname == null) {
-            synchronized (this) {
-                if (cachedHostname == null) {
-                    try {
-                        cachedHostname = java.net.InetAddress.getLocalHost().getHostName();
-                    } catch (Exception e) {
-                        log.warn("Failed to get hostname, using localhost: {}", e.getMessage());
-                        cachedHostname = "localhost";
-                    }
-                }
-            }
-        }
-        
-        // Construct targetServer from cached hostname and port
-        return cachedHostname + ":" + serverConfiguration.getServerPort();
+        // Return empty string if client didn't send targetServer
+        return "";
     }
 
     @Override
@@ -271,8 +254,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 SessionInfo sessionInfo = this.sessionManager.createXASession(
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
-                // Add targetServer to the session info
-                sessionInfo = SessionInfoUtils.withTargetServer(sessionInfo, getTargetServer(null));
+                // Server does not populate targetServer - client will set it on future requests
                 
                 log.info("Created XA session with UUID: {} for client: {}", 
                         sessionInfo.getSessionUUID(), connectionDetails.getClientUUID());
@@ -322,11 +304,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
 
         // For regular connections, just return session info without creating a session yet (lazy allocation)
+        // Server does not populate targetServer - client will set it on future requests
         SessionInfo sessionInfo = SessionInfo.newBuilder()
                 .setConnHash(connHash)
                 .setClientUUID(connectionDetails.getClientUUID())
                 .setIsXA(false)
-                .setTargetServer(getTargetServer(null))
                 .build();
 
         responseObserver.onNext(sessionInfo);
@@ -997,7 +979,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             if (StringUtils.isEmpty(sessionInfo.getSessionUUID())) {
                 Connection conn = this.datasourceMap.get(sessionInfo.getConnHash()).getConnection();
                 activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
-                // Add targetServer to the newly created session
+                // Preserve targetServer from incoming request
                 activeSessionInfo = SessionInfoUtils.withTargetServer(activeSessionInfo, getTargetServer(sessionInfo));
             }
             Connection sessionConnection = sessionManager.getConnection(activeSessionInfo);
@@ -1011,10 +993,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(activeSessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
-            // Ensure targetServer is set in response
-            if (sessionInfoBuilder.getTargetServer() == null || sessionInfoBuilder.getTargetServer().isEmpty()) {
-                sessionInfoBuilder.setTargetServer(getTargetServer(sessionInfo));
-            }
+            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
@@ -1039,10 +1018,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
-            // Ensure targetServer is set in response
-            if (sessionInfoBuilder.getTargetServer() == null || sessionInfoBuilder.getTargetServer().isEmpty()) {
-                sessionInfoBuilder.setTargetServer(getTargetServer(sessionInfo));
-            }
+            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
@@ -1067,10 +1043,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
-            // Ensure targetServer is set in response
-            if (sessionInfoBuilder.getTargetServer() == null || sessionInfoBuilder.getTargetServer().isEmpty()) {
-                sessionInfoBuilder.setTargetServer(getTargetServer(sessionInfo));
-            }
+            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
