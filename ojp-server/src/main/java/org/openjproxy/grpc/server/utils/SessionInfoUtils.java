@@ -20,6 +20,38 @@ public class SessionInfoUtils {
                 .setClientUUID(activeSessionInfo.getClientUUID())
                 .setSessionUUID(activeSessionInfo.getSessionUUID())
                 .setSessionStatus(activeSessionInfo.getSessionStatus())
-                .setTransactionInfo(activeSessionInfo.getTransactionInfo());
+                .setTransactionInfo(activeSessionInfo.getTransactionInfo())
+                .setIsXA(activeSessionInfo.getIsXA())
+                .setTargetServer(activeSessionInfo.getTargetServer());
+    }
+    
+    /**
+     * Adds targetServer to an existing SessionInfo.
+     * If targetServer is already set, it is preserved. Otherwise, the provided targetServer is set.
+     *
+     * @param sessionInfo The source session info
+     * @param targetServer The target server to set if not already present
+     * @return A new SessionInfo with targetServer set
+     */
+    public static SessionInfo withTargetServer(SessionInfo sessionInfo, String targetServer) {
+        if (sessionInfo == null) {
+            return null;
+        }
+        
+        // If targetServer is already set, preserve it; otherwise use the provided one
+        String effectiveTargetServer = sessionInfo.getTargetServer();
+        if (effectiveTargetServer == null || effectiveTargetServer.isEmpty()) {
+            effectiveTargetServer = targetServer;
+        }
+        
+        return SessionInfo.newBuilder()
+                .setConnHash(sessionInfo.getConnHash())
+                .setClientUUID(sessionInfo.getClientUUID())
+                .setSessionUUID(sessionInfo.getSessionUUID())
+                .setSessionStatus(sessionInfo.getSessionStatus())
+                .setTransactionInfo(sessionInfo.getTransactionInfo())
+                .setIsXA(sessionInfo.getIsXA())
+                .setTargetServer(effectiveTargetServer != null ? effectiveTargetServer : "")
+                .build();
     }
 }

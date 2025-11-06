@@ -185,6 +185,7 @@ message SessionInfo {
     TransactionInfo transactionInfo = 4;
     SessionStatus sessionStatus = 5;
     bool isXA = 6;  // Flag indicating this is an XA session
+    string targetServer = 7;  // Server endpoint (host:port) for session stickiness binding
 }
 
 enum ResultType {

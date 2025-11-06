@@ -131,6 +131,22 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         DriverUtils.registerDrivers();
     }
 
+    /**
+     * Gets the target server identifier from the incoming request.
+     * Simply echoes back what the client sent without any override.
+     */
+    private String getTargetServer(SessionInfo incomingSessionInfo) {
+        // Echo back the targetServer from incoming request, or return empty string if not present
+        if (incomingSessionInfo != null && 
+            incomingSessionInfo.getTargetServer() != null && 
+            !incomingSessionInfo.getTargetServer().isEmpty()) {
+            return incomingSessionInfo.getTargetServer();
+        }
+        
+        // Return empty string if client didn't send targetServer
+        return "";
+    }
+
     @Override
     public void connect(ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
         String connHash = ConnectionHashGenerator.hashConnectionDetails(connectionDetails);
@@ -238,6 +254,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 SessionInfo sessionInfo = this.sessionManager.createXASession(
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
+                // Server does not populate targetServer - client will set it on future requests
+                
                 log.info("Created XA session with UUID: {} for client: {}", 
                         sessionInfo.getSessionUUID(), connectionDetails.getClientUUID());
                 
@@ -286,6 +304,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
 
         // For regular connections, just return session info without creating a session yet (lazy allocation)
+        // Server does not populate targetServer - client will set it on future requests
         SessionInfo sessionInfo = SessionInfo.newBuilder()
                 .setConnHash(connHash)
                 .setClientUUID(connectionDetails.getClientUUID())
@@ -960,6 +979,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             if (StringUtils.isEmpty(sessionInfo.getSessionUUID())) {
                 Connection conn = this.datasourceMap.get(sessionInfo.getConnHash()).getConnection();
                 activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                // Preserve targetServer from incoming request
+                activeSessionInfo = SessionInfoUtils.withTargetServer(activeSessionInfo, getTargetServer(sessionInfo));
             }
             Connection sessionConnection = sessionManager.getConnection(activeSessionInfo);
             //Start a transaction
@@ -972,6 +993,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(activeSessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
+            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
@@ -996,6 +1018,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
+            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
@@ -1020,6 +1043,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
+            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
 
             responseObserver.onNext(sessionInfoBuilder.build());
             responseObserver.onCompleted();
