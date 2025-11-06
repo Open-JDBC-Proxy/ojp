@@ -78,7 +78,6 @@ jobs:
 
       - name: Run Multinode Integration Tests
         run: mvn test -pl ojp-jdbc-driver -Dtest=MultinodeIntegrationTest -Dmultinode.tests.enabled=true -Dgpg.skip=true
-        continue-on-error: true
 
       - name: Test Failover Scenario - Stop Server 1
         run: |
@@ -90,7 +89,6 @@ jobs:
 
       - name: Run Failover Tests
         run: mvn test -pl ojp-jdbc-driver -Dtest=MultinodeFailoverTest -Dmultinode.tests.enabled=true -Dgpg.skip=true
-        continue-on-error: true
 
       - name: Test Recovery Scenario - Restart Server 1
         run: |
@@ -101,7 +99,6 @@ jobs:
 
       - name: Run Recovery Tests
         run: mvn test -pl ojp-jdbc-driver -Dtest=MultinodeRecoveryTest -Dmultinode.tests.enabled=true -Dgpg.skip=true
-        continue-on-error: true
 
       - name: Show OJP Server 1 log
         if: always()

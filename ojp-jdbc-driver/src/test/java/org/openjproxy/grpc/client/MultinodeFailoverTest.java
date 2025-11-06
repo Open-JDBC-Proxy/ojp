@@ -33,6 +33,36 @@ class MultinodeFailoverTest {
     private static final String POSTGRES_USER = "testuser";
     private static final String POSTGRES_PASSWORD = "testpassword";
 
+    @BeforeEach
+    void setUp() throws SQLException {
+        // Create test table before each test
+        Properties props = new Properties();
+        props.setProperty("user", POSTGRES_USER);
+        props.setProperty("password", POSTGRES_PASSWORD);
+
+        try (Connection conn = DriverManager.getConnection(MULTINODE_URL, props);
+             Statement stmt = conn.createStatement()) {
+            // Drop table if it exists and recreate it
+            stmt.execute("DROP TABLE IF EXISTS multinode_test");
+            stmt.execute("CREATE TABLE multinode_test (id SERIAL PRIMARY KEY, value VARCHAR(100), server_info VARCHAR(50))");
+        }
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Clean up test table after each test
+        Properties props = new Properties();
+        props.setProperty("user", POSTGRES_USER);
+        props.setProperty("password", POSTGRES_PASSWORD);
+
+        try (Connection conn = DriverManager.getConnection(MULTINODE_URL, props);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS multinode_test");
+        } catch (SQLException e) {
+            // Ignore cleanup errors
+        }
+    }
+
     @Test
     @Order(1)
     @DisplayName("Test connection when one server is down (should connect to healthy server)")
