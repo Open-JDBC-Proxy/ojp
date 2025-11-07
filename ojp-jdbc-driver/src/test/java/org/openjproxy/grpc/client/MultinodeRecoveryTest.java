@@ -35,13 +35,13 @@ class MultinodeRecoveryTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        // Create test table before each test using direct PostgreSQL connection
+        // Create test table before each test using multinode URL
         Properties props = new Properties();
         props.setProperty("user", POSTGRES_USER);
         props.setProperty("password", POSTGRES_PASSWORD);
 
-        // Use direct PostgreSQL connection for setup, not OJP multinode URL
-        try (Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/defaultdb", props);
+        // Use OJP multinode URL for all connections
+        try (Connection conn = DriverManager.getConnection(MULTINODE_URL, props);
              Statement stmt = conn.createStatement()) {
             // Drop table if it exists and recreate it
             stmt.execute("DROP TABLE IF EXISTS multinode_test");
@@ -51,13 +51,13 @@ class MultinodeRecoveryTest {
 
     @AfterEach
     void tearDown() {
-        // Clean up test table after each test using direct PostgreSQL connection
+        // Clean up test table after each test using multinode URL
         Properties props = new Properties();
         props.setProperty("user", POSTGRES_USER);
         props.setProperty("password", POSTGRES_PASSWORD);
 
-        // Use direct PostgreSQL connection for teardown, not OJP multinode URL
-        try (Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/defaultdb", props);
+        // Use OJP multinode URL for all connections
+        try (Connection conn = DriverManager.getConnection(MULTINODE_URL, props);
              Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS multinode_test");
         } catch (SQLException e) {
