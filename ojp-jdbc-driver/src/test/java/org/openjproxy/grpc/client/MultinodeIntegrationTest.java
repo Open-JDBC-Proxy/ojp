@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * and a Postgres database accessible at localhost:5432.
  * 
  * These tests are disabled by default and only run when the system property
- * 'multinode.tests.enabled' is set to 'true'.
+ * 'multinodeTestsEnabled' is set to 'true'.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class MultinodeIntegrationTest {
@@ -23,10 +23,10 @@ class MultinodeIntegrationTest {
     
     @BeforeAll
     static void checkIfEnabled() {
-        String enabled = System.getProperty("multinode.tests.enabled", "true");
+        String enabled = System.getProperty("multinodeTestsEnabled", "false");
         testsEnabled = "true".equalsIgnoreCase(enabled);
         Assumptions.assumeTrue(testsEnabled, 
-                "Multinode integration tests are disabled. Set -Dmultinode.tests.enabled=true to enable.");
+                "Multinode integration tests are disabled. Set -DmultinodeTestsEnabled=true to enable.");
     }
 
     private static final String MULTINODE_URL = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
