@@ -23,7 +23,7 @@ class MultinodeIntegrationTest {
     
     @BeforeAll
     static void checkIfEnabled() {
-        String enabled = System.getProperty("multinode.tests.enabled", "false");
+        String enabled = System.getProperty("multinode.tests.enabled", "true");
         testsEnabled = "true".equalsIgnoreCase(enabled);
         Assumptions.assumeTrue(testsEnabled, 
                 "Multinode integration tests are disabled. Set -Dmultinode.tests.enabled=true to enable.");
@@ -44,7 +44,7 @@ class MultinodeIntegrationTest {
         
         // Create a test table using direct connection
         try (Connection directConn = DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", POSTGRES_USER, POSTGRES_PASSWORD)) {
+                "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb", POSTGRES_USER, POSTGRES_PASSWORD)) {
             try (Statement stmt = directConn.createStatement()) {
                 // Drop table if exists
                 stmt.execute("DROP TABLE IF EXISTS multinode_test");
@@ -62,7 +62,7 @@ class MultinodeIntegrationTest {
         
         // Clean up test table
         try (Connection directConn = DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", POSTGRES_USER, POSTGRES_PASSWORD)) {
+                "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb", POSTGRES_USER, POSTGRES_PASSWORD)) {
             try (Statement stmt = directConn.createStatement()) {
                 stmt.execute("DROP TABLE IF EXISTS multinode_test");
             }
