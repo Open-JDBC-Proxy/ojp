@@ -198,22 +198,16 @@ ojp.connection.pool.connectionTimeout=15000
 webapp.ojp.connection.pool.maximumPoolSize=50
 webapp.ojp.connection.pool.minimumIdle=10
 webapp.ojp.connection.pool.connectionTimeout=5000
-webapp.ojp.xa.maxTransactions=100
-webapp.ojp.xa.startTimeoutMillis=120000
 
 # Batch processing datasource
 batch.ojp.connection.pool.maximumPoolSize=20
 batch.ojp.connection.pool.minimumIdle=2
 batch.ojp.connection.pool.maxLifetime=3600000
-batch.ojp.xa.maxTransactions=30
-batch.ojp.xa.startTimeoutMillis=300000
 
 # Read-only analytics datasource
 analytics.ojp.connection.pool.maximumPoolSize=8
 analytics.ojp.connection.pool.minimumIdle=1
 analytics.ojp.connection.pool.idleTimeout=900000
-analytics.ojp.xa.maxTransactions=15
-analytics.ojp.xa.startTimeoutMillis=30000
 ```
 
 ### Connection Pool Fallback Behavior
