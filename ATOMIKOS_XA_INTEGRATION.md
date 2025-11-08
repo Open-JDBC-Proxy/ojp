@@ -2,18 +2,34 @@
 
 ## Overview
 
-This document describes the Atomikos XA transaction integration in OJP server, which provides distributed transaction support for XA-capable databases.
+This document describes the Atomikos XA connection pooling integration in OJP server, which provides distributed transaction support for XA-capable databases.
+
+**IMPORTANT**: Atomikos is used **ONLY for connection pooling**, NOT for transaction management. The OJP server remains an XA pass-through proxy - clients control transaction lifecycle via XAResource.
 
 ## Architecture
 
 ### Key Components
 
-1. **AtomikosLifecycle** - Manages the Atomikos UserTransactionService lifecycle
-2. **AtomikosDataSourceFactory** - Creates and configures AtomikosDataSourceBean instances
-3. **StatementServiceImpl** - Modified to support both Hikari (non-XA) and Atomikos (XA) datasources
-4. **GrpcServer** - Integrated with Atomikos lifecycle for startup/shutdown
-5. **ConnectionHashGenerator** - Generates unique hashes for connections including datasource name
-6. **DataSourceConfigurationManager** - Manages datasource-specific configurations
+1. **AtomikosXAConnectionPool** - Manages XA connection pooling using AtomikosDataSourceBean
+2. **XADataSourceFactory** - Creates native JDBC driver XADataSource instances (e.g., PGXADataSource for PostgreSQL)
+3. **StatementServiceImpl** - Modified to use AtomikosXAConnectionPool instead of direct XADataSource
+4. **ConnectionHashGenerator** - Generates unique hashes for connections including datasource name
+5. **DataSourceConfigurationManager** - Manages datasource-specific configurations
+
+### XA Pass-Through Architecture
+
+The system uses Atomikos connection pooling infrastructure while maintaining XA pass-through semantics:
+
+**Server Responsibilities:**
+- Pool XA connections using AtomikosDataSourceBean (sizing, validation, health checks)
+- Lease one XAConnection per client XA branch/session (no sharing across branches)
+- Forward XA operations (start/prepare/commit/rollback) from client to database XAResource
+- Return XAConnection to pool on branch end/commit/rollback
+
+**Client Responsibilities:**
+- Control transaction lifecycle (start, prepare, commit, rollback)
+- Coordinate distributed transactions across multiple resources
+- Run transaction manager (if needed for 2PC coordination)
 
 ### Named DataSource Architecture
 
@@ -29,7 +45,7 @@ The system supports multiple named datasources, each with its own connection poo
 - `ConnectionHashGenerator` includes datasource name in connection hash calculation
 - Ensures separate pools for same connection string but different datasource names
 - `DataSourceConfigurationManager` extracts and caches datasource-specific configurations
-- Both HikariCP and Atomikos pools use the same datasource name infrastructure
+- Both HikariCP (non-XA) and Atomikos (XA) pools use the same datasource name infrastructure
 
 **Benefits:**
 - Multiple isolated connection pools for the same database
@@ -37,42 +53,13 @@ The system supports multiple named datasources, each with its own connection poo
 - Clear separation of concerns (web traffic vs batch jobs vs analytics)
 - Works transparently for both XA and non-XA connections
 
-### Connection Management
-
-The implementation uses a dual-datasource approach:
-- **datasourceMap**: Stores HikariDataSource instances for regular connections
-- **datasourceXaMap**: Stores AtomikosDataSourceBean instances for XA connections
-
-### Lazy Connection Allocation
-
-Both XA and non-XA connections use lazy allocation:
-- Connections are acquired only when executing statements or explicitly requesting a Connection
-- Implemented in `StatementServiceImpl.sessionConnection()` method
-- Sessions without an active connection receive a SessionInfo with connection metadata only
-
 ## Configuration
 
 ### Server Configuration Properties
 
-Configure Atomikos transaction logging via system properties or environment variables:
+**BREAKING CHANGE (v0.2.1+):** The properties `ojp.xa.maxTransactions` and `ojp.xa.startTimeoutMillis` have been **REMOVED**.
 
-```properties
-# Enable/disable transaction logging (default: false)
-ojp.jdbc.atomikos.logging.enabled=false
-
-# Transaction log directory (default: ./atomikos-logs)
-ojp.jdbc.atomikos.logging.dir=/var/log/atomikos
-```
-
-Environment variables (uppercase with underscores):
-```bash
-export OJP_JDBC_ATOMIKOS_LOGGING_ENABLED=true
-export OJP_JDBC_ATOMIKOS_LOGGING_DIR=/var/log/atomikos
-```
-
-### Client Configuration Properties
-
-Connection pool properties are mapped from HikariCP configuration keys:
+XA connection pooling now uses the same properties as regular connection pools.
 
 | Client Property | Atomikos Property | Conversion |
 |----------------|------------------|------------|
@@ -80,7 +67,7 @@ Connection pool properties are mapped from HikariCP configuration keys:
 | ojp.connection.pool.minimumIdle | setMinPoolSize | Direct mapping |
 | ojp.connection.pool.connectionTimeout | setBorrowConnectionTimeout | ms → seconds (min 1) |
 | ojp.connection.pool.idleTimeout | setMaxIdleTime | ms → seconds (min 1) |
-| ojp.connection.pool.maxLifetime | setReapTimeout | ms → seconds (min 1) |
+| ojp.connection.pool.validationQuery | setTestQuery | Direct mapping |
 
 ### Time Conversion
 

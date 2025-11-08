@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - BREAKING: XA Connection Pooling Migration
+- **Replaced semaphore-based XA transaction limiter with Atomikos connection pooling**
+  - **REMOVED**: `ojp.xa.maxTransactions` configuration property
+  - **REMOVED**: `ojp.xa.startTimeoutMillis` configuration property
+  - **Migration**: Use `ojp.connection.pool.maximumPoolSize` and `ojp.connection.pool.connectionTimeout` instead
+  - XA connections now use Atomikos connection pool infrastructure (AtomikosDataSourceBean wrapping driver XADataSource)
+  - Pool sizing properties apply to both regular (HikariCP) and XA (Atomikos) connections
+  - Server remains XA pass-through - no transaction manager runs on server
+  - Atomikos used only for connection pooling, not transaction management
+  - **Affects**: All applications using `OjpXADataSource` or XA distributed transactions
+  - **Migration guide**: See `documents/configuration/ojp-jdbc-configuration.md`
+
 ### Fixed
 - **Fixed server recovery in multinode setup to work continuously, not just when all servers are down**
   - Previously, unhealthy servers were only recovered when ALL servers were down
