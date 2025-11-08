@@ -85,6 +85,20 @@
             <version>1.3</version>
         </dependency>
 
+        <!-- Atomikos for XA connection pooling (NOT transaction management) -->
+        <!-- Used to pool XAConnections - server remains XA pass-through -->
+        <!-- https://mvnrepository.com/artifact/com.atomikos/transactions-jdbc -->
+        <dependency>
+            <groupId>com.atomikos</groupId>
+            <artifactId>transactions-jdbc</artifactId>
+            <version>5.0.8</version>
+        </dependency>
+        <dependency>
+            <groupId>com.atomikos</groupId>
+            <artifactId>transactions-jta</artifactId>
+            <version>5.0.8</version>
+        </dependency>
+
         <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-collections4 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
