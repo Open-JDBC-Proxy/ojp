@@ -50,6 +50,7 @@ import org.openjproxy.grpc.server.utils.MethodNameGenerator;
 import org.openjproxy.grpc.server.utils.SessionInfoUtils;
 import org.openjproxy.grpc.server.statement.ParameterHandler;
 import org.openjproxy.grpc.server.xa.XADataSourceFactory;
+import org.openjproxy.grpc.server.xa.AtomikosXAConnectionPool;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.lob.LobProcessor;
@@ -108,8 +109,8 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
 
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
-    // Map for storing XADataSources (native database XADataSource, not Atomikos)
-    private final Map<String, XADataSource> xaDataSourceMap = new ConcurrentHashMap<>();
+    // Map for storing Atomikos XA connection pools (replaces direct XADataSource usage)
+    private final Map<String, AtomikosXAConnectionPool> xaConnectionPoolMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
     
@@ -176,92 +177,49 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     public void connect(ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
         String connHash = ConnectionHashGenerator.hashConnectionDetails(connectionDetails);
         
-        // Extract maxXaTransactions from properties
-        int maxXaTransactions = org.openjproxy.constants.CommonConstants.DEFAULT_MAX_XA_TRANSACTIONS;
-        long xaStartTimeoutMillis = org.openjproxy.constants.CommonConstants.DEFAULT_XA_START_TIMEOUT_MILLIS;
+        // NOTE: ojp.xa.maxTransactions and ojp.xa.startTimeoutMillis properties have been REMOVED
+        // XA connection pooling is now managed by Atomikos pool sizing
+        // Extract pool configuration from client properties for XA connections
+        Properties poolConfig = new Properties();
         
         if (!connectionDetails.getPropertiesList().isEmpty()) {
             try {
                 Map<String, Object> clientPropertiesMap = ProtoConverter.propertiesFromProto(connectionDetails.getPropertiesList());
-                
-                // Convert to Properties object for compatibility
-                Properties clientProperties = new Properties();
-                clientProperties.putAll(clientPropertiesMap);
-                
-                // Extract maxXaTransactions if configured
-                String maxXaTransactionsStr = clientProperties.getProperty(
-                        org.openjproxy.constants.CommonConstants.MAX_XA_TRANSACTIONS_PROPERTY);
-                if (maxXaTransactionsStr != null) {
-                    try {
-                        maxXaTransactions = Integer.parseInt(maxXaTransactionsStr);
-                        log.debug("Using configured maxXaTransactions: {}", maxXaTransactions);
-                    } catch (NumberFormatException e) {
-                        log.warn("Invalid maxXaTransactions value '{}', using default: {}", maxXaTransactionsStr, maxXaTransactions);
-                    }
-                }
-                
-                // Extract xaStartTimeoutMillis if configured
-                String xaStartTimeoutStr = clientProperties.getProperty(
-                        org.openjproxy.constants.CommonConstants.XA_START_TIMEOUT_PROPERTY);
-                if (xaStartTimeoutStr != null) {
-                    try {
-                        xaStartTimeoutMillis = Long.parseLong(xaStartTimeoutStr);
-                        log.debug("Using configured xaStartTimeoutMillis: {}", xaStartTimeoutMillis);
-                    } catch (NumberFormatException e) {
-                        log.warn("Invalid xaStartTimeoutMillis value '{}', using default: {}", xaStartTimeoutStr, xaStartTimeoutMillis);
-                    }
-                }
+                poolConfig.putAll(clientPropertiesMap);
             } catch (Exception e) {
-                log.warn("Failed to deserialize client properties for XA config, using defaults: {}", e.getMessage());
+                log.warn("Failed to deserialize client properties for XA pool config, using defaults: {}", e.getMessage());
             }
         }
         
-        log.info("connect connHash = {}, isXA = {}, maxXaTransactions = {}, xaStartTimeout = {}ms", 
-                connHash, connectionDetails.getIsXA(), maxXaTransactions, xaStartTimeoutMillis);
+        log.info("connect connHash = {}, isXA = {}", connHash, connectionDetails.getIsXA());
 
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
-            // Check if multinode configuration is present for XA coordination
-            List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
-            int actualMaxXaTransactions = maxXaTransactions;
-            
-            if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
-                // Multinode: calculate divided XA transaction limits
-                MultinodeXaCoordinator.XaAllocation xaAllocation = 
-                        xaCoordinator.calculateXaLimits(connHash, maxXaTransactions, serverEndpoints);
-                
-                actualMaxXaTransactions = xaAllocation.getCurrentMaxTransactions();
-                
-                log.info("Multinode XA coordination enabled for {}: {} servers, divided max transactions: {}", 
-                        connHash, serverEndpoints.size(), actualMaxXaTransactions);
-            }
-            
-            // Initialize or retrieve XA transaction limiter for this connection
-            XaTransactionLimiter xaLimiter = ((SessionManagerImpl) sessionManager)
-                    .getOrCreateXaLimiter(connHash, actualMaxXaTransactions, xaStartTimeoutMillis);
-            log.info("XA limiter for connHash {}: max={}, active={}/{}", 
-                    connHash, xaLimiter.getMaxTransactions(), 
-                    xaLimiter.getActiveTransactions(), xaLimiter.getMaxTransactions());
-            
-            // Handle XA connection - create native XADataSource (pass-through approach)
-            XADataSource xaDataSource = this.xaDataSourceMap.get(connHash);
-            if (xaDataSource == null) {
+            // Handle XA connection - create Atomikos XA connection pool (replaces XA limiter)
+            AtomikosXAConnectionPool xaPool = this.xaConnectionPoolMap.get(connHash);
+            if (xaPool == null) {
                 try {
                     // Create XADataSource for the database using factory
                     String url = UrlParser.parseUrl(connectionDetails.getUrl());
-                    xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
+                    XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
                     
-                    this.xaDataSourceMap.put(connHash, xaDataSource);
+                    // Wrap XADataSource with Atomikos connection pool
+                    xaPool = new AtomikosXAConnectionPool(xaDataSource, connHash, poolConfig);
+                    this.xaConnectionPoolMap.put(connHash, xaPool);
                     
                     // Create slow query segregation manager for XA datasource
-                    // Use actualMaxXaTransactions as the pool size for XA operations
-                    createSlowQuerySegregationManagerForDatasource(connHash, actualMaxXaTransactions);
+                    // Use pool max size from config (default 20)
+                    int poolSize = Integer.parseInt(
+                            poolConfig.getProperty("ojp.connection.pool.maximumPoolSize", 
+                            String.valueOf(org.openjproxy.constants.CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE)));
+                    createSlowQuerySegregationManagerForDatasource(connHash, poolSize);
                     
-                    log.info("Created new native XADataSource for XA pass-through with connHash: {}", connHash);
+                    log.info("Created new Atomikos XA connection pool for connHash: {} - {}", 
+                            connHash, xaPool.getPoolStats());
                     
                 } catch (Exception e) {
-                    log.error("Failed to create XA datasource for connection hash {}: {}", connHash, e.getMessage(), e);
-                    SQLException sqlException = new SQLException("Failed to create XA datasource: " + e.getMessage(), e);
+                    log.error("Failed to create Atomikos XA pool for connection hash {}: {}", connHash, e.getMessage(), e);
+                    SQLException sqlException = new SQLException("Failed to create XA connection pool: " + e.getMessage(), e);
                     sendSQLExceptionMetadata(sqlException, responseObserver);
                     return;
                 }
@@ -269,20 +227,19 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             
             this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
             
-            // For XA connections, create session with XAConnection immediately
-            // (This ensures XAResource is available for client's JTA transaction manager)
+            // For XA connections, borrow XAConnection from pool for this session
+            // Session ID used as both sessionId and branchId for initial allocation
             try {
-                XAConnection xaConnection = xaDataSource.getXAConnection();
+                String sessionId = UUID.randomUUID().toString();
+                XAConnection xaConnection = xaPool.borrowXAConnection(sessionId, sessionId);
                 Connection connection = xaConnection.getConnection();
                 
                 // Create session with XA support using sessionManager
                 SessionInfo sessionInfo = this.sessionManager.createXASession(
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
-                // Server does not populate targetServer - client will set it on future requests
-                
-                log.info("Created XA session with UUID: {} for client: {}", 
-                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID());
+                log.info("Created XA session with UUID: {} for client: {} - pool stats: {}", 
+                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID(), xaPool.getPoolStats());
                 
                 responseObserver.onNext(sessionInfo);
                 this.dbNameMap.put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
@@ -1508,8 +1465,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 request.getSession().getSessionUUID(), request.getXid(), request.getFlags());
         
         Session session = null;
-        XaTransactionLimiter xaLimiter = null;
-        boolean permitAcquired = false;
         
         try {
             session = sessionManager.getSession(request.getSession());
@@ -1517,14 +1472,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 throw new SQLException("Session is not an XA session");
             }
             
-            // Acquire XA transaction permit before starting
-            String connHash = session.getConnectionHash();
-            xaLimiter = ((SessionManagerImpl) sessionManager).getXaLimiter(connHash);
-            if (xaLimiter != null) {
-                xaLimiter.acquire(); // This will block or timeout if limit reached
-                permitAcquired = true;
-                log.debug("XA transaction permit acquired for session {}", session.getSessionUUID());
-            }
+            // NOTE: XA transaction limiter removed - Atomikos pool sizing handles concurrency
             
             javax.transaction.xa.Xid xid = convertXid(request.getXid());
             session.getXaResource().start(xid, request.getFlags());
@@ -1538,12 +1486,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             responseObserver.onCompleted();
 
         } catch (Exception e) {
-            // If we acquired a permit but the start failed, release it
-            if (permitAcquired && xaLimiter != null) {
-                xaLimiter.release();
-                log.debug("Released XA transaction permit due to start failure");
-            }
-            
             log.error("Error in xaStart", e);
             
             // Provide additional context for Oracle XA errors
@@ -1638,13 +1580,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             javax.transaction.xa.Xid xid = convertXid(request.getXid());
             session.getXaResource().commit(xid, request.getOnePhase());
             
-            // Release XA transaction permit after commit
-            String connHash = session.getConnectionHash();
-            XaTransactionLimiter xaLimiter = ((SessionManagerImpl) sessionManager).getXaLimiter(connHash);
-            if (xaLimiter != null) {
-                xaLimiter.release();
-                log.debug("Released XA transaction permit after commit for session {}", session.getSessionUUID());
-            }
+            // NOTE: XA transaction limiter removed - pool manages connection lifecycle
             
             com.openjproxy.grpc.XaResponse response = com.openjproxy.grpc.XaResponse.newBuilder()
                     .setSession(session.getSessionInfo())
@@ -1675,13 +1611,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             javax.transaction.xa.Xid xid = convertXid(request.getXid());
             session.getXaResource().rollback(xid);
             
-            // Release XA transaction permit after rollback
-            String connHash = session.getConnectionHash();
-            XaTransactionLimiter xaLimiter = ((SessionManagerImpl) sessionManager).getXaLimiter(connHash);
-            if (xaLimiter != null) {
-                xaLimiter.release();
-                log.debug("Released XA transaction permit after rollback for session {}", session.getSessionUUID());
-            }
+            // NOTE: XA transaction limiter removed - pool manages connection lifecycle
             
             com.openjproxy.grpc.XaResponse response = com.openjproxy.grpc.XaResponse.newBuilder()
                     .setSession(session.getSessionInfo())
