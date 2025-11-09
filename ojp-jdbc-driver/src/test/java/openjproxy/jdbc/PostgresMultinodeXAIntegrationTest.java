@@ -43,7 +43,7 @@ public class PostgresMultinodeXAIntegrationTest {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("multinodeTestsEnabled", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "Multinode XA tests are disabled. Enable with -DmultinodeTestsEnabled=true");
         
         log.info("Setting up multinode XA test with URL: {}", url);
@@ -78,8 +78,8 @@ public class PostgresMultinodeXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/multinode_xa_connection.csv")
-    public void testXAConnectionBasics(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         assertNotNull(xaConnection, "XA connection should be created");
         assertNotNull(connection, "Logical connection should be created");
@@ -104,8 +104,8 @@ public class PostgresMultinodeXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/multinode_xa_connection.csv")
-    public void testXATransactionWithCRUD(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
         
@@ -179,8 +179,8 @@ public class PostgresMultinodeXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/multinode_xa_connection.csv")
-    public void testXATransactionRollback(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
         
