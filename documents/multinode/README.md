@@ -63,27 +63,16 @@ ojp.connection.pool.connectionTimeout=15000
 ojp.multinode.retryAttempts=-1        # -1 for infinite retry, or positive number
 ojp.multinode.retryDelayMs=5000       # milliseconds between retry attempts
 
-# XA (distributed transaction) configuration
-ojp.xa.maxTransactions=50              # Maximum concurrent XA transactions (divided among servers)
-ojp.xa.startTimeout=30000              # XA transaction start timeout in milliseconds
+# NOTE: ojp.xa.maxTransactions and ojp.xa.startTimeout properties REMOVED in v0.2.1+
+# XA connections now use the same pool settings as regular connections
+# Pool sizing applies to both regular and XA connections
 ```
 
 ### Server-Side Configuration
 
-Each OJP server in a multinode setup should be configured identically with the same database connection settings. The servers will automatically coordinate both connection pool sizes and XA transaction limits based on the number of active servers in the cluster.
+Each OJP server in a multinode setup should be configured identically with the same database connection settings. The servers will automatically coordinate connection pool sizes based on the number of active servers in the cluster.
 
-**Regular Connection Pools**: Pool sizes (`maximumPoolSize`, `minimumIdle`) are divided among healthy servers. When a server fails, remaining servers increase their pool sizes to maintain total capacity.
-
-**XA Transaction Limits**: Similarly, the maximum number of concurrent XA transactions (`ojp.xa.maxTransactions`) is divided among healthy servers. This ensures that the global transaction limit is respected while enabling high availability.
-
-#### XA Multinode Example
-
-With 3 OJP servers and `ojp.xa.maxTransactions=30`:
-- **Normal operation**: Each server allows max 10 concurrent XA transactions
-- **One server fails**: Remaining 2 servers increase to max 15 XA transactions each
-- **Server recovers**: All 3 servers rebalance back to max 10 XA transactions each
-
-This automatic coordination prevents exceeding database connection or transaction limits while maintaining fault tolerance.
+**Connection Pools (Regular and XA)**: Pool sizes (`maximumPoolSize`, `minimumIdle`) are divided among healthy servers. When a server fails, remaining servers increase their pool sizes to maintain total capacity. This applies to both regular HikariCP pools and XA Atomikos pools.
 
 ## How It Works
 

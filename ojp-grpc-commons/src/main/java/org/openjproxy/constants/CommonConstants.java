@@ -31,8 +31,8 @@ public class CommonConstants {
     public static final String IDLE_TIMEOUT_PROPERTY = "ojp.connection.pool.idleTimeout";
     public static final String MAX_LIFETIME_PROPERTY = "ojp.connection.pool.maxLifetime";
     public static final String CONNECTION_TIMEOUT_PROPERTY = "ojp.connection.pool.connectionTimeout";
-    public static final String MAX_XA_TRANSACTIONS_PROPERTY = "ojp.xa.maxTransactions";
-    public static final String XA_START_TIMEOUT_PROPERTY = "ojp.xa.startTimeoutMillis";
+    // NOTE: ojp.xa.maxTransactions and ojp.xa.startTimeoutMillis have been REMOVED
+    // XA connection pooling is now managed by Atomikos pool sizing (ojp.connection.pool.maximumPoolSize, etc.)
     
     // Multinode configuration property keys
     public static final String MULTINODE_RETRY_ATTEMPTS_PROPERTY = "ojp.multinode.retryAttempts";
@@ -46,9 +46,8 @@ public class CommonConstants {
     public static final long DEFAULT_MAX_LIFETIME = 1800000; // 30 minutes  
     public static final long DEFAULT_CONNECTION_TIMEOUT = 10000; // Reduced from 30s to 10s for faster failure
     
-    // XA Transaction settings
-    public static final int DEFAULT_MAX_XA_TRANSACTIONS = 50;  // Maximum concurrent XA transactions
-    public static final long DEFAULT_XA_START_TIMEOUT_MILLIS = 60000;  // 60 seconds timeout for acquiring XA slot
+    // NOTE: DEFAULT_MAX_XA_TRANSACTIONS and DEFAULT_XA_START_TIMEOUT_MILLIS have been REMOVED
+    // XA connection pooling is now managed by Atomikos using the same pool size settings as above
     
     // Multinode configuration defaults - addressing PR #39 review comment #1
     public static final int DEFAULT_MULTINODE_RETRY_ATTEMPTS = -1;  // -1 = retry indefinitely
