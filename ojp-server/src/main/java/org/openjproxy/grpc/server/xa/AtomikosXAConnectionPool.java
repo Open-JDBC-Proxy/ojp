@@ -206,6 +206,14 @@ public class AtomikosXAConnectionPool {
                 atomikosDataSource.getMinPoolSize());
     }
     
+    /**
+     * Gets the number of currently leased connections.
+     * This is used during pool recreation to wait for transactions to complete.
+     */
+    public int getLeasedConnectionCount() {
+        return leasedConnections.size();
+    }
+    
     // Helper methods for property conversion
     
     private int getIntProperty(Properties props, String key, int defaultValue) {
