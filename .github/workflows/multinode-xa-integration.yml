@@ -1,6 +1,6 @@
 # This workflow tests multinode XA functionality with dynamic pool management
 # It starts a Postgres database (with XA support) and two OJP servers on different ports,
-# then runs integration tests for XA transactions with server failover and recovery.
+# then runs PostgresMultinodeXAIntegrationTest with server failover and recovery scenarios.
 # This validates that Atomikos XA pools properly adapt their size when servers go down/up.
 name: Multinode XA Integration Tests
 
@@ -81,12 +81,12 @@ jobs:
       - name: Create temp directory for test logs
         run: mkdir -p temp
 
-      - name: Start XA Integration Test with nohup
+      - name: Start Multinode XA Integration Test with nohup
         run: |
-          echo "Starting PostgresXAIntegrationTest in background..."
-          nohup mvn test -pl ojp-jdbc-driver -Dtest=PostgresXAIntegrationTest -DdisablePostgresTests=false -Dgpg.skip=true > temp/PostgresXAIntegrationTest.log 2>&1 &
+          echo "Starting PostgresMultinodeXAIntegrationTest in background..."
+          nohup mvn test -pl ojp-jdbc-driver -Dtest=PostgresMultinodeXAIntegrationTest -DmultinodeTestsEnabled=true -Dgpg.skip=true > temp/PostgresMultinodeXAIntegrationTest.log 2>&1 &
           echo $! > temp/xa-test.pid
-          echo "PostgresXAIntegrationTest started with PID $(cat temp/xa-test.pid)"
+          echo "PostgresMultinodeXAIntegrationTest started with PID $(cat temp/xa-test.pid)"
           # Give test time to start and establish XA connections
           sleep 20
 
@@ -292,38 +292,38 @@ jobs:
             exit 1
           fi
 
-      - name: Wait for XA test to complete
+      - name: Wait for Multinode XA test to complete
         run: |
-          echo "Waiting for PostgresXAIntegrationTest to complete..."
+          echo "Waiting for PostgresMultinodeXAIntegrationTest to complete..."
           # Wait for test process to finish (max 10 minutes)
           if [ -f temp/xa-test.pid ]; then
             TEST_PID=$(cat temp/xa-test.pid)
             TIMEOUT=600
             ELAPSED=0
             while kill -0 $TEST_PID 2>/dev/null && [ $ELAPSED -lt $TIMEOUT ]; do
-              echo "XA test still running... (${ELAPSED}s elapsed)"
+              echo "Multinode XA test still running... (${ELAPSED}s elapsed)"
               sleep 10
               ELAPSED=$((ELAPSED + 10))
             done
             
             if kill -0 $TEST_PID 2>/dev/null; then
-              echo "XA test did not complete within timeout, terminating..."
+              echo "Multinode XA test did not complete within timeout, terminating..."
               kill $TEST_PID || true
             else
-              echo "XA test completed"
+              echo "Multinode XA test completed"
             fi
           fi
 
-      - name: Verify XA test results
+      - name: Verify Multinode XA test results
         run: |
-          echo "Checking PostgresXAIntegrationTest results..."
-          if grep -q "BUILD SUCCESS" temp/PostgresXAIntegrationTest.log; then
-            echo "✓ XA test passed successfully"
-          elif grep -q "BUILD FAILURE" temp/PostgresXAIntegrationTest.log; then
-            echo "✗ XA test failed"
+          echo "Checking PostgresMultinodeXAIntegrationTest results..."
+          if grep -q "BUILD SUCCESS" temp/PostgresMultinodeXAIntegrationTest.log; then
+            echo "✓ Multinode XA test passed successfully"
+          elif grep -q "BUILD FAILURE" temp/PostgresMultinodeXAIntegrationTest.log; then
+            echo "✗ Multinode XA test failed"
             exit 1
           else
-            echo "⚠ Could not determine XA test status"
+            echo "⚠ Could not determine multinode XA test status"
           fi
 
       - name: Show OJP Server 1 log
@@ -344,11 +344,11 @@ jobs:
           echo "=== OJP Server 2 Restart Log ==="
           cat /tmp/ojp-server-2-restart.log || echo "/tmp/ojp-server-2-restart.log not found"
 
-      - name: Show PostgresXAIntegrationTest log
+      - name: Show PostgresMultinodeXAIntegrationTest log
         if: always()
         run: |
-          echo "=== PostgresXAIntegrationTest Log ==="
-          cat temp/PostgresXAIntegrationTest.log || echo "temp/PostgresXAIntegrationTest.log not found"
+          echo "=== PostgresMultinodeXAIntegrationTest Log ==="
+          cat temp/PostgresMultinodeXAIntegrationTest.log || echo "temp/PostgresMultinodeXAIntegrationTest.log not found"
 
       - name: Cleanup
         if: always()
