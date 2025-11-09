@@ -170,22 +170,38 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         if (clusterHealth != null && !clusterHealth.isEmpty() && 
             connHash != null && !connHash.isEmpty()) {
             
-            // Get the HikariDataSource for this connection hash to enable dynamic resizing
-            HikariDataSource dataSource = datasourceMap.get(connHash);
+            // Check if cluster health has changed (do this once for both pool types)
+            boolean healthChanged = clusterHealthTracker.hasHealthChanged(connHash, clusterHealth);
             
-            // Process cluster health for HikariCP pools (non-XA)
-            ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
-            
-            // Process cluster health for Atomikos XA pools
-            processXAPoolClusterHealth(connHash, clusterHealth);
+            if (healthChanged) {
+                // Count healthy servers
+                int healthyServerCount = clusterHealthTracker.countHealthyServers(clusterHealth);
+                
+                log.info("Cluster health changed for {}, healthy servers: {}, triggering pool rebalancing", 
+                        connHash, healthyServerCount);
+                
+                // Update the pool coordinator with new healthy server count
+                ConnectionPoolConfigurer.getPoolCoordinator().updateHealthyServers(connHash, healthyServerCount);
+                
+                // Process HikariCP pool (non-XA) if it exists
+                HikariDataSource dataSource = datasourceMap.get(connHash);
+                if (dataSource != null) {
+                    ConnectionPoolConfigurer.applyPoolSizeChanges(connHash, dataSource);
+                }
+                
+                // Process Atomikos XA pool if it exists
+                processXAPoolClusterHealth(connHash);
+            }
         }
     }
     
     /**
      * Processes cluster health changes for Atomikos XA pools.
      * Recreates pools with updated sizes when cluster health changes.
+     * 
+     * This is called after cluster health has been confirmed to have changed.
      */
-    private void processXAPoolClusterHealth(String connHash, String clusterHealth) {
+    private void processXAPoolClusterHealth(String connHash) {
         AtomikosXAConnectionPool xaPool = xaConnectionPoolMap.get(connHash);
         
         if (xaPool == null) {
@@ -197,29 +213,20 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             return;
         }
         
-        // Check if cluster health has changed
-        boolean healthChanged = clusterHealthTracker.hasHealthChanged(connHash, clusterHealth);
+        log.info("Triggering XA pool recreation for {}", connHash);
         
-        if (healthChanged) {
-            // Update healthy server count in pool coordinator
-            int healthyServerCount = clusterHealthTracker.countHealthyServers(clusterHealth);
-            ConnectionPoolConfigurer.getPoolCoordinator().updateHealthyServers(connHash, healthyServerCount);
-            
-            log.info("Cluster health changed for XA pool {}, triggering pool recreation", connHash);
-            
-            // Recreate pool with updated sizes
-            AtomikosXAConnectionPool newPool = atomikosPoolManager.recreatePool(xaPool, 
-                    (ConcurrentHashMap<String, AtomikosXAConnectionPool>) xaConnectionPoolMap);
-            
-            // Update slow query segregation manager with new pool size
-            if (newPool.getPoolAllocation() != null) {
-                int newPoolSize = newPool.getPoolAllocation().getCurrentMaxPoolSize();
-                SlowQuerySegregationManager manager = slowQuerySegregationManagers.get(connHash);
-                if (manager != null) {
-                    // Note: SlowQuerySegregationManager doesn't support dynamic resizing yet
-                    // This would require adding a resize method or recreating the manager
-                    log.debug("XA pool resized for {}, new max pool size: {}", connHash, newPoolSize);
-                }
+        // Recreate pool with updated sizes
+        AtomikosXAConnectionPool newPool = atomikosPoolManager.recreatePool(xaPool, 
+                (ConcurrentHashMap<String, AtomikosXAConnectionPool>) xaConnectionPoolMap);
+        
+        // Update slow query segregation manager with new pool size if needed
+        if (newPool.getPoolAllocation() != null) {
+            int newPoolSize = newPool.getPoolAllocation().getCurrentMaxPoolSize();
+            SlowQuerySegregationManager manager = slowQuerySegregationManagers.get(connHash);
+            if (manager != null) {
+                // Note: SlowQuerySegregationManager doesn't support dynamic resizing yet
+                // This would require adding a resize method or recreating the manager
+                log.debug("XA pool resized for {}, new max pool size: {}", connHash, newPoolSize);
             }
         }
     }
