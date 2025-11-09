@@ -2,11 +2,13 @@ package org.openjproxy.grpc.server.xa;
 
 import com.atomikos.jdbc.AtomikosDataSourceBean;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.grpc.server.MultinodePoolCoordinator;
 
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - Lease one XAConnection per XA branch/session (no sharing across branches)
  * - Return XAConnection to pool on branch end/commit/rollback
  * - Map Hikari-style pool properties to Atomikos configuration
+ * - Support multinode pool coordination (dividing pool sizes across servers)
  */
 @Slf4j
 public class AtomikosXAConnectionPool {
@@ -30,21 +33,29 @@ public class AtomikosXAConnectionPool {
     private final AtomikosDataSourceBean atomikosDataSource;
     private final XADataSource rawXADataSource;
     private final String resourceName;
+    private final String connectionHash;
     private final ConcurrentHashMap<String, XAConnection> leasedConnections = new ConcurrentHashMap<>();
     private static final AtomicInteger resourceCounter = new AtomicInteger(0);
     
+    // Pool allocation info for multinode coordination
+    private final MultinodePoolCoordinator.PoolAllocation poolAllocation;
+    
     /**
-     * Creates an Atomikos XA connection pool.
+     * Creates an Atomikos XA connection pool with multinode support.
      * 
      * @param xaDataSource The native JDBC driver XADataSource to wrap (e.g., PGXADataSource)
      * @param connectionHash Unique identifier for this connection configuration
      * @param poolConfig Pool configuration properties (Hikari-style names)
+     * @param serverEndpoints List of server endpoints in multinode setup (null or empty for single node)
+     * @param poolCoordinator MultinodePoolCoordinator for calculating divided pool sizes
      * @throws SQLException if pool creation fails
      */
-    public AtomikosXAConnectionPool(XADataSource xaDataSource, String connectionHash, Properties poolConfig) 
-            throws SQLException {
+    public AtomikosXAConnectionPool(XADataSource xaDataSource, String connectionHash, 
+                                   Properties poolConfig, List<String> serverEndpoints,
+                                   MultinodePoolCoordinator poolCoordinator) throws SQLException {
         
         this.rawXADataSource = xaDataSource;
+        this.connectionHash = connectionHash;
         this.resourceName = "ojp-xa-" + Math.abs(connectionHash.hashCode()) + "-" + resourceCounter.incrementAndGet();
         
         // Create AtomikosDataSourceBean
@@ -58,11 +69,33 @@ public class AtomikosXAConnectionPool {
         
         // Map Hikari-style properties to Atomikos
         // Default values match Hikari defaults
-        int maxPoolSize = getIntProperty(poolConfig, "ojp.connection.pool.maximumPoolSize", 20);
-        int minPoolSize = getIntProperty(poolConfig, "ojp.connection.pool.minimumIdle", 5);
+        int requestedMaxPoolSize = getIntProperty(poolConfig, "ojp.connection.pool.maximumPoolSize", 20);
+        int requestedMinPoolSize = getIntProperty(poolConfig, "ojp.connection.pool.minimumIdle", 5);
         int connectionTimeoutSec = msToSeconds(getLongProperty(poolConfig, "ojp.connection.pool.connectionTimeout", 10000L));
         int maxIdleTimeSec = msToSeconds(getLongProperty(poolConfig, "ojp.connection.pool.idleTimeout", 600000L));
         String testQuery = poolConfig.getProperty("ojp.connection.pool.validationQuery", "SELECT 1");
+        
+        // Calculate divided pool sizes for multinode setup
+        int maxPoolSize = requestedMaxPoolSize;
+        int minPoolSize = requestedMinPoolSize;
+        
+        if (poolCoordinator != null && serverEndpoints != null && !serverEndpoints.isEmpty()) {
+            // Multinode: use pool coordinator to calculate divided sizes
+            this.poolAllocation = poolCoordinator.calculatePoolSizes(
+                    connectionHash, requestedMaxPoolSize, requestedMinPoolSize, serverEndpoints);
+            
+            maxPoolSize = poolAllocation.getCurrentMaxPoolSize();
+            minPoolSize = poolAllocation.getCurrentMinIdle();
+            
+            log.info("Multinode XA pool coordination enabled for {}: {} servers, original max={}, min={}, divided max={}, min={}", 
+                    connectionHash, serverEndpoints.size(), requestedMaxPoolSize, requestedMinPoolSize, 
+                    maxPoolSize, minPoolSize);
+        } else {
+            // Single node: no coordination needed, use original values
+            this.poolAllocation = null;
+            log.debug("Single node XA pool for {}, using original pool sizes: max={}, min={}", 
+                    connectionHash, maxPoolSize, minPoolSize);
+        }
         
         atomikosDataSource.setMaxPoolSize(maxPoolSize);
         atomikosDataSource.setMinPoolSize(minPoolSize);
@@ -73,6 +106,19 @@ public class AtomikosXAConnectionPool {
         
         log.info("Created Atomikos XA pool '{}': maxPoolSize={}, minPoolSize={}, borrowTimeout={}s, maxIdleTime={}s, testQuery='{}'",
                 resourceName, maxPoolSize, minPoolSize, connectionTimeoutSec, maxIdleTimeSec, testQuery);
+    }
+    
+    /**
+     * Creates an Atomikos XA connection pool (legacy single-node constructor).
+     * 
+     * @param xaDataSource The native JDBC driver XADataSource to wrap (e.g., PGXADataSource)
+     * @param connectionHash Unique identifier for this connection configuration
+     * @param poolConfig Pool configuration properties (Hikari-style names)
+     * @throws SQLException if pool creation fails
+     */
+    public AtomikosXAConnectionPool(XADataSource xaDataSource, String connectionHash, Properties poolConfig) 
+            throws SQLException {
+        this(xaDataSource, connectionHash, poolConfig, null, null);
     }
     
     /**
@@ -204,6 +250,49 @@ public class AtomikosXAConnectionPool {
                 leasedConnections.size(),
                 atomikosDataSource.getMaxPoolSize(),
                 atomikosDataSource.getMinPoolSize());
+    }
+    
+    /**
+     * Gets the connection hash for this pool.
+     */
+    public String getConnectionHash() {
+        return connectionHash;
+    }
+    
+    /**
+     * Gets the pool allocation (for multinode coordination).
+     * Returns null for single-node pools.
+     */
+    public MultinodePoolCoordinator.PoolAllocation getPoolAllocation() {
+        return poolAllocation;
+    }
+    
+    /**
+     * Gets the raw XADataSource wrapped by this pool.
+     */
+    public XADataSource getRawXADataSource() {
+        return rawXADataSource;
+    }
+    
+    /**
+     * Gets the Atomikos datasource bean.
+     */
+    public AtomikosDataSourceBean getAtomikosDataSource() {
+        return atomikosDataSource;
+    }
+    
+    /**
+     * Checks if there are any active leased connections.
+     */
+    public boolean hasActiveLeasedConnections() {
+        return !leasedConnections.isEmpty();
+    }
+    
+    /**
+     * Gets the count of currently leased connections.
+     */
+    public int getLeasedConnectionCount() {
+        return leasedConnections.size();
     }
     
     // Helper methods for property conversion

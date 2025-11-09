@@ -126,6 +126,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // Cluster health tracker for monitoring health changes
     private final ClusterHealthTracker clusterHealthTracker = new ClusterHealthTracker();
     
+    // Atomikos pool manager for handling pool recreation
+    private final org.openjproxy.grpc.server.xa.AtomikosPoolManager atomikosPoolManager = 
+            new org.openjproxy.grpc.server.xa.AtomikosPoolManager();
+    
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
     private final Map<String, DbName> dbNameMap = new ConcurrentHashMap<>();
 
@@ -169,7 +173,54 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             // Get the HikariDataSource for this connection hash to enable dynamic resizing
             HikariDataSource dataSource = datasourceMap.get(connHash);
             
+            // Process cluster health for HikariCP pools (non-XA)
             ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
+            
+            // Process cluster health for Atomikos XA pools
+            processXAPoolClusterHealth(connHash, clusterHealth);
+        }
+    }
+    
+    /**
+     * Processes cluster health changes for Atomikos XA pools.
+     * Recreates pools with updated sizes when cluster health changes.
+     */
+    private void processXAPoolClusterHealth(String connHash, String clusterHealth) {
+        AtomikosXAConnectionPool xaPool = xaConnectionPoolMap.get(connHash);
+        
+        if (xaPool == null) {
+            return; // No XA pool for this connection hash
+        }
+        
+        // Check if pool should be recreated (only for multinode pools)
+        if (!atomikosPoolManager.shouldRecreatePool(xaPool)) {
+            return;
+        }
+        
+        // Check if cluster health has changed
+        boolean healthChanged = clusterHealthTracker.hasHealthChanged(connHash, clusterHealth);
+        
+        if (healthChanged) {
+            // Update healthy server count in pool coordinator
+            int healthyServerCount = clusterHealthTracker.countHealthyServers(clusterHealth);
+            ConnectionPoolConfigurer.getPoolCoordinator().updateHealthyServers(connHash, healthyServerCount);
+            
+            log.info("Cluster health changed for XA pool {}, triggering pool recreation", connHash);
+            
+            // Recreate pool with updated sizes
+            AtomikosXAConnectionPool newPool = atomikosPoolManager.recreatePool(xaPool, 
+                    (ConcurrentHashMap<String, AtomikosXAConnectionPool>) xaConnectionPoolMap);
+            
+            // Update slow query segregation manager with new pool size
+            if (newPool.getPoolAllocation() != null) {
+                int newPoolSize = newPool.getPoolAllocation().getCurrentMaxPoolSize();
+                SlowQuerySegregationManager manager = slowQuerySegregationManagers.get(connHash);
+                if (manager != null) {
+                    // Note: SlowQuerySegregationManager doesn't support dynamic resizing yet
+                    // This would require adding a resize method or recreating the manager
+                    log.debug("XA pool resized for {}, new max pool size: {}", connHash, newPoolSize);
+                }
+            }
         }
     }
 
@@ -203,15 +254,32 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     String url = UrlParser.parseUrl(connectionDetails.getUrl());
                     XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
                     
-                    // Wrap XADataSource with Atomikos connection pool
-                    xaPool = new AtomikosXAConnectionPool(xaDataSource, connHash, poolConfig);
+                    // Wrap XADataSource with Atomikos connection pool with multinode support
+                    List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
+                    xaPool = new AtomikosXAConnectionPool(
+                            xaDataSource, 
+                            connHash, 
+                            poolConfig, 
+                            serverEndpoints,
+                            ConnectionPoolConfigurer.getPoolCoordinator());
                     this.xaConnectionPoolMap.put(connHash, xaPool);
                     
+                    // Register pool with manager for potential recreation
+                    if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
+                        atomikosPoolManager.registerPool(connHash, xaDataSource, poolConfig, 
+                                serverEndpoints, ConnectionPoolConfigurer.getPoolCoordinator());
+                    }
+                    
                     // Create slow query segregation manager for XA datasource
-                    // Use pool max size from config (default 20)
-                    int poolSize = Integer.parseInt(
-                            poolConfig.getProperty("ojp.connection.pool.maximumPoolSize", 
-                            String.valueOf(org.openjproxy.constants.CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE)));
+                    // Use divided pool size from pool allocation if multinode, otherwise use original config
+                    int poolSize;
+                    if (xaPool.getPoolAllocation() != null) {
+                        poolSize = xaPool.getPoolAllocation().getCurrentMaxPoolSize();
+                    } else {
+                        poolSize = Integer.parseInt(
+                                poolConfig.getProperty("ojp.connection.pool.maximumPoolSize", 
+                                String.valueOf(org.openjproxy.constants.CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE)));
+                    }
                     createSlowQuerySegregationManagerForDatasource(connHash, poolSize);
                     
                     log.info("Created new Atomikos XA connection pool for connHash: {} - {}", 
