@@ -126,60 +126,7 @@ Connection backgroundConn = DriverManager.getConnection(
 | `ojp.connection.pool.maxLifetime`     | long | 1800000 | Maximum lifetime (ms) of a connection (30 minutes)       |
 | `ojp.connection.pool.connectionTimeout` | long | 10000   | Maximum time (ms) to wait for a connection (10 seconds)  |
 
-**Note**: These properties apply to **both regular and XA connections**. For XA connections, OJP uses Atomikos connection pooling infrastructure with these same settings mapped to Atomikos pool configuration.
-
-### XA (Distributed Transaction) Connection Pooling
-
-**BREAKING CHANGE (v0.2.1+):** The properties `ojp.xa.maxTransactions` and `ojp.xa.startTimeoutMillis` have been **REMOVED**. XA connection pooling now uses the same pool settings as regular connections.
-
-#### How XA Pooling Works Now
-
-- XA connections use **Atomikos connection pooling** wrapping the JDBC driver's XADataSource (e.g., PGXADataSource for PostgreSQL)
-- Pool sizing is controlled by `ojp.connection.pool.maximumPoolSize` and `ojp.connection.pool.minimumIdle`
-- Connection timeout is controlled by `ojp.connection.pool.connectionTimeout`
-- The server remains an **XA pass-through proxy** - clients control transaction lifecycle via XAResource
-- **No transaction manager runs on the server** - Atomikos is used only for connection pooling
-
-#### Property Mapping for XA Pools
-
-| Client Property (Hikari-style)         | Atomikos Property | Conversion            |
-|----------------------------------------|-------------------|-----------------------|
-| ojp.connection.pool.maximumPoolSize    | maxPoolSize       | Direct (same value)   |
-| ojp.connection.pool.minimumIdle        | minPoolSize       | Direct (same value)   |
-| ojp.connection.pool.connectionTimeout  | borrowConnectionTimeout | ms → seconds (min 1) |
-| ojp.connection.pool.idleTimeout        | maxIdleTime       | ms → seconds (min 1)  |
-| ojp.connection.pool.validationQuery    | testQuery         | Direct (same value)   |
-
-#### Migration Guide
-
-**If you were using the old properties:**
-
-```properties
-# OLD (no longer supported)
-ojp.xa.maxTransactions=100
-ojp.xa.startTimeoutMillis=30000
-```
-
-**Migrate to:**
-
-```properties
-# NEW - use regular pool settings for XA
-ojp.connection.pool.maximumPoolSize=100     # Replaces maxTransactions
-ojp.connection.pool.connectionTimeout=30000 # Replaces startTimeoutMillis
-ojp.connection.pool.minimumIdle=10         # Optional: minimum pool size
-```
-
-**For named datasources:**
-
-```properties
-# OLD (no longer supported)
-myApp.ojp.xa.maxTransactions=200
-myApp.ojp.xa.startTimeoutMillis=120000
-
-# NEW
-myApp.ojp.connection.pool.maximumPoolSize=200
-myApp.ojp.connection.pool.connectionTimeout=120000
-```
+**Note**: These properties apply to **both regular and XA connections**. For XA connections, OJP uses Atomikos connection pooling infrastructure with these same settings mapped to Atomikos pool configuration. See `ATOMIKOS_XA_INTEGRATION.md` for detailed information on XA connection pooling.
 
 ### Example ojp.properties File
 
