@@ -51,6 +51,12 @@ public class MultinodeUrlParser {
             if (address.isEmpty()) {
                 continue;
             }
+            
+            // Strip datasource name in parentheses if present (e.g., "localhost:10592(multinode)" -> "localhost:10592")
+            int parenIndex = address.indexOf('(');
+            if (parenIndex > 0) {
+                address = address.substring(0, parenIndex);
+            }
 
             String[] hostPort = address.split(":");
             if (hostPort.length != 2) {
