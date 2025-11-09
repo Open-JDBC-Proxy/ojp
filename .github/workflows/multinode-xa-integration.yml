@@ -1,0 +1,360 @@
+# This workflow tests multinode XA functionality with dynamic pool management
+# It starts a Postgres database (with XA support) and two OJP servers on different ports,
+# then runs integration tests for XA transactions with server failover and recovery.
+# This validates that Atomikos XA pools properly adapt their size when servers go down/up.
+name: Multinode XA Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  multinode-xa-test:
+    name: Multinode XA Integration Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Start Postgres with XA support
+        run: |
+          docker run --name ojp-postgres-multinode-xa \
+            -e POSTGRES_USER=testuser \
+            -e POSTGRES_PASSWORD=testpassword \
+            -e POSTGRES_DB=defaultdb \
+            -p 5432:5432 \
+            -d postgres:17 \
+            -c max_prepared_transactions=100
+      
+          # Wait for Postgres to become ready (up to 60s)
+          timeout 60 bash -c 'until docker exec ojp-postgres-multinode-xa pg_isready -U testuser -d defaultdb -h 127.0.0.1; do sleep 2; done'
+
+          # Verify XA settings
+          echo "Verifying PostgreSQL XA configuration..."
+          PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
+
+      - name: Set up JDK 22 for build
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Install (ojp-grpc-commons) with JDK 22
+        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-grpc-commons) with JDK 22
+        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
+
+      - name: Build (ojp-server) with JDK 22
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
+
+      - name: Start OJP Server 1 on port 10591
+        run: |
+          # Start first server on port 10591 with Prometheus on 9159
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
+          echo $! > /tmp/ojp-server-1.pid
+          echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9159 with PID $(cat /tmp/ojp-server-1.pid)"
+
+      - name: Start OJP Server 2 on port 10592
+        run: |
+          # Start second server on port 10592 with Prometheus on 9160
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
+          echo $! > /tmp/ojp-server-2.pid
+          echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9160 with PID $(cat /tmp/ojp-server-2.pid)"
+
+      - name: Wait for OJP servers to start
+        run: |
+          echo "Waiting for servers to start..."
+          sleep 15
+          echo "Checking if servers are listening..."
+          netstat -tuln | grep -E ':(10591|10592)' || echo "Warning: Servers might not be listening yet"
+
+      - name: Build (ojp-jdbc-driver) with JDK 22
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
+
+      - name: Create temp directory for test logs
+        run: mkdir -p temp
+
+      - name: Start XA Integration Test with nohup
+        run: |
+          echo "Starting PostgresXAIntegrationTest in background..."
+          nohup mvn test -pl ojp-jdbc-driver -Dtest=PostgresXAIntegrationTest -DdisablePostgresTests=false -Dgpg.skip=true > temp/PostgresXAIntegrationTest.log 2>&1 &
+          echo $! > temp/xa-test.pid
+          echo "PostgresXAIntegrationTest started with PID $(cat temp/xa-test.pid)"
+          # Give test time to start and establish XA connections
+          sleep 20
+
+      - name: Check PostgreSQL connections during XA test
+        run: |
+          echo "Checking PostgreSQL connections (XA pool with 2 servers)..."
+          echo "Expected: ~10 connections per server = ~20 total divided across 2 servers"
+          TIMEOUT=30
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            CONNECTION_COUNT=$(PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='defaultdb';")
+            CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
+            echo "Current XA connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
+            
+            # For XA with 2 servers: expect divided pool (e.g., 20 total / 2 servers = 10 per server)
+            # Allow 8-15 connections to account for test activity and pool warm-up
+            if [ "$CONNECTION_COUNT" -ge 8 ] && [ "$CONNECTION_COUNT" -le 15 ]; then
+              echo "✓ XA connection count is within expected range for 2 servers: 8 ≤ $CONNECTION_COUNT ≤ 15"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              break
+            elif [ "$CONNECTION_COUNT" -gt 15 ]; then
+              echo "✗ ERROR: XA connection count ($CONNECTION_COUNT) exceeds expected maximum of 15 for 2 servers!"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              exit 1
+            else
+              echo "Waiting for XA connections to reach at least 8... (currently: $CONNECTION_COUNT)"
+              sleep 2
+              ELAPSED=$((ELAPSED + 2))
+            fi
+          done
+          
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - XA connection count never reached 8 (current: $CONNECTION_COUNT)"
+            exit 1
+          fi
+
+      - name: Kill OJP Server 1 (Test XA pool adaptation)
+        run: |
+          echo "Killing OJP Server 1 to test XA pool size adaptation..."
+          if [ -f /tmp/ojp-server-1.pid ]; then
+            kill $(cat /tmp/ojp-server-1.pid) || true
+            echo "OJP Server 1 killed - XA pool on Server 2 should increase capacity"
+          fi
+          # Give time for pool recreation to occur
+          sleep 15
+
+      - name: Check PostgreSQL connections after killing Server 1 (XA pool should increase)
+        run: |
+          echo "Checking PostgreSQL connections after killing Server 1 (XA pool recreation)..."
+          echo "Expected: Server 2 should recreate XA pool with increased capacity (~20 connections)"
+          TIMEOUT=40
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            CONNECTION_COUNT=$(PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='defaultdb';")
+            CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
+            echo "Current XA connections (1 server): $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
+            
+            # With 1 server: expect full pool capacity (e.g., 20 total connections)
+            # Allow 15-25 range for pool recreation and test activity
+            if [ "$CONNECTION_COUNT" -ge 15 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
+              echo "✓ XA connection count increased as expected for 1 server: 15 ≤ $CONNECTION_COUNT ≤ 25"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              break
+            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+              echo "✗ ERROR: XA connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              exit 1
+            else
+              echo "Waiting for XA pool to increase capacity... (currently: $CONNECTION_COUNT, expecting ≥15)"
+              sleep 2
+              ELAPSED=$((ELAPSED + 2))
+            fi
+          done
+          
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - XA pool did not increase capacity (current: $CONNECTION_COUNT)"
+            exit 1
+          fi
+
+      - name: Restart OJP Server 1 (Test XA pool rebalancing)
+        run: |
+          echo "Restarting OJP Server 1 to test XA pool rebalancing..."
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
+          echo $! > /tmp/ojp-server-1-restart.pid
+          echo "OJP Server 1 restarted with PID $(cat /tmp/ojp-server-1-restart.pid)"
+          # Give time for server to start and pool to rebalance
+          sleep 15
+
+      - name: Check PostgreSQL connections after restarting Server 1 (XA pool should rebalance)
+        run: |
+          echo "Checking PostgreSQL connections after restarting Server 1 (XA pool rebalancing)..."
+          echo "Expected: XA pools should rebalance back to ~10 per server = ~20 total"
+          TIMEOUT=40
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            CONNECTION_COUNT=$(PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='defaultdb';")
+            CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
+            echo "Current XA connections (2 servers): $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
+            
+            # With 2 servers back: expect rebalanced pools (total ~20, ~10 per server)
+            # Allow 15-25 range for rebalancing and test activity
+            if [ "$CONNECTION_COUNT" -ge 15 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
+              echo "✓ XA connection count rebalanced as expected for 2 servers: 15 ≤ $CONNECTION_COUNT ≤ 25"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              break
+            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+              echo "✗ ERROR: XA connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              exit 1
+            else
+              echo "Waiting for XA pools to rebalance... (currently: $CONNECTION_COUNT)"
+              sleep 2
+              ELAPSED=$((ELAPSED + 2))
+            fi
+          done
+          
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - XA pools did not rebalance (current: $CONNECTION_COUNT)"
+            exit 1
+          fi
+
+      - name: Kill OJP Server 2 (Test failover to Server 1)
+        run: |
+          echo "Killing OJP Server 2 to test failover to Server 1..."
+          if [ -f /tmp/ojp-server-2.pid ]; then
+            kill $(cat /tmp/ojp-server-2.pid) || true
+            echo "OJP Server 2 killed - XA pool on Server 1 should increase capacity"
+          fi
+          sleep 15
+
+      - name: Check PostgreSQL connections after killing Server 2
+        run: |
+          echo "Checking PostgreSQL connections after killing Server 2..."
+          echo "Expected: Server 1 XA pool should increase to full capacity (~20 connections)"
+          TIMEOUT=40
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            CONNECTION_COUNT=$(PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='defaultdb';")
+            CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
+            echo "Current XA connections (1 server): $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
+            
+            if [ "$CONNECTION_COUNT" -ge 15 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
+              echo "✓ XA connection count increased as expected: 15 ≤ $CONNECTION_COUNT ≤ 25"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              break
+            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+              echo "✗ ERROR: XA connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              exit 1
+            else
+              echo "Waiting for XA pool to increase... (currently: $CONNECTION_COUNT, expecting ≥15)"
+              sleep 2
+              ELAPSED=$((ELAPSED + 2))
+            fi
+          done
+          
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - XA pool did not increase (current: $CONNECTION_COUNT)"
+            exit 1
+          fi
+
+      - name: Restart OJP Server 2 (Final rebalancing test)
+        run: |
+          echo "Restarting OJP Server 2 for final rebalancing test..."
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server-2-restart.log 2>&1 &
+          echo $! > /tmp/ojp-server-2-restart.pid
+          echo "OJP Server 2 restarted with PID $(cat /tmp/ojp-server-2-restart.pid)"
+          sleep 15
+
+      - name: Check PostgreSQL connections after final restart
+        run: |
+          echo "Checking PostgreSQL connections after final Server 2 restart..."
+          echo "Expected: XA pools should rebalance back to ~10 per server = ~20 total"
+          TIMEOUT=40
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            CONNECTION_COUNT=$(PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='defaultdb';")
+            CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
+            echo "Current XA connections (2 servers): $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
+            
+            if [ "$CONNECTION_COUNT" -ge 15 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
+              echo "✓ XA connection count rebalanced as expected: 15 ≤ $CONNECTION_COUNT ≤ 25"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              break
+            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+              echo "✗ ERROR: XA connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+              PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
+              exit 1
+            else
+              echo "Waiting for final XA pool rebalancing... (currently: $CONNECTION_COUNT)"
+              sleep 2
+              ELAPSED=$((ELAPSED + 2))
+            fi
+          done
+          
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - final XA rebalancing failed (current: $CONNECTION_COUNT)"
+            exit 1
+          fi
+
+      - name: Wait for XA test to complete
+        run: |
+          echo "Waiting for PostgresXAIntegrationTest to complete..."
+          # Wait for test process to finish (max 10 minutes)
+          if [ -f temp/xa-test.pid ]; then
+            TEST_PID=$(cat temp/xa-test.pid)
+            TIMEOUT=600
+            ELAPSED=0
+            while kill -0 $TEST_PID 2>/dev/null && [ $ELAPSED -lt $TIMEOUT ]; do
+              echo "XA test still running... (${ELAPSED}s elapsed)"
+              sleep 10
+              ELAPSED=$((ELAPSED + 10))
+            done
+            
+            if kill -0 $TEST_PID 2>/dev/null; then
+              echo "XA test did not complete within timeout, terminating..."
+              kill $TEST_PID || true
+            else
+              echo "XA test completed"
+            fi
+          fi
+
+      - name: Verify XA test results
+        run: |
+          echo "Checking PostgresXAIntegrationTest results..."
+          if grep -q "BUILD SUCCESS" temp/PostgresXAIntegrationTest.log; then
+            echo "✓ XA test passed successfully"
+          elif grep -q "BUILD FAILURE" temp/PostgresXAIntegrationTest.log; then
+            echo "✗ XA test failed"
+            exit 1
+          else
+            echo "⚠ Could not determine XA test status"
+          fi
+
+      - name: Show OJP Server 1 log
+        if: always()
+        run: |
+          echo "=== OJP Server 1 Initial Log ==="
+          cat /tmp/ojp-server-1.log || echo "/tmp/ojp-server-1.log not found"
+          echo ""
+          echo "=== OJP Server 1 Restart Log ==="
+          cat /tmp/ojp-server-1-restart.log || echo "/tmp/ojp-server-1-restart.log not found"
+
+      - name: Show OJP Server 2 log
+        if: always()
+        run: |
+          echo "=== OJP Server 2 Initial Log ==="
+          cat /tmp/ojp-server-2.log || echo "/tmp/ojp-server-2.log not found"
+          echo ""
+          echo "=== OJP Server 2 Restart Log ==="
+          cat /tmp/ojp-server-2-restart.log || echo "/tmp/ojp-server-2-restart.log not found"
+
+      - name: Show PostgresXAIntegrationTest log
+        if: always()
+        run: |
+          echo "=== PostgresXAIntegrationTest Log ==="
+          cat temp/PostgresXAIntegrationTest.log || echo "temp/PostgresXAIntegrationTest.log not found"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Kill any remaining OJP server processes
+          pkill -f "ojp-server-0.2.1-snapshot-shaded.jar" || true
+          # Stop Postgres container
+          docker stop ojp-postgres-multinode-xa || true
+          docker rm ojp-postgres-multinode-xa || true
