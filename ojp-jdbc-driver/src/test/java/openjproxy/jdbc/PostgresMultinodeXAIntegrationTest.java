@@ -109,9 +109,8 @@ public class PostgresMultinodeXAIntegrationTest {
         
         XAResource xaResource = xaConnection.getXAResource();
         
-        // Create test table (use a separate non-XA connection)
-        try (Connection setupConn = java.sql.DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", user, password)) {
+        // Create test table (use the same OJP URL for setup)
+        try (Connection setupConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = setupConn.createStatement();
             stmt.execute("DROP TABLE IF EXISTS xa_multinode_test_table");
             stmt.execute("CREATE TABLE xa_multinode_test_table (id SERIAL PRIMARY KEY, value VARCHAR(100))");
@@ -159,9 +158,8 @@ public class PostgresMultinodeXAIntegrationTest {
             Thread.sleep(100);
         }
         
-        // Verify all rows were inserted
-        try (Connection verifyConn = java.sql.DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", user, password)) {
+        // Verify all rows were inserted (use the same OJP URL)
+        try (Connection verifyConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = verifyConn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM xa_multinode_test_table");
             assertTrue(rs.next(), "Should have result");
@@ -170,8 +168,7 @@ public class PostgresMultinodeXAIntegrationTest {
         }
         
         // Cleanup
-        try (Connection cleanupConn = java.sql.DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", user, password)) {
+        try (Connection cleanupConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = cleanupConn.createStatement();
             stmt.execute("DROP TABLE IF EXISTS xa_multinode_test_table");
         }
@@ -187,9 +184,8 @@ public class PostgresMultinodeXAIntegrationTest {
         
         XAResource xaResource = xaConnection.getXAResource();
         
-        // Create test table
-        try (Connection setupConn = java.sql.DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", user, password)) {
+        // Create test table (use the same OJP URL)
+        try (Connection setupConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = setupConn.createStatement();
             stmt.execute("DROP TABLE IF EXISTS xa_multinode_rollback_test");
             stmt.execute("CREATE TABLE xa_multinode_rollback_test (id SERIAL PRIMARY KEY, value VARCHAR(100))");
@@ -228,9 +224,8 @@ public class PostgresMultinodeXAIntegrationTest {
         
         log.info("✓ XA transaction rolled back in multinode setup");
         
-        // Verify no rows were inserted
-        try (Connection verifyConn = java.sql.DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", user, password)) {
+        // Verify no rows were inserted (use the same OJP URL)
+        try (Connection verifyConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = verifyConn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM xa_multinode_rollback_test");
             assertTrue(rs.next(), "Should have result");
@@ -239,8 +234,7 @@ public class PostgresMultinodeXAIntegrationTest {
         }
         
         // Cleanup
-        try (Connection cleanupConn = java.sql.DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/defaultdb", user, password)) {
+        try (Connection cleanupConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = cleanupConn.createStatement();
             stmt.execute("DROP TABLE IF EXISTS xa_multinode_rollback_test");
         }
