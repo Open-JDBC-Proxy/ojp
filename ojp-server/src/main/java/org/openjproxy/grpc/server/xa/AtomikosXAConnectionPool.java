@@ -35,6 +35,7 @@ public class AtomikosXAConnectionPool {
     private final String resourceName;
     private final String connectionHash;
     private final ConcurrentHashMap<String, XAConnection> leasedConnections = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Connection> leasedManagedConnections = new ConcurrentHashMap<>();
     private static final AtomicInteger resourceCounter = new AtomicInteger(0);
     
     // Pool allocation info for multinode coordination
@@ -125,7 +126,7 @@ public class AtomikosXAConnectionPool {
      * Borrows an XAConnection from the pool for a specific session/branch.
      * Connections are leased per branch and must be returned via returnXAConnection().
      * 
-     * Uses the raw XADataSource to get XAConnection while Atomikos manages pool health/sizing.
+     * Gets connections through Atomikos pool to respect pool sizing and management.
      * 
      * @param sessionId The session identifier  
      * @param branchId The XA branch identifier (can be same as sessionId if 1:1 mapping)
@@ -142,20 +143,27 @@ public class AtomikosXAConnectionPool {
             return existing;
         }
         
-        // Get XAConnection from raw XADataSource
-        // Atomikos provides the pool management infrastructure (sizing, validation, health)
-        // but we get XAConnection directly for XA pass-through semantics
+        // Get a managed connection from Atomikos pool
+        // This enforces pool size limits and connection management
         try {
-            XAConnection xaConnection = rawXADataSource.getXAConnection();
-            leasedConnections.put(leaseKey, xaConnection);
+            Connection managedConnection = atomikosDataSource.getConnection();
             
-            log.debug("Leased new XAConnection for session/branch: {} (total leased: {})", 
-                    leaseKey, leasedConnections.size());
+            // Now get an XAConnection from the raw XADataSource for XA operations
+            // The managedConnection ensures we respect pool limits
+            XAConnection xaConnection = rawXADataSource.getXAConnection();
+            
+            // Store both - we need to close the managed connection when returning
+            leasedConnections.put(leaseKey, xaConnection);
+            leasedManagedConnections.put(leaseKey, managedConnection);
+            
+            log.debug("Leased new XAConnection for session/branch: {} (total leased: {}, pool max={})", 
+                    leaseKey, leasedConnections.size(),
+                    atomikosDataSource.getMaxPoolSize());
             
             return xaConnection;
             
         } catch (SQLException e) {
-            log.error("Failed to borrow XAConnection from XADataSource '{}': {}", resourceName, e.getMessage());
+            log.error("Failed to borrow XAConnection from Atomikos pool '{}': {}", resourceName, e.getMessage());
             throw new SQLException("Failed to acquire XA connection: " + e.getMessage(), e);
         }
     }
@@ -172,17 +180,36 @@ public class AtomikosXAConnectionPool {
         String leaseKey = sessionId + ":" + branchId;
         
         XAConnection xaConnection = leasedConnections.remove(leaseKey);
+        Connection managedConnection = leasedManagedConnections.remove(leaseKey);
+        
+        SQLException firstException = null;
+        
         if (xaConnection != null) {
             try {
-                xaConnection.close(); // Returns to Atomikos pool
+                xaConnection.close();
                 log.debug("Returned XAConnection for session/branch: {} (remaining leased: {})", 
                         leaseKey, leasedConnections.size());
             } catch (SQLException e) {
-                log.error("Error returning XAConnection to pool for {}: {}", leaseKey, e.getMessage());
-                throw e;
+                log.error("Error closing XAConnection for {}: {}", leaseKey, e.getMessage());
+                firstException = e;
             }
         } else {
             log.warn("Attempted to return XAConnection for {}, but no lease found", leaseKey);
+        }
+        
+        if (managedConnection != null) {
+            try {
+                managedConnection.close(); // Returns to Atomikos pool
+            } catch (SQLException e) {
+                log.error("Error returning managed connection to Atomikos pool for {}: {}", leaseKey, e.getMessage());
+                if (firstException == null) {
+                    firstException = e;
+                }
+            }
+        }
+        
+        if (firstException != null) {
+            throw firstException;
         }
     }
     
@@ -208,13 +235,23 @@ public class AtomikosXAConnectionPool {
         
         if (foundKey != null) {
             leasedConnections.remove(foundKey);
-        }
-        
-        try {
-            xaConnection.close(); // Returns to Atomikos pool
+            Connection managedConnection = leasedManagedConnections.remove(foundKey);
+            
+            try {
+                xaConnection.close();
+            } catch (SQLException e) {
+                log.error("Error closing XAConnection: {}", e.getMessage());
+            }
+            
+            if (managedConnection != null) {
+                try {
+                    managedConnection.close(); // Returns to Atomikos pool
+                } catch (SQLException e) {
+                    log.error("Error returning managed connection to Atomikos pool: {}", e.getMessage());
+                }
+            }
+            
             log.debug("Returned XAConnection directly (remaining leased: {})", leasedConnections.size());
-        } catch (SQLException e) {
-            log.error("Error returning XAConnection to pool: {}", e.getMessage());
         }
     }
     
@@ -235,6 +272,17 @@ public class AtomikosXAConnectionPool {
             }
         }
         leasedConnections.clear();
+        
+        // Close any remaining managed connections
+        for (var entry : leasedManagedConnections.entrySet()) {
+            try {
+                entry.getValue().close();
+                log.warn("Force-closed leaked managed connection for: {}", entry.getKey());
+            } catch (SQLException e) {
+                log.error("Error closing leaked managed connection: {}", e.getMessage());
+            }
+        }
+        leasedManagedConnections.clear();
         
         // Close Atomikos datasource
         atomikosDataSource.close();
