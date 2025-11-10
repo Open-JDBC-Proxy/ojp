@@ -11,10 +11,11 @@ This document describes the Atomikos XA connection pooling integration in OJP se
 ### Key Components
 
 1. **AtomikosXAConnectionPool** - Manages XA connection pooling using AtomikosDataSourceBean
-2. **XADataSourceFactory** - Creates native JDBC driver XADataSource instances (e.g., PGXADataSource for PostgreSQL)
-3. **StatementServiceImpl** - Modified to use AtomikosXAConnectionPool instead of direct XADataSource
-4. **ConnectionHashGenerator** - Generates unique hashes for connections including datasource name
-5. **DataSourceConfigurationManager** - Manages datasource-specific configurations
+2. **AtomikosDynamicPoolSizer** - Handles dynamic pool sizing based on cluster health changes
+3. **XADataSourceFactory** - Creates native JDBC driver XADataSource instances (e.g., PGXADataSource for PostgreSQL)
+4. **StatementServiceImpl** - Modified to use AtomikosXAConnectionPool instead of direct XADataSource
+5. **ConnectionHashGenerator** - Generates unique hashes for connections including datasource name
+6. **DataSourceConfigurationManager** - Manages datasource-specific configurations
 
 ### XA Pass-Through Architecture
 
@@ -53,6 +54,40 @@ The system supports multiple named datasources, each with its own connection poo
 - Clear separation of concerns (web traffic vs batch jobs vs analytics)
 - Works transparently for both XA and non-XA connections
 
+### Dynamic Pool Sizing (NEW in v0.2.1+)
+
+Atomikos XA pools now support **dynamic sizing based on cluster health**, matching the behavior already implemented for HikariCP non-XA pools. This ensures optimal resource utilization in multinode deployments.
+
+**Key Features:**
+- **Startup Sizing**: Pools are sized based on the number of healthy nodes at startup
+- **Health-Based Resizing**: Pool sizes automatically adjust when cluster nodes go UP/DOWN
+- **Cooldown Mechanism**: Prevents thrashing during rapid cluster changes (flapping)
+- **Global Limits**: Ensures total connections never exceed configured maximum
+- **Thread-Safe**: All resize operations are synchronized using locks
+
+**How It Works:**
+
+When cluster health changes:
+1. AtomikosDynamicPoolSizer receives health change notification
+2. Calculates new pool sizes: `min = perNodeMin * healthyNodes`, `max = min(perNodeMax * healthyNodes, globalMax)`
+3. Applies cooldown check (ignores if within cooldown period)
+4. Updates Atomikos datasource sizes using runtime setters
+5. Logs resize operations for observability
+
+**Example Scenario:**
+- Configuration: `perNodeMin=2`, `perNodeMax=10`, `globalMax=100`
+- 3 healthy nodes at startup: pool sized to `min=6, max=30`
+- 1 node goes DOWN: pool resized to `min=4, max=20`
+- Node comes back UP: pool resized to `min=6, max=30`
+
+**Comparison to HikariCP:**
+- Both use the same sizing algorithm and configuration properties
+- HikariCP supports runtime setters directly; Atomikos also supports this
+- Atomikos gradually closes idle connections when reducing pool size
+- Both respect cooldown periods to prevent resize thrashing
+
+See "Dynamic Pool Sizing Configuration" section below for configuration details.
+
 ## Configuration
 
 ### Server Configuration Properties
@@ -78,6 +113,41 @@ seconds = Math.max(1, Math.round(milliseconds / 1000.0))
 ```
 
 Minimum value is 1 second, even for values less than 1000ms.
+
+### Dynamic Pool Sizing Configuration
+
+Atomikos XA pools support dynamic sizing similar to HikariCP. These configuration properties control how pools are sized and resized:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| ojp.atomikos.perNodeMinPoolSize | 2 | Minimum connections to reserve per healthy node |
+| ojp.atomikos.perNodeMaxPoolSize | 10 | Maximum connections allowed per healthy node |
+| ojp.atomikos.globalMaxPoolSize | 100 | Global upper bound for total connections across all nodes |
+| ojp.atomikos.sizingCooldownMs | 5000 | Cooldown period (ms) between resize operations to prevent thrashing |
+| ojp.atomikos.startupSizingBehavior | EAGER | Sizing behavior at startup (EAGER or LAZY) |
+
+**Sizing Formula:**
+```
+At startup or health change:
+  initialMin = perNodeMinPoolSize × healthyNodes
+  initialMax = min(perNodeMaxPoolSize × healthyNodes, globalMaxPoolSize)
+```
+
+**Example Configuration (ojp.properties):**
+```properties
+# Atomikos dynamic pool sizing
+ojp.atomikos.perNodeMinPoolSize=3
+ojp.atomikos.perNodeMaxPoolSize=15
+ojp.atomikos.globalMaxPoolSize=150
+ojp.atomikos.sizingCooldownMs=10000
+```
+
+**Important Notes:**
+- These properties are **optional** - defaults provide reasonable values
+- Dynamic sizing only activates when using multinode cluster configurations
+- Single-node deployments use standard pool sizing (maximumPoolSize, minimumIdle)
+- Cooldown prevents resize storms during cluster flapping
+- Global max ensures resource limits are never exceeded
 
 ## Usage Examples
 
@@ -275,6 +345,45 @@ Tests include:
 - Milliseconds to seconds conversion
 - Default values
 - Configuration caching
+
+### Multinode XA Integration Tests (NEW)
+
+The `PostgresMultinodeXAIntegrationTest` validates dynamic pool sizing behavior with real PostgreSQL containers using Testcontainers:
+
+```bash
+mvn test -Dtest=PostgresMultinodeXAIntegrationTest -pl ojp-jdbc-driver -am
+```
+
+**Test Coverage:**
+- ✅ Initial pool sizing with N healthy nodes (validates startup sizing formula)
+- ✅ Pool downsizing when nodes go DOWN (validates resize-down operation)
+- ✅ Pool upsizing when nodes come back UP (validates resize-up operation)
+- ✅ Cooldown mechanism prevents rapid resizing during cluster flapping
+- ✅ Global max pool size limits are respected even with many nodes
+- ✅ Connection acquisition respects configured pool limits
+
+**How It Works:**
+- Starts 3 PostgreSQL containers using Testcontainers
+- Creates Atomikos datasources with `AtomikosDynamicPoolSizer` 
+- Simulates cluster health changes (nodes UP/DOWN)
+- Verifies pool sizes match expected calculations
+- Validates no connection leaks occur during resizing
+
+**CI Integration:**
+
+The test runs automatically in GitHub Actions via the `multinode-xa-integration.yml` workflow:
+- Runs on every PR and push to main
+- Uses Docker-enabled runner for Testcontainers
+- Full test suite completes in ~35 seconds
+
+**Running Locally:**
+
+Requirements:
+- Docker installed and running
+- Maven 3.6+
+- JDK 11+
+
+The test is self-contained and manages all infrastructure via Testcontainers.
 
 ### Manual Testing
 
