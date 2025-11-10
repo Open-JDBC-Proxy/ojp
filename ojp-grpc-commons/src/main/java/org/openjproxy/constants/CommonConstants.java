@@ -52,4 +52,20 @@ public class CommonConstants {
     // Multinode configuration defaults - addressing PR #39 review comment #1
     public static final int DEFAULT_MULTINODE_RETRY_ATTEMPTS = -1;  // -1 = retry indefinitely
     public static final long DEFAULT_MULTINODE_RETRY_DELAY_MS = 5000;  // 5 seconds between retries
+    
+    // Atomikos dynamic pool sizing configuration property keys and defaults
+    // These properties control how Atomikos XA pools are sized at startup and resized during cluster health changes
+    public static final String ATOMIKOS_PER_NODE_MIN_POOL_SIZE_PROPERTY = "ojp.atomikos.perNodeMinPoolSize";
+    public static final String ATOMIKOS_PER_NODE_MAX_POOL_SIZE_PROPERTY = "ojp.atomikos.perNodeMaxPoolSize";
+    public static final String ATOMIKOS_GLOBAL_MAX_POOL_SIZE_PROPERTY = "ojp.atomikos.globalMaxPoolSize";
+    public static final String ATOMIKOS_SIZING_COOLDOWN_MS_PROPERTY = "ojp.atomikos.sizingCooldownMs";
+    public static final String ATOMIKOS_STARTUP_SIZING_BEHAVIOR_PROPERTY = "ojp.atomikos.startupSizingBehavior";
+    
+    // Atomikos dynamic pool sizing defaults - matching behavior of HikariCP multinode coordination
+    // These values ensure Atomikos pools are sized based on cluster health, similar to HikariCP
+    public static final int DEFAULT_ATOMIKOS_PER_NODE_MIN_POOL_SIZE = 2;   // Minimum connections per healthy node
+    public static final int DEFAULT_ATOMIKOS_PER_NODE_MAX_POOL_SIZE = 10;  // Maximum connections per healthy node
+    public static final int DEFAULT_ATOMIKOS_GLOBAL_MAX_POOL_SIZE = 100;   // Global upper bound across all nodes
+    public static final long DEFAULT_ATOMIKOS_SIZING_COOLDOWN_MS = 5000;   // 5 seconds cooldown between resize operations
+    public static final String DEFAULT_ATOMIKOS_STARTUP_SIZING_BEHAVIOR = "EAGER"; // EAGER or LAZY
 }

@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - Lease one XAConnection per XA branch/session (no sharing across branches)
  * - Return XAConnection to pool on branch end/commit/rollback
  * - Map Hikari-style pool properties to Atomikos configuration
+ * - Support dynamic pool sizing based on cluster health (similar to HikariCP)
  */
 @Slf4j
 public class AtomikosXAConnectionPool {
@@ -32,6 +33,7 @@ public class AtomikosXAConnectionPool {
     private final String resourceName;
     private final ConcurrentHashMap<String, XAConnection> leasedConnections = new ConcurrentHashMap<>();
     private static final AtomicInteger resourceCounter = new AtomicInteger(0);
+    private final AtomikosDynamicPoolSizer poolSizer; // Dynamic pool sizing manager
     
     /**
      * Creates an Atomikos XA connection pool.
@@ -64,6 +66,7 @@ public class AtomikosXAConnectionPool {
         int maxIdleTimeSec = msToSeconds(getLongProperty(poolConfig, "ojp.connection.pool.idleTimeout", 600000L));
         String testQuery = poolConfig.getProperty("ojp.connection.pool.validationQuery", "SELECT 1");
         
+        // Set initial pool sizes (will be updated by dynamic sizer if multinode is enabled)
         atomikosDataSource.setMaxPoolSize(maxPoolSize);
         atomikosDataSource.setMinPoolSize(minPoolSize);
         atomikosDataSource.setBorrowConnectionTimeout(connectionTimeoutSec);
@@ -73,6 +76,9 @@ public class AtomikosXAConnectionPool {
         
         log.info("Created Atomikos XA pool '{}': maxPoolSize={}, minPoolSize={}, borrowTimeout={}s, maxIdleTime={}s, testQuery='{}'",
                 resourceName, maxPoolSize, minPoolSize, connectionTimeoutSec, maxIdleTimeSec, testQuery);
+        
+        // Initialize dynamic pool sizer (will handle startup sizing and health-based resizing)
+        this.poolSizer = new AtomikosDynamicPoolSizer(atomikosDataSource, resourceName, poolConfig);
     }
     
     /**
@@ -179,6 +185,11 @@ public class AtomikosXAConnectionPool {
     public void close() {
         log.info("Closing Atomikos XA pool '{}'...", resourceName);
         
+        // Shutdown dynamic pool sizer first
+        if (poolSizer != null) {
+            poolSizer.shutdown();
+        }
+        
         // Close any remaining leased connections
         for (var entry : leasedConnections.entrySet()) {
             try {
@@ -196,14 +207,29 @@ public class AtomikosXAConnectionPool {
     }
     
     /**
+     * Gets the dynamic pool sizer for this pool.
+     * Used to register health change listeners and perform startup sizing.
+     * 
+     * @return The AtomikosDynamicPoolSizer instance
+     */
+    public AtomikosDynamicPoolSizer getPoolSizer() {
+        return poolSizer;
+    }
+    
+    /**
      * Gets current pool statistics.
      */
     public String getPoolStats() {
-        return String.format("AtomikosPool[%s]: leased=%d, maxPoolSize=%d, minPoolSize=%d", 
+        String basicStats = String.format("AtomikosPool[%s]: leased=%d, maxPoolSize=%d, minPoolSize=%d", 
                 resourceName, 
                 leasedConnections.size(),
                 atomikosDataSource.getMaxPoolSize(),
                 atomikosDataSource.getMinPoolSize());
+        
+        if (poolSizer != null) {
+            return basicStats + ", " + poolSizer.getPoolSizingInfo();
+        }
+        return basicStats;
     }
     
     // Helper methods for property conversion
