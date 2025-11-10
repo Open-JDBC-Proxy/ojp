@@ -43,6 +43,7 @@ import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.utils.DriverUtils;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
+import org.openjproxy.grpc.server.datasource.DynamicAtomikosPoolManager;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 import org.openjproxy.grpc.server.utils.MethodReflectionUtils;
@@ -109,8 +110,8 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
 
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
-    // Map for storing Atomikos XA connection pools (replaces direct XADataSource usage)
-    private final Map<String, AtomikosXAConnectionPool> xaConnectionPoolMap = new ConcurrentHashMap<>();
+    // Dynamic Atomikos XA pool manager for XA connection pooling with dynamic sizing
+    private final DynamicAtomikosPoolManager dynamicAtomikosPoolManager = new DynamicAtomikosPoolManager();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
     
@@ -195,17 +196,22 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
-            // Handle XA connection - create Atomikos XA connection pool (replaces XA limiter)
-            AtomikosXAConnectionPool xaPool = this.xaConnectionPoolMap.get(connHash);
+            // Handle XA connection - use DynamicAtomikosPoolManager for pool management with dynamic sizing
+            AtomikosXAConnectionPool xaPool = this.dynamicAtomikosPoolManager.getPool(connHash);
             if (xaPool == null) {
                 try {
                     // Create XADataSource for the database using factory
                     String url = UrlParser.parseUrl(connectionDetails.getUrl());
                     XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
                     
-                    // Wrap XADataSource with Atomikos connection pool
-                    xaPool = new AtomikosXAConnectionPool(xaDataSource, connHash, poolConfig);
-                    this.xaConnectionPoolMap.put(connHash, xaPool);
+                    // Get server endpoints for multinode configuration (if available)
+                    // For now, we use null which defaults to single-node mode
+                    // TODO: Extract from ServerConfiguration or cluster health info
+                    List<String> serverEndpoints = null;
+                    
+                    // Create pool with dynamic sizing via DynamicAtomikosPoolManager
+                    xaPool = this.dynamicAtomikosPoolManager.getOrCreatePool(
+                            connHash, xaDataSource, poolConfig, serverEndpoints);
                     
                     // Create slow query segregation manager for XA datasource
                     // Use pool max size from config (default 20)
