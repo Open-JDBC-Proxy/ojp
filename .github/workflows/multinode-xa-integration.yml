@@ -1,0 +1,55 @@
+name: Multinode XA Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  multinode-xa-test:
+    name: Multinode XA Integration Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 22 for build
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Install (ojp-grpc-commons)
+        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-grpc-commons)
+        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
+
+      - name: Build and Install (ojp-server)
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-server)
+        run: mvn test -pl ojp-server -Dgpg.skip=true
+
+      - name: Build (ojp-jdbc-driver)
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
+
+      - name: Run PostgresMultinodeXAIntegrationTest
+        run: |
+          echo "Running multinode XA integration test with Testcontainers..."
+          mvn test -pl ojp-jdbc-driver -Dtest=PostgresMultinodeXAIntegrationTest -Dgpg.skip=true
+
+      - name: Show test results
+        if: always()
+        run: |
+          echo "=== Test Results ==="
+          if [ -f ojp-jdbc-driver/target/surefire-reports/openjproxy.jdbc.PostgresMultinodeXAIntegrationTest.txt ]; then
+            cat ojp-jdbc-driver/target/surefire-reports/openjproxy.jdbc.PostgresMultinodeXAIntegrationTest.txt
+          else
+            echo "Test report not found"
+          fi

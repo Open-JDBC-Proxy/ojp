@@ -109,6 +109,8 @@ public class AtomikosDynamicPoolSizer {
     /**
      * Performs initial pool sizing based on the number of healthy nodes at startup.
      * This method should be called once during pool initialization.
+     * Note: This does NOT set the lastResizeTimestamp, so subsequent health-based
+     * resizes can occur immediately without waiting for cooldown.
      * 
      * @param healthyNodes Number of healthy cluster nodes
      */
@@ -125,7 +127,8 @@ public class AtomikosDynamicPoolSizer {
             
             currentMinPoolSize = newMinPoolSize;
             currentMaxPoolSize = newMaxPoolSize;
-            lastResizeTimestamp = System.currentTimeMillis();
+            // NOTE: We intentionally do NOT set lastResizeTimestamp here
+            // This allows health-based resizes to occur immediately after startup
             
             log.info("Startup sizing for '{}': healthyNodes={}, minPoolSize={}, maxPoolSize={}", 
                 resourceName, currentHealthyNodes, newMinPoolSize, newMaxPoolSize);
