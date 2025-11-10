@@ -155,6 +155,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     /**
      * Processes cluster health from the client request and triggers pool rebalancing if needed.
      * This should be called for every request that includes SessionInfo with cluster health.
+     * Handles both HikariCP (non-XA) and Atomikos (XA) pools.
      */
     private void processClusterHealth(SessionInfo sessionInfo) {
         if (sessionInfo == null) {
@@ -167,10 +168,34 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         if (clusterHealth != null && !clusterHealth.isEmpty() && 
             connHash != null && !connHash.isEmpty()) {
             
-            // Get the HikariDataSource for this connection hash to enable dynamic resizing
-            HikariDataSource dataSource = datasourceMap.get(connHash);
+            // Check if cluster health has changed
+            boolean healthChanged = clusterHealthTracker.hasHealthChanged(connHash, clusterHealth);
             
-            ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
+            if (healthChanged) {
+                // Count healthy servers
+                int healthyServerCount = clusterHealthTracker.countHealthyServers(clusterHealth);
+                
+                log.info("Cluster health changed for {}, healthy servers: {}, triggering pool rebalancing", 
+                        connHash, healthyServerCount);
+                
+                // Process HikariCP (non-XA) pools
+                HikariDataSource dataSource = datasourceMap.get(connHash);
+                if (dataSource != null) {
+                    ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
+                }
+                
+                // Process Atomikos (XA) pools
+                AtomikosXAConnectionPool xaPool = dynamicAtomikosPoolManager.getPool(connHash);
+                if (xaPool != null) {
+                    try {
+                        log.debug("Triggering XA pool recreation for {} due to membership change", connHash);
+                        dynamicAtomikosPoolManager.recreatePoolForNewMembership(connHash, healthyServerCount);
+                    } catch (SQLException e) {
+                        log.error("Failed to recreate XA pool for {} after membership change: {}", 
+                                connHash, e.getMessage(), e);
+                    }
+                }
+            }
         }
     }
 
@@ -205,9 +230,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
                     
                     // Get server endpoints for multinode configuration (if available)
-                    // For now, we use null which defaults to single-node mode
-                    // TODO: Extract from ServerConfiguration or cluster health info
-                    List<String> serverEndpoints = null;
+                    List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
                     
                     // Create pool with dynamic sizing via DynamicAtomikosPoolManager
                     xaPool = this.dynamicAtomikosPoolManager.getOrCreatePool(
