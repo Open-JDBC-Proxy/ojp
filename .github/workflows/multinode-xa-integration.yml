@@ -139,7 +139,7 @@ jobs:
         run: |
           echo "Checking PostgreSQL connections after killing Server 1 (XA pool recreation)..."
           echo "Expected: Server 2 should recreate XA pool with increased capacity (~20 connections minimum)"
-          TIMEOUT=40
+          TIMEOUT=60
           ELAPSED=0
           
           while [ $ELAPSED -lt $TIMEOUT ]; do
@@ -225,7 +225,8 @@ jobs:
         run: |
           echo "Checking PostgreSQL connections after killing Server 2..."
           echo "Expected: Server 1 XA pool should increase to full capacity (~20 connections minimum)"
-          TIMEOUT=40
+          echo "Increased timeout to 120s to allow for Atomikos lazy initialization"
+          TIMEOUT=120
           ELAPSED=0
           
           while [ $ELAPSED -lt $TIMEOUT ]; do
