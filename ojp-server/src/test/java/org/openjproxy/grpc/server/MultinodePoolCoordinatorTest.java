@@ -159,4 +159,86 @@ class MultinodePoolCoordinatorTest {
         
         assertEquals(1, allocation.getHealthyServers()); // Min 1
     }
+    
+    @Test
+    void testCalculatePoolSizesReusesAllocation() {
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+        
+        List<String> servers = Arrays.asList("server1:1059", "server2:1059");
+        MultinodePoolCoordinator.PoolAllocation firstAllocation = 
+                coordinator.calculatePoolSizes("conn1", 20, 4, servers);
+        
+        // Update healthy servers
+        coordinator.updateHealthyServers("conn1", 1);
+        
+        // Call calculatePoolSizes again with same parameters
+        // Should reuse existing allocation with preserved healthy count
+        MultinodePoolCoordinator.PoolAllocation secondAllocation = 
+                coordinator.calculatePoolSizes("conn1", 20, 4, servers);
+        
+        assertSame(firstAllocation, secondAllocation, "Should reuse existing allocation");
+        assertEquals(1, secondAllocation.getHealthyServers(), "Should preserve healthy count");
+        assertEquals(20, secondAllocation.getCurrentMaxPoolSize(), "Should recalculate with healthy=1");
+    }
+    
+    @Test
+    void testCalculatePoolSizesWithDifferentParameters() {
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+        
+        List<String> servers = Arrays.asList("server1:1059", "server2:1059");
+        MultinodePoolCoordinator.PoolAllocation firstAllocation = 
+                coordinator.calculatePoolSizes("conn1", 20, 4, servers);
+        
+        // Update healthy servers
+        coordinator.updateHealthyServers("conn1", 1);
+        assertEquals(1, firstAllocation.getHealthyServers());
+        
+        // Call calculatePoolSizes with different parameters
+        // Should create new allocation (resetting healthy count)
+        List<String> newServers = Arrays.asList("server1:1059", "server2:1059", "server3:1059");
+        MultinodePoolCoordinator.PoolAllocation secondAllocation = 
+                coordinator.calculatePoolSizes("conn1", 30, 6, newServers);
+        
+        assertNotSame(firstAllocation, secondAllocation, "Should create new allocation for different params");
+        assertEquals(3, secondAllocation.getTotalServers());
+        assertEquals(3, secondAllocation.getHealthyServers(), "Should reset healthy count for new params");
+        assertEquals(10, secondAllocation.getCurrentMaxPoolSize()); // 30 / 3 = 10
+    }
+    
+    @Test
+    void testRecreationScenario() {
+        // This tests the recreation scenario described in the problem statement
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+        
+        List<String> servers = Arrays.asList("server1:1059", "server2:1059");
+        
+        // Initial allocation: 2 servers
+        MultinodePoolCoordinator.PoolAllocation allocation = 
+                coordinator.calculatePoolSizes("conn1", 20, 4, servers);
+        assertEquals(10, allocation.getCurrentMaxPoolSize()); // 20 / 2
+        assertEquals(2, allocation.getCurrentMinIdle()); // 4 / 2
+        assertEquals(2, allocation.getHealthyServers());
+        
+        // One server goes down
+        coordinator.updateHealthyServers("conn1", 1);
+        assertEquals(20, allocation.getCurrentMaxPoolSize()); // 20 / 1 (full capacity on remaining)
+        assertEquals(4, allocation.getCurrentMinIdle()); // 4 / 1
+        assertEquals(1, allocation.getHealthyServers());
+        
+        // During recreation, if we call calculatePoolSizes again (which shouldn't happen
+        // but tests the fix for Bug #1), it should NOT reset healthy count
+        MultinodePoolCoordinator.PoolAllocation recreatedAllocation = 
+                coordinator.calculatePoolSizes("conn1", 20, 4, servers);
+        
+        assertSame(allocation, recreatedAllocation, "Should reuse allocation");
+        assertEquals(1, recreatedAllocation.getHealthyServers(), 
+                "Should NOT reset healthy count (Bug #1 fix)");
+        assertEquals(20, recreatedAllocation.getCurrentMaxPoolSize());
+        
+        // Server recovers
+        coordinator.updateHealthyServers("conn1", 2);
+        assertEquals(10, allocation.getCurrentMaxPoolSize()); // Back to 20 / 2
+        assertEquals(2, allocation.getCurrentMinIdle()); // Back to 4 / 2
+        assertEquals(2, allocation.getHealthyServers());
+    }
 }

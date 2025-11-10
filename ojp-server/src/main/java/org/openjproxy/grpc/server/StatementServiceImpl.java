@@ -43,6 +43,7 @@ import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.utils.DriverUtils;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
+import org.openjproxy.grpc.server.MultinodePoolCoordinator;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 import org.openjproxy.grpc.server.utils.MethodReflectionUtils;
@@ -166,10 +167,53 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         if (clusterHealth != null && !clusterHealth.isEmpty() && 
             connHash != null && !connHash.isEmpty()) {
             
-            // Get the HikariDataSource for this connection hash to enable dynamic resizing
+            // Process health changes for HikariCP pools
             HikariDataSource dataSource = datasourceMap.get(connHash);
-            
             ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
+            
+            // Process health changes for Atomikos XA pools
+            AtomikosXAConnectionPool xaPool = xaConnectionPoolMap.get(connHash);
+            if (xaPool != null) {
+                processXAPoolClusterHealth(connHash, clusterHealth, xaPool);
+            }
+        }
+    }
+    
+    /**
+     * Processes cluster health changes for Atomikos XA pools.
+     * Triggers pool recreation when cluster health changes.
+     */
+    private void processXAPoolClusterHealth(String connHash, String clusterHealth, AtomikosXAConnectionPool xaPool) {
+        // Check if cluster health has changed
+        boolean healthChanged = clusterHealthTracker.hasHealthChanged(connHash, clusterHealth);
+        
+        if (healthChanged) {
+            try {
+                // Count healthy servers
+                int healthyServerCount = clusterHealthTracker.countHealthyServers(clusterHealth);
+                
+                log.info("Cluster health changed for XA pool {}, healthy servers: {}, triggering pool recreation", 
+                        connHash, healthyServerCount);
+                
+                // Update the pool coordinator with new healthy server count
+                ConnectionPoolConfigurer.getPoolCoordinator().updateHealthyServers(connHash, healthyServerCount);
+                
+                // Get updated allocation
+                MultinodePoolCoordinator.PoolAllocation newAllocation = 
+                        ConnectionPoolConfigurer.getPoolCoordinator().getPoolAllocation(connHash);
+                
+                if (newAllocation != null) {
+                    // Trigger pool recreation with new allocation
+                    xaPool.recreatePool(newAllocation);
+                    log.info("XA pool recreation completed for connHash {}", connHash);
+                } else {
+                    log.warn("No pool allocation found for connHash {} during health change", connHash);
+                }
+                
+            } catch (Exception e) {
+                log.error("Failed to recreate XA pool for connHash {} after health change: {}", 
+                        connHash, e.getMessage(), e);
+            }
         }
     }
 
@@ -203,8 +247,16 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     String url = UrlParser.parseUrl(connectionDetails.getUrl());
                     XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
                     
-                    // Wrap XADataSource with Atomikos connection pool
-                    xaPool = new AtomikosXAConnectionPool(xaDataSource, connHash, poolConfig);
+                    // Get server endpoints for multinode pool sizing
+                    List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
+                    
+                    // Wrap XADataSource with Atomikos connection pool with multinode support
+                    xaPool = new AtomikosXAConnectionPool(
+                            xaDataSource, 
+                            connHash, 
+                            poolConfig,
+                            serverEndpoints,
+                            ConnectionPoolConfigurer.getPoolCoordinator());
                     this.xaConnectionPoolMap.put(connHash, xaPool);
                     
                     // Create slow query segregation manager for XA datasource
