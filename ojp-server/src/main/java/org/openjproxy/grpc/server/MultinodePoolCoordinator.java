@@ -96,7 +96,28 @@ public class MultinodePoolCoordinator {
         
         int serverCount = serverEndpoints.size();
         
-        // Create allocation with divided pool sizes
+        // Check if we already have an allocation for this connHash
+        // If so, preserve the healthy server count (don't reset it)
+        PoolAllocation existingAllocation = poolAllocations.get(connHash);
+        if (existingAllocation != null) {
+            // Reuse existing allocation but verify parameters match
+            if (existingAllocation.getOriginalMaxPoolSize() == requestedMaxPoolSize &&
+                existingAllocation.getOriginalMinIdle() == requestedMinIdle &&
+                existingAllocation.getTotalServers() == serverCount) {
+                log.debug("Reusing existing allocation for {} with healthy={}/{}", 
+                        connHash, existingAllocation.getHealthyServers(), serverCount);
+                return existingAllocation;
+            } else {
+                log.info("Parameters changed for {}, creating new allocation. " +
+                        "Old: max={}, min={}, servers={}. New: max={}, min={}, servers={}", 
+                        connHash, 
+                        existingAllocation.getOriginalMaxPoolSize(), existingAllocation.getOriginalMinIdle(), 
+                        existingAllocation.getTotalServers(),
+                        requestedMaxPoolSize, requestedMinIdle, serverCount);
+            }
+        }
+        
+        // Create new allocation with divided pool sizes
         PoolAllocation allocation = new PoolAllocation(requestedMaxPoolSize, requestedMinIdle, serverCount);
         
         poolAllocations.put(connHash, allocation);
