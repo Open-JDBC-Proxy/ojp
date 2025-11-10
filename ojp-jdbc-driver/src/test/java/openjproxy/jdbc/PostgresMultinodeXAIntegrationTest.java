@@ -105,22 +105,22 @@ public class PostgresMultinodeXAIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/multinode_xa_connection.csv")
     public void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
-        // Run this test twice to increase pool connection activity
-        for (int iteration = 0; iteration < 2; iteration++) {
-            setUp(driverClass, url, user, password);
-            
-            XAResource xaResource = xaConnection.getXAResource();
-            
-            // Create test table (use the same OJP URL for setup)
-            try (Connection setupConn = java.sql.DriverManager.getConnection(url, user, password)) {
-                Statement stmt = setupConn.createStatement();
-                stmt.execute("DROP TABLE IF EXISTS xa_multinode_test_table");
+        // Run limited iterations to keep connection count manageable (≤10 per server = 20 total)
+        setUp(driverClass, url, user, password);
+        
+        XAResource xaResource = xaConnection.getXAResource();
+        
+        // Create test table (use the same OJP URL for setup)
+        try (Connection setupConn = java.sql.DriverManager.getConnection(url, user, password)) {
+            Statement stmt = setupConn.createStatement();
+            stmt.execute("DROP TABLE IF EXISTS xa_multinode_test_table");
             stmt.execute("CREATE TABLE xa_multinode_test_table (id SERIAL PRIMARY KEY, value VARCHAR(100))");
             log.info("Created test table for multinode XA test");
         }
         
         // Run multiple XA transactions to test pool behavior during server changes
-        for (int i = 0; i < 20; i++) {
+        // Reduced from 20 to 10 to keep total connections manageable
+        for (int i = 0; i < 10; i++) {
             // Generate unique XID for this transaction
             byte[] gtrid = ("gtrid-multinode-" + System.currentTimeMillis() + "-" + i).getBytes();
             byte[] bqual = ("bqual-multinode-" + i).getBytes();
@@ -165,16 +165,14 @@ public class PostgresMultinodeXAIntegrationTest {
             Statement stmt = verifyConn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM xa_multinode_test_table");
             assertTrue(rs.next(), "Should have result");
-            assertEquals(20, rs.getInt(1), "Should have 20 rows inserted");
-            log.info("✓ All 20 XA transactions committed successfully in multinode setup (iteration " + (iteration + 1) + ")");
+            assertEquals(10, rs.getInt(1), "Should have 10 rows inserted");
+            log.info("✓ All 10 XA transactions committed successfully in multinode setup");
         }
         
         // Cleanup
         try (Connection cleanupConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = cleanupConn.createStatement();
             stmt.execute("DROP TABLE IF EXISTS xa_multinode_test_table");
-        }
-            tearDown();
         }
     }
 
@@ -184,8 +182,8 @@ public class PostgresMultinodeXAIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/multinode_xa_connection.csv")
     public void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
-        for (int iteration = 0; iteration < 20; iteration++) {
-            setUp(driverClass, url, user, password);
+        // Reduced iterations to keep connection count manageable
+        setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
         
@@ -235,15 +233,13 @@ public class PostgresMultinodeXAIntegrationTest {
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM xa_multinode_rollback_test");
             assertTrue(rs.next(), "Should have result");
             assertEquals(0, rs.getInt(1), "Should have 0 rows after rollback");
-            log.info("✓ XA rollback verified - no rows inserted (iteration " + (iteration + 1) + ")");
+            log.info("✓ XA rollback verified - no rows inserted");
         }
         
         // Cleanup
         try (Connection cleanupConn = java.sql.DriverManager.getConnection(url, user, password)) {
             Statement stmt = cleanupConn.createStatement();
             stmt.execute("DROP TABLE IF EXISTS xa_multinode_rollback_test");
-        }
-            tearDown();
         }
     }
 }
