@@ -43,7 +43,6 @@ import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.utils.DriverUtils;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
-import org.openjproxy.grpc.server.datasource.DynamicAtomikosPoolManager;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 import org.openjproxy.grpc.server.utils.MethodReflectionUtils;
@@ -110,8 +109,8 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
 
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
-    // Dynamic Atomikos XA pool manager for XA connection pooling with dynamic sizing
-    private final DynamicAtomikosPoolManager dynamicAtomikosPoolManager = new DynamicAtomikosPoolManager();
+    // Map for storing Atomikos XA connection pools (replaces direct XADataSource usage)
+    private final Map<String, AtomikosXAConnectionPool> xaConnectionPoolMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
     
@@ -126,6 +125,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     
     // Cluster health tracker for monitoring health changes
     private final ClusterHealthTracker clusterHealthTracker = new ClusterHealthTracker();
+    
+    // Atomikos pool manager for handling pool recreation
+    private final org.openjproxy.grpc.server.xa.AtomikosPoolManager atomikosPoolManager = 
+            new org.openjproxy.grpc.server.xa.AtomikosPoolManager();
     
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
     private final Map<String, DbName> dbNameMap = new ConcurrentHashMap<>();
@@ -155,7 +158,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     /**
      * Processes cluster health from the client request and triggers pool rebalancing if needed.
      * This should be called for every request that includes SessionInfo with cluster health.
-     * Handles both HikariCP (non-XA) and Atomikos (XA) pools.
      */
     private void processClusterHealth(SessionInfo sessionInfo) {
         if (sessionInfo == null) {
@@ -168,7 +170,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         if (clusterHealth != null && !clusterHealth.isEmpty() && 
             connHash != null && !connHash.isEmpty()) {
             
-            // Check if cluster health has changed
+            // Check if cluster health has changed (do this once for both pool types)
             boolean healthChanged = clusterHealthTracker.hasHealthChanged(connHash, clusterHealth);
             
             if (healthChanged) {
@@ -178,23 +180,53 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 log.info("Cluster health changed for {}, healthy servers: {}, triggering pool rebalancing", 
                         connHash, healthyServerCount);
                 
-                // Process HikariCP (non-XA) pools
+                // Update the pool coordinator with new healthy server count
+                ConnectionPoolConfigurer.getPoolCoordinator().updateHealthyServers(connHash, healthyServerCount);
+                
+                // Process HikariCP pool (non-XA) if it exists
                 HikariDataSource dataSource = datasourceMap.get(connHash);
                 if (dataSource != null) {
-                    ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
+                    ConnectionPoolConfigurer.applyPoolSizeChanges(connHash, dataSource);
                 }
                 
-                // Process Atomikos (XA) pools
-                AtomikosXAConnectionPool xaPool = dynamicAtomikosPoolManager.getPool(connHash);
-                if (xaPool != null) {
-                    try {
-                        log.debug("Triggering XA pool recreation for {} due to membership change", connHash);
-                        dynamicAtomikosPoolManager.recreatePoolForNewMembership(connHash, healthyServerCount);
-                    } catch (SQLException e) {
-                        log.error("Failed to recreate XA pool for {} after membership change: {}", 
-                                connHash, e.getMessage(), e);
-                    }
-                }
+                // Process Atomikos XA pool if it exists
+                processXAPoolClusterHealth(connHash);
+            }
+        }
+    }
+    
+    /**
+     * Processes cluster health changes for Atomikos XA pools.
+     * Recreates pools with updated sizes when cluster health changes.
+     * 
+     * This is called after cluster health has been confirmed to have changed.
+     */
+    private void processXAPoolClusterHealth(String connHash) {
+        AtomikosXAConnectionPool xaPool = xaConnectionPoolMap.get(connHash);
+        
+        if (xaPool == null) {
+            return; // No XA pool for this connection hash
+        }
+        
+        // Check if pool should be recreated (only for multinode pools)
+        if (!atomikosPoolManager.shouldRecreatePool(xaPool)) {
+            return;
+        }
+        
+        log.info("Triggering XA pool recreation for {}", connHash);
+        
+        // Recreate pool with updated sizes
+        AtomikosXAConnectionPool newPool = atomikosPoolManager.recreatePool(xaPool, 
+                (ConcurrentHashMap<String, AtomikosXAConnectionPool>) xaConnectionPoolMap);
+        
+        // Update slow query segregation manager with new pool size if needed
+        if (newPool.getPoolAllocation() != null) {
+            int newPoolSize = newPool.getPoolAllocation().getCurrentMaxPoolSize();
+            SlowQuerySegregationManager manager = slowQuerySegregationManagers.get(connHash);
+            if (manager != null) {
+                // Note: SlowQuerySegregationManager doesn't support dynamic resizing yet
+                // This would require adding a resize method or recreating the manager
+                log.debug("XA pool resized for {}, new max pool size: {}", connHash, newPoolSize);
             }
         }
     }
@@ -221,26 +253,40 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
-            // Handle XA connection - use DynamicAtomikosPoolManager for pool management with dynamic sizing
-            AtomikosXAConnectionPool xaPool = this.dynamicAtomikosPoolManager.getPool(connHash);
+            // Handle XA connection - create Atomikos XA connection pool (replaces XA limiter)
+            AtomikosXAConnectionPool xaPool = this.xaConnectionPoolMap.get(connHash);
             if (xaPool == null) {
                 try {
                     // Create XADataSource for the database using factory
                     String url = UrlParser.parseUrl(connectionDetails.getUrl());
                     XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
                     
-                    // Get server endpoints for multinode configuration (if available)
+                    // Wrap XADataSource with Atomikos connection pool with multinode support
                     List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
+                    xaPool = new AtomikosXAConnectionPool(
+                            xaDataSource, 
+                            connHash, 
+                            poolConfig, 
+                            serverEndpoints,
+                            ConnectionPoolConfigurer.getPoolCoordinator());
+                    this.xaConnectionPoolMap.put(connHash, xaPool);
                     
-                    // Create pool with dynamic sizing via DynamicAtomikosPoolManager
-                    xaPool = this.dynamicAtomikosPoolManager.getOrCreatePool(
-                            connHash, xaDataSource, poolConfig, serverEndpoints);
+                    // Register pool with manager for potential recreation
+                    if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
+                        atomikosPoolManager.registerPool(connHash, xaDataSource, poolConfig, 
+                                serverEndpoints, ConnectionPoolConfigurer.getPoolCoordinator());
+                    }
                     
                     // Create slow query segregation manager for XA datasource
-                    // Use pool max size from config (default 20)
-                    int poolSize = Integer.parseInt(
-                            poolConfig.getProperty("ojp.connection.pool.maximumPoolSize", 
-                            String.valueOf(org.openjproxy.constants.CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE)));
+                    // Use divided pool size from pool allocation if multinode, otherwise use original config
+                    int poolSize;
+                    if (xaPool.getPoolAllocation() != null) {
+                        poolSize = xaPool.getPoolAllocation().getCurrentMaxPoolSize();
+                    } else {
+                        poolSize = Integer.parseInt(
+                                poolConfig.getProperty("ojp.connection.pool.maximumPoolSize", 
+                                String.valueOf(org.openjproxy.constants.CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE)));
+                    }
                     createSlowQuerySegregationManagerForDatasource(connHash, poolSize);
                     
                     log.info("Created new Atomikos XA connection pool for connHash: {} - {}", 

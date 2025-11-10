@@ -1,0 +1,1 @@
+org.openjproxy.jdbc.Driver,"jdbc:ojp[localhost:10591,localhost:10592(multinode)]_postgresql://localhost:5432/defaultdb",testuser,testpassword

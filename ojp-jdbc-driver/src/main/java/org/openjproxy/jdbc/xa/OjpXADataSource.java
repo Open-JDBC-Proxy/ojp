@@ -4,6 +4,10 @@ import com.google.protobuf.ByteString;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.grpc.client.MultinodeConnectionManager;
+import org.openjproxy.grpc.client.MultinodeStatementService;
+import org.openjproxy.grpc.client.MultinodeUrlParser;
+import org.openjproxy.grpc.client.ServerEndpoint;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.grpc.client.StatementServiceGrpcClient;
 import org.openjproxy.jdbc.UrlParser;
@@ -15,6 +19,7 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.Logger;
 
@@ -70,6 +75,7 @@ public class OjpXADataSource implements XADataSource {
      * Initialize the StatementService and parse URL.
      * This is done lazily when the first XA connection is requested.
      * The GRPC channel is opened once and reused by all XA connections from this datasource.
+     * Supports both single-node and multinode configurations.
      */
     private synchronized void initializeIfNeeded() throws SQLException {
         if (statementService != null) {
@@ -99,14 +105,36 @@ public class OjpXADataSource implements XADataSource {
             log.debug("Loaded ojp.properties with {} properties for dataSource: {}", ojpProperties.size(), dataSourceName);
         }
         
-        // Initialize StatementService - this will open the GRPC channel on first use
-        log.debug("Initializing StatementServiceGrpcClient for XA datasource: {}", dataSourceName);
-        statementService = new StatementServiceGrpcClient();
-        
-        // The GRPC channel will be opened lazily on the first connect() call
-        // Since this StatementService instance is shared by all XA connections from this datasource,
-        // the channel is opened once and reused
-        log.info("StatementService initialized for datasource: {}. GRPC channel will open on first use.", dataSourceName);
+        // Initialize StatementService based on URL format (single-node vs multinode)
+        try {
+            // Try to parse as multinode URL
+            List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(url);
+            
+            if (endpoints.size() > 1) {
+                // Multinode configuration detected - use MultinodeStatementService
+                log.info("XA Multinode URL detected with {} endpoints: {}", 
+                        endpoints.size(), MultinodeUrlParser.formatServerList(endpoints));
+                
+                MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(endpoints);
+                statementService = new MultinodeStatementService(connectionManager, url);
+                
+                // For multinode, update cleanUrl to use the first endpoint for connection metadata
+                cleanUrl = MultinodeUrlParser.replaceBracketsWithSingleEndpoint(cleanUrl, endpoints.get(0));
+                
+                log.info("MultinodeStatementService initialized for XA datasource: {}. Using {} servers.", 
+                        dataSourceName, endpoints.size());
+            } else {
+                // Single-node configuration - use traditional client
+                log.debug("Initializing StatementServiceGrpcClient for single-node XA datasource: {}", dataSourceName);
+                statementService = new StatementServiceGrpcClient();
+                log.info("StatementService initialized for single-node XA datasource: {}. GRPC channel will open on first use.", dataSourceName);
+            }
+        } catch (IllegalArgumentException e) {
+            // URL parsing failed, fall back to single-node client
+            log.debug("XA URL not recognized as multinode format, using single-node client: {}", e.getMessage());
+            statementService = new StatementServiceGrpcClient();
+            log.info("StatementService initialized for single-node XA datasource: {}. GRPC channel will open on first use.", dataSourceName);
+        }
     }
     
     /**
