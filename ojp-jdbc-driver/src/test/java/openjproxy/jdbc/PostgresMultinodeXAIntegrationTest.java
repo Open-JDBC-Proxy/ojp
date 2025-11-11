@@ -119,7 +119,9 @@ public class PostgresMultinodeXAIntegrationTest {
         }
         
         // Run multiple XA transactions to test pool behavior during server changes
-        // Reduced from 20 to 10 to keep total connections manageable
+        // Extended duration to ensure test is still running when servers are killed/restarted
+        // This allows pool recreation to be triggered by active operations
+        // Reduced transaction count but increased delay to keep connections manageable
         for (int i = 0; i < 10; i++) {
             // Generate unique XID for this transaction
             byte[] gtrid = ("gtrid-multinode-" + System.currentTimeMillis() + "-" + i).getBytes();
@@ -156,8 +158,11 @@ public class PostgresMultinodeXAIntegrationTest {
             
             log.info("✓ XA transaction {} completed successfully in multinode setup", i);
             
-            // Small delay to allow time for server changes in the workflow
-            Thread.sleep(100);
+            // Longer delay between transactions to:
+            // 1. Keep test running during server kill/restart in workflow
+            // 2. Allow pool recreation to be triggered by subsequent operations
+            // 3. Keep connection count manageable
+            Thread.sleep(3000); // 3 seconds between transactions
         }
         
         // Verify all rows were inserted (use the same OJP URL)
