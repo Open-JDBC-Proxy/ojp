@@ -7,17 +7,20 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Coordinates XA transaction limits across multiple OJP server instances in a multinode setup.
+ * Coordinates XA transaction allocation tracking across multiple OJP server instances in a multinode setup.
  * 
- * Similar to pool coordination, but for XA transactions:
- * - Max transactions are divided among servers
- * - When a server becomes unhealthy, remaining servers increase their limits
- * - When a server recovers, all servers rebalance back to divided limits
+ * IMPORTANT: This coordinator is for METRICS and MONITORING only - it does NOT enforce hard limits.
+ * XA connection concurrency is controlled by Atomikos pool sizing (maxPoolSize and borrowConnectionTimeout).
+ * 
+ * Similar to pool coordination, but for XA transaction metrics:
+ * - Max transaction allocations are divided among servers for monitoring purposes
+ * - When a server becomes unhealthy, remaining servers track increased allocations
+ * - When a server recovers, all servers rebalance back to divided allocations
  * 
  * Example:
- * - Initial: maxXaTransactions=30, servers=3 → each server: max=10
- * - Server failure: servers=2 (1 down) → each remaining: max=15
- * - Server recovery: servers=3 (recovered) → each server: max=10 (rebalanced)
+ * - Initial: maxXaTransactions=30, servers=3 → each server: tracked allocation=10
+ * - Server failure: servers=2 (1 down) → each remaining: tracked allocation=15
+ * - Server recovery: servers=3 (recovered) → each server: tracked allocation=10 (rebalanced)
  */
 @Slf4j
 public class MultinodeXaCoordinator {

@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AtomikosXAConnectionPool {
     
     private final AtomikosDataSourceBean atomikosDataSource;
-    private final XADataSource rawXADataSource;
     private final String resourceName;
     private final ConcurrentHashMap<String, XAConnection> leasedConnections = new ConcurrentHashMap<>();
     private static final AtomicInteger resourceCounter = new AtomicInteger(0);
@@ -44,7 +43,6 @@ public class AtomikosXAConnectionPool {
     public AtomikosXAConnectionPool(XADataSource xaDataSource, String connectionHash, Properties poolConfig) 
             throws SQLException {
         
-        this.rawXADataSource = xaDataSource;
         this.resourceName = "ojp-xa-" + Math.abs(connectionHash.hashCode()) + "-" + resourceCounter.incrementAndGet();
         
         // Create AtomikosDataSourceBean
@@ -76,10 +74,14 @@ public class AtomikosXAConnectionPool {
     }
     
     /**
-     * Borrows an XAConnection from the pool for a specific session/branch.
+     * Borrows an XAConnection from the wrapped XADataSource for a specific session/branch.
      * Connections are leased per branch and must be returned via returnXAConnection().
      * 
-     * Uses the raw XADataSource to get XAConnection while Atomikos manages pool health/sizing.
+     * Note: For XA pass-through architecture, we get XAConnections directly from the wrapped
+     * XADataSource. Atomikos configuration (maxPoolSize, timeouts) is used, but the actual
+     * XA connection lifecycle is managed by the leasedConnections tracking in this class.
+     * This is necessary because OJP server needs to expose XAResource to clients for XA
+     * pass-through, which requires access to the XAConnection object (not just Connection).
      * 
      * @param sessionId The session identifier  
      * @param branchId The XA branch identifier (can be same as sessionId if 1:1 mapping)
@@ -96,11 +98,11 @@ public class AtomikosXAConnectionPool {
             return existing;
         }
         
-        // Get XAConnection from raw XADataSource
-        // Atomikos provides the pool management infrastructure (sizing, validation, health)
-        // but we get XAConnection directly for XA pass-through semantics
+        // Get XAConnection from Atomikos-wrapped XADataSource
+        // While Atomikos primarily pools Connections, we need XAConnection for XA pass-through
+        // Access through atomikosDataSource ensures we use the configured/wrapped XADataSource
         try {
-            XAConnection xaConnection = rawXADataSource.getXAConnection();
+            XAConnection xaConnection = atomikosDataSource.getXaDataSource().getXAConnection();
             leasedConnections.put(leaseKey, xaConnection);
             
             log.debug("Leased new XAConnection for session/branch: {} (total leased: {})", 
@@ -109,7 +111,7 @@ public class AtomikosXAConnectionPool {
             return xaConnection;
             
         } catch (SQLException e) {
-            log.error("Failed to borrow XAConnection from XADataSource '{}': {}", resourceName, e.getMessage());
+            log.error("Failed to borrow XAConnection from wrapped XADataSource '{}': {}", resourceName, e.getMessage());
             throw new SQLException("Failed to acquire XA connection: " + e.getMessage(), e);
         }
     }
