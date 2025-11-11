@@ -246,19 +246,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 // Get a pooled connection from Atomikos - this internally manages XAConnection pooling
                 Connection connection = atomikosDataSource.getConnection();
                 
-                // Get the underlying XAConnection from the Atomikos connection
-                // Atomikos wraps XAConnection internally; we need it for XAResource
-                XAConnection xaConnection = null;
-                try {
-                    // Try to unwrap to get the underlying XAConnection
-                    xaConnection = connection.unwrap(XAConnection.class);
-                } catch (SQLException e) {
-                    // If unwrap fails, get XAConnection directly from the wrapped XADataSource
-                    // Note: This means we're not using Atomikos pooling for the XAConnection itself,
-                    // but Atomikos still manages the Connection pooling via getConnection()
-                    log.debug("Could not unwrap XAConnection from Atomikos connection, getting from XADataSource: {}", e.getMessage());
-                    xaConnection = atomikosDataSource.getXaDataSource().getXAConnection();
-                }
+                // Get XAConnection directly from the wrapped XADataSource
+                // Atomikos manages Connection pooling, but we need XAConnection for XAResource access
+                XAConnection xaConnection = atomikosDataSource.getXaDataSource().getXAConnection();
                 
                 // Create session with XA support using sessionManager
                 SessionInfo sessionInfo = this.sessionManager.createXASession(
