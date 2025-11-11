@@ -50,7 +50,7 @@ import org.openjproxy.grpc.server.utils.MethodNameGenerator;
 import org.openjproxy.grpc.server.utils.SessionInfoUtils;
 import org.openjproxy.grpc.server.statement.ParameterHandler;
 import org.openjproxy.grpc.server.xa.XADataSourceFactory;
-import org.openjproxy.grpc.server.xa.AtomikosXAConnectionPool;
+import com.atomikos.jdbc.AtomikosDataSourceBean;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.lob.LobProcessor;
@@ -109,8 +109,8 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
 
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
-    // Map for storing Atomikos XA connection pools (replaces direct XADataSource usage)
-    private final Map<String, AtomikosXAConnectionPool> xaConnectionPoolMap = new ConcurrentHashMap<>();
+    // Map for storing Atomikos XA datasources for XA connection pooling
+    private final Map<String, AtomikosDataSourceBean> xaDataSourceMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
     
@@ -195,31 +195,45 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
-            // Handle XA connection - create Atomikos XA connection pool (replaces XA limiter)
-            AtomikosXAConnectionPool xaPool = this.xaConnectionPoolMap.get(connHash);
-            if (xaPool == null) {
+            // Handle XA connection - create Atomikos datasource for XA connection pooling
+            AtomikosDataSourceBean atomikosDataSource = this.xaDataSourceMap.get(connHash);
+            if (atomikosDataSource == null) {
                 try {
                     // Create XADataSource for the database using factory
                     String url = UrlParser.parseUrl(connectionDetails.getUrl());
                     XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
                     
-                    // Wrap XADataSource with Atomikos connection pool
-                    xaPool = new AtomikosXAConnectionPool(xaDataSource, connHash, poolConfig);
-                    this.xaConnectionPoolMap.put(connHash, xaPool);
+                    // Create and configure AtomikosDataSourceBean
+                    atomikosDataSource = new AtomikosDataSourceBean();
+                    String resourceName = "ojp-xa-" + Math.abs(connHash.hashCode()) + "-" + System.currentTimeMillis();
+                    atomikosDataSource.setUniqueResourceName(resourceName);
+                    atomikosDataSource.setXaDataSource(xaDataSource);
+                    
+                    // Map Hikari-style properties to Atomikos
+                    int maxPoolSize = getIntProperty(poolConfig, "ojp.connection.pool.maximumPoolSize", 20);
+                    int minPoolSize = getIntProperty(poolConfig, "ojp.connection.pool.minimumIdle", 5);
+                    int connectionTimeoutSec = msToSeconds(getLongProperty(poolConfig, "ojp.connection.pool.connectionTimeout", 10000L));
+                    int maxIdleTimeSec = msToSeconds(getLongProperty(poolConfig, "ojp.connection.pool.idleTimeout", 600000L));
+                    String testQuery = poolConfig.getProperty("ojp.connection.pool.validationQuery", "SELECT 1");
+                    
+                    atomikosDataSource.setMaxPoolSize(maxPoolSize);
+                    atomikosDataSource.setMinPoolSize(minPoolSize);
+                    atomikosDataSource.setBorrowConnectionTimeout(connectionTimeoutSec);
+                    atomikosDataSource.setMaxIdleTime(maxIdleTimeSec);
+                    atomikosDataSource.setMaintenanceInterval(60);
+                    atomikosDataSource.setTestQuery(testQuery);
+                    
+                    this.xaDataSourceMap.put(connHash, atomikosDataSource);
                     
                     // Create slow query segregation manager for XA datasource
-                    // Use pool max size from config (default 20)
-                    int poolSize = Integer.parseInt(
-                            poolConfig.getProperty("ojp.connection.pool.maximumPoolSize", 
-                            String.valueOf(org.openjproxy.constants.CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE)));
-                    createSlowQuerySegregationManagerForDatasource(connHash, poolSize);
+                    createSlowQuerySegregationManagerForDatasource(connHash, maxPoolSize);
                     
-                    log.info("Created new Atomikos XA connection pool for connHash: {} - {}", 
-                            connHash, xaPool.getPoolStats());
+                    log.info("Created Atomikos XA datasource '{}': maxPoolSize={}, minPoolSize={}, borrowTimeout={}s, maxIdleTime={}s",
+                            resourceName, maxPoolSize, minPoolSize, connectionTimeoutSec, maxIdleTimeSec);
                     
                 } catch (Exception e) {
-                    log.error("Failed to create Atomikos XA pool for connection hash {}: {}", connHash, e.getMessage(), e);
-                    SQLException sqlException = new SQLException("Failed to create XA connection pool: " + e.getMessage(), e);
+                    log.error("Failed to create Atomikos XA datasource for connection hash {}: {}", connHash, e.getMessage(), e);
+                    SQLException sqlException = new SQLException("Failed to create XA datasource: " + e.getMessage(), e);
                     sendSQLExceptionMetadata(sqlException, responseObserver);
                     return;
                 }
@@ -227,19 +241,31 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             
             this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
             
-            // For XA connections, borrow XAConnection from pool for this session
-            // Session ID used as both sessionId and branchId for initial allocation
+            // Get pooled connection from Atomikos
             try {
-                String sessionId = UUID.randomUUID().toString();
-                XAConnection xaConnection = xaPool.borrowXAConnection(sessionId, sessionId);
-                Connection connection = xaConnection.getConnection();
+                // Get a pooled connection from Atomikos - this internally manages XAConnection pooling
+                Connection connection = atomikosDataSource.getConnection();
+                
+                // Get the underlying XAConnection from the Atomikos connection
+                // Atomikos wraps XAConnection internally; we need it for XAResource
+                XAConnection xaConnection = null;
+                try {
+                    // Try to unwrap to get the underlying XAConnection
+                    xaConnection = connection.unwrap(XAConnection.class);
+                } catch (SQLException e) {
+                    // If unwrap fails, get XAConnection directly from the wrapped XADataSource
+                    // Note: This means we're not using Atomikos pooling for the XAConnection itself,
+                    // but Atomikos still manages the Connection pooling via getConnection()
+                    log.debug("Could not unwrap XAConnection from Atomikos connection, getting from XADataSource: {}", e.getMessage());
+                    xaConnection = atomikosDataSource.getXaDataSource().getXAConnection();
+                }
                 
                 // Create session with XA support using sessionManager
                 SessionInfo sessionInfo = this.sessionManager.createXASession(
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
-                log.info("Created XA session with UUID: {} for client: {} - pool stats: {}", 
-                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID(), xaPool.getPoolStats());
+                log.info("Created XA session with UUID: {} for client: {}", 
+                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID());
                 
                 responseObserver.onNext(sessionInfo);
                 this.dbNameMap.put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
@@ -1456,6 +1482,42 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         ConnectionPoolConfigurer.configureHikariPool(config, connectionDetails);
     }
 
+    // ===== Helper methods for Atomikos XA configuration =====
+    
+    private static int getIntProperty(Properties props, String key, int defaultValue) {
+        String value = props.getProperty(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            log.warn("Invalid integer value for {}: '{}', using default: {}", key, value, defaultValue);
+            return defaultValue;
+        }
+    }
+    
+    private static long getLongProperty(Properties props, String key, long defaultValue) {
+        String value = props.getProperty(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            log.warn("Invalid long value for {}: '{}', using default: {}", key, value, defaultValue);
+            return defaultValue;
+        }
+    }
+    
+    /**
+     * Converts milliseconds to seconds for Atomikos configuration.
+     * Atomikos uses seconds, Hikari uses milliseconds.
+     * Minimum value is 1 second.
+     */
+    private static int msToSeconds(long milliseconds) {
+        return Math.max(1, (int) Math.round(milliseconds / 1000.0));
+    }
 
     // ===== XA Transaction Operations =====
 
