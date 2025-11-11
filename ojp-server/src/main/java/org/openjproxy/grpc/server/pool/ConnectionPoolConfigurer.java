@@ -138,6 +138,43 @@ public class ConnectionPoolConfigurer {
     }
     
     /**
+     * Processes cluster health for XA connections and triggers pool recreation if health has changed.
+     * This is a specialized version for XA pools that triggers asynchronous recreation
+     * instead of dynamic resizing (since Atomikos pools need full recreation).
+     * 
+     * @param connHash Connection hash
+     * @param clusterHealth Cluster health string from client
+     * @param clusterHealthTracker Tracker to detect health changes
+     * @param xaPoolManager XaPoolManager to trigger pool recreation
+     * @param xaDataSourceFactory Factory to create new XADataSource instances
+     * @param poolConfig Pool configuration properties
+     */
+    public static void processClusterHealthForXA(String connHash, String clusterHealth,
+                                                 org.openjproxy.grpc.server.ClusterHealthTracker clusterHealthTracker,
+                                                 org.openjproxy.grpc.server.xa.XaPoolManager xaPoolManager,
+                                                 org.openjproxy.grpc.server.xa.XaPoolManager.XADataSourceFactory xaDataSourceFactory,
+                                                 Properties poolConfig) {
+        if (connHash == null || connHash.isEmpty() || clusterHealth == null || clusterHealth.isEmpty()) {
+            return;
+        }
+        
+        // Check if cluster health has changed
+        boolean healthChanged = clusterHealthTracker.hasHealthChanged(connHash, clusterHealth);
+        
+        if (healthChanged) {
+            // Count healthy servers
+            int healthyServerCount = clusterHealthTracker.countHealthyServers(clusterHealth);
+            
+            log.info("Cluster health changed for XA pool {}, healthy servers: {}, triggering pool recreation", 
+                    connHash, healthyServerCount);
+            
+            // Trigger asynchronous pool recreation
+            // XA pools cannot be dynamically resized like HikariCP, so we recreate them
+            xaPoolManager.triggerPoolRecreation(connHash, xaDataSourceFactory, poolConfig);
+        }
+    }
+    
+    /**
      * Applies current pool allocation sizes to an existing HikariDataSource.
      * HikariCP supports dynamic resizing of pool sizes at runtime.
      * 
