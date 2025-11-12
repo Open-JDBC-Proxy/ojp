@@ -44,6 +44,13 @@ public class XaPoolManager {
     // Uses virtual threads if available (Java 21+), otherwise falls back to platform threads
     private final ExecutorService recreationExecutor = createRecreationExecutor();
     
+    // Scheduled executor for delayed recreation (debouncing)
+    private final ScheduledExecutorService scheduledExecutor = Executors.newScheduledThreadPool(2, r -> {
+        Thread t = new Thread(r, "xa-pool-recreation-scheduler");
+        t.setDaemon(true);
+        return t;
+    });
+    
     /**
      * Creates an executor service for pool recreation.
      * Uses virtual threads if available (Java 21+), otherwise creates a cached thread pool.
@@ -74,7 +81,10 @@ public class XaPoolManager {
         }
     }
     
-    // Map of connection hash to last recreation time for debouncing
+    // Map of connection hash to scheduled recreation futures (for cancellation)
+    private final Map<String, ScheduledFuture<?>> scheduledRecreations = new ConcurrentHashMap<>();
+    
+    // Map of connection hash to last recreation time for tracking
     private final Map<String, Long> lastRecreationTime = new ConcurrentHashMap<>();
     
     // Map of connection hash to pending recreation futures
@@ -221,8 +231,8 @@ public class XaPoolManager {
     
     /**
      * Triggers asynchronous recreation of an XA pool due to health changes.
-     * Recreation is debounced to prevent rapid successive recreations.
-     * Aborts if recreation takes longer than timeout.
+     * Schedules recreation after debounce interval to prevent recreation on transient health changes.
+     * If health changes again before the interval expires, the scheduled recreation is cancelled.
      * 
      * @param connHash Connection hash
      * @param xaDataSourceFactory Factory function to create new XADataSource
@@ -233,46 +243,56 @@ public class XaPoolManager {
             XADataSourceFactory xaDataSourceFactory,
             Properties poolConfig) {
         
-        // Check debounce interval
-        Long lastRecreation = lastRecreationTime.get(connHash);
-        long now = System.currentTimeMillis();
-        if (lastRecreation != null && (now - lastRecreation) < debounceIntervalMs) {
-            log.debug("Skipping pool recreation for {} - debounce interval not elapsed ({}ms remaining)",
-                    connHash, debounceIntervalMs - (now - lastRecreation));
-            return;
+        // Cancel any existing scheduled recreation for this connection hash
+        ScheduledFuture<?> existingScheduled = scheduledRecreations.get(connHash);
+        if (existingScheduled != null && !existingScheduled.isDone()) {
+            log.debug("Cancelling previously scheduled recreation for {} due to new health change", connHash);
+            existingScheduled.cancel(false);
         }
         
-        // Check if recreation already in progress
+        // Check if recreation is currently in progress
         CompletableFuture<Void> existingRecreation = pendingRecreations.get(connHash);
         if (existingRecreation != null && !existingRecreation.isDone()) {
-            log.debug("Pool recreation already in progress for {}", connHash);
+            log.debug("Pool recreation already in progress for {}, scheduling will wait", connHash);
+            // Don't schedule a new one if recreation is already running
             return;
         }
         
-        log.info("Triggering asynchronous XA pool recreation for {}", connHash);
+        log.info("Scheduling XA pool recreation for {} after {}ms debounce interval", 
+                connHash, debounceIntervalMs);
         
-        // Start asynchronous recreation with timeout
-        CompletableFuture<Void> recreationFuture = CompletableFuture.runAsync(() -> {
-            try {
-                recreatePool(connHash, xaDataSourceFactory, poolConfig);
-            } catch (Exception e) {
-                log.error("Failed to recreate XA pool for {}: {}", connHash, e.getMessage(), e);
-            }
-        }, recreationExecutor)
-        .orTimeout(recreationTimeoutMs, TimeUnit.MILLISECONDS)
-        .exceptionally(throwable -> {
-            if (throwable instanceof TimeoutException) {
-                log.error("XA pool recreation timed out after {}ms for {}", 
-                        recreationTimeoutMs, connHash);
-            } else {
-                log.error("XA pool recreation failed for {}: {}", 
-                        connHash, throwable.getMessage(), throwable);
-            }
-            return null;
-        });
+        // Schedule recreation after debounce interval
+        ScheduledFuture<?> scheduledFuture = scheduledExecutor.schedule(() -> {
+            // Remove from scheduled map as we're now executing
+            scheduledRecreations.remove(connHash);
+            
+            log.info("Debounce interval elapsed, triggering XA pool recreation for {}", connHash);
+            
+            // Start asynchronous recreation with timeout
+            CompletableFuture<Void> recreationFuture = CompletableFuture.runAsync(() -> {
+                try {
+                    recreatePool(connHash, xaDataSourceFactory, poolConfig);
+                } catch (Exception e) {
+                    log.error("Failed to recreate XA pool for {}: {}", connHash, e.getMessage(), e);
+                }
+            }, recreationExecutor)
+            .orTimeout(recreationTimeoutMs, TimeUnit.MILLISECONDS)
+            .exceptionally(throwable -> {
+                if (throwable instanceof TimeoutException) {
+                    log.error("XA pool recreation timed out after {}ms for {}", 
+                            recreationTimeoutMs, connHash);
+                } else {
+                    log.error("XA pool recreation failed for {}: {}", 
+                            connHash, throwable.getMessage(), throwable);
+                }
+                return null;
+            });
+            
+            pendingRecreations.put(connHash, recreationFuture);
+            lastRecreationTime.put(connHash, System.currentTimeMillis());
+        }, debounceIntervalMs, TimeUnit.MILLISECONDS);
         
-        pendingRecreations.put(connHash, recreationFuture);
-        lastRecreationTime.put(connHash, now);
+        scheduledRecreations.put(connHash, scheduledFuture);
     }
     
     /**
@@ -350,6 +370,12 @@ public class XaPoolManager {
     public void shutdown() {
         log.info("Shutting down XA pool manager...");
         
+        // Cancel scheduled recreations
+        for (ScheduledFuture<?> future : scheduledRecreations.values()) {
+            future.cancel(false);
+        }
+        scheduledRecreations.clear();
+        
         // Cancel pending recreations
         for (CompletableFuture<Void> future : pendingRecreations.values()) {
             future.cancel(true);
@@ -376,7 +402,18 @@ public class XaPoolManager {
         
         lastRecreationTime.clear();
         
-        // Shutdown executor
+        // Shutdown scheduled executor
+        scheduledExecutor.shutdown();
+        try {
+            if (!scheduledExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduledExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduledExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        
+        // Shutdown recreation executor
         recreationExecutor.shutdown();
         try {
             if (!recreationExecutor.awaitTermination(10, TimeUnit.SECONDS)) {

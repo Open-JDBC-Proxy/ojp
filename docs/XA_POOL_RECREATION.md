@@ -48,7 +48,27 @@ The XaPoolManager uses a `ReentrantReadWriteLock` to ensure safe concurrent acce
 Pool recreation is triggered when:
 1. Client reports cluster health changes via `SessionInfo.clusterHealth`
 2. Health change is detected by `ClusterHealthTracker.hasHealthChanged()`
-3. Debounce interval has elapsed since last recreation
+3. **Health change remains stable for the full debounce interval**
+
+### Debouncing Strategy
+
+The debouncing mechanism prevents recreation on transient health changes:
+
+- **On Health Change**: Recreation is **scheduled** to occur after the debounce interval (default 5 seconds)
+- **During Debounce Period**: If health changes again (e.g., flaps back to original state), the scheduled recreation is **cancelled**
+- **After Debounce Period**: If health remains changed for the full interval, recreation proceeds
+
+**Example Scenarios:**
+
+- **Scenario 1 (Transient Change)**: 
+  - t=0s: Health changes UP UP → UP DOWN, recreation scheduled for t=5s
+  - t=3s: Health changes back UP DOWN → UP UP, scheduled recreation cancelled
+  - Result: No recreation occurs (transient flap prevented)
+
+- **Scenario 2 (Stable Change)**:
+  - t=0s: Health changes UP UP → UP DOWN, recreation scheduled for t=5s
+  - t=5s: Health still UP DOWN, recreation proceeds
+  - Result: Pool recreated for new stable health state
 
 ### Recreation Flow
 
@@ -59,34 +79,37 @@ Pool recreation is triggered when:
    ↓
 3. ConnectionPoolConfigurer.processClusterHealthForXA() called
    ↓
-4. XaPoolManager.triggerPoolRecreation() initiated
+4. XaPoolManager.triggerPoolRecreation() schedules recreation
    ↓
-5. Debounce check (5 second interval)
+5. Wait for debounce interval (5 seconds by default)
+   - If health changes again during this time, cancel and reschedule
    ↓
-6. Asynchronous recreation starts in background thread
+6. Debounce interval elapses with stable health
    ↓
-7. Write lock acquired
+7. Asynchronous recreation starts in background thread
    ↓
-8. Old pool closed (waits for active connections)
+8. Write lock acquired
    ↓
-9. New pool created with updated configuration
+9. Old pool closed (waits for active connections)
    ↓
-10. Write lock released
+10. New pool created with updated configuration
+   ↓
+11. Write lock released
    ↓
 11. Pool available for use
 ```
 
 ### Debouncing
 
-To prevent rapid successive recreations:
-- **Interval**: 5 seconds (configurable via `DEBOUNCE_INTERVAL_MS`)
-- **Behavior**: Additional recreation requests within interval are ignored
-- **Purpose**: Avoid thrashing during unstable cluster states
+To prevent recreation on transient health changes:
+- **Interval**: 5 seconds (configurable via `ojp.server.xa.pool.recreation.debounceMs`)
+- **Behavior**: Recreation is scheduled to occur after the debounce interval; if health changes again before the interval expires, the scheduled recreation is cancelled and a new one is scheduled
+- **Purpose**: Ensure health changes are stable before recreating pools, avoiding thrashing during brief health flaps
 
 ### Timeout Protection
 
 Recreation operations have timeout protection:
-- **Timeout**: 30 seconds (configurable via `RECREATION_TIMEOUT_MS`)
+- **Timeout**: 30 seconds (configurable via `ojp.server.xa.pool.recreation.timeoutMs`)
 - **Behavior**: Recreation aborted if timeout exceeded
 - **Effect**: Prevents hung recreation attempts from blocking the system
 

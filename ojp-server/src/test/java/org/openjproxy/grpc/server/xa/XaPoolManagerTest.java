@@ -22,10 +22,12 @@ import static org.mockito.Mockito.*;
 class XaPoolManagerTest {
     
     private XaPoolManager poolManager;
+    private static final long TEST_DEBOUNCE_MS = 500; // Short debounce for testing
+    private static final long TEST_TIMEOUT_MS = 5000;
     
     @BeforeEach
     void setUp() {
-        poolManager = new XaPoolManager();
+        poolManager = new XaPoolManager(TEST_DEBOUNCE_MS, TEST_TIMEOUT_MS);
     }
     
     @AfterEach

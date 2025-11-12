@@ -23,10 +23,12 @@ class XaPoolManagerIntegrationTest {
     
     private XaPoolManager poolManager;
     private Properties poolConfig;
+    private static final long TEST_DEBOUNCE_MS = 500; // Short debounce for testing
+    private static final long TEST_TIMEOUT_MS = 5000;
     
     @BeforeEach
     void setUp() {
-        poolManager = new XaPoolManager();
+        poolManager = new XaPoolManager(TEST_DEBOUNCE_MS, TEST_TIMEOUT_MS);
         poolConfig = new Properties();
         poolConfig.setProperty("ojp.connection.pool.maximumPoolSize", "5");
         poolConfig.setProperty("ojp.connection.pool.minimumIdle", "2");
