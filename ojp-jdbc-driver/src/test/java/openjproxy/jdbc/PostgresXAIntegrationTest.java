@@ -40,7 +40,7 @@ public class PostgresXAIntegrationTest {
         isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "Postgres XA tests are disabled. Enable with -DdisablePostgresTests=false");
         
         // Create XA DataSource
@@ -71,8 +71,8 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXAConnectionBasics(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         assertNotNull(xaConnection, "XA connection should be created");
         assertNotNull(connection, "Logical connection should be created");
@@ -92,8 +92,8 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXATransactionWithCRUD(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
         
@@ -171,8 +171,8 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXATransactionRollback(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
         
@@ -233,8 +233,8 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXATransactionTimeout(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXATransactionTimeout(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
         
@@ -256,8 +256,8 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXAOnePhaseCommit(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
-        setUp(driverClass, url, user, password, isXA);
+    public void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
+        setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
         
