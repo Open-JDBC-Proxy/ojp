@@ -12,6 +12,7 @@ The OJP server supports safe recreation of Atomikos XA connection pools in respo
    - Thread-safe pool management using `ReentrantReadWriteLock`
    - Asynchronous, debounced pool recreation
    - Timeout protection for recreation operations
+   - Uses virtual threads for recreation tasks when available (Java 21+)
 
 2. **ConnectionPoolConfigurer** - Handles health change notifications
    - Routes health changes to appropriate handlers (XA vs non-XA)
@@ -34,6 +35,11 @@ The XaPoolManager uses a `ReentrantReadWriteLock` to ensure safe concurrent acce
 - **Write Lock**: Held during pool recreation
   - Exclusive access - blocks all other operations
   - Ensures atomic pool replacement
+
+### Performance Optimization
+
+- **Virtual Threads**: XaPoolManager automatically uses virtual threads for pool recreation tasks when running on Java 21 or later, providing better scalability and resource utilization
+- **Platform Threads**: Falls back to platform threads on Java 17-20 for compatibility
 
 ## Pool Recreation Process
 

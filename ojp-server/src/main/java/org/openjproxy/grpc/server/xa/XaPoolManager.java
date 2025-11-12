@@ -26,6 +26,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * - Read lock: Held during normal pool operations (borrow/return connections)
  * - Write lock: Held during pool recreation (close old pool, create new pool)
  * - Debouncing: Prevents rapid successive recreations for same connection hash
+ * 
+ * Performance:
+ * - Uses virtual threads for pool recreation if available (Java 21+)
+ * - Falls back to platform threads on Java 17-20
  */
 @Slf4j
 public class XaPoolManager {
@@ -37,11 +41,38 @@ public class XaPoolManager {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     
     // Executor for asynchronous pool recreation
-    private final ExecutorService recreationExecutor = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "xa-pool-recreation");
-        t.setDaemon(true);
-        return t;
-    });
+    // Uses virtual threads if available (Java 21+), otherwise falls back to platform threads
+    private final ExecutorService recreationExecutor = createRecreationExecutor();
+    
+    /**
+     * Creates an executor service for pool recreation.
+     * Uses virtual threads if available (Java 21+), otherwise creates a cached thread pool.
+     */
+    private static ExecutorService createRecreationExecutor() {
+        try {
+            // Try to use virtual thread executor (Java 21+)
+            // Executors.newVirtualThreadPerTaskExecutor()
+            var executorsClass = Executors.class;
+            var method = executorsClass.getMethod("newVirtualThreadPerTaskExecutor");
+            log.info("Using virtual threads for XA pool recreation");
+            return (ExecutorService) method.invoke(null);
+        } catch (NoSuchMethodException e) {
+            // Virtual threads not available, fall back to platform threads
+            log.info("Virtual threads not available (requires Java 21+), using platform threads for XA pool recreation");
+            return Executors.newCachedThreadPool(r -> {
+                Thread t = new Thread(r, "xa-pool-recreation");
+                t.setDaemon(true);
+                return t;
+            });
+        } catch (Exception e) {
+            log.warn("Failed to create virtual thread executor, falling back to platform threads: {}", e.getMessage());
+            return Executors.newCachedThreadPool(r -> {
+                Thread t = new Thread(r, "xa-pool-recreation");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+    }
     
     // Map of connection hash to last recreation time for debouncing
     private final Map<String, Long> lastRecreationTime = new ConcurrentHashMap<>();
