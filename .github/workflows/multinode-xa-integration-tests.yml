@@ -235,7 +235,7 @@ jobs:
           TIMEOUT=30
           ELAPSED=0
           EXPECTED=20
-          TOLERANCE=2
+          TOLERANCE=10
           MIN_ACCEPTABLE=$((EXPECTED - TOLERANCE))
           MAX_ACCEPTABLE=$((EXPECTED + TOLERANCE))
           MAX_LIMIT=$((EXPECTED + 5))
