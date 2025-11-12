@@ -66,6 +66,8 @@ public class PostgresXAIntegrationTest {
         }
     }
 
+
+
     /**
      * Test basic XA connection creation and closure.
      */
@@ -73,11 +75,13 @@ public class PostgresXAIntegrationTest {
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
     public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
-        
+
         assertNotNull(xaConnection, "XA connection should be created");
         assertNotNull(connection, "Logical connection should be created");
         assertFalse(connection.isClosed(), "Connection should not be closed");
-        
+        assertTrue(connection.isValid(5000)); // 5 seconds timeout.
+        assertEquals(2, connection.getTransactionIsolation());
+
         // Get XA Resource
         XAResource xaResource = xaConnection.getXAResource();
         assertNotNull(xaResource, "XA resource should not be null");
