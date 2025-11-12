@@ -38,7 +38,10 @@ public class MultinodeIntegrationTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = !Boolean.parseBoolean(System.getProperty("multinodeTestsEnabled", "false"));
+        // Check both system property and environment variable
+        boolean sysPropEnabled = Boolean.parseBoolean(System.getProperty("multinodeTestsEnabled", "false"));
+        boolean envVarEnabled = Boolean.parseBoolean(System.getenv("MULTINODE_TESTS_ENABLED"));
+        isTestDisabled = !(sysPropEnabled || envVarEnabled);
     }
 
     @SneakyThrows

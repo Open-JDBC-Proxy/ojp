@@ -285,8 +285,10 @@ public class XaPoolManager {
         try {
             // Get and close old pool
             AtomikosXAConnectionPool oldPool = poolMap.get(connHash);
+            String oldInstanceId = null;
             if (oldPool != null) {
-                log.info("Closing old XA pool for {}: {}", connHash, oldPool.getPoolStats());
+                oldInstanceId = oldPool.getPoolStats();
+                log.info("Closing old XA pool for {}: {}", connHash, oldInstanceId);
                 try {
                     oldPool.close();
                 } catch (Exception e) {
@@ -301,7 +303,12 @@ public class XaPoolManager {
                     xaDataSource, connHash, poolConfig);
             
             poolMap.put(connHash, newPool);
-            log.info("Successfully recreated XA pool for {}: {}", connHash, newPool.getPoolStats());
+            String newInstanceId = newPool.getPoolStats();
+            
+            // Log pool recreation with structured format for CI validation
+            log.info("Atomikos pool recreated: resourceName={}, oldInstanceId={}, newInstanceId={}", 
+                    connHash, oldInstanceId != null ? oldInstanceId : "none", newInstanceId);
+            log.info("Successfully recreated XA pool for {}: {}", connHash, newInstanceId);
             
         } finally {
             lock.writeLock().unlock();

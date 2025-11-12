@@ -71,6 +71,9 @@ public class AtomikosXAConnectionPool {
         atomikosDataSource.setMaintenanceInterval(60); // Check connections every 60 seconds
         atomikosDataSource.setTestQuery(testQuery);
         
+        // Log pool creation with structured format for CI validation
+        log.info("Atomikos pool created: resourceName={}, minSize={}, maxSize={}", 
+                resourceName, minPoolSize, maxPoolSize);
         log.info("Created Atomikos XA pool '{}': maxPoolSize={}, minPoolSize={}, borrowTimeout={}s, maxIdleTime={}s, testQuery='{}'",
                 resourceName, maxPoolSize, minPoolSize, connectionTimeoutSec, maxIdleTimeSec, testQuery);
     }
