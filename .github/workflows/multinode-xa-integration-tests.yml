@@ -89,7 +89,7 @@ jobs:
       - name: Start MultinodeXAIntegrationTest with nohup
         run: |
           echo "Starting MultinodeXAIntegrationTest in background..."
-          nohup mvn test -pl ojp-jdbc-driver -Dtest=MultinodeXAIntegrationTest -DmultinodeTestsEnabled=true -DuseXA=true -Dgpg.skip=true > temp/MultinodeXAIntegrationTest.log 2>&1 &
+          nohup mvn test -pl ojp-jdbc-driver -Dtest=MultinodeXAIntegrationTest -DmultinodeTestsEnabled=true -DmultinodeXATestsEnabled=true -Dgpg.skip=true > temp/MultinodeXAIntegrationTest.log 2>&1 &
           echo $! > temp/multinode-xa-test.pid
           echo "MultinodeXAIntegrationTest started with PID $(cat temp/multinode-xa-test.pid)"
           # Give test time to start

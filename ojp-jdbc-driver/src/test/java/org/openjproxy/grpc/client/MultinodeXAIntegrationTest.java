@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * XA-capable behavior on the server side. The server will use XA-capable DataSources 
  * (AtomikosDataSourceBean wrapping PGXADataSource) when configured properly.
  * 
- * The test is gated by the multinodeTestsEnabled system property or MULTINODE_TESTS_ENABLED
- * env var, and additionally checks for useXA flag to enable XA-specific behavior.
+ * The test is gated by the multinodeXATestsEnabled system property or MULTINODE_XA_TESTS_ENABLED
+ * env var. Note that the base multinodeTestsEnabled flag must also be enabled.
  * 
  * Unlike the base test, this test expects the OJP servers to be configured with XA support
  * and validates that connections support transactions properly.
@@ -31,20 +31,20 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @Slf4j
 public class MultinodeXAIntegrationTest extends MultinodeIntegrationTest {
     
-    private static boolean useXA;
+    private static boolean isXATestDisabled;
     
     @BeforeAll
     public static void checkXATestConfiguration() {
         // Check if multinode tests are enabled (inherited from base class)
         MultinodeIntegrationTest.checkTestConfiguration();
         
-        // Check if XA mode is enabled via system property or environment variable
-        boolean sysPropXA = Boolean.parseBoolean(System.getProperty("useXA", "false"));
-        boolean envVarXA = Boolean.parseBoolean(System.getenv("USE_XA"));
-        useXA = sysPropXA || envVarXA;
+        // Check if XA tests are enabled via system property or environment variable
+        boolean sysPropXA = Boolean.parseBoolean(System.getProperty("multinodeXATestsEnabled", "false"));
+        boolean envVarXA = Boolean.parseBoolean(System.getenv("MULTINODE_XA_TESTS_ENABLED"));
+        isXATestDisabled = !(sysPropXA || envVarXA);
         
-        log.info("MultinodeXAIntegrationTest configuration: useXA={}, multinodeTestsEnabled={}", 
-                useXA, !isTestDisabled);
+        log.info("MultinodeXAIntegrationTest configuration: multinodeXATestsEnabled={}, multinodeTestsEnabled={}", 
+                !isXATestDisabled, !isTestDisabled);
     }
     
     @SneakyThrows
@@ -55,8 +55,8 @@ public class MultinodeXAIntegrationTest extends MultinodeIntegrationTest {
         // Skip if multinode tests are disabled (inherited check)
         assumeFalse(isTestDisabled, "Multinode tests are disabled");
         
-        // Additionally skip if XA is not enabled
-        assumeTrue(useXA, "XA tests are disabled. Set -DuseXA=true or USE_XA=true to enable.");
+        // Additionally skip if XA tests are not enabled
+        assumeFalse(isXATestDisabled, "Multinode XA tests are disabled. Set -DmultinodeXATestsEnabled=true or MULTINODE_XA_TESTS_ENABLED=true to enable.");
         
         log.info("Starting MultinodeXAIntegrationTest with XA-enabled servers");
         log.info("Connection URL: {}", url);
