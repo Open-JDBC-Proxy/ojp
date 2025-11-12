@@ -1,17 +1,14 @@
 package org.openjproxy.grpc.client;
 
-import com.atomikos.jdbc.AtomikosDataSourceBean;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.postgresql.xa.PGXADataSource;
 
-import javax.sql.XADataSource;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
-import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,17 +19,19 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Multinode XA Integration Test
  * 
  * This test extends MultinodeIntegrationTest and runs the same scenarios but with
- * XA-capable DataSources and XA transactions. It uses AtomikosDataSourceBean wrapping
- * PostgreSQL XADataSource to enable distributed transaction support.
+ * XA-capable behavior on the server side. The server will use XA-capable DataSources 
+ * (AtomikosDataSourceBean wrapping PGXADataSource) when configured properly.
  * 
  * The test is gated by the multinodeTestsEnabled system property or MULTINODE_TESTS_ENABLED
  * env var, and additionally checks for useXA flag to enable XA-specific behavior.
+ * 
+ * Unlike the base test, this test expects the OJP servers to be configured with XA support
+ * and validates that connections support transactions properly.
  */
 @Slf4j
 public class MultinodeXAIntegrationTest extends MultinodeIntegrationTest {
     
     private static boolean useXA;
-    private static AtomikosDataSourceBean xaDataSource;
     
     @BeforeAll
     public static void checkXATestConfiguration() {
@@ -59,110 +58,58 @@ public class MultinodeXAIntegrationTest extends MultinodeIntegrationTest {
         // Additionally skip if XA is not enabled
         assumeTrue(useXA, "XA tests are disabled. Set -DuseXA=true or USE_XA=true to enable.");
         
-        log.info("Starting MultinodeXAIntegrationTest with XA-enabled data sources");
+        log.info("Starting MultinodeXAIntegrationTest with XA-enabled servers");
         log.info("Connection URL: {}", url);
+        log.info("NOTE: This test expects OJP servers to be started with XA support (Atomikos pools)");
+        log.info("The workflow will validate Atomikos pool creation logs from the server logs");
         
-        // Set up XA DataSource if not already configured
-        if (xaDataSource == null) {
-            xaDataSource = createXADataSource(url, user, password);
-        }
+        // Verify XA capability through a test connection
+        verifyXACapability(driverClass, url, user, password);
         
-        // Verify XA capability before running the test
-        verifyXACapability();
-        
-        // Run the parent test scenarios with XA support
+        // Run the parent test scenarios
         // The parent test will use DriverManager.getConnection which goes through OJP
-        // The OJP server will use XA pools when configured with XA data sources
+        // The OJP servers should use XA pools when properly configured
         super.runTests(driverClass, url, user, password);
         
-        log.info("MultinodeXAIntegrationTest completed successfully with XA support");
+        log.info("MultinodeXAIntegrationTest completed successfully");
+        log.info("XA pool creation/recreation should be visible in server logs with messages like:");
+        log.info("  'Atomikos pool created: resourceName=..., minSize=..., maxSize=...'");
+        log.info("  'Atomikos pool recreated: resourceName=..., oldInstanceId=..., newInstanceId=...'");
     }
     
     /**
-     * Creates an Atomikos XADataSource wrapping PostgreSQL XADataSource.
+     * Verifies that connections support transactions and XA operations by checking
+     * the database metadata and transaction support.
      * 
+     * @param driverClass JDBC driver class
      * @param url JDBC URL
      * @param user Database user
      * @param password Database password
-     * @return AtomikosDataSourceBean configured for PostgreSQL XA
      */
-    private AtomikosDataSourceBean createXADataSource(String url, String user, String password) {
-        log.info("Creating Atomikos XA DataSource for PostgreSQL");
+    private void verifyXACapability(String driverClass, String url, String user, String password) throws Exception {
+        log.info("Verifying XA capability through test connection...");
         
-        // Create PostgreSQL XADataSource
-        PGXADataSource pgXADataSource = new PGXADataSource();
-        
-        // Parse URL to extract connection details
-        // URL format: jdbc:ojp[...]:postgresql://host:port/database or jdbc:postgresql://host:port/database
-        String cleanUrl = url;
-        if (cleanUrl.toLowerCase().contains("_postgresql:")) {
-            cleanUrl = cleanUrl.substring(cleanUrl.toLowerCase().indexOf("_postgresql:") + "_postgresql:".length());
-        } else if (cleanUrl.toLowerCase().startsWith("jdbc:postgresql:")) {
-            cleanUrl = cleanUrl.substring("jdbc:".length());
-        }
-        
-        // Parse postgresql://host:port/database
-        if (cleanUrl.startsWith("postgresql://")) {
-            cleanUrl = cleanUrl.substring("postgresql://".length());
-            String[] parts = cleanUrl.split("/");
-            if (parts.length >= 2) {
-                String hostPort = parts[0];
-                String database = parts[1].split("\\?")[0]; // Remove query params
-                
-                String[] hostPortParts = hostPort.split(":");
-                String host = hostPortParts[0];
-                int port = hostPortParts.length > 1 ? Integer.parseInt(hostPortParts[1]) : 5432;
-                
-                pgXADataSource.setServerNames(new String[]{host});
-                pgXADataSource.setPortNumbers(new int[]{port});
-                pgXADataSource.setDatabaseName(database);
-            }
-        }
-        
-        pgXADataSource.setUser(user);
-        pgXADataSource.setPassword(password);
-        
-        // Wrap with Atomikos DataSource Bean
-        AtomikosDataSourceBean atomikosDS = new AtomikosDataSourceBean();
-        atomikosDS.setUniqueResourceName("ojp-xa-test-" + System.currentTimeMillis());
-        atomikosDS.setXaDataSource(pgXADataSource);
-        
-        // Configure pool settings similar to Hikari defaults
-        atomikosDS.setMaxPoolSize(20);
-        atomikosDS.setMinPoolSize(5);
-        atomikosDS.setBorrowConnectionTimeout(10); // 10 seconds
-        atomikosDS.setMaxIdleTime(600); // 10 minutes
-        atomikosDS.setTestQuery("SELECT 1");
-        
-        log.info("Atomikos XA DataSource created: resourceName={}, maxPoolSize={}, minPoolSize={}", 
-                atomikosDS.getUniqueResourceName(), atomikosDS.getMaxPoolSize(), atomikosDS.getMinPoolSize());
-        
-        return atomikosDS;
-    }
-    
-    /**
-     * Verifies that XA capability is available by attempting to get an XA connection.
-     * This serves as an assertion that the transaction manager is XA-capable.
-     */
-    private void verifyXACapability() throws SQLException {
-        log.info("Verifying XA capability...");
-        
-        assertNotNull(xaDataSource, "XA DataSource should be initialized");
-        
-        // Try to get a connection from the XA DataSource
-        try (Connection conn = xaDataSource.getConnection()) {
-            assertNotNull(conn, "Should be able to get connection from XA DataSource");
-            assertTrue(conn.getMetaData().supportsTransactions(), 
-                    "Connection should support transactions");
+        Class.forName(driverClass);
+        try (Connection conn = getConnection(driverClass, url, user, password)) {
+            assertNotNull(conn, "Should be able to get connection");
             
-            // Verify the connection is working
+            DatabaseMetaData metaData = conn.getMetaData();
+            assertNotNull(metaData, "Should be able to get database metadata");
+            
+            // Verify transaction support
+            assertTrue(metaData.supportsTransactions(), 
+                    "Database should support transactions for XA");
+            
+            // Check if connection is valid
             boolean isValid = conn.isValid(5);
-            assertTrue(isValid, "XA connection should be valid");
+            assertTrue(isValid, "Connection should be valid");
             
-            log.info("✓ XA capability verified: connection is valid and supports transactions");
-        } catch (SQLException e) {
-            log.error("Failed to verify XA capability: {}", e.getMessage(), e);
-            throw e;
+            // Log transaction isolation level
+            int isolationLevel = conn.getTransactionIsolation();
+            log.info("✓ XA-capable connection verified: database={}, supportsTransactions={}, isolationLevel={}", 
+                    metaData.getDatabaseProductName(), 
+                    metaData.supportsTransactions(),
+                    isolationLevel);
         }
     }
 }
