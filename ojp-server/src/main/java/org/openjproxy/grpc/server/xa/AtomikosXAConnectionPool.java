@@ -85,6 +85,10 @@ public class AtomikosXAConnectionPool {
         // Disable auto-commit for XA connections
         config.setAutoCommit(false);
         
+        // Disable failFast initialization for tests
+        // In production, connection validation happens on first use
+        config.setInitializationFailTimeout(-1);
+        
         // Create HikariDataSource
         this.hikariDataSource = new HikariDataSource(config);
         
