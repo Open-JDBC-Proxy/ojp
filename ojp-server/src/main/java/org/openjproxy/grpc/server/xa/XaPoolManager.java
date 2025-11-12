@@ -2,6 +2,7 @@ package org.openjproxy.grpc.server.xa;
 
 import com.openjproxy.grpc.ConnectionDetails;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.grpc.server.ServerConfiguration;
 
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
@@ -48,9 +49,30 @@ public class XaPoolManager {
     // Map of connection hash to pending recreation futures
     private final Map<String, CompletableFuture<Void>> pendingRecreations = new ConcurrentHashMap<>();
     
-    // Configuration
-    private static final long DEBOUNCE_INTERVAL_MS = 5000; // 5 seconds between recreations
-    private static final long RECREATION_TIMEOUT_MS = 30000; // 30 seconds timeout for recreation
+    // Configuration - can be set via constructor or defaults
+    private final long debounceIntervalMs;
+    private final long recreationTimeoutMs;
+    
+    /**
+     * Creates a new XaPoolManager with default configuration values.
+     */
+    public XaPoolManager() {
+        this.debounceIntervalMs = ServerConfiguration.DEFAULT_XA_POOL_RECREATION_DEBOUNCE_MS;
+        this.recreationTimeoutMs = ServerConfiguration.DEFAULT_XA_POOL_RECREATION_TIMEOUT_MS;
+    }
+    
+    /**
+     * Creates a new XaPoolManager with custom configuration values.
+     * 
+     * @param debounceIntervalMs Minimum interval between recreation attempts (milliseconds)
+     * @param recreationTimeoutMs Maximum time to wait for recreation to complete (milliseconds)
+     */
+    public XaPoolManager(long debounceIntervalMs, long recreationTimeoutMs) {
+        this.debounceIntervalMs = debounceIntervalMs;
+        this.recreationTimeoutMs = recreationTimeoutMs;
+        log.info("XaPoolManager initialized with debounceIntervalMs={}, recreationTimeoutMs={}", 
+                debounceIntervalMs, recreationTimeoutMs);
+    }
     
     /**
      * Gets or creates an XA connection pool for the given connection hash.
@@ -183,9 +205,9 @@ public class XaPoolManager {
         // Check debounce interval
         Long lastRecreation = lastRecreationTime.get(connHash);
         long now = System.currentTimeMillis();
-        if (lastRecreation != null && (now - lastRecreation) < DEBOUNCE_INTERVAL_MS) {
+        if (lastRecreation != null && (now - lastRecreation) < debounceIntervalMs) {
             log.debug("Skipping pool recreation for {} - debounce interval not elapsed ({}ms remaining)",
-                    connHash, DEBOUNCE_INTERVAL_MS - (now - lastRecreation));
+                    connHash, debounceIntervalMs - (now - lastRecreation));
             return;
         }
         
@@ -206,11 +228,11 @@ public class XaPoolManager {
                 log.error("Failed to recreate XA pool for {}: {}", connHash, e.getMessage(), e);
             }
         }, recreationExecutor)
-        .orTimeout(RECREATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .orTimeout(recreationTimeoutMs, TimeUnit.MILLISECONDS)
         .exceptionally(throwable -> {
             if (throwable instanceof TimeoutException) {
                 log.error("XA pool recreation timed out after {}ms for {}", 
-                        RECREATION_TIMEOUT_MS, connHash);
+                        recreationTimeoutMs, connHash);
             } else {
                 log.error("XA pool recreation failed for {}: {}", 
                         connHash, throwable.getMessage(), throwable);

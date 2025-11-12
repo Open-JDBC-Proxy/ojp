@@ -110,8 +110,8 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
 
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
-    // XA pool manager for thread-safe pool management and recreation
-    private final XaPoolManager xaPoolManager = new XaPoolManager();
+    // XA pool manager for thread-safe pool management and recreation (initialized lazily)
+    private XaPoolManager xaPoolManager;
     // Map to track XA connection hashes and their pool configs for recreation
     private final Map<String, XaPoolInfo> xaPoolInfoMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
@@ -155,6 +155,22 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
     
     /**
+     * Lazily initializes the XA pool manager with configuration from ServerConfiguration.
+     */
+    private XaPoolManager getXaPoolManager() {
+        if (xaPoolManager == null) {
+            synchronized (this) {
+                if (xaPoolManager == null) {
+                    xaPoolManager = new XaPoolManager(
+                            serverConfiguration.getXaPoolRecreationDebounceMs(),
+                            serverConfiguration.getXaPoolRecreationTimeoutMs());
+                }
+            }
+        }
+        return xaPoolManager;
+    }
+    
+    /**
      * Processes cluster health from the client request and triggers pool rebalancing if needed.
      * This should be called for every request that includes SessionInfo with cluster health.
      */
@@ -179,7 +195,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 
                 ConnectionPoolConfigurer.processClusterHealthForXA(
                         connHash, clusterHealth, clusterHealthTracker, 
-                        xaPoolManager, factory, xaPoolInfo.getPoolConfig());
+                        getXaPoolManager(), factory, xaPoolInfo.getPoolConfig());
             } else {
                 // Non-XA connection - use HikariCP dynamic resizing
                 HikariDataSource dataSource = datasourceMap.get(connHash);
@@ -218,7 +234,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         XADataSourceFactory.createXADataSource(url, connectionDetails);
                 
                 // Get or create pool using XaPoolManager
-                AtomikosXAConnectionPool xaPool = xaPoolManager.getOrCreatePool(connHash, factory, poolConfig);
+                AtomikosXAConnectionPool xaPool = getXaPoolManager().getOrCreatePool(connHash, factory, poolConfig);
                 
                 // Store XA pool info for recreation on health changes
                 if (!xaPoolInfoMap.containsKey(connHash)) {
@@ -248,7 +264,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             // Session ID used as both sessionId and branchId for initial allocation
             try {
                 String sessionId = UUID.randomUUID().toString();
-                XAConnection xaConnection = xaPoolManager.borrowConnection(connHash, sessionId, sessionId);
+                XAConnection xaConnection = getXaPoolManager().borrowConnection(connHash, sessionId, sessionId);
                 Connection connection = xaConnection.getConnection();
                 
                 // Create session with XA support using sessionManager
@@ -257,7 +273,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 
                 log.info("Created XA session with UUID: {} for client: {} - pool stats: {}", 
                         sessionInfo.getSessionUUID(), connectionDetails.getClientUUID(), 
-                        xaPoolManager.getPoolStats(connHash));
+                        getXaPoolManager().getPoolStats(connHash));
                 
                 responseObserver.onNext(sessionInfo);
                 this.dbNameMap.put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));

@@ -98,15 +98,33 @@ XA pools use the same properties as regular connection pools:
 | `ojp.connection.pool.idleTimeout` | Idle connection timeout (ms) | 600000 |
 | `ojp.connection.pool.validationQuery` | Connection validation query | SELECT 1 |
 
-### Recreation Tuning
+### XA Pool Recreation Configuration
 
-Advanced configuration (requires code changes):
+XA pool recreation behavior can be configured via server configuration properties:
 
-```java
-// In XaPoolManager.java
-private static final long DEBOUNCE_INTERVAL_MS = 5000;  // 5 seconds
-private static final long RECREATION_TIMEOUT_MS = 30000; // 30 seconds
+| Property | Description | Default |
+|----------|-------------|---------|
+| `ojp.server.xa.pool.recreation.debounceMs` | Minimum interval between recreation attempts (ms) | 5000 |
+| `ojp.server.xa.pool.recreation.timeoutMs` | Maximum time to wait for recreation (ms) | 30000 |
+
+These properties can be set via JVM arguments or environment variables:
+
+```bash
+# Via JVM arguments
+java -Dojp.server.xa.pool.recreation.debounceMs=10000 \
+     -Dojp.server.xa.pool.recreation.timeoutMs=60000 \
+     -jar ojp-server.jar
+
+# Via environment variables
+export OJP_SERVER_XA_POOL_RECREATION_DEBOUNCEMS=10000
+export OJP_SERVER_XA_POOL_RECREATION_TIMEOUTMS=60000
+java -jar ojp-server.jar
 ```
+
+**Configuration Guidelines:**
+
+- **debounceMs**: Increase for unstable clusters (10-15 seconds), decrease for stable clusters that need faster response (3-5 seconds)
+- **timeoutMs**: Should be at least 2-3x the expected pool recreation time. Increase if recreation logs show frequent timeouts
 
 ## Behavior Details
 
