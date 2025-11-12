@@ -34,6 +34,8 @@ public class ServerConfiguration {
     private static final String SLOW_QUERY_SLOW_SLOT_TIMEOUT_KEY = "ojp.server.slowQuerySegregation.slowSlotTimeout";
     private static final String SLOW_QUERY_FAST_SLOT_TIMEOUT_KEY = "ojp.server.slowQuerySegregation.fastSlotTimeout";
     private static final String SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL_KEY = "ojp.server.slowQuerySegregation.updateGlobalAvgInterval";
+    private static final String XA_POOL_RECREATION_DEBOUNCE_MS_KEY = "ojp.server.xa.pool.recreation.debounceMs";
+    private static final String XA_POOL_RECREATION_TIMEOUT_MS_KEY = "ojp.server.xa.pool.recreation.timeoutMs";
 
     // Default values
     public static final int DEFAULT_SERVER_PORT = CommonConstants.DEFAULT_PORT_NUMBER;
@@ -55,6 +57,8 @@ public class ServerConfiguration {
     public static final long DEFAULT_SLOW_QUERY_SLOW_SLOT_TIMEOUT = 120000; // 120 seconds slow slot timeout
     public static final long DEFAULT_SLOW_QUERY_FAST_SLOT_TIMEOUT = 60000; // 60 seconds fast slot timeout
     public static final long DEFAULT_SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL = 300; // 300 seconds (5 minutes) global average update interval
+    public static final long DEFAULT_XA_POOL_RECREATION_DEBOUNCE_MS = 5000; // 5 seconds debounce interval for XA pool recreation
+    public static final long DEFAULT_XA_POOL_RECREATION_TIMEOUT_MS = 30000; // 30 seconds timeout for XA pool recreation
 
     // Configuration values
     private final int serverPort;
@@ -75,6 +79,8 @@ public class ServerConfiguration {
     private final long slowQuerySlowSlotTimeout;
     private final long slowQueryFastSlotTimeout;
     private final long slowQueryUpdateGlobalAvgInterval;
+    private final long xaPoolRecreationDebounceMs;
+    private final long xaPoolRecreationTimeoutMs;
 
     public ServerConfiguration() {
         this.serverPort = getIntProperty(SERVER_PORT_KEY, DEFAULT_SERVER_PORT);
@@ -95,6 +101,8 @@ public class ServerConfiguration {
         this.slowQuerySlowSlotTimeout = getLongProperty(SLOW_QUERY_SLOW_SLOT_TIMEOUT_KEY, DEFAULT_SLOW_QUERY_SLOW_SLOT_TIMEOUT);
         this.slowQueryFastSlotTimeout = getLongProperty(SLOW_QUERY_FAST_SLOT_TIMEOUT_KEY, DEFAULT_SLOW_QUERY_FAST_SLOT_TIMEOUT);
         this.slowQueryUpdateGlobalAvgInterval = getLongProperty(SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL_KEY, DEFAULT_SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL);
+        this.xaPoolRecreationDebounceMs = getLongProperty(XA_POOL_RECREATION_DEBOUNCE_MS_KEY, DEFAULT_XA_POOL_RECREATION_DEBOUNCE_MS);
+        this.xaPoolRecreationTimeoutMs = getLongProperty(XA_POOL_RECREATION_TIMEOUT_MS_KEY, DEFAULT_XA_POOL_RECREATION_TIMEOUT_MS);
 
         logConfigurationSummary();
     }
@@ -193,6 +201,8 @@ public class ServerConfiguration {
         logger.info("  Slow Query Slow Slot Timeout: {} ms", slowQuerySlowSlotTimeout);
         logger.info("  Slow Query Fast Slot Timeout: {} ms", slowQueryFastSlotTimeout);
         logger.info("  Slow Query Update Global Avg Interval: {} seconds", slowQueryUpdateGlobalAvgInterval);
+        logger.info("  XA Pool Recreation Debounce: {} ms", xaPoolRecreationDebounceMs);
+        logger.info("  XA Pool Recreation Timeout: {} ms", xaPoolRecreationTimeoutMs);
     }
 
     // Getters
@@ -266,5 +276,13 @@ public class ServerConfiguration {
 
     public long getSlowQueryUpdateGlobalAvgInterval() {
         return slowQueryUpdateGlobalAvgInterval;
+    }
+
+    public long getXaPoolRecreationDebounceMs() {
+        return xaPoolRecreationDebounceMs;
+    }
+
+    public long getXaPoolRecreationTimeoutMs() {
+        return xaPoolRecreationTimeoutMs;
     }
 }

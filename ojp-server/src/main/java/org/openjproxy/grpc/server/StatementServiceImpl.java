@@ -51,6 +51,7 @@ import org.openjproxy.grpc.server.utils.SessionInfoUtils;
 import org.openjproxy.grpc.server.statement.ParameterHandler;
 import org.openjproxy.grpc.server.xa.XADataSourceFactory;
 import org.openjproxy.grpc.server.xa.AtomikosXAConnectionPool;
+import org.openjproxy.grpc.server.xa.XaPoolManager;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.lob.LobProcessor;
@@ -109,8 +110,10 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
 
     private final Map<String, HikariDataSource> datasourceMap = new ConcurrentHashMap<>();
-    // Map for storing Atomikos XA connection pools (replaces direct XADataSource usage)
-    private final Map<String, AtomikosXAConnectionPool> xaConnectionPoolMap = new ConcurrentHashMap<>();
+    // XA pool manager for thread-safe pool management and recreation (initialized lazily)
+    private XaPoolManager xaPoolManager;
+    // Map to track XA connection hashes and their pool configs for recreation
+    private final Map<String, XaPoolInfo> xaPoolInfoMap = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
     
@@ -152,6 +155,22 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
     
     /**
+     * Lazily initializes the XA pool manager with configuration from ServerConfiguration.
+     */
+    private XaPoolManager getXaPoolManager() {
+        if (xaPoolManager == null) {
+            synchronized (this) {
+                if (xaPoolManager == null) {
+                    xaPoolManager = new XaPoolManager(
+                            serverConfiguration.getXaPoolRecreationDebounceMs(),
+                            serverConfiguration.getXaPoolRecreationTimeoutMs());
+                }
+            }
+        }
+        return xaPoolManager;
+    }
+    
+    /**
      * Processes cluster health from the client request and triggers pool rebalancing if needed.
      * This should be called for every request that includes SessionInfo with cluster health.
      */
@@ -166,10 +185,22 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         if (clusterHealth != null && !clusterHealth.isEmpty() && 
             connHash != null && !connHash.isEmpty()) {
             
-            // Get the HikariDataSource for this connection hash to enable dynamic resizing
-            HikariDataSource dataSource = datasourceMap.get(connHash);
+            // Check if this is an XA connection
+            XaPoolInfo xaPoolInfo = xaPoolInfoMap.get(connHash);
             
-            ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
+            if (xaPoolInfo != null) {
+                // XA connection - trigger pool recreation on health changes
+                XaPoolManager.XADataSourceFactory factory = () -> 
+                        XADataSourceFactory.createXADataSource(xaPoolInfo.getUrl(), xaPoolInfo.getConnectionDetails());
+                
+                ConnectionPoolConfigurer.processClusterHealthForXA(
+                        connHash, clusterHealth, clusterHealthTracker, 
+                        getXaPoolManager(), factory, xaPoolInfo.getPoolConfig());
+            } else {
+                // Non-XA connection - use HikariCP dynamic resizing
+                HikariDataSource dataSource = datasourceMap.get(connHash);
+                ConnectionPoolConfigurer.processClusterHealth(connHash, clusterHealth, clusterHealthTracker, dataSource);
+            }
         }
     }
 
@@ -195,34 +226,36 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
-            // Handle XA connection - create Atomikos XA connection pool (replaces XA limiter)
-            AtomikosXAConnectionPool xaPool = this.xaConnectionPoolMap.get(connHash);
-            if (xaPool == null) {
-                try {
-                    // Create XADataSource for the database using factory
-                    String url = UrlParser.parseUrl(connectionDetails.getUrl());
-                    XADataSource xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
-                    
-                    // Wrap XADataSource with Atomikos connection pool
-                    xaPool = new AtomikosXAConnectionPool(xaDataSource, connHash, poolConfig);
-                    this.xaConnectionPoolMap.put(connHash, xaPool);
-                    
-                    // Create slow query segregation manager for XA datasource
-                    // Use pool max size from config (default 20)
+            // Handle XA connection - use XaPoolManager for thread-safe pool management
+            try {
+                // Create factory for XADataSource creation
+                String url = UrlParser.parseUrl(connectionDetails.getUrl());
+                XaPoolManager.XADataSourceFactory factory = () -> 
+                        XADataSourceFactory.createXADataSource(url, connectionDetails);
+                
+                // Get or create pool using XaPoolManager
+                AtomikosXAConnectionPool xaPool = getXaPoolManager().getOrCreatePool(connHash, factory, poolConfig);
+                
+                // Store XA pool info for recreation on health changes
+                if (!xaPoolInfoMap.containsKey(connHash)) {
+                    xaPoolInfoMap.put(connHash, new XaPoolInfo(url, connectionDetails, poolConfig));
+                }
+                
+                // Create slow query segregation manager for XA datasource if not exists
+                if (!slowQuerySegregationManagers.containsKey(connHash)) {
                     int poolSize = Integer.parseInt(
                             poolConfig.getProperty("ojp.connection.pool.maximumPoolSize", 
                             String.valueOf(org.openjproxy.constants.CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE)));
                     createSlowQuerySegregationManagerForDatasource(connHash, poolSize);
-                    
-                    log.info("Created new Atomikos XA connection pool for connHash: {} - {}", 
-                            connHash, xaPool.getPoolStats());
-                    
-                } catch (Exception e) {
-                    log.error("Failed to create Atomikos XA pool for connection hash {}: {}", connHash, e.getMessage(), e);
-                    SQLException sqlException = new SQLException("Failed to create XA connection pool: " + e.getMessage(), e);
-                    sendSQLExceptionMetadata(sqlException, responseObserver);
-                    return;
                 }
+                
+                log.debug("Using XA pool for connHash: {} - {}", connHash, xaPool.getPoolStats());
+                
+            } catch (Exception e) {
+                log.error("Failed to create Atomikos XA pool for connection hash {}: {}", connHash, e.getMessage(), e);
+                SQLException sqlException = new SQLException("Failed to create XA connection pool: " + e.getMessage(), e);
+                sendSQLExceptionMetadata(sqlException, responseObserver);
+                return;
             }
             
             this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
@@ -231,7 +264,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             // Session ID used as both sessionId and branchId for initial allocation
             try {
                 String sessionId = UUID.randomUUID().toString();
-                XAConnection xaConnection = xaPool.borrowXAConnection(sessionId, sessionId);
+                XAConnection xaConnection = getXaPoolManager().borrowConnection(connHash, sessionId, sessionId);
                 Connection connection = xaConnection.getConnection();
                 
                 // Create session with XA support using sessionManager
@@ -239,7 +272,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
                 log.info("Created XA session with UUID: {} for client: {} - pool stats: {}", 
-                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID(), xaPool.getPoolStats());
+                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID(), 
+                        getXaPoolManager().getPoolStats(connHash));
                 
                 responseObserver.onNext(sessionInfo);
                 this.dbNameMap.put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
@@ -1799,5 +1833,15 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 .setGlobalTransactionId(com.google.protobuf.ByteString.copyFrom(xid.getGlobalTransactionId()))
                 .setBranchQualifier(com.google.protobuf.ByteString.copyFrom(xid.getBranchQualifier()))
                 .build();
+    }
+    
+    /**
+     * Helper class to store XA pool information for recreation.
+     */
+    @lombok.Data
+    private static class XaPoolInfo {
+        private final String url;
+        private final ConnectionDetails connectionDetails;
+        private final Properties poolConfig;
     }
 }
