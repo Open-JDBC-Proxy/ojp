@@ -44,12 +44,29 @@ public class Connection implements java.sql.Connection {
     private boolean autoCommit = true;
     private boolean readOnly = false;
     private boolean closed;
+    
+    // Lock for thread-safe session creation
+    private final Object sessionCreationLock = new Object();
+    
+    // Store connection details for session recreation
+    private volatile com.openjproxy.grpc.ConnectionDetails connectionDetails;
+    
+    // Track the session UUID to detect when it's been recreated
+    private volatile String lastRecreatedSessionUUID = null;
 
     public Connection(SessionInfo session, StatementService statementService, DbName dbName) {
         this.session = session;
         this.statementService = statementService;
         this.closed = false;
         this.dbName = dbName;
+    }
+    
+    /**
+     * Set connection details for potential session recreation.
+     * This should be called by the Driver after creating the Connection.
+     */
+    public void setConnectionDetails(com.openjproxy.grpc.ConnectionDetails connectionDetails) {
+        this.connectionDetails = connectionDetails;
     }
 
     @Override
@@ -480,6 +497,30 @@ public class Connection implements java.sql.Connection {
 
     private <T> T callProxy(CallType callType, String targetName, Class returnType, List<Object> params) throws SQLException {
         log.debug("callProxy: {}, {}, {}, <params>", callType, targetName, returnType);
+        
+        try {
+            return executeCallProxy(callType, targetName, returnType, params);
+        } catch (SQLException e) {
+            // Check if this is a "no session" or "session not found" error
+            if (isSessionNotFoundError(e)) {
+                log.info("Session not found on server, attempting to create new session and retry call");
+                
+                // Ensure session exists (thread-safe)
+                ensureSessionExists();
+                
+                // Retry the call with the new session
+                log.debug("Retrying callProxy after session creation");
+                return executeCallProxy(callType, targetName, returnType, params);
+            }
+            // Re-throw other SQL exceptions
+            throw e;
+        }
+    }
+    
+    /**
+     * Execute the actual callProxy request.
+     */
+    private <T> T executeCallProxy(CallType callType, String targetName, Class returnType, List<Object> params) throws SQLException {
         CallResourceRequest.Builder reqBuilder = this.newCallBuilder();
         reqBuilder.setTarget(
                 TargetCall.newBuilder()
@@ -488,24 +529,98 @@ public class Connection implements java.sql.Connection {
                         .addAllParams(ProtoConverter.objectListToParameterValues(params))
                         .build()
         );
-        try {
-            CallResourceResponse response = this.statementService.callResource(reqBuilder.build());
-            this.session = response.getSession();
-            this.setSession(response.getSession());
-            if (Void.class.equals(returnType)) {
-                return null;
-            }
-            
-            List<ParameterValue> values = response.getValuesList();
-            if (values.isEmpty()) {
-                return null;
-            }
-            
-            Object result = ProtoConverter.fromParameterValue(values.get(0));
-            return (T) result;
-        } catch (Exception e) {
-            e.printStackTrace();
+        
+        CallResourceResponse response = this.statementService.callResource(reqBuilder.build());
+        this.session = response.getSession();
+        this.setSession(response.getSession());
+        
+        if (Void.class.equals(returnType)) {
             return null;
+        }
+        
+        List<ParameterValue> values = response.getValuesList();
+        if (values.isEmpty()) {
+            return null;
+        }
+        
+        Object result = ProtoConverter.fromParameterValue(values.get(0));
+        return (T) result;
+    }
+    
+    /**
+     * Check if the exception indicates a missing session.
+     * This checks for common error messages that indicate session not found.
+     */
+    private boolean isSessionNotFoundError(SQLException e) {
+        if (e == null) {
+            return false;
+        }
+        
+        String message = e.getMessage();
+        if (message == null) {
+            return false;
+        }
+        
+        // Check for various "session not found" patterns
+        String lowerMsg = message.toLowerCase();
+        return lowerMsg.contains("session not found") ||
+               lowerMsg.contains("no active session") ||
+               lowerMsg.contains("connection not found for this sessioninfo") ||
+               (lowerMsg.contains("session") && (lowerMsg.contains("not found") || lowerMsg.contains("missing")));
+    }
+    
+    /**
+     * Ensures a session exists on the server. Creates one if missing.
+     * Thread-safe: only one thread will create the session if multiple threads detect missing session concurrently.
+     */
+    private void ensureSessionExists() throws SQLException {
+        String currentSessionUUID = this.session != null ? this.session.getSessionUUID() : null;
+        
+        synchronized (sessionCreationLock) {
+            // Check if another thread already recreated the session while we were waiting
+            String newSessionUUID = this.session != null ? this.session.getSessionUUID() : null;
+            
+            // If session UUID changed, another thread already recreated it
+            if (currentSessionUUID != null && newSessionUUID != null && !currentSessionUUID.equals(newSessionUUID)) {
+                log.debug("Session was already recreated by another thread. Current: {}, New: {}", 
+                        currentSessionUUID, newSessionUUID);
+                return;
+            }
+            
+            // Also check if we recently recreated this exact session UUID
+            if (newSessionUUID != null && newSessionUUID.equals(lastRecreatedSessionUUID)) {
+                log.debug("Session {} was recently recreated, skipping duplicate recreation", newSessionUUID);
+                return;
+            }
+            
+            // Create new session
+            createNewSession();
+            lastRecreatedSessionUUID = this.session.getSessionUUID();
+        }
+    }
+    
+    /**
+     * Creates a new session on the server by calling connect.
+     * Must be called within synchronized block.
+     */
+    private void createNewSession() throws SQLException {
+        if (connectionDetails == null) {
+            throw new SQLException("Cannot recreate session: connection details not available. " +
+                    "This connection was not properly initialized by the driver.");
+        }
+        
+        log.info("Creating new session on server due to missing session. URL: {}, ClientUUID: {}",
+                connectionDetails.getUrl(), connectionDetails.getClientUUID());
+        
+        try {
+            SessionInfo newSession = this.statementService.connect(connectionDetails);
+            this.session = newSession;
+            
+            log.info("Successfully created new session. SessionUUID: {}, ConnHash: {}",
+                    newSession.getSessionUUID(), newSession.getConnHash());
+        } catch (SQLException e) {
+            log.error("Failed to create new session: {}", e.getMessage(), e);
+            throw new SQLException("Failed to recreate session on server: " + e.getMessage(), e);
         }
     }
 }

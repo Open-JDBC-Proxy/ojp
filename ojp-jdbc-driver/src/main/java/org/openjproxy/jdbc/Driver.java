@@ -91,8 +91,9 @@ public class Driver implements java.sql.Driver {
         
         log.info("Calling connect() on statement service with URL: {}", connectionUrl);
         SessionInfo sessionInfo;
+        ConnectionDetails connectionDetails = connBuilder.build();
         try {
-            sessionInfo = statementService.connect(connBuilder.build());
+            sessionInfo = statementService.connect(connectionDetails);
             log.info("Connection established - sessionUUID: {}, connHash: {}", 
                     sessionInfo.getSessionUUID(), sessionInfo.getConnHash());
         } catch (Exception e) {
@@ -100,7 +101,12 @@ public class Driver implements java.sql.Driver {
             throw e;
         }
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
-        return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
+        Connection connection = new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
+        
+        // Store connection details for potential session recreation
+        connection.setConnectionDetails(connectionDetails);
+        
+        return connection;
     }
     
     /**
