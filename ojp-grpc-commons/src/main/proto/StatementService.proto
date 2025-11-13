@@ -274,6 +274,9 @@ enum ResourceType {
     RES_LOB = 4;
     RES_CONNECTION = 5;
     RES_SAVEPOINT = 6;
+    RES_XA_RESOURCE = 7;
+    RES_XA_CONNECTION = 8;
+    RES_XA_LOGICAL_CONNECTION = 9;
 }
 
 enum CallType {
@@ -325,6 +328,11 @@ enum CallType {
     CALL_ENQUOTE = 45;
     CALL_REGISTER = 46;
     CALL_LENGTH = 47;
+    CALL_START = 48;
+    CALL_END = 49;
+    CALL_COMMIT = 50;
+    CALL_RECOVER = 51;
+    CALL_FORGET = 52;
 }
 
 message TargetCall {
