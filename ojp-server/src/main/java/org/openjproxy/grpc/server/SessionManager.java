@@ -3,6 +3,7 @@ package org.openjproxy.grpc.server;
 import com.openjproxy.grpc.SessionInfo;
 
 import javax.sql.XAConnection;
+import javax.transaction.xa.XAResource;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -35,5 +36,11 @@ public interface SessionManager {
     void waitLobStreamsConsumption(SessionInfo sessionInfo);
     void registerAttr(SessionInfo sessionInfo, String key, Object value);
     Object getAttr(SessionInfo sessionInfo, String key);
+    String registerXAResource(SessionInfo sessionInfo, XAResource xaResource);
+    XAResource getXAResource(SessionInfo sessionInfo, String uuid);
+    String registerXAConnection(SessionInfo sessionInfo, XAConnection xaConnection);
+    XAConnection getXAConnection(SessionInfo sessionInfo, String uuid);
+    String registerXALogicalConnection(SessionInfo sessionInfo, Connection logicalConnection);
+    Connection getXALogicalConnection(SessionInfo sessionInfo, String uuid);
 
 }

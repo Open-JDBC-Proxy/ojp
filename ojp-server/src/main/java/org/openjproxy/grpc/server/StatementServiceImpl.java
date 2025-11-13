@@ -1169,6 +1169,34 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 case RES_SAVEPOINT:
                     resource = sessionManager.getAttr(request.getSession(), request.getResourceUUID());
                     break;
+                case RES_XA_RESOURCE: {
+                    resource = sessionManager.getXAResource(request.getSession(), request.getResourceUUID());
+                    if (resource == null) {
+                        // If no UUID provided, get the default XAResource for this XA session
+                        Session session = sessionManager.getSession(request.getSession());
+                        resource = session.getXaResource();
+                    }
+                    break;
+                }
+                case RES_XA_CONNECTION: {
+                    resource = sessionManager.getXAConnection(request.getSession(), request.getResourceUUID());
+                    if (resource == null) {
+                        // If no UUID provided, get the default XAConnection for this XA session
+                        Session session = sessionManager.getSession(request.getSession());
+                        resource = session.getXaConnection();
+                    }
+                    break;
+                }
+                case RES_XA_LOGICAL_CONNECTION: {
+                    resource = sessionManager.getXALogicalConnection(request.getSession(), request.getResourceUUID());
+                    if (resource == null) {
+                        // For XA logical connections, return the main connection
+                        ConnectionSessionDTO csDto = sessionConnection(request.getSession(), true);
+                        responseBuilder.setSession(csDto.getSession());
+                        resource = csDto.getConnection();
+                    }
+                    break;
+                }
                 default:
                     throw new RuntimeException("Resource type invalid");
             }

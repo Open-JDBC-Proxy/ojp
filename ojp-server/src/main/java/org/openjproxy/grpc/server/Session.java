@@ -42,6 +42,9 @@ public class Session {
     private Map<String, CallableStatement> callableStatementMap;
     private Map<String, Object> lobMap;
     private Map<String, Object> attrMap;
+    private Map<String, XAResource> xaResourceMap;
+    private Map<String, XAConnection> xaConnectionMap;
+    private Map<String, Connection> xaLogicalConnectionMap;
     private boolean closed;
     private int transactionTimeout = 0;
 
@@ -63,6 +66,9 @@ public class Session {
         this.callableStatementMap = new ConcurrentHashMap<>();
         this.lobMap = new ConcurrentHashMap<>();
         this.attrMap = new ConcurrentHashMap<>();
+        this.xaResourceMap = new ConcurrentHashMap<>();
+        this.xaConnectionMap = new ConcurrentHashMap<>();
+        this.xaLogicalConnectionMap = new ConcurrentHashMap<>();
         
         if (isXA && xaConnection != null) {
             try {
@@ -144,6 +150,36 @@ public class Session {
     public <T> T getLob(String uuid) {
         this.notClosed();
         return (T) this.lobMap.get(uuid);
+    }
+
+    public void addXAResource(String uuid, XAResource xaResource) {
+        this.notClosed();
+        this.xaResourceMap.put(uuid, xaResource);
+    }
+
+    public XAResource getXAResourceByUUID(String uuid) {
+        this.notClosed();
+        return this.xaResourceMap.get(uuid);
+    }
+
+    public void addXAConnection(String uuid, XAConnection xaConnection) {
+        this.notClosed();
+        this.xaConnectionMap.put(uuid, xaConnection);
+    }
+
+    public XAConnection getXAConnectionByUUID(String uuid) {
+        this.notClosed();
+        return this.xaConnectionMap.get(uuid);
+    }
+
+    public void addXALogicalConnection(String uuid, Connection logicalConnection) {
+        this.notClosed();
+        this.xaLogicalConnectionMap.put(uuid, logicalConnection);
+    }
+
+    public Connection getXALogicalConnection(String uuid) {
+        this.notClosed();
+        return this.xaLogicalConnectionMap.get(uuid);
     }
 
     private void notClosed() {

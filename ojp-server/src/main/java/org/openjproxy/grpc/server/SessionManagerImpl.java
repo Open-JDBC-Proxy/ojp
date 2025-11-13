@@ -6,6 +6,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.sql.XAConnection;
+import javax.transaction.xa.XAResource;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -196,6 +197,42 @@ public class SessionManagerImpl implements SessionManager {
     public Object getAttr(SessionInfo sessionInfo, String key) {
         Session session = this.sessionMap.get(sessionInfo.getSessionUUID());
         return session.getAttr(key);
+    }
+
+    @Override
+    public String registerXAResource(SessionInfo sessionInfo, XAResource xaResource) {
+        String uuid = UUID.randomUUID().toString();
+        this.sessionMap.get(sessionInfo.getSessionUUID()).addXAResource(uuid, xaResource);
+        return uuid;
+    }
+
+    @Override
+    public XAResource getXAResource(SessionInfo sessionInfo, String uuid) {
+        return this.sessionMap.get(sessionInfo.getSessionUUID()).getXAResourceByUUID(uuid);
+    }
+
+    @Override
+    public String registerXAConnection(SessionInfo sessionInfo, XAConnection xaConnection) {
+        String uuid = UUID.randomUUID().toString();
+        this.sessionMap.get(sessionInfo.getSessionUUID()).addXAConnection(uuid, xaConnection);
+        return uuid;
+    }
+
+    @Override
+    public XAConnection getXAConnection(SessionInfo sessionInfo, String uuid) {
+        return this.sessionMap.get(sessionInfo.getSessionUUID()).getXAConnectionByUUID(uuid);
+    }
+
+    @Override
+    public String registerXALogicalConnection(SessionInfo sessionInfo, Connection logicalConnection) {
+        String uuid = UUID.randomUUID().toString();
+        this.sessionMap.get(sessionInfo.getSessionUUID()).addXALogicalConnection(uuid, logicalConnection);
+        return uuid;
+    }
+
+    @Override
+    public Connection getXALogicalConnection(SessionInfo sessionInfo, String uuid) {
+        return this.sessionMap.get(sessionInfo.getSessionUUID()).getXALogicalConnection(uuid);
     }
 
     /**
