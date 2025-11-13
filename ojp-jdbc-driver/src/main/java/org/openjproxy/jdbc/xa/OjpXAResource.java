@@ -1,50 +1,44 @@
 package org.openjproxy.jdbc.xa;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.StatementService;
+import org.openjproxy.jdbc.Connection;
 
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 /**
- * Implementation of XAResource that delegates all operations to the OJP server via StatementService.
+ * XAResource linked to a remote instance of XAResource in OJP server, it delegates all calls to server instance.
  */
 @Slf4j
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class OjpXAResource implements XAResource {
 
-    private final StatementService statementService;
-    private final SessionInfo sessionInfo;
-    private int transactionTimeout = 0;
-
-    public OjpXAResource(StatementService statementService, SessionInfo sessionInfo) {
-        this.statementService = statementService;
-        this.sessionInfo = sessionInfo;
-    }
+    private String resourceUUID;
+    private StatementService statementService;
+    private Connection connection;
 
     @Override
     public void start(Xid xid, int flags) throws XAException {
         log.debug("start: xid={}, flags={}", xid, flags);
         try {
-            XaStartRequest request = XaStartRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setXid(toXidProto(xid))
-                    .setFlags(flags)
-                    .build();
-            XaResponse response = statementService.xaStart(request);
-            if (!response.getSuccess()) {
-                throw new XAException(response.getMessage());
-            }
-        } catch (XAException e) {
-            throw e;
+            this.callProxy(CallType.CALL_START, "", Void.class, Arrays.asList(xid, flags));
         } catch (Exception e) {
-            log.error("Error in start", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -52,22 +46,9 @@ public class OjpXAResource implements XAResource {
     public void end(Xid xid, int flags) throws XAException {
         log.debug("end: xid={}, flags={}", xid, flags);
         try {
-            XaEndRequest request = XaEndRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setXid(toXidProto(xid))
-                    .setFlags(flags)
-                    .build();
-            XaResponse response = statementService.xaEnd(request);
-            if (!response.getSuccess()) {
-                throw new XAException(response.getMessage());
-            }
-        } catch (XAException e) {
-            throw e;
+            this.callProxy(CallType.CALL_END, "", Void.class, Arrays.asList(xid, flags));
         } catch (Exception e) {
-            log.error("Error in end", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -75,17 +56,9 @@ public class OjpXAResource implements XAResource {
     public int prepare(Xid xid) throws XAException {
         log.debug("prepare: xid={}", xid);
         try {
-            XaPrepareRequest request = XaPrepareRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setXid(toXidProto(xid))
-                    .build();
-            XaPrepareResponse response = statementService.xaPrepare(request);
-            return response.getResult();
+            return this.callProxy(CallType.CALL_PREPARE, "", Integer.class, Arrays.asList(xid));
         } catch (Exception e) {
-            log.error("Error in prepare", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -93,22 +66,9 @@ public class OjpXAResource implements XAResource {
     public void commit(Xid xid, boolean onePhase) throws XAException {
         log.debug("commit: xid={}, onePhase={}", xid, onePhase);
         try {
-            XaCommitRequest request = XaCommitRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setXid(toXidProto(xid))
-                    .setOnePhase(onePhase)
-                    .build();
-            XaResponse response = statementService.xaCommit(request);
-            if (!response.getSuccess()) {
-                throw new XAException(response.getMessage());
-            }
-        } catch (XAException e) {
-            throw e;
+            this.callProxy(CallType.CALL_COMMIT, "", Void.class, Arrays.asList(xid, onePhase));
         } catch (Exception e) {
-            log.error("Error in commit", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -116,21 +76,9 @@ public class OjpXAResource implements XAResource {
     public void rollback(Xid xid) throws XAException {
         log.debug("rollback: xid={}", xid);
         try {
-            XaRollbackRequest request = XaRollbackRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setXid(toXidProto(xid))
-                    .build();
-            XaResponse response = statementService.xaRollback(request);
-            if (!response.getSuccess()) {
-                throw new XAException(response.getMessage());
-            }
-        } catch (XAException e) {
-            throw e;
+            this.callProxy(CallType.CALL_ROLLBACK, "", Void.class, Arrays.asList(xid));
         } catch (Exception e) {
-            log.error("Error in rollback", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -138,19 +86,14 @@ public class OjpXAResource implements XAResource {
     public Xid[] recover(int flag) throws XAException {
         log.debug("recover: flag={}", flag);
         try {
-            XaRecoverRequest request = XaRecoverRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setFlag(flag)
-                    .build();
-            XaRecoverResponse response = statementService.xaRecover(request);
-            return response.getXidsList().stream()
-                    .map(this::fromXidProto)
-                    .toArray(Xid[]::new);
+            // Recover returns an array - need special handling
+            Object result = this.callProxy(CallType.CALL_RECOVER, "", Object.class, Arrays.asList(flag));
+            if (result instanceof Xid[]) {
+                return (Xid[]) result;
+            }
+            return new Xid[0];
         } catch (Exception e) {
-            log.error("Error in recover", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -158,21 +101,9 @@ public class OjpXAResource implements XAResource {
     public void forget(Xid xid) throws XAException {
         log.debug("forget: xid={}", xid);
         try {
-            XaForgetRequest request = XaForgetRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setXid(toXidProto(xid))
-                    .build();
-            XaResponse response = statementService.xaForget(request);
-            if (!response.getSuccess()) {
-                throw new XAException(response.getMessage());
-            }
-        } catch (XAException e) {
-            throw e;
+            this.callProxy(CallType.CALL_FORGET, "", Void.class, Arrays.asList(xid));
         } catch (Exception e) {
-            log.error("Error in forget", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -180,20 +111,9 @@ public class OjpXAResource implements XAResource {
     public boolean setTransactionTimeout(int seconds) throws XAException {
         log.debug("setTransactionTimeout: seconds={}", seconds);
         try {
-            XaSetTransactionTimeoutRequest request = XaSetTransactionTimeoutRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .setSeconds(seconds)
-                    .build();
-            XaSetTransactionTimeoutResponse response = statementService.xaSetTransactionTimeout(request);
-            if (response.getSuccess()) {
-                this.transactionTimeout = seconds;
-            }
-            return response.getSuccess();
+            return this.callProxy(CallType.CALL_SET, "TransactionTimeout", Boolean.class, Arrays.asList(seconds));
         } catch (Exception e) {
-            log.error("Error in setTransactionTimeout", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
@@ -201,90 +121,97 @@ public class OjpXAResource implements XAResource {
     public int getTransactionTimeout() throws XAException {
         log.debug("getTransactionTimeout");
         try {
-            XaGetTransactionTimeoutRequest request = XaGetTransactionTimeoutRequest.newBuilder()
-                    .setSession(sessionInfo)
-                    .build();
-            XaGetTransactionTimeoutResponse response = statementService.xaGetTransactionTimeout(request);
-            return response.getSeconds();
+            return this.callProxy(CallType.CALL_GET, "TransactionTimeout", Integer.class);
         } catch (Exception e) {
-            log.error("Error in getTransactionTimeout", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
     @Override
     public boolean isSameRM(XAResource xares) throws XAException {
         log.debug("isSameRM: xares={}", xares);
-        if (!(xares instanceof OjpXAResource)) {
-            return false;
-        }
         try {
-            OjpXAResource other = (OjpXAResource) xares;
-            XaIsSameRMRequest request = XaIsSameRMRequest.newBuilder()
-                    .setSession1(sessionInfo)
-                    .setSession2(other.sessionInfo)
-                    .build();
-            XaIsSameRMResponse response = statementService.xaIsSameRM(request);
-            return response.getIsSame();
+            return this.callProxy(CallType.CALL_IS, "SameRM", Boolean.class, Arrays.asList(xares));
         } catch (Exception e) {
-            log.error("Error in isSameRM", e);
-            XAException xae = new XAException(XAException.XAER_RMERR);
-            xae.initCause(e);
-            throw xae;
+            throw mapToXAException(e);
         }
     }
 
-    /**
-     * Convert javax.transaction.xa.Xid to protobuf XidProto.
-     */
-    private XidProto toXidProto(Xid xid) {
-        return XidProto.newBuilder()
-                .setFormatId(xid.getFormatId())
-                .setGlobalTransactionId(ByteString.copyFrom(xid.getGlobalTransactionId()))
-                .setBranchQualifier(ByteString.copyFrom(xid.getBranchQualifier()))
-                .build();
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof OjpXAResource)) return false;
+        OjpXAResource that = (OjpXAResource) o;
+        return Objects.equals(resourceUUID, that.resourceUUID);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(resourceUUID);
+    }
+
+    @Override
+    public String toString() {
+        return "OjpXAResource{" +
+                "resourceUUID='" + resourceUUID + '\'' +
+                '}';
+    }
+
+    private CallResourceRequest.Builder newCallBuilder() throws SQLException {
+        log.debug("newCallBuilder called");
+        return CallResourceRequest.newBuilder()
+                .setSession(this.connection.getSession())
+                .setResourceType(ResourceType.RES_XA_RESOURCE)
+                .setResourceUUID(this.resourceUUID != null ? this.resourceUUID : "");
+    }
+
+    private <T> T callProxy(CallType callType, String target, Class<T> returnType) throws SQLException {
+        log.debug("callProxy: {}, {}, {}", callType, target, returnType);
+        return this.callProxy(callType, target, returnType, Arrays.asList());
     }
 
     /**
-     * Convert protobuf XidProto to javax.transaction.xa.Xid.
+     * Calls a method or attribute in the remote OJP proxy server.
+     *
+     * @param callType   - Call type prefix, for example GET, SET, START, END...
+     * @param target     - Target name of the method or attribute being called.
+     * @param returnType - Type returned if a return is present, if not Void.class
+     * @param params     - List of parameters required to execute the method.
+     * @return - Returns the type passed as returnType parameter.
+     * @throws SQLException - In case of failure of call or interface not supported.
      */
-    private Xid fromXidProto(XidProto xidProto) {
-        return new OjpXid(
-                xidProto.getFormatId(),
-                xidProto.getGlobalTransactionId().toByteArray(),
-                xidProto.getBranchQualifier().toByteArray()
+    private <T> T callProxy(CallType callType, String target, Class<T> returnType, List<Object> params) throws SQLException {
+        log.debug("callProxy: {}, {}, {}, <params>", callType, target, returnType);
+        CallResourceRequest.Builder reqBuilder = this.newCallBuilder();
+        reqBuilder.setTarget(
+                TargetCall.newBuilder()
+                        .setCallType(callType)
+                        .setResourceName(target)
+                        .addAllParams(ProtoConverter.objectListToParameterValues(params))
+                        .build()
         );
+        CallResourceResponse response = this.statementService.callResource(reqBuilder.build());
+        this.connection.setSession(response.getSession());
+        if (Void.class.equals(returnType)) {
+            return null;
+        }
+
+        List<ParameterValue> values = response.getValuesList();
+        if (values.isEmpty()) {
+            return null;
+        }
+
+        Object result = ProtoConverter.fromParameterValue(values.get(0));
+        return (T) result;
     }
 
-    /**
-     * Simple implementation of Xid interface.
-     */
-    private static class OjpXid implements Xid {
-        private final int formatId;
-        private final byte[] globalTransactionId;
-        private final byte[] branchQualifier;
-
-        public OjpXid(int formatId, byte[] globalTransactionId, byte[] branchQualifier) {
-            this.formatId = formatId;
-            this.globalTransactionId = globalTransactionId;
-            this.branchQualifier = branchQualifier;
+    private XAException mapToXAException(Exception e) {
+        log.error("Error in XA operation", e);
+        if (e instanceof XAException) {
+            return (XAException) e;
         }
-
-        @Override
-        public int getFormatId() {
-            return formatId;
-        }
-
-        @Override
-        public byte[] getGlobalTransactionId() {
-            return globalTransactionId;
-        }
-
-        @Override
-        public byte[] getBranchQualifier() {
-            return branchQualifier;
-        }
+        XAException xae = new XAException(XAException.XAER_RMERR);
+        xae.initCause(e);
+        return xae;
     }
 }

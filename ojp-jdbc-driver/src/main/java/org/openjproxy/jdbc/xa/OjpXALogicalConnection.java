@@ -1,44 +1,44 @@
 package org.openjproxy.jdbc.xa;
 
-import com.openjproxy.grpc.SessionInfo;
+import com.openjproxy.grpc.*;
 import lombok.extern.slf4j.Slf4j;
-import org.openjproxy.database.DatabaseUtils;
+import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.jdbc.Connection;
 
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Logical connection that wraps the XA session on the server.
- * This connection delegates to the server-side XA connection for all operations,
- * but ensures that commits and rollbacks are controlled by the XA resource.
+ * This is a thin remote proxy that delegates to the server-side XA logical connection.
  */
 @Slf4j
-class OjpXALogicalConnection extends Connection {
+public class OjpXALogicalConnection extends Connection {
 
-    private final OjpXAConnection xaConnection;
-    private boolean closed = false;
+    private final String resourceUUID;
+    private final StatementService statementService;
+    private final Connection parentConnection;
 
-    OjpXALogicalConnection(OjpXAConnection xaConnection, SessionInfo sessionInfo, String url) throws SQLException {
-        // Pass the statementService and dbName to the parent Connection class
-        super(sessionInfo, xaConnection.getStatementService(), DatabaseUtils.resolveDbName(url));
-        this.xaConnection = xaConnection;
-        
-        log.debug("Created logical connection using XA session: {}", sessionInfo.getSessionUUID());
+    public OjpXALogicalConnection(String resourceUUID, StatementService statementService, Connection parentConnection) {
+        super(parentConnection.getSession(), statementService, parentConnection.getDbName());
+        this.resourceUUID = resourceUUID;
+        this.statementService = statementService;
+        this.parentConnection = parentConnection;
+        log.debug("Created OjpXALogicalConnection with UUID: {}", resourceUUID);
     }
 
     @Override
     public void close() throws SQLException {
         log.debug("Logical connection close called");
-        if (!closed) {
-            closed = true;
-            // Don't close the underlying XA connection - just mark this logical connection as closed
-            // The actual XA connection will be closed when XAConnection.close() is called
-        }
+        this.callProxy(CallType.CALL_CLOSE, "", Void.class);
     }
 
     @Override
     public boolean isClosed() throws SQLException {
-        return closed;
+        return this.callProxy(CallType.CALL_IS, "Closed", Boolean.class);
     }
 
     @Override
@@ -56,8 +56,6 @@ class OjpXALogicalConnection extends Connection {
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
         // XA connections ignore auto-commit settings as they are controlled by XA protocol
-        // This is required for compatibility with transaction managers like Atomikos
-        // that may call setAutoCommit(true) during connection lifecycle management
         log.debug("setAutoCommit({}) called on XA connection - ignored (XA protocol controls transaction)", autoCommit);
     }
 
@@ -65,5 +63,73 @@ class OjpXALogicalConnection extends Connection {
     public boolean getAutoCommit() throws SQLException {
         // XA connections are always non-auto-commit
         return false;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof OjpXALogicalConnection)) return false;
+        OjpXALogicalConnection that = (OjpXALogicalConnection) o;
+        return Objects.equals(resourceUUID, that.resourceUUID);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(resourceUUID);
+    }
+
+    @Override
+    public String toString() {
+        return "OjpXALogicalConnection{" +
+                "resourceUUID='" + resourceUUID + '\'' +
+                '}';
+    }
+
+    private CallResourceRequest.Builder newCallBuilder() throws SQLException {
+        log.debug("newCallBuilder called");
+        return CallResourceRequest.newBuilder()
+                .setSession(this.parentConnection.getSession())
+                .setResourceType(ResourceType.RES_XA_LOGICAL_CONNECTION)
+                .setResourceUUID(this.resourceUUID != null ? this.resourceUUID : "");
+    }
+
+    private <T> T callProxy(CallType callType, String target, Class<T> returnType) throws SQLException {
+        log.debug("callProxy: {}, {}, {}", callType, target, returnType);
+        return this.callProxy(callType, target, returnType, Arrays.asList());
+    }
+
+    /**
+     * Calls a method or attribute in the remote OJP proxy server.
+     *
+     * @param callType   - Call type prefix, for example GET, SET, CLOSE...
+     * @param target     - Target name of the method or attribute being called.
+     * @param returnType - Type returned if a return is present, if not Void.class
+     * @param params     - List of parameters required to execute the method.
+     * @return - Returns the type passed as returnType parameter.
+     * @throws SQLException - In case of failure of call or interface not supported.
+     */
+    private <T> T callProxy(CallType callType, String target, Class<T> returnType, List<Object> params) throws SQLException {
+        log.debug("callProxy: {}, {}, {}, <params>", callType, target, returnType);
+        CallResourceRequest.Builder reqBuilder = this.newCallBuilder();
+        reqBuilder.setTarget(
+                TargetCall.newBuilder()
+                        .setCallType(callType)
+                        .setResourceName(target)
+                        .addAllParams(ProtoConverter.objectListToParameterValues(params))
+                        .build()
+        );
+        CallResourceResponse response = this.statementService.callResource(reqBuilder.build());
+        this.parentConnection.setSession(response.getSession());
+        if (Void.class.equals(returnType)) {
+            return null;
+        }
+
+        List<ParameterValue> values = response.getValuesList();
+        if (values.isEmpty()) {
+            return null;
+        }
+
+        Object result = ProtoConverter.fromParameterValue(values.get(0));
+        return (T) result;
     }
 }

@@ -188,10 +188,8 @@ public class OjpXADataSource implements XADataSource {
         // Initialize on first use (lazily)
         initializeIfNeeded();
 
-        // Create XA connection using the shared StatementService
-        // The GRPC channel is already open and will be reused
-        // The session will be created lazily when first needed
-        return new OjpXAConnection(statementService, cleanUrl, username, password, properties);
+        // Create XA connection using the factory method
+        return OjpXAConnection.createNewConnection(statementService, cleanUrl, username, password, properties);
     }
 
     @Override

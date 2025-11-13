@@ -1,8 +1,11 @@
 package org.openjproxy.jdbc.xa;
 
 import com.google.protobuf.ByteString;
-import com.openjproxy.grpc.ConnectionDetails;
-import com.openjproxy.grpc.SessionInfo;
+import com.openjproxy.grpc.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.StatementService;
@@ -10,55 +13,42 @@ import org.openjproxy.jdbc.ClientUUID;
 
 import javax.sql.ConnectionEvent;
 import javax.sql.ConnectionEventListener;
+import javax.sql.StatementEventListener;
 import javax.sql.XAConnection;
 import javax.transaction.xa.XAResource;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 
 /**
- * Implementation of XAConnection that connects to the OJP server for XA operations.
- * Uses the integrated StatementService for connection management.
- * 
- * <p>The server-side session is created lazily when first needed (either when getting
- * the XAResource or when getting a Connection), to avoid creating unnecessary sessions.
+ * XAConnection linked to a remote instance of XAConnection in OJP server, it delegates all calls to server instance.
  */
 @Slf4j
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class OjpXAConnection implements XAConnection {
 
-    private final StatementService statementService;
-    private SessionInfo sessionInfo; // Lazily initialized
-    private final String url;
-    private final String user;
-    private final String password;
-    private final Properties properties;
-    private Connection logicalConnection;
-    private OjpXAResource xaResource;
-    private boolean closed = false;
-    private final List<ConnectionEventListener> listeners = new ArrayList<>();
+    private String resourceUUID;
+    private StatementService statementService;
+    private org.openjproxy.jdbc.Connection connection;
+    private transient XAResource cachedXAResource;
+    private transient java.sql.Connection cachedLogicalConnection;
+    private transient List<ConnectionEventListener> listeners = new ArrayList<>();
 
-    public OjpXAConnection(StatementService statementService, String url, String user, String password, Properties properties) {
-        log.debug("Creating OjpXAConnection for URL: {}", url);
-        this.statementService = statementService;
-        this.url = url;
-        this.user = user;
-        this.password = password;
-        this.properties = properties;
-        // Session is created lazily when needed
-    }
-    
     /**
-     * Lazily create the server-side session when first needed.
-     * This avoids creating sessions that may never be used.
+     * Factory method to create an OjpXAConnection by establishing a new session.
+     * This is used by OjpXADataSource when creating a new XA connection.
      */
-    private synchronized SessionInfo getOrCreateSession() throws SQLException {
-        if (sessionInfo != null) {
-            return sessionInfo;
-        }
+    public static OjpXAConnection createNewConnection(StatementService statementService, String url, 
+                                                       String user, String password, Properties properties) throws SQLException {
+        log.debug("Creating new OjpXAConnection for URL: {}", url);
         
         try {
             // Connect to server with XA flag enabled
@@ -77,89 +67,62 @@ public class OjpXAConnection implements XAConnection {
                 connBuilder.addAllProperties(ProtoConverter.propertiesToProto(propertiesMap));
             }
 
-            this.sessionInfo = statementService.connect(connBuilder.build());
+            SessionInfo sessionInfo = statementService.connect(connBuilder.build());
             log.debug("XA connection established with session: {}", sessionInfo.getSessionUUID());
-            return sessionInfo;
+            
+            // Create an OJP Connection wrapper for the session
+            org.openjproxy.jdbc.Connection ojpConnection = new org.openjproxy.jdbc.Connection(
+                sessionInfo, statementService, org.openjproxy.database.DatabaseUtils.resolveDbName(url));
+            
+            // The resourceUUID for the XAConnection is the session UUID
+            // The server knows to look up XA resources by session when no specific UUID is provided
+            OjpXAConnection xaConn = new OjpXAConnection();
+            xaConn.setResourceUUID(sessionInfo.getSessionUUID());
+            xaConn.setStatementService(statementService);
+            xaConn.setConnection(ojpConnection);
+            xaConn.setListeners(new ArrayList<>());
+            
+            return xaConn;
 
         } catch (Exception e) {
-            log.error("Failed to create XA connection session", e);
-            throw new SQLException("Failed to create XA connection session", e);
+            log.error("Failed to create XA connection", e);
+            throw new SQLException("Failed to create XA connection", e);
         }
     }
 
     @Override
     public XAResource getXAResource() throws SQLException {
         log.debug("getXAResource called");
-        checkClosed();
-        if (xaResource == null) {
-            // Lazily create session when XAResource is first requested
-            SessionInfo session = getOrCreateSession();
-            xaResource = new OjpXAResource(statementService, session);
+        if (cachedXAResource == null) {
+            // For XA resources, the server uses the session's XAResource
+            // Pass empty UUID so server looks up by session
+            cachedXAResource = new OjpXAResource("", statementService, connection);
         }
-        return xaResource;
+        return cachedXAResource;
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public java.sql.Connection getConnection() throws SQLException {
         log.debug("getConnection called");
-        checkClosed();
-        
-        // Close any existing logical connection
-        if (logicalConnection != null && !logicalConnection.isClosed()) {
-            logicalConnection.close();
-        }
-        
-        // Lazily create session when Connection is first requested
-        SessionInfo session = getOrCreateSession();
-        
-        // Verify session was created successfully
-        if (session == null) {
-            log.error("Failed to create valid session - sessionInfo: {}", session);
-            throw new SQLException("Failed to create XA connection session");
-        }
-        
-        log.debug("Creating logical connection for session: {}", session.getSessionUUID());
-        
-        // Create a new logical connection that uses the same XA session on the server
-        logicalConnection = new OjpXALogicalConnection(this, session, url);
-        return logicalConnection;
-    }
-    
-    /**
-     * Get the statement service for this XA connection.
-     */
-    StatementService getStatementService() {
-        return statementService;
+        // For XA logical connections, return the main connection
+        // In the new proxy model, we don't create separate logical connection proxies
+        // The connection itself acts as the logical connection
+        return connection;
     }
 
     @Override
     public void close() throws SQLException {
         log.debug("close called");
-        if (closed) {
-            return;
+        if (connection != null && !connection.isClosed()) {
+            connection.close();
         }
-        
-        closed = true;
-        
-        // Close logical connection if open
-        if (logicalConnection != null && !logicalConnection.isClosed()) {
-            logicalConnection.close();
-        }
+        cachedXAResource = null;
+        cachedLogicalConnection = null;
         
         // Notify listeners
         ConnectionEvent event = new ConnectionEvent(this);
         for (ConnectionEventListener listener : listeners) {
             listener.connectionClosed(event);
-        }
-        
-        // Close XA session on server (only if it was created)
-        if (sessionInfo != null) {
-            try {
-                statementService.terminateSession(sessionInfo);
-            } catch (Exception e) {
-                log.error("Error closing XA session", e);
-                throw new SQLException("Error closing XA session", e);
-            }
         }
     }
 
@@ -176,37 +139,34 @@ public class OjpXAConnection implements XAConnection {
     }
 
     @Override
-    public void addStatementEventListener(javax.sql.StatementEventListener listener) {
+    public void addStatementEventListener(StatementEventListener listener) {
         log.debug("addStatementEventListener called - not supported");
         // Not supported for XA connections
     }
 
     @Override
-    public void removeStatementEventListener(javax.sql.StatementEventListener listener) {
+    public void removeStatementEventListener(StatementEventListener listener) {
         log.debug("removeStatementEventListener called - not supported");
         // Not supported for XA connections
     }
 
-    /**
-     * Notify listeners of a connection error.
-     */
-    void notifyError(SQLException exception) {
-        ConnectionEvent event = new ConnectionEvent(this, exception);
-        for (ConnectionEventListener listener : listeners) {
-            listener.connectionErrorOccurred(event);
-        }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof OjpXAConnection)) return false;
+        OjpXAConnection that = (OjpXAConnection) o;
+        return Objects.equals(resourceUUID, that.resourceUUID);
     }
 
-    /**
-     * Get the session info for this XA connection.
-     */
-    SessionInfo getSessionInfo() {
-        return sessionInfo;
+    @Override
+    public int hashCode() {
+        return Objects.hash(resourceUUID);
     }
 
-    private void checkClosed() throws SQLException {
-        if (closed) {
-            throw new SQLException("XA Connection is closed");
-        }
+    @Override
+    public String toString() {
+        return "OjpXAConnection{" +
+                "resourceUUID='" + resourceUUID + '\'' +
+                '}';
     }
 }
