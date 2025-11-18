@@ -52,6 +52,7 @@ public class MultinodeConnectionManager {
     private final HealthCheckValidator healthCheckValidator;
     private final ConnectionTracker connectionTracker;
     private final ConnectionRedistributor connectionRedistributor;
+    private final XAConnectionRedistributor xaConnectionRedistributor;
     
     public MultinodeConnectionManager(List<ServerEndpoint> serverEndpoints) {
         this(serverEndpoints, CommonConstants.DEFAULT_MULTINODE_RETRY_ATTEMPTS, 
@@ -90,6 +91,7 @@ public class MultinodeConnectionManager {
         this.connectionTracker = connectionTracker != null ? connectionTracker : new ConnectionTracker();
         this.healthCheckValidator = new HealthCheckValidator(this.healthCheckConfig, this);
         this.connectionRedistributor = new ConnectionRedistributor(this.connectionTracker, this.healthCheckConfig);
+        this.xaConnectionRedistributor = new XAConnectionRedistributor(this.connectionTracker, this.healthCheckConfig);
         
         // Initialize channels and stubs for all servers
         initializeConnections();
@@ -886,16 +888,31 @@ public class MultinodeConnectionManager {
     
     /**
      * Phase 2: Notifies all listeners that a server recovered.
+     * After notifying listeners, triggers XA connection redistribution if enabled.
      * 
      * @param endpoint The server endpoint that recovered
      */
     private void notifyServerRecovered(ServerEndpoint endpoint) {
+        // First notify all registered health listeners
         for (ServerHealthListener listener : healthListeners) {
             try {
                 listener.onServerRecovered(endpoint);
             } catch (Exception e) {
                 log.error("Error notifying listener of recovered server {}: {}", 
                         endpoint.getAddress(), e.getMessage(), e);
+            }
+        }
+        
+        // Then trigger XA connection redistribution if enabled
+        if (healthCheckConfig.isRedistributionEnabled()) {
+            try {
+                log.debug("Triggering XA connection redistribution for recovered server: {}", 
+                        endpoint.getAddress());
+                xaConnectionRedistributor.redistribute(endpoint);
+            } catch (Exception e) {
+                log.error("Error during XA connection redistribution for {}: {}", 
+                        endpoint.getAddress(), e.getMessage(), e);
+                // Don't fail server recovery if redistribution fails
             }
         }
     }

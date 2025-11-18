@@ -47,6 +47,7 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
     private List<String> serverEndpoints;
     private final List<ConnectionEventListener> listeners = new ArrayList<>();
     private String boundServerAddress; // Phase 2: Track which server this connection is bound to
+    private final String connectionUuid; // Unique identifier for this XA connection
 
     public OjpXAConnection(StatementService statementService, String url, String user, String password, Properties properties, List<String> serverEndpoints) {
         log.debug("Creating OjpXAConnection for URL: {}", url);
@@ -56,6 +57,11 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
         this.password = password;
         this.properties = properties;
         this.serverEndpoints = serverEndpoints;
+        this.connectionUuid = java.util.UUID.randomUUID().toString();
+        
+        // Register as health listener with multinode connection manager if available
+        registerHealthListener();
+        
         // Session is created lazily when needed
     }
     
@@ -97,6 +103,9 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
             if (sessionInfo.getTargetServer() != null && !sessionInfo.getTargetServer().isEmpty()) {
                 this.boundServerAddress = sessionInfo.getTargetServer();
                 log.debug("XA connection bound to server: {}", boundServerAddress);
+                
+                // Register this XA connection with the tracker for redistribution
+                registerWithTracker();
             }
             
             log.debug("XA connection established with session: {}", sessionInfo.getSessionUUID());
@@ -214,6 +223,12 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
         
         closed = true;
         
+        // Unregister from health listeners
+        unregisterHealthListener();
+        
+        // Unregister from XA connection tracker
+        unregisterFromTracker();
+        
         // Unregister from ConnectionTracker if registered
         if (logicalConnection != null && statementService instanceof MultinodeStatementService) {
             MultinodeStatementService multinodeService = (MultinodeStatementService) statementService;
@@ -299,11 +314,104 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
     
     /**
      * Phase 2: Called when a server recovers.
-     * No action needed for individual connections.
+     * No action needed for individual connections - centralized redistribution handles rebalancing.
      */
     @Override
     public void onServerRecovered(ServerEndpoint endpoint) {
-        // No action needed - new connections will naturally use recovered servers
-        log.debug("Server {} recovered", endpoint.getAddress());
+        // No action needed - XAConnectionRedistributor handles redistribution
+        log.debug("Server {} recovered, XA connection {} will continue using current server {}", 
+                endpoint.getAddress(), connectionUuid, boundServerAddress);
+    }
+    
+    /**
+     * Registers this XA connection as a health listener with the multinode connection manager.
+     */
+    private void registerHealthListener() {
+        if (statementService instanceof MultinodeStatementService) {
+            MultinodeStatementService multinodeService = (MultinodeStatementService) statementService;
+            MultinodeConnectionManager connectionManager = multinodeService.getConnectionManager();
+            if (connectionManager != null) {
+                connectionManager.addHealthListener(this);
+                log.debug("XA connection {} registered as health listener", connectionUuid);
+            }
+        }
+    }
+    
+    /**
+     * Unregisters this XA connection from health listener notifications.
+     */
+    private void unregisterHealthListener() {
+        if (statementService instanceof MultinodeStatementService) {
+            MultinodeStatementService multinodeService = (MultinodeStatementService) statementService;
+            MultinodeConnectionManager connectionManager = multinodeService.getConnectionManager();
+            if (connectionManager != null) {
+                connectionManager.removeHealthListener(this);
+                log.debug("XA connection {} unregistered from health listener", connectionUuid);
+            }
+        }
+    }
+    
+    /**
+     * Registers this XA connection with the connection tracker for redistribution.
+     * Called after session is created and bound to a server.
+     */
+    private void registerWithTracker() {
+        if (statementService instanceof MultinodeStatementService) {
+            MultinodeStatementService multinodeService = (MultinodeStatementService) statementService;
+            MultinodeConnectionManager connectionManager = multinodeService.getConnectionManager();
+            if (connectionManager != null && boundServerAddress != null) {
+                // Find the ServerEndpoint for the bound server
+                ServerEndpoint boundEndpoint = findServerEndpointByAddress(connectionManager, boundServerAddress);
+                if (boundEndpoint != null) {
+                    connectionManager.getConnectionTracker().registerXAConnection(
+                            connectionUuid, this, boundEndpoint);
+                    log.debug("XA connection {} registered with tracker for server: {}", 
+                            connectionUuid, boundServerAddress);
+                } else {
+                    log.warn("Could not find ServerEndpoint for address {} to register XA connection", 
+                            boundServerAddress);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Unregisters this XA connection from the connection tracker.
+     */
+    private void unregisterFromTracker() {
+        if (statementService instanceof MultinodeStatementService) {
+            MultinodeStatementService multinodeService = (MultinodeStatementService) statementService;
+            MultinodeConnectionManager connectionManager = multinodeService.getConnectionManager();
+            if (connectionManager != null) {
+                connectionManager.getConnectionTracker().unregisterXAConnection(connectionUuid);
+                log.debug("XA connection {} unregistered from tracker", connectionUuid);
+            }
+        }
+    }
+    
+    /**
+     * Finds the ServerEndpoint matching the given address string (host:port format).
+     */
+    private ServerEndpoint findServerEndpointByAddress(MultinodeConnectionManager connectionManager, String serverAddress) {
+        if (serverAddress == null || connectionManager == null) {
+            return null;
+        }
+        
+        for (ServerEndpoint endpoint : connectionManager.getServerEndpoints()) {
+            String endpointAddress = endpoint.getHost() + ":" + endpoint.getPort();
+            if (endpointAddress.equals(serverAddress)) {
+                return endpoint;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Gets the unique identifier for this XA connection.
+     * Used for tracking and redistribution.
+     */
+    public String getConnectionUuid() {
+        return connectionUuid;
     }
 }
