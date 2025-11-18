@@ -181,6 +181,10 @@ public class ConnectionTracker {
      * @param connectionUuid The connection UUID
      */
     public void updateXAConnectionLastUsed(String connectionUuid) {
+        if (connectionUuid == null) {
+            return;
+        }
+        
         XAConnectionInfo info = xaConnectionMap.get(connectionUuid);
         if (info != null) {
             // Create new info with updated timestamp
@@ -203,6 +207,10 @@ public class ConnectionTracker {
      * @param active true if transaction is active, false otherwise
      */
     public void setXAConnectionActiveTransaction(String connectionUuid, boolean active) {
+        if (connectionUuid == null) {
+            return;
+        }
+        
         XAConnectionInfo info = xaConnectionMap.get(connectionUuid);
         if (info != null) {
             info.setActiveTransaction(active);
@@ -240,6 +248,11 @@ public class ConnectionTracker {
      * @throws SQLException if closing fails
      */
     public boolean closeIdleConnection(String connectionUuid) throws SQLException {
+        if (connectionUuid == null) {
+            log.debug("Cannot close XA connection with null UUID");
+            return false;
+        }
+        
         XAConnectionInfo info = xaConnectionMap.get(connectionUuid);
         
         if (info == null) {
