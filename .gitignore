@@ -4,6 +4,7 @@
 # ignore all files in any directory named .idea
 */.idea/
 .idea/
+.vscode/
 
 # ignore Maven Shade Plugin generated files
 dependency-reduced-pom.xml

@@ -16,8 +16,8 @@
     </parent>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
 
         <grpc.version>1.73.0</grpc.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
@@ -103,12 +103,13 @@
                 <version>0.6.1</version>
                 <configuration>
                     <protocArtifact>
-                        com.google.protobuf:protoc:3.3.0:exe:${os.detected.classifier}
+                        com.google.protobuf:protoc:3.25.5:exe:${os.detected.classifier}
                     </protocArtifact>
                     <pluginId>grpc-java</pluginId>
                     <pluginArtifact>
-                        io.grpc:protoc-gen-grpc-java:1.7.0:exe:${os.detected.classifier}
+                        io.grpc:protoc-gen-grpc-java:1.73.0:exe:${os.detected.classifier}
                     </pluginArtifact>
+                    <protoSourceRoot>${project.basedir}/src/main/proto</protoSourceRoot>
                 </configuration>
                 <executions>
                     <execution>

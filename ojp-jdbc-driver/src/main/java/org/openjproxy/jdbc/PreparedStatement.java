@@ -37,6 +37,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLXML;
+import java.sql.SQLWarning;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -81,32 +83,50 @@ import static org.openjproxy.grpc.dto.ParameterType.UNICODE_STREAM;
 import static org.openjproxy.grpc.dto.ParameterType.URL;
 
 @Slf4j
-public class PreparedStatement extends Statement implements java.sql.PreparedStatement {
+public class PreparedStatement implements java.sql.PreparedStatement {
     private final Connection connection;
     private String sql;
     private SortedMap<Integer, Parameter> paramsMap;
     private Map<String, Object> properties;
     private StatementService statementService;
+    private String statementUUID;
+    protected boolean closed;
+    protected ResultSet lastResultSet;
+    protected int lastUpdateCount;
 
     public PreparedStatement(Connection connection, String sql, StatementService statementService) {
-        super(connection, statementService, null, ResourceType.RES_PREPARED_STATEMENT);
         log.debug("PreparedStatement: constructor(connection, sql, statementService) called");
         this.connection = connection;
         this.sql = sql;
         this.properties = null;
         this.paramsMap = new TreeMap<>();
         this.statementService = statementService;
+        this.closed = false;
     }
 
     public PreparedStatement(Connection connection, String sql, StatementService statementService,
                              Map<String, Object> properties) {
-        super(connection, statementService, properties, ResourceType.RES_PREPARED_STATEMENT);
         log.debug("PreparedStatement: constructor(connection, sql, statementService, properties) called");
         this.connection = connection;
         this.sql = sql;
         this.properties = properties;
         this.paramsMap = new TreeMap<>();
         this.statementService = statementService;
+        this.closed = false;
+    }
+    
+    protected void checkClosed() throws SQLException {
+        if (this.closed) {
+            throw new SQLException("Statement is closed.");
+        }
+    }
+    
+    public String getStatementUUID() {
+        return this.statementUUID;
+    }
+    
+    public void setStatementUUID(String statementUUID) {
+        this.statementUUID = statementUUID;
     }
 
     @Override
@@ -937,5 +957,310 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
+    }
+    
+    // Additional Statement interface methods required for PreparedStatement
+    
+    @Override
+    public ResultSet executeQuery(String sql) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public int executeUpdate(String sql) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public void close() throws SQLException {
+        log.debug("close called");
+        this.closed = true;
+        if (this.getStatementUUID() != null) {
+            this.callProxy(CallType.CALL_CLOSE, "", Void.class);
+        }
+    }
+
+    @Override
+    public void setMaxFieldSize(int max) throws SQLException {
+        log.debug("setMaxFieldSize: {}", max);
+        checkClosed();
+        this.callProxy(CallType.CALL_SET, "MaxFieldSize", Void.class, Arrays.asList(max));
+    }
+
+    @Override
+    public int getMaxRows() throws SQLException {
+        log.debug("getMaxRows called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "MaxRows", Integer.class);
+    }
+
+    @Override
+    public void setMaxRows(int max) throws SQLException {
+        log.debug("setMaxRows: {}", max);
+        checkClosed();
+        this.callProxy(CallType.CALL_SET, "MaxRows", Void.class, Arrays.asList(max));
+    }
+
+    @Override
+    public void setEscapeProcessing(boolean enable) throws SQLException {
+        log.debug("setEscapeProcessing: {}", enable);
+        checkClosed();
+        this.callProxy(CallType.CALL_SET, "EscapeProcessing", Void.class, Arrays.asList(enable));
+    }
+
+    @Override
+    public void cancel() throws SQLException {
+        log.debug("cancel called");
+        checkClosed();
+        this.callProxy(CallType.CALL_CANCEL, "", Void.class);
+    }
+
+    @Override
+    public SQLWarning getWarnings() throws SQLException {
+        log.debug("getWarnings called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "Warnings", SQLWarning.class);
+    }
+
+    @Override
+    public void setCursorName(String name) throws SQLException {
+        log.debug("setCursorName: {}", name);
+        checkClosed();
+        this.callProxy(CallType.CALL_SET, "CursorName", Void.class, Arrays.asList(name));
+    }
+
+    @Override
+    public boolean execute(String sql) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public ResultSet getResultSet() throws SQLException {
+        log.debug("getResultSet called");
+        checkClosed();
+        return this.lastResultSet;
+    }
+
+    @Override
+    public int getUpdateCount() throws SQLException {
+        log.debug("getUpdateCount called");
+        checkClosed();
+        return this.lastUpdateCount;
+    }
+
+    @Override
+    public boolean getMoreResults() throws SQLException {
+        log.debug("getMoreResults called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "MoreResults", Boolean.class);
+    }
+
+    @Override
+    public void setFetchDirection(int direction) throws SQLException {
+        log.debug("setFetchDirection: {}", direction);
+        checkClosed();
+        this.callProxy(CallType.CALL_SET, "FetchDirection", Void.class, Arrays.asList(direction));
+    }
+
+    @Override
+    public int getFetchDirection() throws SQLException {
+        log.debug("getFetchDirection called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "FetchDirection", Integer.class);
+    }
+
+    @Override
+    public int getFetchSize() throws SQLException {
+        log.debug("getFetchSize called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "FetchSize", Integer.class);
+    }
+
+    @Override
+    public int getResultSetConcurrency() throws SQLException {
+        log.debug("getResultSetConcurrency called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "ResultSetConcurrency", Integer.class);
+    }
+
+    @Override
+    public int getResultSetType() throws SQLException {
+        log.debug("getResultSetType called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "ResultSetType", Integer.class);
+    }
+
+    @Override
+    public void addBatch(String sql) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public int[] executeBatch() throws SQLException {
+        log.debug("executeBatch called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_EXECUTE, "Batch", int[].class);
+    }
+
+    @Override
+    public Connection getConnection() throws SQLException {
+        log.debug("getConnection called");
+        checkClosed();
+        return this.connection;
+    }
+
+    @Override
+    public boolean getMoreResults(int current) throws SQLException {
+        log.debug("getMoreResults: {}", current);
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "MoreResults", Boolean.class, Arrays.asList(current));
+    }
+
+    @Override
+    public int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public int executeUpdate(String sql, int[] columnIndexes) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public int executeUpdate(String sql, String[] columnNames) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public boolean execute(String sql, int autoGeneratedKeys) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public boolean execute(String sql, int[] columnIndexes) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public boolean execute(String sql, String[] columnNames) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public int getResultSetHoldability() throws SQLException {
+        log.debug("getResultSetHoldability called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "ResultSetHoldability", Integer.class);
+    }
+
+    @Override
+    public boolean isClosed() throws SQLException {
+        log.debug("isClosed called");
+        return this.closed;
+    }
+
+    @Override
+    public String enquoteIdentifier(String var1, boolean var2) throws SQLException {
+        log.debug("enquoteIdentifier: {}, {}", var1, var2);
+        checkClosed();
+        return this.callProxy(CallType.CALL_ENQUOTE, "Identifier", String.class, Arrays.asList(var1, var2));
+    }
+
+    @Override
+    public void setPoolable(boolean poolable) throws SQLException {
+        log.debug("setPoolable: {}", poolable);
+        checkClosed();
+        this.callProxy(CallType.CALL_SET, "Poolable", Void.class, Arrays.asList(poolable));
+    }
+
+    @Override
+    public boolean isPoolable() throws SQLException {
+        log.debug("isPoolable called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_IS, "Poolable", Boolean.class);
+    }
+
+    @Override
+    public void closeOnCompletion() throws SQLException {
+        log.debug("closeOnCompletion called");
+        checkClosed();
+        this.callProxy(CallType.CALL_CLOSE, "OnCompletion", Void.class);
+    }
+
+    @Override
+    public boolean isCloseOnCompletion() throws SQLException {
+        log.debug("isCloseOnCompletion called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_IS, "CloseOnCompletion", Boolean.class);
+    }
+
+    @Override
+    public boolean isSimpleIdentifier(String identifier) throws SQLException {
+        log.debug("isSimpleIdentifier: {}", identifier);
+        checkClosed();
+        return this.callProxy(CallType.CALL_IS, "SimpleIdentifier", Boolean.class,
+                Arrays.asList(identifier));
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> iface) throws SQLException {
+        log.debug("unwrap: {}", iface);
+        checkClosed();
+        throw new SQLFeatureNotSupportedException("Not supported.");
+    }
+
+    @Override
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        log.debug("isWrapperFor: {}", iface);
+        checkClosed();
+        throw new SQLFeatureNotSupportedException("Not supported.");
+    }
+
+    @Override
+    public long getLargeUpdateCount() throws SQLException {
+        log.debug("getLargeUpdateCount called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "LargeUpdateCount", Long.class);
+    }
+
+    @Override
+    public void setLargeMaxRows(long max) throws SQLException {
+        log.debug("setLargeMaxRows: {}", max);
+        checkClosed();
+        this.callProxy(CallType.CALL_SET, "LargeMaxRows", Void.class, Arrays.asList(max));
+    }
+
+    @Override
+    public long getLargeMaxRows() throws SQLException {
+        log.debug("getLargeMaxRows called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_GET, "LargeMaxRows", Long.class);
+    }
+
+    @Override
+    public long[] executeLargeBatch() throws SQLException {
+        log.debug("executeLargeBatch called");
+        checkClosed();
+        return this.callProxy(CallType.CALL_EXECUTE, "LargeBatch", long[].class);
+    }
+
+    @Override
+    public long executeLargeUpdate(String sql) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public long executeLargeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public long executeLargeUpdate(String sql, int columnIndexes[]) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
+    }
+
+    @Override
+    public long executeLargeUpdate(String sql, String columnNames[]) throws SQLException {
+        throw new SQLException("Method not allowed on PreparedStatement");
     }
 }
