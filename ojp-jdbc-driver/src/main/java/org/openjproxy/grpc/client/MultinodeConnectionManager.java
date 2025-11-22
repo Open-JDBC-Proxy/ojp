@@ -336,6 +336,9 @@ public class MultinodeConnectionManager {
             selectedServer.setHealthy(true);
             selectedServer.setLastFailureTime(0);
             
+            // Determine the target server address for this session
+            String serverAddress = selectedServer.getHost() + ":" + selectedServer.getPort();
+            
             // Bind session to this server
             if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
                 String targetServer = sessionInfo.getTargetServer();
@@ -343,8 +346,8 @@ public class MultinodeConnectionManager {
                     bindSession(sessionInfo.getSessionUUID(), targetServer);
                     log.info("=== XA session {} bound to target server {} (from response) ===", 
                             sessionInfo.getSessionUUID(), targetServer);
+                    serverAddress = targetServer; // Use the server-provided targetServer
                 } else {
-                    String serverAddress = selectedServer.getHost() + ":" + selectedServer.getPort();
                     sessionToServerMap.put(sessionInfo.getSessionUUID(), selectedServer);
                     log.info("=== XA session {} bound to server {} (fallback) - Map size now: {} ===", 
                             sessionInfo.getSessionUUID(), serverAddress, sessionToServerMap.size());
@@ -359,8 +362,13 @@ public class MultinodeConnectionManager {
                 log.info("Tracked 1 server for XA connection hash {}", sessionInfo.getConnHash());
             }
             
-            log.info("Successfully connected to server {} (XA) with datasource '{}'", 
-                    selectedServer.getAddress(), selectedServerDataSource);
+            // Populate targetServer in the returned SessionInfo to ensure session affinity is preserved
+            sessionInfo = SessionInfo.newBuilder(sessionInfo)
+                    .setTargetServer(serverAddress)
+                    .build();
+            
+            log.info("Successfully connected to server {} (XA) with datasource '{}', targetServer set to {}", 
+                    selectedServer.getAddress(), selectedServerDataSource, serverAddress);
             return sessionInfo;
             
         } catch (StatusRuntimeException e) {
@@ -384,6 +392,7 @@ public class MultinodeConnectionManager {
      */
     private SessionInfo connectToAllServers(ConnectionDetails connectionDetails) throws SQLException {
         SessionInfo primarySessionInfo = null;
+        ServerEndpoint primaryServer = null;
         SQLException lastException = null;
         int successfulConnections = 0;
         List<ServerEndpoint> connectedServers = new ArrayList<>();
@@ -426,6 +435,9 @@ public class MultinodeConnectionManager {
                 server.setHealthy(true);
                 server.setLastFailureTime(0);
                 
+                // Determine the target server address for this session
+                String serverAddress = server.getHost() + ":" + server.getPort();
+                
                 // NEW: Use targetServer-based binding if available
                 // Bind session using targetServer from response if both sessionUUID and targetServer are present
                 if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
@@ -435,13 +447,18 @@ public class MultinodeConnectionManager {
                         bindSession(sessionInfo.getSessionUUID(), targetServer);
                         log.info("Session {} bound to target server {} (from response)", 
                                 sessionInfo.getSessionUUID(), targetServer);
+                        serverAddress = targetServer; // Use the server-provided targetServer
                     } else {
                         // Fallback: bind using current server endpoint if targetServer not provided
-                        String serverAddress = server.getHost() + ":" + server.getPort();
                         sessionToServerMap.put(sessionInfo.getSessionUUID(), server);
                         log.info("Session {} bound to server {} (fallback, no targetServer in response)", 
                                 sessionInfo.getSessionUUID(), serverAddress);
                     }
+                    
+                    // Populate targetServer in SessionInfo to preserve session affinity
+                    sessionInfo = SessionInfo.newBuilder(sessionInfo)
+                            .setTargetServer(serverAddress)
+                            .build();
                 } else {
                     log.info("No sessionUUID from server {}, session not bound", server.getAddress());
                 }
@@ -455,6 +472,7 @@ public class MultinodeConnectionManager {
                 // Use the first successful connection as the primary
                 if (primarySessionInfo == null) {
                     primarySessionInfo = sessionInfo;
+                    primaryServer = server;
                 }
                 
             } catch (StatusRuntimeException e) {
