@@ -16,6 +16,7 @@ public class ServerConfiguration {
     private static final Logger logger = LoggerFactory.getLogger(ServerConfiguration.class);
 
     // Configuration keys
+    private static final String SERVER_HOST_KEY = "ojp.server.host";
     private static final String SERVER_PORT_KEY = "ojp.server.port";
     private static final String PROMETHEUS_PORT_KEY = "ojp.prometheus.port";
     private static final String OPENTELEMETRY_ENABLED_KEY = "ojp.opentelemetry.enabled";
@@ -36,6 +37,7 @@ public class ServerConfiguration {
     private static final String SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL_KEY = "ojp.server.slowQuerySegregation.updateGlobalAvgInterval";
 
     // Default values
+    public static final String DEFAULT_SERVER_HOST = "localhost";
     public static final int DEFAULT_SERVER_PORT = CommonConstants.DEFAULT_PORT_NUMBER;
     public static final int DEFAULT_PROMETHEUS_PORT = 9159;
     public static final boolean DEFAULT_OPENTELEMETRY_ENABLED = true;
@@ -57,6 +59,7 @@ public class ServerConfiguration {
     public static final long DEFAULT_SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL = 300; // 300 seconds (5 minutes) global average update interval
 
     // Configuration values
+    private final String serverHost;
     private final int serverPort;
     private final int prometheusPort;
     private final boolean openTelemetryEnabled;
@@ -77,6 +80,7 @@ public class ServerConfiguration {
     private final long slowQueryUpdateGlobalAvgInterval;
 
     public ServerConfiguration() {
+        this.serverHost = getStringProperty(SERVER_HOST_KEY, DEFAULT_SERVER_HOST);
         this.serverPort = getIntProperty(SERVER_PORT_KEY, DEFAULT_SERVER_PORT);
         this.prometheusPort = getIntProperty(PROMETHEUS_PORT_KEY, DEFAULT_PROMETHEUS_PORT);
         this.openTelemetryEnabled = getBooleanProperty(OPENTELEMETRY_ENABLED_KEY, DEFAULT_OPENTELEMETRY_ENABLED);
@@ -175,7 +179,9 @@ public class ServerConfiguration {
      */
     private void logConfigurationSummary() {
         logger.info("OJP Server Configuration:");
+        logger.info("  Server Host: {}", serverHost);
         logger.info("  Server Port: {}", serverPort);
+        logger.info("  Server Address: {}", getServerAddress());
         logger.info("  Prometheus Port: {}", prometheusPort);
         logger.info("  OpenTelemetry Enabled: {}", openTelemetryEnabled);
         logger.info("  OpenTelemetry Endpoint: {}", openTelemetryEndpoint.isEmpty() ? "default" : openTelemetryEndpoint);
@@ -196,8 +202,20 @@ public class ServerConfiguration {
     }
 
     // Getters
+    public String getServerHost() {
+        return serverHost;
+    }
+
     public int getServerPort() {
         return serverPort;
+    }
+    
+    /**
+     * Gets the server address in host:port format for session binding.
+     * This is used to populate the targetServer field in SessionInfo responses.
+     */
+    public String getServerAddress() {
+        return serverHost + ":" + serverPort;
     }
 
     public int getPrometheusPort() {

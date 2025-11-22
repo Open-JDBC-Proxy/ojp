@@ -272,10 +272,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 SessionInfo sessionInfo = this.sessionManager.createXASession(
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
-                // Server does not populate targetServer - client will set it on future requests
+                // Populate targetServer with this server's address for session binding
+                String serverAddress = serverConfiguration.getServerAddress();
+                sessionInfo = SessionInfoUtils.withTargetServer(sessionInfo, serverAddress);
                 
-                log.info("Created XA session with UUID: {} for client: {}", 
-                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID());
+                log.info("Created XA session with UUID: {} for client: {}, targetServer: {}", 
+                        sessionInfo.getSessionUUID(), connectionDetails.getClientUUID(), serverAddress);
                 
                 responseObserver.onNext(sessionInfo);
                 this.dbNameMap.put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
@@ -322,12 +324,17 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
 
         // For regular connections, just return session info without creating a session yet (lazy allocation)
-        // Server does not populate targetServer - client will set it on future requests
+        // Populate targetServer with this server's address for session binding
+        String serverAddress = serverConfiguration.getServerAddress();
         SessionInfo sessionInfo = SessionInfo.newBuilder()
                 .setConnHash(connHash)
                 .setClientUUID(connectionDetails.getClientUUID())
                 .setIsXA(false)
+                .setTargetServer(serverAddress)
                 .build();
+
+        log.info("Created connection info for client: {}, targetServer: {}", 
+                connectionDetails.getClientUUID(), serverAddress);
 
         responseObserver.onNext(sessionInfo);
 
