@@ -213,6 +213,8 @@ public class ServerConfiguration {
     /**
      * Gets the server address in host:port format for session binding.
      * This is used to populate the targetServer field in SessionInfo responses.
+     * 
+     * @return Server address in format "host:port", e.g., "localhost:10591"
      */
     public String getServerAddress() {
         return serverHost + ":" + serverPort;

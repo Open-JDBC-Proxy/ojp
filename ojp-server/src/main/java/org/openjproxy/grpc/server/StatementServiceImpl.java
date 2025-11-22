@@ -219,6 +219,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         log.info("connect connHash = {}, isXA = {}, maxXaTransactions = {}, xaStartTimeout = {}ms", 
                 connHash, connectionDetails.getIsXA(), maxXaTransactions, xaStartTimeoutMillis);
 
+        // Get server address once for session binding
+        String serverAddress = serverConfiguration.getServerAddress();
+
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
             // Check if multinode configuration is present for XA coordination
@@ -273,7 +276,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         connectionDetails.getClientUUID(), connection, xaConnection);
                 
                 // Populate targetServer with this server's address for session binding
-                String serverAddress = serverConfiguration.getServerAddress();
                 sessionInfo = SessionInfoUtils.withTargetServer(sessionInfo, serverAddress);
                 
                 log.info("Created XA session with UUID: {} for client: {}, targetServer: {}", 
@@ -325,7 +327,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         // For regular connections, just return session info without creating a session yet (lazy allocation)
         // Populate targetServer with this server's address for session binding
-        String serverAddress = serverConfiguration.getServerAddress();
         SessionInfo sessionInfo = SessionInfo.newBuilder()
                 .setConnHash(connHash)
                 .setClientUUID(connectionDetails.getClientUUID())
