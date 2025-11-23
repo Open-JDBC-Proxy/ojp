@@ -392,7 +392,6 @@ public class MultinodeConnectionManager {
      */
     private SessionInfo connectToAllServers(ConnectionDetails connectionDetails) throws SQLException {
         SessionInfo primarySessionInfo = null;
-        ServerEndpoint primaryServer = null;
         SQLException lastException = null;
         int successfulConnections = 0;
         List<ServerEndpoint> connectedServers = new ArrayList<>();
@@ -472,7 +471,6 @@ public class MultinodeConnectionManager {
                 // Use the first successful connection as the primary
                 if (primarySessionInfo == null) {
                     primarySessionInfo = sessionInfo;
-                    primaryServer = server;
                 }
                 
             } catch (StatusRuntimeException e) {
