@@ -56,6 +56,7 @@ SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
 **Code Location**: `StatementServiceImpl.createSlowQuerySegregationManagerForDatasource()`
 
 ```java
+// Partial code snippet showing XA with slow query segregation enabled
 if (slowQueryEnabled) {
     // XA with slow query segregation enabled: use configured slow/fast slot allocation
     SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
@@ -68,6 +69,7 @@ if (slowQueryEnabled) {
         true
     );
 }
+// ... else block shown in next section
 ```
 
 ### XA Mode with Slow Query Segregation Disabled
@@ -120,7 +122,7 @@ else {
 The `SlotManager` constructor enforces a minimum of 1 slow slot:
 
 ```java
-// SlotManager.java line 67
+// From SlotManager constructor
 this.slowSlots = Math.max(1, (totalSlots * slowSlotPercentage) / 100);
 this.fastSlots = totalSlots - this.slowSlots;
 ```
@@ -427,7 +429,7 @@ INFO: Created SlowQuerySegregationManager for XA datasource <hash> with <N> slot
 When enabled:
 
 ```
-INFO: Created SlowQuerySegregationManager for XA datasource <hash> with pool size <N> 
+INFO: Created SlowQuerySegregationManager for XA datasource <hash> with <N> slots 
       (slow query segregation enabled)
 ```
 
@@ -491,13 +493,13 @@ The current implementation is **well-designed and safe**. The term "disabled" fo
 ### Source Code
 
 - `ojp-server/src/main/java/org/openjproxy/grpc/server/StatementServiceImpl.java`
-  - Lines 460-490: `createSlowQuerySegregationManagerForDatasource()`
+  - Method: `createSlowQuerySegregationManagerForDatasource()` - XA slot manager creation logic
   
 - `ojp-server/src/main/java/org/openjproxy/grpc/server/SlowQuerySegregationManager.java`
   - Constructor and configuration logic
   
 - `ojp-server/src/main/java/org/openjproxy/grpc/server/SlotManager.java`
-  - Lines 52-76: Constructor with minimum slot enforcement
+  - Constructor with minimum slot enforcement logic
 
 ### Tests
 
