@@ -35,9 +35,8 @@ public class DB2XAIntegrationTest {
     private Connection connection;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
-        // Enable by default for testing
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disableDB2Tests", "false"));
+    public static void setup() {
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDB2Tests", "false"));
     }
 
     public void setUp(String driverClass, String url, String user, String password) throws SQLException {
