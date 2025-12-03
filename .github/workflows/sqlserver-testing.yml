@@ -22,21 +22,6 @@ jobs:
       matrix:
         java-version: [ 11, 17, 21, 22 ]
 
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: Y
-          SA_PASSWORD: TestPassword123!
-        options: >-
-          --name ojp-sqlserver
-          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q 'SELECT 1'"
-          --health-interval 20s
-          --health-timeout 10s
-          --health-retries 10
-        ports:
-          - 1433:1433
-
     steps:
 
       - name: Git checkout
@@ -44,11 +29,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Start SQL Server
+        run: |
+          docker run --name ojp-sqlserver \
+            -e ACCEPT_EULA=Y \
+            -e SA_PASSWORD=TestPassword123! \
+            -p 1433:1433 \
+            -d mcr.microsoft.com/mssql/server:2022-latest
+          
+          # Wait for SQL Server to be ready (up to 120s)
+          echo "Waiting for SQL Server to start..."
+          timeout 120 bash -c 'until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q "SELECT 1" &>/dev/null; do sleep 5; done'
+          
+          echo "=== SQL Server started successfully ==="
+
       - name: Initialize SQL Server Database
         run: |
-          # Wait for SQL Server to be fully ready
-          sleep 30
-          
           # Create test database and user
           docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q "
           CREATE DATABASE defaultdb;
@@ -59,7 +55,7 @@ jobs:
           ALTER ROLE db_datawriter ADD MEMBER testuser;
           ALTER ROLE db_ddladmin ADD MEMBER testuser;
           ALTER SERVER ROLE sysadmin ADD MEMBER testuser;
-          " || echo "Database setup completed with warnings"
+          "
           
           echo "=== SQL Server database initialized ==="
 
