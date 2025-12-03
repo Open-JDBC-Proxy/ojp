@@ -37,12 +37,12 @@ jobs:
             -p 1433:1433 \
             -d mcr.microsoft.com/mssql/server:2022-latest
           
-          # SQL Server takes 3-5 minutes to fully start
-          echo "Waiting for SQL Server to start (this may take up to 5 minutes)..."
+          # SQL Server can take up to 15 minutes to fully start in CI environment
+          echo "Waiting for SQL Server to start (this may take up to 15 minutes)..."
           sleep 30
           
-          # Wait for SQL Server to be ready (up to 300s = 5 minutes)
-          timeout 300 bash -c 'until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q "SELECT 1" &>/dev/null; do echo "Still waiting..."; sleep 10; done'
+          # Wait for SQL Server to be ready (up to 900s = 15 minutes)
+          timeout 900 bash -c 'until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q "SELECT 1" &>/dev/null; do echo "Still waiting..."; sleep 10; done'
           
           echo "=== SQL Server started successfully ==="
 
