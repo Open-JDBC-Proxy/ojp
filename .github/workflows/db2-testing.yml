@@ -14,7 +14,7 @@ jobs:
   db2-test:
     name: DB2 Tests (JDK ${{ matrix.java-version }})
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: read
 
@@ -60,14 +60,14 @@ jobs:
       - name: Wait for DB2 to be fully ready
         run: |
           echo "Waiting for DB2 to fully initialize (this may take 15+ minutes)..."
-          
+
           # Wait for initial startup
           sleep 180
-          
+
           # Poll DB2 until it's ready (max 20 minutes)
           COUNTER=0
           MAX_ATTEMPTS=60
-          
+
           until docker exec ojp-db2 su - db2inst1 -c "db2 connect to testdb" > /dev/null 2>&1; do
             COUNTER=$((COUNTER+1))
             if [ $COUNTER -eq $MAX_ATTEMPTS ]; then
@@ -78,9 +78,9 @@ jobs:
             echo "Waiting for DB2... attempt $COUNTER/$MAX_ATTEMPTS"
             sleep 20
           done
-          
+
           echo "=== DB2 is ready ==="
-          
+
           # Verify connection
           docker exec ojp-db2 su - db2inst1 -c "db2 connect to testdb && db2 'select 1 from sysibm.sysdummy1'"
 
@@ -95,10 +95,10 @@ jobs:
               <version>11.5.9.0</version>
           </dependency>
           EOF
-          
+
           # Insert after the placeholder comment
           sed -i '/<!-- PROPRIETARY DATABASE DRIVERS PLACEHOLDER -->/r /tmp/db2-dep.txt' ojp-server/pom.xml
-          
+
           # Verify the insertion
           echo "=== Modified ojp-server/pom.xml dependencies section ==="
           sed -n '/PROPRIETARY DATABASE DRIVERS PLACEHOLDER/,/HikariCP/p' ojp-server/pom.xml
