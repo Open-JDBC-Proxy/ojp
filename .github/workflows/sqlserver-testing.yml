@@ -1,0 +1,124 @@
+# This workflow runs SQL Server Database tests autonomously without requiring SQL Server JDBC drivers in the repository.
+# It dynamically adds the Microsoft SQL Server JDBC driver during CI execution and runs SQL Server-specific tests.
+name: SQL Server Database Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  sqlserver-test:
+    name: SQL Server Tests (JDK ${{ matrix.java-version }})
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: [ 11, 17, 21, 22 ]
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: TestPassword123!
+        options: >-
+          --name ojp-sqlserver
+          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q 'SELECT 1'"
+          --health-interval 20s
+          --health-timeout 10s
+          --health-retries 10
+        ports:
+          - 1433:1433
+
+    steps:
+
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize SQL Server Database
+        run: |
+          # Wait for SQL Server to be fully ready
+          sleep 30
+          
+          # Create test database and user
+          docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q "
+          CREATE DATABASE defaultdb;
+          CREATE LOGIN testuser WITH PASSWORD = 'TestPassword123!';
+          USE defaultdb;
+          CREATE USER testuser FOR LOGIN testuser;
+          ALTER ROLE db_datareader ADD MEMBER testuser;
+          ALTER ROLE db_datawriter ADD MEMBER testuser;
+          ALTER ROLE db_ddladmin ADD MEMBER testuser;
+          ALTER SERVER ROLE sysadmin ADD MEMBER testuser;
+          " || echo "Database setup completed with warnings"
+          
+          echo "=== SQL Server database initialized ==="
+
+      - name: Add SQL Server JDBC Driver to ojp-server
+        run: |
+          # Create temporary file with SQL Server JDBC dependency
+          cat > /tmp/sqlserver-dep.txt << 'EOF'
+          <!-- Microsoft SQL Server JDBC Driver (added by CI) -->
+          <dependency>
+              <groupId>com.microsoft.sqlserver</groupId>
+              <artifactId>mssql-jdbc</artifactId>
+              <version>12.8.1.jre11</version>
+          </dependency>
+          EOF
+          
+          # Insert after the placeholder comment
+          sed -i '/<!-- PROPRIETARY DATABASE DRIVERS PLACEHOLDER -->/r /tmp/sqlserver-dep.txt' ojp-server/pom.xml
+          
+          # Verify the insertion
+          echo "=== Modified ojp-server/pom.xml dependencies section ==="
+          sed -n '/PROPRIETARY DATABASE DRIVERS PLACEHOLDER/,/HikariCP/p' ojp-server/pom.xml
+
+      - name: Set up JDK 22 for build
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Install (ojp-grpc-commons) with JDK 22
+        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-grpc-commons) with JDK 22
+        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
+
+      - name: Build (ojp-server) with JDK 22
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
+
+      - name: Test and Run (ojp-server)
+        run: |
+          nohup java -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          echo $! > /tmp/ojp-server.pid
+
+      - name: Wait for ojp-server to start
+        run: sleep 10
+
+      - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-jdbc-driver) with SQL Server enabled
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableSqlServerTests -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -DdisableCockroachDBTests
+
+      - name: Show ojp-server.log
+        if: always()  # ensures it runs even if previous steps fail
+        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
