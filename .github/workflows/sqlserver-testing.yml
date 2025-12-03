@@ -75,19 +75,49 @@ jobs:
         run: |
           # Create test database and user (may fail if SQL Server is not ready)
           echo "Attempting to initialize SQL Server database..."
+          
+          # Wait a bit more to ensure SQL Server is fully ready
+          sleep 10
+          
+          # Try to initialize with better error reporting
           if docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'TestPassword123!' -Q "
           CREATE DATABASE defaultdb;
+          GO
+          USE master;
+          GO
           CREATE LOGIN testuser WITH PASSWORD = 'TestPassword123!';
+          GO
           USE defaultdb;
+          GO
           CREATE USER testuser FOR LOGIN testuser;
+          GO
           ALTER ROLE db_datareader ADD MEMBER testuser;
           ALTER ROLE db_datawriter ADD MEMBER testuser;
           ALTER ROLE db_ddladmin ADD MEMBER testuser;
+          GO
           ALTER SERVER ROLE sysadmin ADD MEMBER testuser;
+          GO
           "; then
             echo "=== SQL Server database initialized successfully ==="
+            
+            # Verify the setup
+            echo "Verifying database and user creation..."
+            docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'TestPassword123!' -Q "
+            SELECT name FROM sys.databases WHERE name = 'defaultdb';
+            SELECT name FROM sys.sql_logins WHERE name = 'testuser';
+            " || true
+            
+            # Test login as testuser
+            echo "Testing testuser login..."
+            if docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U testuser -P 'TestPassword123!' -d defaultdb -Q "SELECT 1 AS test;"; then
+              echo "=== testuser can connect successfully ==="
+            else
+              echo "WARNING: testuser cannot connect - authentication may fail in tests"
+            fi
           else
             echo "WARNING: Failed to initialize SQL Server database"
+            echo "Showing SQL Server error log..."
+            docker exec ojp-sqlserver cat /var/opt/mssql/log/errorlog | tail -50 || true
             echo "Tests may fail if database is not properly configured"
           fi
 
