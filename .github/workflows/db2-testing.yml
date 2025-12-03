@@ -26,6 +26,7 @@ jobs:
     services:
       db2:
         # DB2 Database 11.5.8.0 - compatible with JDBC driver 11.5.9.0 (newer driver version is supported)
+        # Note: Health check removed - DB2 takes 15+ minutes to initialize, manual wait step handles readiness
         image: ibmcom/db2:11.5.8.0
         env:
           LICENSE: accept
@@ -44,10 +45,6 @@ jobs:
           --name ojp-db2
           --privileged
           --memory 6g
-          --health-cmd "su - db2inst1 -c 'db2 connect to testdb && db2 select 1 from sysibm.sysdummy1'"
-          --health-interval 60s
-          --health-timeout 30s
-          --health-retries 20
         ports:
           - 50000:50000
 
