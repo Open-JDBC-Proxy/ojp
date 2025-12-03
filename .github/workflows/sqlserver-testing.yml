@@ -41,8 +41,30 @@ jobs:
           echo "Waiting for SQL Server to start (this may take up to 15 minutes)..."
           sleep 30
           
+          # Check if container is running
+          if ! docker ps | grep -q ojp-sqlserver; then
+            echo "ERROR: SQL Server container is not running!"
+            docker logs ojp-sqlserver
+            exit 1
+          fi
+          
           # Wait for SQL Server to be ready (up to 900s = 15 minutes)
-          timeout 900 bash -c 'until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q "SELECT 1" &>/dev/null; do echo "Still waiting..."; sleep 10; done'
+          echo "Starting health checks..."
+          COUNTER=0
+          MAX_TRIES=90
+          until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'TestPassword123!' -Q "SELECT 1" > /dev/null 2>&1; do
+            COUNTER=$((COUNTER + 1))
+            if [ $COUNTER -gt $MAX_TRIES ]; then
+              echo "ERROR: SQL Server failed to start within 15 minutes"
+              echo "=== Container logs ==="
+              docker logs ojp-sqlserver
+              echo "=== Container status ==="
+              docker ps -a | grep ojp-sqlserver
+              exit 1
+            fi
+            echo "Still waiting... (attempt $COUNTER/$MAX_TRIES)"
+            sleep 10
+          done
           
           echo "=== SQL Server started successfully ==="
 
