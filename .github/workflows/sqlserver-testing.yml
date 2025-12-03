@@ -110,6 +110,32 @@ jobs:
           echo "=== Modified ojp-server/pom.xml dependencies section ==="
           sed -n '/PROPRIETARY DATABASE DRIVERS PLACEHOLDER/,/HikariCP/p' ojp-server/pom.xml
 
+      - name: Fix Maven Shade Plugin to exclude signature files
+        run: |
+          # Add filter configuration to exclude signature files from signed JARs
+          # This prevents "Invalid signature file digest" errors when adding proprietary drivers
+          cd ojp-server
+          
+          # Create the filter XML fragment
+          cat > /tmp/shade-filter.xml << 'EOF'
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+          EOF
+          
+          # Insert the filter configuration before the transformers section in shade plugin
+          sed -i '/<transformers>/i\                            <filters>\n                                <filter>\n                                    <artifact>*:*</artifact>\n                                    <excludes>\n                                        <exclude>META-INF/*.SF</exclude>\n                                        <exclude>META-INF/*.DSA</exclude>\n                                        <exclude>META-INF/*.RSA</exclude>\n                                    </excludes>\n                                </filter>\n                            </filters>' pom.xml
+          
+          echo "=== Modified shade plugin configuration ==="
+          sed -n '/<artifactId>maven-shade-plugin/,/<\/plugin>/p' pom.xml | head -40
+
       - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
         with:
