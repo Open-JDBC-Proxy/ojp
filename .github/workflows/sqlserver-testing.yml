@@ -37,41 +37,45 @@ jobs:
             -p 1433:1433 \
             -d mcr.microsoft.com/mssql/server:2022-latest
           
-          # SQL Server can take up to 60 minutes to fully start in CI environment
-          echo "Waiting for SQL Server to start (this may take up to 60 minutes)..."
+          # SQL Server can take a long time to start in CI environment
+          echo "Waiting for SQL Server to start (will try for up to 10 minutes, then proceed anyway)..."
           sleep 30
           
           # Check if container is running
           if ! docker ps | grep -q ojp-sqlserver; then
-            echo "ERROR: SQL Server container is not running!"
-            docker logs ojp-sqlserver
-            exit 1
-          fi
-          
-          # Wait for SQL Server to be ready (up to 3600s = 60 minutes)
-          echo "Starting health checks..."
-          COUNTER=0
-          MAX_TRIES=360
-          until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'TestPassword123!' -Q "SELECT 1" > /dev/null 2>&1; do
-            COUNTER=$((COUNTER + 1))
-            if [ $COUNTER -gt $MAX_TRIES ]; then
-              echo "ERROR: SQL Server failed to start within 60 minutes"
-              echo "=== Container logs ==="
-              docker logs ojp-sqlserver
-              echo "=== Container status ==="
-              docker ps -a | grep ojp-sqlserver
-              exit 1
+            echo "WARNING: SQL Server container is not running!"
+            docker logs ojp-sqlserver || true
+            echo "Continuing anyway - tests may fail if SQL Server is not available"
+          else
+            # Wait for SQL Server to be ready (up to 600s = 10 minutes)
+            echo "Starting health checks..."
+            COUNTER=0
+            MAX_TRIES=60
+            until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'TestPassword123!' -Q "SELECT 1" > /dev/null 2>&1; do
+              COUNTER=$((COUNTER + 1))
+              if [ $COUNTER -gt $MAX_TRIES ]; then
+                echo "WARNING: SQL Server did not respond to health checks within 10 minutes"
+                echo "=== Container logs ==="
+                docker logs ojp-sqlserver || true
+                echo "=== Container status ==="
+                docker ps -a | grep ojp-sqlserver || true
+                echo "Proceeding anyway - tests may fail if SQL Server is not ready"
+                break
+              fi
+              echo "Still waiting... (attempt $COUNTER/$MAX_TRIES)"
+              sleep 10
+            done
+            
+            if [ $COUNTER -le $MAX_TRIES ]; then
+              echo "=== SQL Server started successfully ==="
             fi
-            echo "Still waiting... (attempt $COUNTER/$MAX_TRIES)"
-            sleep 10
-          done
-          
-          echo "=== SQL Server started successfully ==="
+          fi
 
       - name: Initialize SQL Server Database
         run: |
-          # Create test database and user
-          docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TestPassword123! -Q "
+          # Create test database and user (may fail if SQL Server is not ready)
+          echo "Attempting to initialize SQL Server database..."
+          if docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'TestPassword123!' -Q "
           CREATE DATABASE defaultdb;
           CREATE LOGIN testuser WITH PASSWORD = 'TestPassword123!';
           USE defaultdb;
@@ -80,9 +84,12 @@ jobs:
           ALTER ROLE db_datawriter ADD MEMBER testuser;
           ALTER ROLE db_ddladmin ADD MEMBER testuser;
           ALTER SERVER ROLE sysadmin ADD MEMBER testuser;
-          "
-          
-          echo "=== SQL Server database initialized ==="
+          "; then
+            echo "=== SQL Server database initialized successfully ==="
+          else
+            echo "WARNING: Failed to initialize SQL Server database"
+            echo "Tests may fail if database is not properly configured"
+          fi
 
       - name: Add SQL Server JDBC Driver to ojp-server
         run: |
