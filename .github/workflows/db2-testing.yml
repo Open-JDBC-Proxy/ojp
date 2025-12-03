@@ -61,18 +61,22 @@ jobs:
         run: |
           echo "Waiting for DB2 to fully initialize (this may take 15+ minutes)..."
 
-          # Wait for initial startup
+          # Wait for initial startup (DB2 requires significant time for first-time initialization)
+          # This prevents premature polling attempts that could fill logs with connection errors
           sleep 180
 
-          # Poll DB2 until it's ready (max 20 minutes)
+          # Poll DB2 until it's ready (max 20 minutes total: 60 attempts × 20s)
           COUNTER=0
           MAX_ATTEMPTS=60
 
           until docker exec ojp-db2 su - db2inst1 -c "db2 connect to testdb" > /dev/null 2>&1; do
             COUNTER=$((COUNTER+1))
             if [ $COUNTER -eq $MAX_ATTEMPTS ]; then
-              echo "DB2 failed to start after $MAX_ATTEMPTS attempts"
+              echo "ERROR: DB2 failed to start after $MAX_ATTEMPTS attempts (20 minutes)"
+              echo "=== DB2 container logs ==="
               docker logs ojp-db2
+              echo "=== Attempting final connection for detailed error ==="
+              docker exec ojp-db2 su - db2inst1 -c "db2 connect to testdb" || true
               exit 1
             fi
             echo "Waiting for DB2... attempt $COUNTER/$MAX_ATTEMPTS"
@@ -81,7 +85,7 @@ jobs:
 
           echo "=== DB2 is ready ==="
 
-          # Verify connection
+          # Verify connection and test basic query
           docker exec ojp-db2 su - db2inst1 -c "db2 connect to testdb && db2 'select 1 from sysibm.sysdummy1'"
 
       - name: Add IBM DB2 JDBC Driver to ojp-server
