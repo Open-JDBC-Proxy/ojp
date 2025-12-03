@@ -25,6 +25,7 @@ jobs:
 
     services:
       db2:
+        # DB2 Database 11.5.8.0 - compatible with JDBC driver 11.5.9.0 (newer driver version is supported)
         image: ibmcom/db2:11.5.8.0
         env:
           LICENSE: accept
@@ -91,14 +92,15 @@ jobs:
       - name: Add IBM DB2 JDBC Driver to ojp-server
         run: |
           # Create temporary file with DB2 JDBC dependency
-          cat > /tmp/db2-dep.txt << 'EOF'
-          <!-- IBM DB2 JDBC Driver (added by CI) -->
-          <dependency>
-              <groupId>com.ibm.db2</groupId>
-              <artifactId>jcc</artifactId>
-              <version>11.5.9.0</version>
-          </dependency>
-          EOF
+          # Note: Using 8-space indentation to match existing pom.xml structure
+          {
+            echo "        <!-- IBM DB2 JDBC Driver (added by CI) -->"
+            echo "        <dependency>"
+            echo "            <groupId>com.ibm.db2</groupId>"
+            echo "            <artifactId>jcc</artifactId>"
+            echo "            <version>11.5.9.0</version>"
+            echo "        </dependency>"
+          } > /tmp/db2-dep.txt
 
           # Insert after the placeholder comment
           sed -i '/<!-- PROPRIETARY DATABASE DRIVERS PLACEHOLDER -->/r /tmp/db2-dep.txt' ojp-server/pom.xml
