@@ -37,8 +37,8 @@ jobs:
             -p 1433:1433 \
             -d mcr.microsoft.com/mssql/server:2022-latest
           
-          # SQL Server can take up to 15 minutes to fully start in CI environment
-          echo "Waiting for SQL Server to start (this may take up to 15 minutes)..."
+          # SQL Server can take up to 60 minutes to fully start in CI environment
+          echo "Waiting for SQL Server to start (this may take up to 60 minutes)..."
           sleep 30
           
           # Check if container is running
@@ -48,14 +48,14 @@ jobs:
             exit 1
           fi
           
-          # Wait for SQL Server to be ready (up to 900s = 15 minutes)
+          # Wait for SQL Server to be ready (up to 3600s = 60 minutes)
           echo "Starting health checks..."
           COUNTER=0
-          MAX_TRIES=90
+          MAX_TRIES=360
           until docker exec ojp-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'TestPassword123!' -Q "SELECT 1" > /dev/null 2>&1; do
             COUNTER=$((COUNTER + 1))
             if [ $COUNTER -gt $MAX_TRIES ]; then
-              echo "ERROR: SQL Server failed to start within 15 minutes"
+              echo "ERROR: SQL Server failed to start within 60 minutes"
               echo "=== Container logs ==="
               docker logs ojp-sqlserver
               echo "=== Container status ==="
