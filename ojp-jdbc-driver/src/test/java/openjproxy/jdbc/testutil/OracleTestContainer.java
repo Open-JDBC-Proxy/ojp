@@ -30,7 +30,6 @@ public class OracleTestContainer {
     public static synchronized OracleContainer getInstance() {
         if (container == null) {
             container = new OracleContainer(DockerImageName.parse(ORACLE_IMAGE))
-                    .withDatabaseName("XEPDB1")
                     .withUsername(TEST_USERNAME)
                     .withPassword(TEST_PASSWORD);
         }
