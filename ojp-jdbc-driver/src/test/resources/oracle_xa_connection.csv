@@ -1,2 +1,0 @@
-org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_oracle:thin:@localhost:1521/XEPDB1,testuser,testpassword
-

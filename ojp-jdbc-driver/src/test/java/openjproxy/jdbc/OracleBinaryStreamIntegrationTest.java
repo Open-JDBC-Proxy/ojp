@@ -2,8 +2,11 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.junit.jupiter.api.condition.EnabledIf;
 import openjproxy.jdbc.testutil.OracleConnectionProvider;
 
 import java.io.ByteArrayInputStream;

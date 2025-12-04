@@ -2,9 +2,13 @@ package openjproxy.jdbc;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.junit.jupiter.api.condition.EnabledIf;
 import openjproxy.jdbc.testutil.OracleConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 
