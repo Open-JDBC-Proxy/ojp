@@ -3,15 +3,20 @@ package openjproxy.jdbc;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 
+import openjproxy.jdbc.testutil.Db2ConnectionProvider;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.Db2TestContainer#isEnabled")
 public class Db2ResultSetMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -87,7 +92,7 @@ public class Db2ResultSetMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
@@ -233,7 +238,7 @@ public class Db2ResultSetMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2SpecificDataTypes(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         

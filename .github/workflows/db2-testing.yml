@@ -1,0 +1,97 @@
+# This workflow runs only DB2 integration tests using TestContainers.
+# It disables all other database integration tests to focus on DB2 testing.
+# TestContainers automatically manages the DB2 container lifecycle.
+name: DB2 Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  db2-tests:
+    name: DB2 Integration Tests
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: [ 11, 17, 21, 22 ]
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add DB2 JDBC Driver to ojp-server
+        run: |
+          # Create temporary file with DB2 JDBC dependency
+          cat > /tmp/db2-dep.txt << 'EOF'
+          <!-- DB2 JDBC Driver (added by CI) -->
+          <dependency>
+              <groupId>com.ibm.db2</groupId>
+              <artifactId>jcc</artifactId>
+              <version>11.5.9.0</version>
+          </dependency>
+          EOF
+          
+          # Insert after the placeholder comment
+          sed -i '/<!-- PROPRIETARY DATABASE DRIVERS PLACEHOLDER -->/r /tmp/db2-dep.txt' ojp-server/pom.xml
+          
+          # Verify the insertion
+          echo "=== Modified ojp-server/pom.xml dependencies section ==="
+          sed -n '/PROPRIETARY DATABASE DRIVERS PLACEHOLDER/,/HikariCP/p' ojp-server/pom.xml
+
+      - name: Set up JDK 22 for build
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Install (ojp-grpc-commons) with JDK 22
+        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-grpc-commons) with JDK 22
+        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
+
+      - name: Build (ojp-server) with JDK 22
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
+
+      - name: Test and Run (ojp-server)
+        run: |
+          nohup java -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          echo $! > /tmp/ojp-server.pid
+
+      - name: Wait for ojp-server to start
+        run: sleep 10
+
+      - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
+
+      - name: Run DB2 Integration Tests
+        run: |
+          mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
+            -DenableDb2Tests=true \
+            -DdisablePostgresTests=true \
+            -DdisableMySQLTests=true \
+            -DdisableMariaDBTests=true \
+            -DdisableCockroachDBTests=true \
+            -Dtest="Db2*"
+
+      - name: Show ojp-server.log
+        if: always()  # ensures it runs even if previous steps fail
+        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
