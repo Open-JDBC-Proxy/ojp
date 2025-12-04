@@ -6,6 +6,9 @@ import org.testcontainers.containers.Db2Container;
  * Singleton DB2 test container for all DB2 integration tests.
  * This ensures that all tests share the same DB2 instance to improve test performance
  * and reduce resource usage.
+ * 
+ * <p>Thread-safe singleton implementation using synchronized methods to ensure
+ * only one container instance is created across multiple test threads.</p>
  */
 public class Db2TestContainer {
     
@@ -14,7 +17,7 @@ public class Db2TestContainer {
     
     private static Db2Container container;
     private static boolean isStarted = false;
-    private static boolean shutdownHookRegistered = false;
+    private static volatile boolean shutdownHookRegistered = false;
     
     /**
      * Gets or creates the shared DB2 test container instance.
@@ -31,15 +34,19 @@ public class Db2TestContainer {
         if (!isStarted) {
             container.start();
             isStarted = true;
-            
-            // Add shutdown hook to stop container when JVM exits
-            if (!shutdownHookRegistered) {
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    if (container != null && container.isRunning()) {
-                        container.stop();
-                    }
-                }));
-                shutdownHookRegistered = true;
+        }
+        
+        // Add shutdown hook to stop container when JVM exits (thread-safe check)
+        if (!shutdownHookRegistered) {
+            synchronized (Db2TestContainer.class) {
+                if (!shutdownHookRegistered) {
+                    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                        if (container != null && container.isRunning()) {
+                            container.stop();
+                        }
+                    }));
+                    shutdownHookRegistered = true;
+                }
             }
         }
         
