@@ -38,8 +38,8 @@ public class OracleConnectionProvider implements ArgumentsProvider {
         
         // Build OJP JDBC URL from the container URL
         // TestContainer URL format: jdbc:oracle:thin:@localhost:RANDOM_PORT/XEPDB1
-        // We need to extract the connection string and wrap it with OJP format
-        // OJP format: jdbc:ojp[localhost:1059]_oracle:thin:@...
+        // OJP wraps this by removing 'jdbc:' and prepending 'jdbc:ojp[host:port]_'
+        // Result format: jdbc:ojp[localhost:1059]_oracle:thin:@localhost:RANDOM_PORT/XEPDB1
         String driverClass = "org.openjproxy.jdbc.Driver";
         
         // Remove "jdbc:" prefix and add OJP wrapper

@@ -1,5 +1,6 @@
 package openjproxy.jdbc.testutil;
 
+import lombok.extern.slf4j.Slf4j;
 import org.testcontainers.containers.OracleContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -8,6 +9,7 @@ import org.testcontainers.utility.DockerImageName;
  * This ensures that all tests share the same Oracle instance to improve test performance
  * and reduce resource usage.
  */
+@Slf4j
 public class OracleTestContainer {
     
     // Oracle Docker image version (using gvenzl/oracle-xe for compatibility)
@@ -63,27 +65,35 @@ public class OracleTestContainer {
      * This is required for XA transaction tests.
      */
     private static void grantXAPermissions() throws Exception {
-        // Execute SQL commands to grant XA permissions
-        String sqlCommands = 
-            "GRANT XA_RECOVER_ADMIN TO " + TEST_USERNAME + ";\n" +
-            "GRANT SELECT ON sys.dba_pending_transactions TO " + TEST_USERNAME + ";\n" +
-            "GRANT SELECT ON sys.pending_trans$ TO " + TEST_USERNAME + ";\n" +
-            "GRANT SELECT ON sys.dba_2pc_pending TO " + TEST_USERNAME + ";\n" +
-            "GRANT SELECT ON sys.dba_2pc_neighbors TO " + TEST_USERNAME + ";\n" +
-            "GRANT EXECUTE ON sys.dbms_xa TO " + TEST_USERNAME + ";\n" +
-            "GRANT EXECUTE ON sys.dbms_system TO " + TEST_USERNAME + ";\n" +
-            "GRANT FORCE ANY TRANSACTION TO " + TEST_USERNAME + ";";
+        log.info("Granting XA permissions to Oracle test user: {}", TEST_USERNAME);
         
-        // Execute the grants using container.execInContainer
+        // Build SQL script with all necessary grants
+        StringBuilder sqlScript = new StringBuilder();
+        sqlScript.append("WHENEVER SQLERROR EXIT SQL.SQLCODE\n");
+        sqlScript.append("GRANT XA_RECOVER_ADMIN TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.dba_pending_transactions TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.pending_trans$ TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.dba_2pc_pending TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.dba_2pc_neighbors TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT EXECUTE ON sys.dbms_xa TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT EXECUTE ON sys.dbms_system TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT FORCE ANY TRANSACTION TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("EXIT;\n");
+        
+        // Execute the grants using bash to pipe SQL into sqlplus
         org.testcontainers.containers.Container.ExecResult result = container.execInContainer(
-            "sqlplus", "-s", "system/" + TEST_PASSWORD + "@" + container.getDatabaseName(),
-            "/bin/bash", "-c", "echo \"" + sqlCommands + "\" | sqlplus -s system/" + TEST_PASSWORD + "@" + container.getDatabaseName()
+            "bash", "-c", 
+            "echo \"" + sqlScript.toString().replace("\"", "\\\"") + "\" | sqlplus -s system/" + 
+            TEST_PASSWORD + "@" + container.getDatabaseName()
         );
         
         if (result.getExitCode() != 0) {
-            System.err.println("Failed to grant XA permissions. Output: " + result.getStdout());
-            System.err.println("Error: " + result.getStderr());
+            log.warn("Failed to grant XA permissions. Exit code: {}", result.getExitCode());
+            log.warn("Output: {}", result.getStdout());
+            log.warn("Error: {}", result.getStderr());
             // Don't throw exception - XA tests may fail but other tests can still run
+        } else {
+            log.info("Successfully granted XA permissions to {}", TEST_USERNAME);
         }
     }
     
