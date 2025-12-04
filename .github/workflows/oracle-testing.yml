@@ -1,17 +1,18 @@
-# This workflow runs Oracle Database tests autonomously without requiring Oracle JDBC drivers in the repository.
-# It dynamically adds the Oracle JDBC driver during CI execution and runs Oracle-specific tests.
-name: Oracle Database Testing
+# This workflow runs only Oracle integration tests using TestContainers.
+# It disables all other database integration tests to focus on Oracle testing.
+# TestContainers automatically manages the Oracle container lifecycle.
+name: Oracle Integration Tests
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  oracle-test:
-    name: Oracle Tests (JDK ${{ matrix.java-version }})
+  oracle-tests:
+    name: Oracle Integration Tests
     runs-on: ubuntu-latest
     
     permissions:
@@ -22,73 +23,11 @@ jobs:
       matrix:
         java-version: [ 11, 17, 21, 22 ]
 
-    services:
-      oracle:
-        image: gvenzl/oracle-xe:21-full
-        env:
-          ORACLE_PASSWORD: testpassword
-          APP_USER: testuser
-          APP_USER_PASSWORD: testpassword
-        options: >-
-          --name ojp-oracle
-          --health-cmd "echo 'SELECT 1 FROM DUAL;' | sqlplus -s system/testpassword@localhost/XEPDB1"
-          --health-interval 20s
-          --health-timeout 10s
-          --health-retries 10
-        ports:
-          - 1521:1521
-
     steps:
-
       - name: Git checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Grant XA permissions to Oracle test user
-        run: |
-          # Wait a bit for Oracle to be fully ready
-          sleep 5
-          
-          # Grant XA permissions to testuser
-          echo "=== Granting XA permissions to testuser ==="
-          
-          docker exec ojp-oracle sqlplus -s system/testpassword@localhost/XEPDB1 <<'EOF'
-          SET ECHO ON
-          SET FEEDBACK ON
-          SET SERVEROUTPUT ON
-          WHENEVER SQLERROR EXIT SQL.SQLCODE
-          
-          -- Grant XA_RECOVER_ADMIN role (Oracle 12c+) for XA transaction recovery
-          -- This role includes necessary privileges for XA operations
-          GRANT XA_RECOVER_ADMIN TO testuser;
-          
-          -- XA transaction permissions (additional grants for completeness)
-          GRANT SELECT ON sys.dba_pending_transactions TO testuser;
-          GRANT SELECT ON sys.pending_trans$ TO testuser;
-          GRANT SELECT ON sys.dba_2pc_pending TO testuser;
-          GRANT SELECT ON sys.dba_2pc_neighbors TO testuser;
-          GRANT EXECUTE ON sys.dbms_xa TO testuser;
-          GRANT EXECUTE ON sys.dbms_system TO testuser;
-          GRANT FORCE ANY TRANSACTION TO testuser;
-          
-          -- Verify grants
-          SELECT 'XA permissions granted successfully' AS status FROM dual;
-          
-          -- Show granted privileges and roles
-          SELECT granted_role, grantee FROM dba_role_privs WHERE grantee = 'TESTUSER' ORDER BY granted_role;
-          SELECT privilege, grantee FROM dba_sys_privs WHERE grantee = 'TESTUSER' ORDER BY privilege;
-          SELECT owner, table_name, privilege, grantee FROM dba_tab_privs WHERE grantee = 'TESTUSER' ORDER BY owner, table_name;
-          
-          EXIT;
-          EOF
-          
-          if [ $? -ne 0 ]; then
-            echo "ERROR: Failed to grant XA permissions!"
-            exit 1
-          fi
-          
-          echo "=== XA permissions granted successfully ==="
 
       - name: Add Oracle JDBC Driver to ojp-server
         run: |
@@ -143,8 +82,15 @@ jobs:
       - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-jdbc-driver) with Oracle enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableOracleTests -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -DdisableCockroachDBTests
+      - name: Run Oracle Integration Tests
+        run: |
+          mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
+            -DenableOracleTests=true \
+            -DdisablePostgresTests=true \
+            -DdisableMySQLTests=true \
+            -DdisableMariaDBTests=true \
+            -DdisableCockroachDBTests=true \
+            -Dtest="Oracle*"
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail

@@ -4,7 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.OracleConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * These tests verify that OJP can properly handle Oracle-specific SQL syntax and data types.
  */
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.OracleTestContainer#isEnabled")
 public class OracleConnectionExtensiveTests {
 
     private static boolean isOracleTestEnabled;
@@ -31,7 +33,7 @@ public class OracleConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
@@ -67,7 +69,7 @@ public class OracleConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
@@ -104,7 +106,7 @@ public class OracleConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleAutoIncrementSequence(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
