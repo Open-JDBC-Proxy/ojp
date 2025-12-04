@@ -13,6 +13,14 @@ import java.util.stream.Stream;
  */
 public class Db2ConnectionProvider implements ArgumentsProvider {
     
+    // JDBC URL prefix to be removed when building OJP URL
+    private static final String JDBC_PREFIX = "jdbc:";
+    
+    // OJP proxy server configuration - can be overridden via system property
+    private static final String OJP_PROXY_HOST = System.getProperty("ojp.proxy.host", "localhost");
+    private static final String OJP_PROXY_PORT = System.getProperty("ojp.proxy.port", "1059");
+    private static final String OJP_PROXY_ADDRESS = OJP_PROXY_HOST + ":" + OJP_PROXY_PORT;
+    
     @Override
     public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
         // Return empty stream if DB2 tests are disabled - prevents test execution
@@ -20,14 +28,25 @@ public class Db2ConnectionProvider implements ArgumentsProvider {
             return Stream.empty();
         }
         
+        // Initialize and start the TestContainer
+        Db2TestContainer.getInstance();
+        
         // Get connection parameters from the DB2 TestContainer
         String driverClass = "org.openjproxy.jdbc.Driver";
-        String jdbcUrl = Db2TestContainer.getJdbcUrl();
+        String containerJdbcUrl = Db2TestContainer.getJdbcUrl();
         String username = Db2TestContainer.getUsername();
         String password = Db2TestContainer.getPassword();
         
-        // Wrap the DB2 container URL with OJP driver URL
-        String ojpUrl = "jdbc:ojp[localhost:1059]_db2://" + jdbcUrl.substring("jdbc:db2://".length());
+        // Build OJP JDBC URL from the container URL
+        // TestContainer URL format: jdbc:db2://localhost:RANDOM_PORT/test
+        // We need to extract the connection string and wrap it with OJP format
+        // OJP format: jdbc:ojp[localhost:1059]_db2://...
+        
+        // Remove "jdbc:" prefix and add OJP wrapper
+        String urlWithoutPrefix = containerJdbcUrl.startsWith(JDBC_PREFIX) 
+            ? containerJdbcUrl.substring(JDBC_PREFIX.length()) 
+            : containerJdbcUrl;
+        String ojpUrl = JDBC_PREFIX + "ojp[" + OJP_PROXY_ADDRESS + "]_" + urlWithoutPrefix;
         
         return Stream.of(
             Arguments.of(driverClass, ojpUrl, username, password)
