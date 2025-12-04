@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import openjproxy.jdbc.testutil.Db2ConnectionProvider;
+import openjproxy.jdbc.testutil.Db2ConnectionWithRecordCountsProvider;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -32,7 +33,7 @@ public class Db2ReadMultipleBlocksOfDataIntegrationTest {
     }
 
     @ParameterizedTest
-    @ArgumentsSource(Db2ConnectionProvider.class)
+    @ArgumentsSource(Db2ConnectionWithRecordCountsProvider.class)
     public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
         
