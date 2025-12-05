@@ -19,6 +19,8 @@ When you are awarded a badge, it’s yours to use freely in **CVs, LinkedIn prof
 
 Each badge reflects **real impact** in code, testing, documentation, or community growth — something to be proud of and share widely.
 
+Click on the badge images in the tables below to get a ready-made LinkedIn certification entry for easy sharing!
+
 ---
 
 ## 🎖️ Contributor Badges Overview
