@@ -29,7 +29,7 @@ public class BasicCrudIntegrationTest {
 
     @BeforeAll
     public static void setup() {
-        isPostgresTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isPostgresTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
         isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
         isCockroachDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));

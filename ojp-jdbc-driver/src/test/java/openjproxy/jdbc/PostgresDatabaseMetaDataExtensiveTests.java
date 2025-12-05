@@ -3,12 +3,15 @@ package openjproxy.jdbc;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 
 import java.sql.*;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresDatabaseMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -16,7 +19,7 @@ public class PostgresDatabaseMetaDataExtensiveTests {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     public void setUp(String driverClass, String url, String user, String password) throws Exception {
@@ -32,7 +35,7 @@ public class PostgresDatabaseMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData meta = connection.getMetaData();

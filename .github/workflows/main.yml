@@ -1,5 +1,6 @@
 # This workflow builds and tests the project on pushes and pull requests to the main branch.
-# It uses a Postgres service for integration tests and skips the CI if the commit message contains '[skip ci]'.
+# It uses services for MySQL, MariaDB, and CockroachDB integration tests.
+# PostgreSQL tests are run in a separate workflow using TestContainers.
 # The workflow result is reported in the Actions tab of the repository.
 name: Main CI
 
@@ -120,22 +121,6 @@ jobs:
           # Wait for CockroachDB to be ready
           timeout 60 bash -c 'until curl -f http://localhost:8080/health?ready=1 2>/dev/null; do sleep 2; done'
 
-      - name: Start Postgres
-        run: |
-          docker run --name ojp-postgres \
-            -e POSTGRES_USER=testuser \
-            -e POSTGRES_PASSWORD=testpassword \
-            -e POSTGRES_DB=defaultdb \
-            -p 5432:5432 \
-            -d postgres:17 \
-            -c max_prepared_transactions=100
-      
-          # Wait for Postgres to become ready (up to 60s)
-          timeout 60 bash -c 'until docker exec ojp-postgres pg_isready -U testuser -d defaultdb -h 127.0.0.1; do sleep 2; done'
-
-          # Verify setting (should print 100)
-          PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
-
       - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
         with:
@@ -171,7 +156,7 @@ jobs:
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Test (ojp-jdbc-driver)
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenablePostgresTests=false
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail

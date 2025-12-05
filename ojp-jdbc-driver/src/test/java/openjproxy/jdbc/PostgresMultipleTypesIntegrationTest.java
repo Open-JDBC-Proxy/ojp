@@ -4,7 +4,9 @@ import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -25,11 +27,11 @@ public class PostgresMultipleTypesIntegrationTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
         assumeFalse(isTestDisabled, "Postgres tests are disabled");
         
@@ -134,7 +136,7 @@ public class PostgresMultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testPostgresSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Postgres tests are disabled");
         

@@ -2,11 +2,13 @@ package openjproxy.jdbc;
 
 import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.sql.Array;
 import java.sql.Blob;
@@ -36,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresConnectionExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -43,7 +46,7 @@ public class PostgresConnectionExtensiveTests {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isTestDisabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     @SneakyThrows
@@ -58,7 +61,7 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         assertEquals(false, connection.isClosed());
@@ -68,7 +71,7 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         assertEquals(true, connection.getAutoCommit());
@@ -83,7 +86,7 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testCommitAndRollback(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         
@@ -107,7 +110,7 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testSavepoints(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         
@@ -135,7 +138,7 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testConnectionMetadata(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData metaData = connection.getMetaData();
@@ -145,7 +148,7 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testClientInfo(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         // PostgreSQL supports client info
@@ -158,7 +161,7 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testClose(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         assertEquals(false, connection.isClosed());
@@ -169,7 +172,7 @@ public class PostgresConnectionExtensiveTests {
     // ---------- Additional tests for every Connection interface method ----------
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testAllConnectionMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 

@@ -4,7 +4,9 @@ import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresStatementExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -31,7 +34,7 @@ public class PostgresStatementExtensiveTests {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     public void setUp(String driverClass, String url, String user, String password) throws Exception {
@@ -49,7 +52,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         ResultSet rs = statement.executeQuery("SELECT * FROM postgres_statement_test");
@@ -59,7 +62,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testExecuteUpdate(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int rows = statement.executeUpdate("UPDATE postgres_statement_test SET name = 'Updated Alice' WHERE id = 1");
@@ -72,7 +75,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testClose(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertFalse(statement.isClosed());
@@ -81,7 +84,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testMaxFieldSize(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getMaxFieldSize();
@@ -92,7 +95,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testExecuteAfterCloseThrows(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.close();
@@ -102,7 +105,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testMaxRows(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setMaxRows(1);
@@ -114,7 +117,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testEscapeProcessing(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // Should not throw
@@ -123,7 +126,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testQueryTimeout(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setQueryTimeout(5);
@@ -131,7 +134,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testCancel(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // Should not throw
@@ -139,7 +142,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testWarnings(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.clearWarnings();
@@ -147,7 +150,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testSetCursorName(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // No-op in most drivers; should not throw
@@ -155,7 +158,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testExecute(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         boolean isResultSet = statement.execute("SELECT * FROM postgres_statement_test");
@@ -171,7 +174,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testGetMoreResults(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.execute("SELECT * FROM postgres_statement_test");
@@ -180,7 +183,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testFetchDirection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getFetchDirection();
@@ -190,7 +193,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testFetchSize(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getFetchSize();
@@ -200,7 +203,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int concurrency = statement.getResultSetConcurrency();
@@ -210,7 +213,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testBatchExecution(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.addBatch("INSERT INTO postgres_statement_test (id, name) VALUES (3, 'Charlie')");
@@ -225,7 +228,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testClearBatch(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.addBatch("INSERT INTO postgres_statement_test (id, name) VALUES (5, 'Eve')");
@@ -235,14 +238,14 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testGetConnection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertSame(connection, statement.getConnection());
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testGetMoreResultsWithCurrent(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.execute("SELECT * FROM postgres_statement_test");
@@ -250,7 +253,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_auto_keys", TestDBUtils.SqlSyntax.POSTGRES);
@@ -264,7 +267,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testExecuteUpdateVariants(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -292,7 +295,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testExecuteVariants(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_exec", TestDBUtils.SqlSyntax.POSTGRES);
@@ -312,7 +315,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testGetResultSetHoldability(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int holdability = statement.getResultSetHoldability();
@@ -320,7 +323,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testPoolable(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setPoolable(true);
@@ -333,7 +336,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testCloseOnCompletion(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.closeOnCompletion();
@@ -341,7 +344,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testLargeMethodsDefault(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.getFetchDirection();
@@ -363,7 +366,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testEnquoteLiteral(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         String quoted = statement.enquoteLiteral("foo'bar");
@@ -371,7 +374,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testEnquoteIdentifier(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // PostgreSQL may not quote identifiers the same way as H2
@@ -382,7 +385,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testIsSimpleIdentifier(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // PostgreSQL may have different rules for simple identifiers
@@ -397,7 +400,7 @@ public class PostgresStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testEnquoteNCharLiteral(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         String quoted = statement.enquoteNCharLiteral("foo'bar");

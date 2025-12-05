@@ -1,0 +1,77 @@
+# This workflow runs only PostgreSQL integration tests using TestContainers.
+# It disables all other database integration tests to focus on PostgreSQL testing.
+# TestContainers automatically manages the PostgreSQL container lifecycle.
+name: PostgreSQL Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  postgres-tests:
+    name: PostgreSQL Integration Tests
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: [ 11, 17, 21, 22 ]
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 22 for build
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Install (ojp-grpc-commons) with JDK 22
+        run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
+
+      - name: Test (ojp-grpc-commons) with JDK 22
+        run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
+
+      - name: Build (ojp-server) with JDK 22
+        run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
+
+      - name: Test and Run (ojp-server)
+        run: |
+          nohup java -jar ojp-server/target/ojp-server-0.2.1-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          echo $! > /tmp/ojp-server.pid
+
+      - name: Wait for ojp-server to start
+        run: sleep 10
+
+      - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
+        run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
+
+      - name: Run PostgreSQL Integration Tests
+        run: |
+          mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
+            -DenablePostgresTests=true \
+            -DdisableMySQLTests=true \
+            -DdisableMariaDBTests=true \
+            -DdisableCockroachDBTests=true \
+            -Dtest="Postgres*"
+
+      - name: Show ojp-server.log
+        if: always()  # ensures it runs even if previous steps fail
+        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"

@@ -7,7 +7,9 @@ import org.codehaus.plexus.util.ExceptionUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -38,7 +40,7 @@ public class PostgresSlowQuerySegregationTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     @SneakyThrows
@@ -50,7 +52,7 @@ public class PostgresSlowQuerySegregationTest {
 
     @SneakyThrows
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void runTests(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "Postgres tests are disabled");
         
