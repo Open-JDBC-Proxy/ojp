@@ -2,8 +2,9 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -15,6 +16,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import openjproxy.jdbc.testutil.Db2ConnectionProvider;
+
 import static openjproxy.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
@@ -22,6 +25,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * DB2-specific binary stream integration tests.
  * Tests DB2-specific binary data types (VARBINARY, BLOB) and stream handling.
  */
+@EnabledIf("openjproxy.jdbc.testutil.Db2TestContainer#isEnabled")
 public class Db2BinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -32,7 +36,7 @@ public class Db2BinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
@@ -98,7 +102,7 @@ public class Db2BinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
@@ -148,7 +152,7 @@ public class Db2BinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2SpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 

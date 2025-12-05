@@ -2,13 +2,17 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import openjproxy.jdbc.testutil.Db2ConnectionProvider;
+import openjproxy.jdbc.testutil.Db2ConnectionWithRecordCountsProvider;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -17,6 +21,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * DB2-specific multiple blocks of data integration tests.
  * Tests DB2 pagination and large result set handling.
  */
+@EnabledIf("openjproxy.jdbc.testutil.Db2TestContainer#isEnabled")
 public class Db2ReadMultipleBlocksOfDataIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -27,7 +32,7 @@ public class Db2ReadMultipleBlocksOfDataIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connections_with_record_counts.csv")
+    @ArgumentsSource(Db2ConnectionWithRecordCountsProvider.class)
     public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
         
@@ -79,7 +84,7 @@ public class Db2ReadMultipleBlocksOfDataIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2LargeDataSetPagination(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
         
@@ -144,7 +149,7 @@ public class Db2ReadMultipleBlocksOfDataIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2ResultSetScrolling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
         
@@ -207,7 +212,7 @@ public class Db2ReadMultipleBlocksOfDataIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2MultipleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
         

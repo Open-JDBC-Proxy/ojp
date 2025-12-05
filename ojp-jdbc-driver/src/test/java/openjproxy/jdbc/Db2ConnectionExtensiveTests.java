@@ -3,8 +3,10 @@ package openjproxy.jdbc;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.Db2ConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
@@ -23,19 +25,20 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * These tests verify that OJP can properly handle DB2-specific SQL syntax and data types.
  */
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.Db2TestContainer#isEnabled")
 public class Db2ConnectionExtensiveTests {
 
-    private static boolean isDb2TestEnabled;
+    private static boolean isTestDisabled;
 
     @BeforeAll
     public static void setup() {
-        isDb2TestEnabled = Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2BasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
-        Assumptions.assumeFalse(!isDb2TestEnabled, "Skipping DB2 tests");
+        Assumptions.assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         log.info("Testing DB2 connection with URL: {}", url);
         
@@ -79,9 +82,9 @@ public class Db2ConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2DataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
-        Assumptions.assumeFalse(!isDb2TestEnabled, "Skipping DB2 tests");
+        Assumptions.assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         log.info("Testing DB2 data types with URL: {}", url);
         
@@ -134,9 +137,9 @@ public class Db2ConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2BooleanHandling(String driverClass, String url, String user, String pwd) throws SQLException {
-        Assumptions.assumeFalse(!isDb2TestEnabled, "Skipping DB2 tests");
+        Assumptions.assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         log.info("Testing DB2 boolean handling with URL: {}", url);
         
@@ -184,9 +187,9 @@ public class Db2ConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2NullVsEmptyString(String driverClass, String url, String user, String pwd) throws SQLException {
-        Assumptions.assumeFalse(!isDb2TestEnabled, "Skipping DB2 tests");
+        Assumptions.assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         log.info("Testing DB2 NULL vs empty string handling with URL: {}", url);
         
