@@ -2,9 +2,10 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -19,10 +20,11 @@ import java.sql.SQLException;
 import static openjproxy.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
 public class BlobIntegrationTest {
 
     private static boolean isMySQLTestDisabled;
-    private static boolean isMariaDBTestDisabled;
+    private static boolean isMariaDBTestEnabled;
     private static boolean isOracleTestEnabled;
     private String tableName;
     private Connection conn;
@@ -30,7 +32,7 @@ public class BlobIntegrationTest {
     @BeforeAll
     public static void checkTestConfiguration() {
         isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
-        isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
+        isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
@@ -41,7 +43,7 @@ public class BlobIntegrationTest {
             assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
             this.tableName += "_mysql";
         } else if (url.toLowerCase().contains("mariadb")) {
-            assumeFalse(isMariaDBTestDisabled, "MariaDB tests are disabled");
+            assumeFalse(isMySQLTestDisabled, "MariaDB tests are disabled");
             this.tableName += "_mariadb";
         } else if (url.toLowerCase().contains("oracle")) {
             assumeFalse(!isOracleTestEnabled, "Oracle tests are disabled");

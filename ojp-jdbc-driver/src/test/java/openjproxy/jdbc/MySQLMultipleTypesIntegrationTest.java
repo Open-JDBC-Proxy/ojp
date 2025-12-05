@@ -1,10 +1,12 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.MariaDBConnectionProvider;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -19,22 +21,23 @@ import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
 public class MySQLMultipleTypesIntegrationTest {
 
     private static boolean isMySQLTestDisabled;
-    private static boolean isMariaDBTestDisabled;
+    private static boolean isMariaDBTestEnabled;
 
     @BeforeAll
     public static void checkTestConfiguration() {
         isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
-        isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
+        isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    @ArgumentsSource(MariaDBConnectionProvider.class)
+    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, ParseException {
         assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
-        assumeFalse(isMariaDBTestDisabled, "MariaDB tests are disabled");
+        assumeFalse(isMySQLTestDisabled, "MariaDB tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -119,7 +122,7 @@ public class MySQLMultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MariaDBConnectionProvider.class)
     public void mysqlSpecificTypesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
         

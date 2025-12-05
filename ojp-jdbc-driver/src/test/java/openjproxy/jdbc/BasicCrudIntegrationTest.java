@@ -20,7 +20,7 @@ public class BasicCrudIntegrationTest {
 
     private static boolean isPostgresTestDisabled;
     private static boolean isMySQLTestDisabled;
-    private static boolean isMariaDBTestDisabled;
+    private static boolean isMariaDBTestEnabled;
     private static boolean isCockroachDBTestDisabled;
     private static boolean isOracleTestEnabled;
     private static boolean isSqlServerTestEnabled;
@@ -31,7 +31,7 @@ public class BasicCrudIntegrationTest {
     public static void setup() {
         isPostgresTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
         isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
-        isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
+        isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
         isCockroachDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
         isSqlServerTestEnabled = Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
@@ -53,9 +53,9 @@ public class BasicCrudIntegrationTest {
             tablePrefix = "mysql_";
         }
 
-        // Skip MariaDB tests if disabled
-        if (url.toLowerCase().contains("mariadb") && isMariaDBTestDisabled) {
-            Assumptions.assumeFalse(true, "Skipping MariaDB tests");
+        // Skip MariaDB tests if not enabled
+        if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
+            Assumptions.assumeFalse(true, "Skipping MariaDB tests - not enabled");
             tablePrefix = "mariadb_";
         }
 
