@@ -2,8 +2,10 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.OracleConnectionProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * Oracle-specific binary stream integration tests.
  * Tests Oracle-specific binary data types (RAW, BLOB) and stream handling.
  */
+@EnabledIf("openjproxy.jdbc.testutil.OracleTestContainer#isEnabled")
 public class OracleBinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -31,7 +34,7 @@ public class OracleBinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
@@ -92,7 +95,7 @@ public class OracleBinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
@@ -142,7 +145,7 @@ public class OracleBinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 

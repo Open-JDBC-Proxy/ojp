@@ -1,0 +1,143 @@
+package openjproxy.jdbc.testutil;
+
+import lombok.extern.slf4j.Slf4j;
+import org.testcontainers.containers.OracleContainer;
+import org.testcontainers.utility.DockerImageName;
+
+/**
+ * Singleton Oracle test container for all Oracle integration tests.
+ * This ensures that all tests share the same Oracle instance to improve test performance
+ * and reduce resource usage.
+ */
+@Slf4j
+public class OracleTestContainer {
+    
+    // Oracle Docker image version (using gvenzl/oracle-xe for compatibility)
+    private static final String ORACLE_IMAGE = "gvenzl/oracle-xe:21-full";
+    private static final String TEST_PASSWORD = "testpassword";
+    private static final String TEST_USERNAME = "testuser";
+    
+    private static OracleContainer container;
+    private static boolean isStarted = false;
+    private static boolean shutdownHookRegistered = false;
+    
+    /**
+     * Gets or creates the shared Oracle test container instance.
+     * The container is automatically started on first access.
+     * 
+     * @return the shared OracleContainer instance
+     */
+    public static synchronized OracleContainer getInstance() {
+        if (container == null) {
+            container = new OracleContainer(DockerImageName.parse(ORACLE_IMAGE))
+                    .withUsername(TEST_USERNAME)
+                    .withPassword(TEST_PASSWORD);
+        }
+        
+        if (!isStarted) {
+            container.start();
+            isStarted = true;
+            
+            // Grant XA permissions to the test user
+            try {
+                grantXAPermissions();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to grant XA permissions to Oracle test user", e);
+            }
+            
+            // Add shutdown hook to stop container when JVM exits
+            if (!shutdownHookRegistered) {
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    if (container != null && container.isRunning()) {
+                        container.stop();
+                    }
+                }));
+                shutdownHookRegistered = true;
+            }
+        }
+        
+        return container;
+    }
+    
+    /**
+     * Grants XA permissions to the test user.
+     * This is required for XA transaction tests.
+     */
+    private static void grantXAPermissions() throws Exception {
+        log.info("Granting XA permissions to Oracle test user: {}", TEST_USERNAME);
+        
+        // Build SQL script with all necessary grants
+        StringBuilder sqlScript = new StringBuilder();
+        sqlScript.append("WHENEVER SQLERROR EXIT SQL.SQLCODE\n");
+        sqlScript.append("GRANT XA_RECOVER_ADMIN TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.dba_pending_transactions TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.pending_trans$ TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.dba_2pc_pending TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT SELECT ON sys.dba_2pc_neighbors TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT EXECUTE ON sys.dbms_xa TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT EXECUTE ON sys.dbms_system TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("GRANT FORCE ANY TRANSACTION TO ").append(TEST_USERNAME).append(";\n");
+        sqlScript.append("EXIT;\n");
+        
+        // Execute the grants using bash to pipe SQL into sqlplus
+        org.testcontainers.containers.Container.ExecResult result = container.execInContainer(
+            "bash", "-c", 
+            "echo \"" + sqlScript.toString().replace("\"", "\\\"") + "\" | sqlplus -s system/" + 
+            TEST_PASSWORD + "@" + container.getDatabaseName()
+        );
+        
+        if (result.getExitCode() != 0) {
+            log.warn("Failed to grant XA permissions. Exit code: {}", result.getExitCode());
+            log.warn("Output: {}", result.getStdout());
+            log.warn("Error: {}", result.getStderr());
+            // Don't throw exception - XA tests may fail but other tests can still run
+        } else {
+            log.info("Successfully granted XA permissions to {}", TEST_USERNAME);
+        }
+    }
+    
+    /**
+     * Gets the JDBC URL for connecting to the test container.
+     * 
+     * @return JDBC URL string
+     */
+    public static String getJdbcUrl() {
+        return getInstance().getJdbcUrl();
+    }
+    
+    /**
+     * Gets the username for connecting to the test container.
+     * 
+     * @return username string
+     */
+    public static String getUsername() {
+        return getInstance().getUsername();
+    }
+    
+    /**
+     * Gets the password for connecting to the test container.
+     * 
+     * @return password string
+     */
+    public static String getPassword() {
+        return getInstance().getPassword();
+    }
+    
+    /**
+     * Gets the database name (service name) for the test container.
+     * 
+     * @return database name string
+     */
+    public static String getDatabaseName() {
+        return getInstance().getDatabaseName();
+    }
+    
+    /**
+     * Checks if Oracle tests are enabled via system property.
+     * 
+     * @return true if Oracle tests should run
+     */
+    public static boolean isEnabled() {
+        return Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
+    }
+}

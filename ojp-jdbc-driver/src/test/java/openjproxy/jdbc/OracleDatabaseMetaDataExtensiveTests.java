@@ -2,13 +2,16 @@ package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.OracleConnectionProvider;
 
 import java.sql.*;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.OracleTestContainer#isEnabled")
 public class OracleDatabaseMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -32,7 +35,7 @@ public class OracleDatabaseMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData meta = connection.getMetaData();

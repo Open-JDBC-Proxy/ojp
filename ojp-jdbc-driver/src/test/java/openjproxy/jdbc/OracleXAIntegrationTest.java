@@ -1,11 +1,13 @@
 package openjproxy.jdbc;
 
 import lombok.extern.slf4j.Slf4j;
+import openjproxy.jdbc.testutil.OracleConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.openjproxy.jdbc.xa.OjpXADataSource;
 
 import javax.sql.XAConnection;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * 3. The client-side code updated to use integrated StatementService
  */
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.OracleTestContainer#isEnabled")
 public class OracleXAIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -70,7 +73,7 @@ public class OracleXAIntegrationTest {
      * Test basic XA connection creation and closure.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_xa_connection.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
@@ -92,7 +95,7 @@ public class OracleXAIntegrationTest {
      * This tests: xaStart -> executeUpdate -> xaEnd -> xaPrepare -> xaCommit
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_xa_connection.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testXATransactionWithCRUD(String driverClass, String url, String user, String password)
             throws Exception {
         setUp(driverClass, url, user, password);
@@ -172,7 +175,7 @@ public class OracleXAIntegrationTest {
      * Test XA transaction rollback.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_xa_connection.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testXATransactionRollback(String driverClass, String url, String user, String password)
             throws Exception {
         setUp(driverClass, url, user, password);
@@ -235,7 +238,7 @@ public class OracleXAIntegrationTest {
      * Test transaction timeout functionality.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_xa_connection.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testXATransactionTimeout(String driverClass, String url, String user, String password)
             throws Exception {
         setUp(driverClass, url, user, password);
@@ -251,7 +254,7 @@ public class OracleXAIntegrationTest {
      * Test one-phase commit optimization.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_xa_connection.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 

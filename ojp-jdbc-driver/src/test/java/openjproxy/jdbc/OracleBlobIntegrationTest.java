@@ -2,8 +2,10 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.OracleConnectionProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * Oracle-specific BLOB integration tests.
  * Tests Oracle BLOB functionality and performance.
  */
+@EnabledIf("openjproxy.jdbc.testutil.OracleTestContainer#isEnabled")
 public class OracleBlobIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -52,7 +55,7 @@ public class OracleBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleBlobCreationAndRetrieval(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -94,7 +97,7 @@ public class OracleBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleLargeBlobHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -142,7 +145,7 @@ public class OracleBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleBlobBinaryStream(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -190,7 +193,7 @@ public class OracleBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleBlobUpdate(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -237,7 +240,7 @@ public class OracleBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleEmptyAndNullBlob(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 

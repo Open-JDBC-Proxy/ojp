@@ -2,15 +2,18 @@ package openjproxy.jdbc;
 
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.OracleConnectionProvider;
 
 import java.sql.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.OracleTestContainer#isEnabled")
 public class OracleResultSetMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -56,7 +59,7 @@ public class OracleResultSetMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 

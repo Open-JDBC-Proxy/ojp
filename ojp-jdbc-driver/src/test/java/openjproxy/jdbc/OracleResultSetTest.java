@@ -2,9 +2,11 @@ package openjproxy.jdbc;
 
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.OracleConnectionProvider;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * Oracle-specific ResultSet tests.
  * Tests Oracle-specific ResultSet behavior and data type handling.
  */
+@EnabledIf("openjproxy.jdbc.testutil.OracleTestContainer#isEnabled")
 public class OracleResultSetTest {
 
     private Connection connection;
@@ -86,7 +89,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleNavigationMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         assertTrue(resultSet.next()); // Row 1
@@ -101,7 +104,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleDataRetrievalMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.next();
@@ -115,7 +118,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleGetMethodsByColumnIndex(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.next();
@@ -128,7 +131,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         statement.execute("INSERT INTO oracle_resultset_test_table (id, name, age, salary, active, created_at) " +
@@ -142,7 +145,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleCursorPositionMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         assertTrue(resultSet.first());
@@ -156,7 +159,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         SQLWarning warning = resultSet.getWarnings();
@@ -165,7 +168,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleAdvancedNavigation(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.absolute(2); // Move to the second row
@@ -179,7 +182,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleSpecificDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -220,7 +223,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleResultSetMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -245,7 +248,7 @@ public class OracleResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
+    @ArgumentsSource(OracleConnectionProvider.class)
     public void testOracleRowCounting(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
