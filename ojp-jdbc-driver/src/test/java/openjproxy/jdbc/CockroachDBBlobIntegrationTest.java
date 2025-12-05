@@ -2,8 +2,10 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.CockroachDBConnectionProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * CockroachDB-specific BLOB integration tests.
  * Tests CockroachDB BYTEA functionality (equivalent to BLOB).
  */
+@EnabledIf("openjproxy.jdbc.testutil.CockroachDBTestContainer#isEnabled")
 public class CockroachDBBlobIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -30,7 +33,7 @@ public class CockroachDBBlobIntegrationTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
     public void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
@@ -52,7 +55,7 @@ public class CockroachDBBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBBlobCreationAndRetrieval(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -94,7 +97,7 @@ public class CockroachDBBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBLargeBlobHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -137,7 +140,7 @@ public class CockroachDBBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBBlobUpdate(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -190,7 +193,7 @@ public class CockroachDBBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBBlobWithNullValue(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         setUp(driverClass, url, user, pwd);
 

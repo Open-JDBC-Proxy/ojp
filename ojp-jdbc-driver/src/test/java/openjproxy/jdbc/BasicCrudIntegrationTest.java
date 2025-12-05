@@ -32,7 +32,7 @@ public class BasicCrudIntegrationTest {
         isPostgresTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
         isMySQLTestDisabled = !Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
-        isCockroachDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));
+        isCockroachDBTestDisabled = !Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
         isSqlServerTestEnabled = Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
         isDb2TestEnabled = Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));

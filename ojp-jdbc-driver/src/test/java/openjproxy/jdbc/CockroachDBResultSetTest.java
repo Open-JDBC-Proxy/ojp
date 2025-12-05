@@ -3,8 +3,10 @@ package openjproxy.jdbc;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.CockroachDBConnectionProvider;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * CockroachDB-specific ResultSet tests.
  * Tests CockroachDB-specific ResultSet behavior and data type handling.
  */
+@EnabledIf("openjproxy.jdbc.testutil.CockroachDBTestContainer#isEnabled")
 public class CockroachDBResultSetTest {
 
     private Connection connection;
@@ -34,7 +37,7 @@ public class CockroachDBResultSetTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
     @SneakyThrows
@@ -86,7 +89,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBNavigationMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         assertTrue(resultSet.next()); // Row 1
@@ -101,7 +104,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBAbsoluteAndRelativePositioning(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -116,7 +119,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBGetRow(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -128,7 +131,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBDataRetrieval(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -152,7 +155,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping CockroachDB tests");
         
@@ -179,7 +182,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBFindColumn(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -194,7 +197,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBResultSetType(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -202,7 +205,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBResultSetConcurrency(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -211,7 +214,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -222,7 +225,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBGetStatement(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -232,7 +235,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBBeforeFirstAfterLast(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
@@ -246,7 +249,7 @@ public class CockroachDBResultSetTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBIsClosed(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         

@@ -26,7 +26,7 @@
    Navigate to the ojp-jdbc-driver folder first:
    ```bash
    cd ojp-jdbc-driver
-   mvn test -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -DdisableCockroachDBTests -DdisablePostgresXATests
+   mvn test -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -DenableCockroachDBTests=false -DdisablePostgresXATests
    ```
 **Note:** With the disable flags only H2 integration tests will run, to run the full set of integration tests you have to run all the databases locally, follow the instructions at [Run Local Databases](../../documents/environment-setup/run-local-databases.md)
 
@@ -41,7 +41,7 @@ We have comprehensive JDBC integration tests with OJP for the following database
 - DB2
 - H2
 
-The free and open source databases (H2, Postgres, MySQL, MariaDB and CockroachDB) jdbc drivers are packed with OJP and have integration tests always running in our CI pipelines, for proprietary databases as Oracle and SQL Server see specific sections.
+The free and open source databases (H2, Postgres, MySQL, MariaDB and CockroachDB) jdbc drivers are packed with OJP. Integration tests for PostgreSQL, Oracle, SQL Server, DB2, and CockroachDB use TestContainers and run in dedicated CI workflows.
 
 ### Oracle Database Setup (Optional)
 Oracle integration tests require the Oracle JDBC driver and due to licensing restrictions we do not pack it with OJP.
@@ -56,7 +56,7 @@ DB2 integration tests use the IBM JDBC driver which is not included in OJP depen
 For detailed DB2 instructions, see [DB2 Testing Guide](../../documents/environment-setup/db2-testing-guide.md).
 
 ### CockroachDB Database Setup (Optional)
-CockroachDB integration tests use the PostgreSQL JDBC driver which is already included in OJP dependencies.
+CockroachDB integration tests use TestContainers which automatically manages the CockroachDB instance.
 For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../../documents/environment-setup/cockroachdb-testing-guide.md).
 
 
@@ -68,7 +68,7 @@ For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../
 
 ### Test Options
 - `-DdisablePostgresTests` - Skip PostgreSQL integration tests
-- `-DdisableCockroachDBTests` - Skip CockroachDB integration tests
+- `-DenableCockroachDBTests` - Enable CockroachDB integration tests (disabled by default, uses TestContainers)
 - `-DenableOracleTests` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
 - `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default)
 

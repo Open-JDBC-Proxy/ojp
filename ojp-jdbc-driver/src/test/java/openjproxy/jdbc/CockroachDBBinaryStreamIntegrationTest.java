@@ -2,8 +2,10 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.CockroachDBConnectionProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -21,17 +23,18 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * CockroachDB-specific binary stream integration tests.
  * Tests CockroachDB-specific binary data types (BYTEA) and stream handling.
  */
+@EnabledIf("openjproxy.jdbc.testutil.CockroachDBTestContainer#isEnabled")
 public class CockroachDBBinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
 
     @BeforeAll
     public static void setup() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping CockroachDB tests");
 
@@ -92,7 +95,7 @@ public class CockroachDBBinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping CockroachDB tests");
 
@@ -145,7 +148,7 @@ public class CockroachDBBinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testBinaryStreamWithNullValues(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping CockroachDB tests");
 
