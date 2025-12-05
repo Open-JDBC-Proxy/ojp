@@ -49,7 +49,8 @@ public class MariaDBConnectionProvider implements ArgumentsProvider {
         String ojpUrl = JDBC_PREFIX + "ojp[" + OJP_PROXY_ADDRESS + "]_" + urlWithoutPrefix;
         
         // Return a single set of arguments with the TestContainer connection details
-        // The fifth parameter (false) matches the CSV format which had a boolean flag
+        // The fifth parameter (false) represents the isXA flag, indicating this is not an XA connection
+        // This matches the CSV format which had a boolean flag for XA configuration
         return Stream.of(
             Arguments.of(driverClass, ojpUrl, username, password, false)
         );

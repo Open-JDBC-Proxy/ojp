@@ -22,20 +22,16 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 @EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
 public class MySQLSpecificFeaturesIntegrationTest {
 
-    private static boolean isMySQLTestDisabled;
     private static boolean isMariaDBTestEnabled;
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
     public void onDuplicateKeyUpdateTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
-        assumeFalse(isMySQLTestDisabled, "MariaDB tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -79,7 +75,6 @@ public class MySQLSpecificFeaturesIntegrationTest {
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
     public void selectForUpdateTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -131,7 +126,6 @@ public class MySQLSpecificFeaturesIntegrationTest {
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
     public void showTablesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -168,7 +162,6 @@ public class MySQLSpecificFeaturesIntegrationTest {
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
     public void autoIncrementAndLastInsertIdTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -221,7 +214,6 @@ public class MySQLSpecificFeaturesIntegrationTest {
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
     public void mysqlInformationSchemaTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 

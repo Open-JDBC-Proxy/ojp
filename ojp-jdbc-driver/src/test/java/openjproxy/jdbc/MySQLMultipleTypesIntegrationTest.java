@@ -24,20 +24,16 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 @EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
 public class MySQLMultipleTypesIntegrationTest {
 
-    private static boolean isMySQLTestDisabled;
     private static boolean isMariaDBTestEnabled;
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
     public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, ParseException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
-        assumeFalse(isMySQLTestDisabled, "MariaDB tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -124,7 +120,6 @@ public class MySQLMultipleTypesIntegrationTest {
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
     public void mysqlSpecificTypesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 

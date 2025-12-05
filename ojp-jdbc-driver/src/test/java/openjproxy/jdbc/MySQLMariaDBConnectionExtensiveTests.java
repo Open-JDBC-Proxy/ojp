@@ -29,19 +29,16 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 @EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
 public class MySQLMariaDBConnectionExtensiveTests {
 
-    private static boolean isMySQLTestDisabled;
     private static boolean isMariaDBTestEnabled;
     private Connection connection;
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
     @SneakyThrows
     public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
         connection = DriverManager.getConnection(url, user, password);
     }
 
