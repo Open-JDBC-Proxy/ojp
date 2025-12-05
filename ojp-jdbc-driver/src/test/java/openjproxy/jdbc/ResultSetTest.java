@@ -30,7 +30,7 @@ public class ResultSetTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isPostgresTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isPostgresTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     @SneakyThrows

@@ -1,7 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import openjproxy.jdbc.testutil.MySQLConnectionProvider;
+import openjproxy.jdbc.testutil.MariaDBConnectionProvider;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -21,22 +21,22 @@ import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-@EnabledIf("openjproxy.jdbc.testutil.MySQLTestContainer#isEnabled")
-public class MySQLMultipleTypesIntegrationTest {
+@EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
+public class MariaDBMultipleTypesIntegrationTest {
 
-    private static boolean isMySQLTestDisabled;
+    private static boolean isMariaDBTestEnabled;
     private static boolean isMariaDBTestDisabled;
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isMySQLTestDisabled = !Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
+        isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
     }
 
     @ParameterizedTest
-    @ArgumentsSource(MySQLConnectionProvider.class)
+    @ArgumentsSource(MariaDBConnectionProvider.class)
     public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
+        // MariaDB tests controlled by @EnabledIf annotation
         assumeFalse(isMariaDBTestDisabled, "MariaDB tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -122,9 +122,9 @@ public class MySQLMultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @ArgumentsSource(MySQLConnectionProvider.class)
+    @ArgumentsSource(MariaDBConnectionProvider.class)
     public void mysqlSpecificTypesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
+        // MariaDB tests controlled by @EnabledIf annotation
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 

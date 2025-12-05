@@ -3,7 +3,9 @@ package openjproxy.jdbc;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 
 import java.math.BigDecimal;
 import java.sql.CallableStatement;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresCallableStatementTests {
 
     private static boolean isTestDisabled;
@@ -37,7 +40,7 @@ public class PostgresCallableStatementTests {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     public void setUp(String driverClass, String url, String user, String password) throws Exception {
@@ -89,7 +92,7 @@ public class PostgresCallableStatementTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testExecuteProcedure(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         callableStatement = connection.prepareCall("CALL update_salary(?, ?, ?)");
@@ -119,7 +122,7 @@ public class PostgresCallableStatementTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testDateTimeParameters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         callableStatement = connection.prepareCall("CALL update_employee_dates(?, ?, ?, ?, ?, ?, ?)");
@@ -159,7 +162,7 @@ public class PostgresCallableStatementTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testSetAndGetStringAndBoolean(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -189,7 +192,7 @@ public class PostgresCallableStatementTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testSetObjectAndGetObject(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         callableStatement = connection.prepareCall("CALL update_salary(?, ?, ?)");
@@ -208,7 +211,7 @@ public class PostgresCallableStatementTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testInvalidParameterIndex(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // This test will intentionally fail due to an invalid parameter index
