@@ -1,12 +1,14 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.MySQLConnectionProvider;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;
@@ -25,6 +27,7 @@ import java.sql.Types;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.MySQLTestContainer#isEnabled")
 public class MySQLPreparedStatementExtensiveTests {
 
     private static boolean isMySQLTestDisabled;
@@ -34,7 +37,7 @@ public class MySQLPreparedStatementExtensiveTests {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
+        isMySQLTestDisabled = !Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
     }
 
@@ -65,7 +68,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testBasicParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -89,7 +92,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testNumericParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -118,7 +121,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testDateTimeParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -147,7 +150,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testBinaryParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -176,7 +179,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testTextParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -204,7 +207,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testNullParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -231,7 +234,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -256,7 +259,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testExecuteUpdate(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -280,7 +283,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testExecute(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -302,7 +305,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testBatch(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -340,7 +343,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testClearParameters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -356,7 +359,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testMetaData(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -370,7 +373,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testParameterMetaData(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
@@ -387,7 +390,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
+    @ArgumentsSource(MySQLConnectionProvider.class)
     public void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
