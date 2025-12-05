@@ -4,6 +4,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 
+import java.util.Arrays;
 import java.util.stream.Stream;
 
 /**
@@ -53,7 +54,7 @@ public class Db2ConnectionWithRecordCountsProvider implements ArgumentsProvider 
         String ojpUrl = JDBC_PREFIX + "ojp[" + OJP_PROXY_ADDRESS + "]_" + urlWithoutPrefix;
         
         // Return arguments for each record count
-        return Stream.of(RECORD_COUNTS)
-            .map(count -> Arguments.of(count, driverClass, ojpUrl, username, password));
+        return Arrays.stream(RECORD_COUNTS)
+            .mapToObj(count -> Arguments.of(count, driverClass, ojpUrl, username, password));
     }
 }
