@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresSlowQuerySegregationTest {
     private static final int THREADS = 3; // Number of worker threads
     private static final int RAMPUP_MS = 30 * 1000; // 30 seconds Ramp-up window in milliseconds

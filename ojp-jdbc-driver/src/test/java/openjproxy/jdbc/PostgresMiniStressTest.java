@@ -28,6 +28,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresMiniStressTest {
     private static final int THREADS = 10; // Number of worker threads
     private static final int RAMPUP_MS = 10 * 1000; // 10 seconds Ramp-up window in milliseconds

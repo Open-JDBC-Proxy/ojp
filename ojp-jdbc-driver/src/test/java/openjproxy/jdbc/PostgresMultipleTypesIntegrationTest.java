@@ -21,6 +21,7 @@ import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresMultipleTypesIntegrationTest {
 
     private static boolean isTestDisabled;

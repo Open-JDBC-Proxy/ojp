@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * 3. The client-side code updated to use integrated StatementService
  */
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresXAIntegrationTest {
 
     private static boolean isTestDisabled;

@@ -2,6 +2,7 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -76,6 +77,7 @@ public class ReadMultipleBlocksOfDataIntegrationTest {
     // PostgreSQL tests using TestContainers - only run when enabled
     @ParameterizedTest
     @ArgumentsSource(PostgresConnectionWithRecordCountsProvider.class)
+    @EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
     public void multiplePagesOfRowsResultSetSuccessfulPostgres(int totalRecords, String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
