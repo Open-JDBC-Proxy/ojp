@@ -44,7 +44,7 @@ public class PostgresXAIntegrationTest {
     }
 
     public void setUp(String driverClass, String url, String user, String password) throws SQLException {
-        assumeFalse(isTestDisabled, "Postgres XA tests are disabled. Enable with -DdisablePostgresTests=false");
+        assumeFalse(isTestDisabled, "Postgres XA tests are disabled by default. Enable with -DenablePostgresTests=true");
         
         // Create XA DataSource
         OjpXADataSource xaDataSource = new OjpXADataSource();

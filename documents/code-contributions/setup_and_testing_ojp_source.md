@@ -26,9 +26,9 @@
    Navigate to the ojp-jdbc-driver folder first:
    ```bash
    cd ojp-jdbc-driver
-   mvn test -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -DdisableCockroachDBTests -DdisablePostgresXATests
+   mvn test
    ```
-**Note:** With the disable flags only H2 integration tests will run, to run the full set of integration tests you have to run all the databases locally, follow the instructions at [Run Local Databases](../../documents/environment-setup/run-local-databases.md)
+**Note:** By default, only H2 integration tests will run. To run tests for specific databases, you need to enable them using `-DenablePostgresTests=true`, `-DenableMySQLTests=true`, etc. To run the full set of integration tests you have to run all the databases locally, follow the instructions at [Run Local Databases](../../documents/environment-setup/run-local-databases.md)
 
 ### Databases with integration tests
 We have comprehensive JDBC integration tests with OJP for the following databases:
@@ -67,10 +67,13 @@ For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../
 - See [run-local-databases.md](documents/environment-setup/run-local-databases.md) for local database setup
 
 ### Test Options
-- `-DdisablePostgresTests` - Skip PostgreSQL integration tests
-- `-DdisableCockroachDBTests` - Skip CockroachDB integration tests
-- `-DenableOracleTests` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
-- `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default)
+- `-DenablePostgresTests=true` - Enable PostgreSQL integration tests (disabled by default)
+- `-DenableMySQLTests=true` - Enable MySQL integration tests (disabled by default)
+- `-DenableMariaDBTests=true` - Enable MariaDB integration tests (disabled by default)
+- `-DenableCockroachDBTests=true` - Enable CockroachDB integration tests (disabled by default)
+- `-DenableOracleTests=true` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
+- `-DenableSqlServerTests=true` - Enable SQL Server integration tests (disabled by default)
+- `-DenableDb2Tests=true` - Enable DB2 integration tests (disabled by default)
 
 ### Contributing code
 1. Fork the repository

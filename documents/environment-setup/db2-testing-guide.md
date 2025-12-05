@@ -49,14 +49,14 @@ To run only DB2 tests:
 
 ```bash
 cd ojp-jdbc-driver
-mvn test -DenableDb2Tests -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests
+mvn test -DenableDb2Tests=true
 ```
 
 To run DB2 tests alongside other databases:
 
 ```bash
 cd ojp-jdbc-driver
-mvn test -DenableDb2Tests -DenableOracleTests -DenableSqlServerTests
+mvn test -DenableDb2Tests=true -DenableOracleTests=true -DenableSqlServerTests=true
 ```
 
 To run specific DB2 test classes:

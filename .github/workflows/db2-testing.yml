@@ -86,10 +86,6 @@ jobs:
         run: |
           mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
             -DenableDb2Tests=true \
-            -DdisablePostgresTests=true \
-            -DdisableMySQLTests=true \
-            -DdisableMariaDBTests=true \
-            -DdisableCockroachDBTests=true \
             -Dtest="Db2*"
 
       - name: Show ojp-server.log

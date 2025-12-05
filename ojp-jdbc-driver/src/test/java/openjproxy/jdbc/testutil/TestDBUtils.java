@@ -613,9 +613,11 @@ public class TestDBUtils {
 
     /**
      * Checks if the current test should be skipped due to database-specific flags.
-     * @param disablePostgresTests Whether Postgres tests are disabled
-     * @param disableMySQLTests Whether MySQL tests are disabled
-     * @param disableOracleTests Whether Oracle tests are disabled
+     * Note: The parameter names use 'disable' for backward compatibility, but tests are now
+     * disabled by default and should be enabled using -DenablePostgresTests=true, -DenableMySQLTests=true, etc.
+     * @param disablePostgresTests Whether Postgres tests are disabled (legacy parameter)
+     * @param disableMySQLTests Whether MySQL tests are disabled (legacy parameter)
+     * @param disableOracleTests Whether Oracle tests are disabled (legacy parameter)
      * @param isPostgresTest Whether this is a Postgres test
      * @param isMySQLTest Whether this is a MySQL test
      * @param isOracleTest Whether this is an Oracle test
