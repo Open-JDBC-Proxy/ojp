@@ -1,5 +1,5 @@
 # This workflow runs only Oracle integration tests using TestContainers.
-# It disables all other database integration tests to focus on Oracle testing.
+# It enables Oracle tests specifically while other database tests remain disabled by default.
 # TestContainers automatically manages the Oracle container lifecycle.
 name: Oracle Integration Tests
 

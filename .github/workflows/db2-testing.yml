@@ -1,5 +1,5 @@
 # This workflow runs only DB2 integration tests using TestContainers.
-# It disables all other database integration tests to focus on DB2 testing.
+# It enables DB2 tests specifically while other database tests remain disabled by default.
 # TestContainers automatically manages the DB2 container lifecycle.
 name: DB2 Integration Tests
 

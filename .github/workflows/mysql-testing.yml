@@ -1,5 +1,5 @@
 # This workflow runs only MySQL integration tests using TestContainers.
-# It disables all other database integration tests to focus on MySQL testing.
+# It enables MySQL tests specifically while other database tests remain disabled by default.
 # TestContainers automatically manages the MySQL container lifecycle.
 name: MySQL Integration Tests
 
