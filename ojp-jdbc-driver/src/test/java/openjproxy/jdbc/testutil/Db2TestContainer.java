@@ -2,6 +2,8 @@ package openjproxy.jdbc.testutil;
 
 import org.testcontainers.containers.Db2Container;
 
+import java.time.Duration;
+
 /**
  * Singleton DB2 test container for all DB2 integration tests.
  * This ensures that all tests share the same DB2 instance to improve test performance
@@ -28,7 +30,8 @@ public class Db2TestContainer {
     public static synchronized Db2Container getInstance() {
         if (container == null) {
             container = new Db2Container(DB2_IMAGE)
-                    .acceptLicense();
+                    .acceptLicense()
+                    .withStartupTimeout(Duration.ofMinutes(120));;
         }
         
         if (!isStarted) {
