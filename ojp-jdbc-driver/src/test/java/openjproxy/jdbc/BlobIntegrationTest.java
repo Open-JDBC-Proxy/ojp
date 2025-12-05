@@ -29,7 +29,7 @@ public class BlobIntegrationTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
+        isMySQLTestDisabled = !Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }

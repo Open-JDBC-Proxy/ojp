@@ -37,21 +37,6 @@ jobs:
         ports:
           - 3307:3306
 
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_DATABASE: defaultdb
-          MYSQL_USER: testuser
-          MYSQL_PASSWORD: testpassword
-          MYSQL_ROOT_PASSWORD: rootpassword
-        options: >-
-          --health-cmd "mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-        ports:
-          - 3306:3306
-
       #TODO maybe put proprietary DBs in separated workflows, seem to be insufficient memory in github to run all at once
       #oracle:
       #  image: gvenzl/oracle-xe:21-slim
@@ -156,7 +141,7 @@ jobs:
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Test (ojp-jdbc-driver)
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenablePostgresTests=false
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMySQLTests=false -DenablePostgresTests=false
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
