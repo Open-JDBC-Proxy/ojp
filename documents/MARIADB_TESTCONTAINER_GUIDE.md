@@ -76,17 +76,25 @@ The `.github/workflows/mariadb-testing.yml` workflow:
 
 ## Test Files Updated
 
-All MariaDB integration test files:
-- MySQLMariaDBConnectionExtensiveTests.java
-- MySQLDatabaseMetaDataExtensiveTests.java
-- MySQLMultipleTypesIntegrationTest.java
-- MySQLPreparedStatementExtensiveTests.java
-- MySQLSpecificFeaturesIntegrationTest.java
-- MySQLStatementExtensiveTests.java
+MariaDB-specific test files (duplicated from MySQL versions):
+- `MariaDBConnectionExtensiveTests.java` (was `MySQLMariaDBConnectionExtensiveTests.java`)
+- `MariaDBDatabaseMetaDataExtensiveTests.java` (was `MySQLDatabaseMetaDataExtensiveTests.java`)
+- `MariaDBMultipleTypesIntegrationTest.java` (was `MySQLMultipleTypesIntegrationTest.java`)
+- `MariaDBPreparedStatementExtensiveTests.java` (was `MySQLPreparedStatementExtensiveTests.java`)
+- `MariaDBSpecificFeaturesIntegrationTest.java` (was `MySQLSpecificFeaturesIntegrationTest.java`)
+- `MariaDBStatementExtensiveTests.java` (was `MySQLStatementExtensiveTests.java`)
 
-Multi-database tests updated for flag change:
-- BasicCrudIntegrationTest.java (changed from `disableMariaDBTests` to `enableMariaDBTests`)
-- BlobIntegrationTest.java (changed from `disableMariaDBTests` to `enableMariaDBTests`)
+MySQL test files (remain unchanged, using MySQLTestContainer):
+- `MySQLMariaDBConnectionExtensiveTests.java`
+- `MySQLDatabaseMetaDataExtensiveTests.java`
+- `MySQLMultipleTypesIntegrationTest.java`
+- `MySQLPreparedStatementExtensiveTests.java`
+- `MySQLSpecificFeaturesIntegrationTest.java`
+- `MySQLStatementExtensiveTests.java`
+
+Multi-database tests updated for both flags:
+- `BasicCrudIntegrationTest.java` (supports both `enableMySQLTests` and `enableMariaDBTests`)
+- `BlobIntegrationTest.java` (supports both `enableMySQLTests` and `enableMariaDBTests`)
 
 ## Files Removed
 

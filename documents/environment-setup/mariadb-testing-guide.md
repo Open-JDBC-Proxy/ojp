@@ -32,7 +32,7 @@ To run **only** MariaDB integration tests (excluding other databases):
 
 ```bash
 cd ojp-jdbc-driver
-mvn test -DenableMariaDBTests=true -DdisablePostgresTests -DdisableMySQLTests -DdisableCockroachDBTests -Dtest="*MariaDB*,Blob*,BasicCrud*"
+mvn test -DenableMariaDBTests=true -DenablePostgresTests=false -DenableMySQLTests=false -DdisableCockroachDBTests=true -Dtest="MariaDB*,Blob*,BasicCrud*"
 ```
 
 ### Run MariaDB Tests Alongside Other Databases
@@ -60,14 +60,16 @@ The container is managed by:
 ### Test Files
 
 MariaDB-specific test files include:
-- `MySQLMariaDBConnectionExtensiveTests.java`
-- `MySQLDatabaseMetaDataExtensiveTests.java`
-- `MySQLMultipleTypesIntegrationTest.java`
-- `MySQLPreparedStatementExtensiveTests.java`
-- `MySQLSpecificFeaturesIntegrationTest.java`
-- `MySQLStatementExtensiveTests.java`
+- `MariaDBConnectionExtensiveTests.java`
+- `MariaDBDatabaseMetaDataExtensiveTests.java`
+- `MariaDBMultipleTypesIntegrationTest.java`
+- `MariaDBPreparedStatementExtensiveTests.java`
+- `MariaDBSpecificFeaturesIntegrationTest.java`
+- `MariaDBStatementExtensiveTests.java`
 
 These tests are annotated with `@EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")` to ensure they only run when MariaDB tests are explicitly enabled.
+
+**Note:** These test files were duplicated from their MySQL counterparts (`MySQLMariaDBConnectionExtensiveTests.java`, etc.) to allow independent testing of MySQL and MariaDB with separate TestContainers and enable flags.
 
 ## Connection String Format
 

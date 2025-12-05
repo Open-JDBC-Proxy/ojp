@@ -67,10 +67,10 @@ jobs:
         run: |
           mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
             -DenableMariaDBTests=true \
-            -DdisablePostgresTests=true \
-            -DdisableMySQLTests=true \
+            -DenablePostgresTests=false \
+            -DenableMySQLTests=false \
             -DdisableCockroachDBTests=true \
-            -Dtest="*MariaDB*,Blob*,BasicCrud*"
+            -Dtest="MariaDB*,Blob*,BasicCrud*"
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
