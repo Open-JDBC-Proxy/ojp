@@ -51,6 +51,7 @@ public class PostgresConnectionWithRecordCountsProvider implements ArgumentsProv
         // Return arguments for each record count with the isXA boolean parameter
         // The isXA parameter is kept for compatibility but is not actively used by the test
         return Arrays.stream(RECORD_COUNTS)
+                .boxed()
                 .flatMap(count -> Stream.of(
                     Arguments.of(count, driverClass, ojpUrl, username, password, false),
                     Arguments.of(count, driverClass, ojpUrl, username, password, true)
