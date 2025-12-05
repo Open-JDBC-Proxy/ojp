@@ -4,7 +4,9 @@ import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -16,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresSavepointTests {
 
     private static boolean isTestDisabled;
@@ -23,7 +26,7 @@ public class PostgresSavepointTests {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-      isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+      isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     @SneakyThrows
@@ -46,7 +49,7 @@ public class PostgresSavepointTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (1, 'Alice')");

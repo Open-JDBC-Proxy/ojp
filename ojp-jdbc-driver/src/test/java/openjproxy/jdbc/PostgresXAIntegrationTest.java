@@ -5,7 +5,9 @@ import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.PostgresConnectionProvider;
 import org.openjproxy.jdbc.xa.OjpXADataSource;
 
 import javax.sql.XAConnection;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * 3. The client-side code updated to use integrated StatementService
  */
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.PostgresTestContainer#isEnabled")
 public class PostgresXAIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -37,7 +40,7 @@ public class PostgresXAIntegrationTest {
     @BeforeAll
     public static void checkTestConfiguration() {
         // Enable by default for testing
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     public void setUp(String driverClass, String url, String user, String password) throws SQLException {
@@ -70,7 +73,7 @@ public class PostgresXAIntegrationTest {
      * Test basic XA connection creation and closure.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_xa_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
@@ -91,7 +94,7 @@ public class PostgresXAIntegrationTest {
      * This tests: xaStart -> executeUpdate -> xaEnd -> xaPrepare -> xaCommit
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_xa_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
@@ -170,7 +173,7 @@ public class PostgresXAIntegrationTest {
      * Test XA transaction rollback.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_xa_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
@@ -232,7 +235,7 @@ public class PostgresXAIntegrationTest {
      * Test transaction timeout functionality.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_xa_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testXATransactionTimeout(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
@@ -255,7 +258,7 @@ public class PostgresXAIntegrationTest {
      * Test one-phase commit optimization.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_xa_connection.csv")
+    @ArgumentsSource(PostgresConnectionProvider.class)
     public void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
