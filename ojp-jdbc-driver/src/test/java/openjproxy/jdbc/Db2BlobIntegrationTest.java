@@ -2,8 +2,10 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.Db2ConnectionProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -23,6 +25,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * DB2-specific BLOB integration tests.
  * Tests DB2 BLOB functionality and performance.
  */
+@EnabledIf("openjproxy.jdbc.testutil.Db2TestContainer#isEnabled")
 public class Db2BlobIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -58,7 +61,7 @@ public class Db2BlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2BlobCreationAndRetrieval(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 
@@ -102,7 +105,7 @@ public class Db2BlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2BlobPerformance(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         setUp(driverClass, url, user, pwd);
 

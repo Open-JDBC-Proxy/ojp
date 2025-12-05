@@ -1,10 +1,12 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.Db2ConnectionProvider;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
@@ -22,6 +24,7 @@ import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.Db2TestContainer#isEnabled")
 public class Db2MultipleTypesIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -32,7 +35,7 @@ public class Db2MultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException, UnsupportedEncodingException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
 
@@ -130,7 +133,7 @@ public class Db2MultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2SpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
@@ -184,7 +187,7 @@ public class Db2MultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2NumericTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
@@ -251,7 +254,7 @@ public class Db2MultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2DateTimeTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         

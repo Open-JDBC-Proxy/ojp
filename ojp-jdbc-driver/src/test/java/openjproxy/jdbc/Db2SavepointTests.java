@@ -3,8 +3,9 @@ package openjproxy.jdbc;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -13,9 +14,12 @@ import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
 
+import openjproxy.jdbc.testutil.Db2ConnectionProvider;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.Db2TestContainer#isEnabled")
 public class Db2SavepointTests {
 
     private static boolean isTestDisabled;
@@ -67,7 +71,7 @@ public class Db2SavepointTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2SavepointBasicOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
@@ -111,7 +115,7 @@ public class Db2SavepointTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2MultipleSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
@@ -159,7 +163,7 @@ public class Db2SavepointTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2SavepointRelease(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
@@ -190,7 +194,7 @@ public class Db2SavepointTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2UnnamedSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
@@ -220,7 +224,7 @@ public class Db2SavepointTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/db2_connection.csv")
+    @ArgumentsSource(Db2ConnectionProvider.class)
     public void testDb2SavepointWithCommit(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 

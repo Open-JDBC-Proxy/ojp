@@ -120,18 +120,22 @@ Welcome to OJP! We appreciate your interest in contributing. This guide will hel
 ---
 
 ## Partners
-<a href=https://www.linkedin.com/in/devsjava/>
+<a href="https://www.linkedin.com/in/devsjava/" target="_blank" rel="noopener">
 <img width="120px" height="120px" src="documents/images/comunidade_brasil_jug.jpeg" alt="Comunidade Brasil JUG" />
 </a>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-<a href=https://github.com/switcherapi>
+<a href="https://github.com/switcherapi" target="_blank" rel="noopener">
 <img width="180px" src="https://github.com/switcherapi/switcherapi-assets/blob/master/logo/switcherapi_grey.png?raw=true" alt="Comunidade Brasil JUG" />
 </a>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-<a href=https://www.meterian.io/>
+<a href="https://www.meterian.io/" target="_blank" rel="noopener">
 <img width="180px" src="https://www.meterian.io/images/brand/meterian_logo_blue.svg" alt="Materian" />
 </a>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-<a href=https://www.youtube.com/@cbrjar>
-<img width="180px" src="/documents/images/cyberJarLogo.png" alt="Materian" />
+<a href="https://www.youtube.com/@cbrjar" target="_blank" rel="noopener">
+<img width="180px" src="/documents/images/cyber_jar_logo.png" alt="Materian" />
+</a>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://javachallengers.com/career-diagnosis" target="_blank" rel="noopener">
+<img width="150px" src="/documents/images/java_challengers_logo.jpeg" alt="Java Challengers" />
 </a>
