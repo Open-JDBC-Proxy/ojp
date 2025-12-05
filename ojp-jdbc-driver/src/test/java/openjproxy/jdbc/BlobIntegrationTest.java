@@ -2,10 +2,9 @@ package openjproxy.jdbc;
 
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -20,7 +19,6 @@ import java.sql.SQLException;
 import static openjproxy.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-@EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
 public class BlobIntegrationTest {
 
     private static boolean isMySQLTestDisabled;
@@ -43,7 +41,7 @@ public class BlobIntegrationTest {
             assumeFalse(isMySQLTestDisabled, "MySQL tests are disabled");
             this.tableName += "_mysql";
         } else if (url.toLowerCase().contains("mariadb")) {
-            assumeFalse(isMySQLTestDisabled, "MariaDB tests are disabled");
+            assumeFalse(!isMariaDBTestEnabled, "MariaDB tests are not enabled");
             this.tableName += "_mariadb";
         } else if (url.toLowerCase().contains("oracle")) {
             assumeFalse(!isOracleTestEnabled, "Oracle tests are disabled");

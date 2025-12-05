@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.MariaDBConnectionProvider;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
