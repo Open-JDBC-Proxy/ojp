@@ -4,6 +4,7 @@ import openjproxy.jdbc.testutil.MariaDBConnectionProvider;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -183,6 +184,7 @@ public class BlobIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
+    @EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
     public void createAndReadingBLOBsSuccessfulMariaDB(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         // This method tests MariaDB using TestContainers
         this.tableName = "blob_test_blob_mariadb";
@@ -248,6 +250,7 @@ public class BlobIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
+    @EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
     public void creatingAndReadingLargeBLOBsSuccessfulMariaDB(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException, ClassNotFoundException {
         // This method tests MariaDB using TestContainers
         this.tableName = "blob_test_blob_mariadb";

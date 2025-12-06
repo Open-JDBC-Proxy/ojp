@@ -7,6 +7,7 @@ import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -185,6 +186,7 @@ public class BasicCrudIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(MariaDBConnectionProvider.class)
+    @EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
     public void crudTestSuccessfulMariaDB(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // This method tests MariaDB using TestContainers
         tablePrefix = "mariadb_";
