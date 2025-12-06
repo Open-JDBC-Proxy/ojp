@@ -1,9 +1,11 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.MariaDBConnectionProvider;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.io.ByteArrayInputStream;
@@ -167,6 +169,143 @@ public class BlobIntegrationTest {
         while (byteFile != -1) {
             count++;
             int blobByte = inputStreamBlob.read();
+
+            Assert.assertEquals(byteFile, blobByte);
+            byteFile = inputStreamTestFile.read();
+        }
+
+        executeUpdate(conn, "delete from " + tableName);
+
+        resultSet.close();
+        psSelect.close();
+        conn.close();
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(MariaDBConnectionProvider.class)
+    public void createAndReadingBLOBsSuccessfulMariaDB(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
+        // This method tests MariaDB using TestContainers
+        this.tableName = "blob_test_blob_mariadb";
+        Class.forName(driverClass);
+        this.conn = DriverManager.getConnection(url, user, pwd);
+        
+        System.out.println("Testing for url -> " + url);
+
+        try {
+            executeUpdate(conn, "drop table " + tableName);
+        } catch (Exception e) {
+            //If fails disregard as per the table is most possibly not created yet
+        }
+
+        executeUpdate(conn,
+                "create table " + tableName + "(" +
+                        " val_blob  BLOB," +
+                        " val_blob2 BLOB," +
+                        " val_blob3 BLOB" +
+                        ")"
+        );
+
+        PreparedStatement psInsert = conn.prepareStatement(
+                " insert into " + tableName + " (val_blob, val_blob2, val_blob3) values (?, ?, ?)"
+        );
+
+        byte[] blobBytes = {1, 2, 3, 4, 5, 6};
+        Blob blob = conn.createBlob();
+        blob.setBytes(1, blobBytes);
+
+        psInsert.setBlob(1, blob);
+
+        InputStream inputStream = new ByteArrayInputStream(blobBytes);
+        psInsert.setBlob(2, inputStream);
+
+        psInsert.setBytes(3, blobBytes);
+
+        psInsert.executeUpdate();
+
+        psInsert.close();
+
+        PreparedStatement psSelect = conn.prepareStatement("select * from " + tableName);
+        ResultSet resultSet = psSelect.executeQuery();
+        resultSet.next();
+
+        Blob blobFromDB = resultSet.getBlob(1);
+        byte[] bytesFromDB = blobFromDB.getBytes(1, (int) blobFromDB.length());
+        Assert.assertArrayEquals(blobBytes, bytesFromDB);
+
+        Blob blobFromDB2 = resultSet.getBlob(2);
+        byte[] bytesFromDB2 = blobFromDB2.getBytes(1, (int) blobFromDB2.length());
+        Assert.assertArrayEquals(blobBytes, bytesFromDB2);
+
+        byte[] bytesFromDB3 = resultSet.getBytes(3);
+        Assert.assertArrayEquals(blobBytes, bytesFromDB3);
+
+        executeUpdate(conn, "delete from " + tableName);
+
+        resultSet.close();
+        psSelect.close();
+        conn.close();
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(MariaDBConnectionProvider.class)
+    public void creatingAndReadingLargeBLOBsSuccessfulMariaDB(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException, ClassNotFoundException {
+        // This method tests MariaDB using TestContainers
+        this.tableName = "blob_test_blob_mariadb";
+        Class.forName(driverClass);
+        this.conn = DriverManager.getConnection(url, user, pwd);
+        
+        System.out.println("Testing for url -> " + url);
+
+        try {
+            executeUpdate(conn, "drop table " + tableName);
+        } catch (Exception e) {
+            //If fails disregard as per the table is most possibly not created yet
+        }
+
+        executeUpdate(conn,
+                "create table " + tableName + "(" +
+                        " val_blob  BLOB" +
+                        ")"
+        );
+
+        PreparedStatement psInsert = conn.prepareStatement(
+                " insert into " + tableName + " (val_blob) values (?)"
+        );
+
+        // Create a 5MB blob
+        byte[] blobBytes = new byte[5 * 1024 * 1024];
+        for (int i = 0; i < blobBytes.length; i++) {
+            blobBytes[i] = (byte) (i % 256);
+        }
+
+        InputStream inputStream = new ByteArrayInputStream(blobBytes);
+        psInsert.setBlob(1, inputStream);
+
+        psInsert.executeUpdate();
+
+        psInsert.close();
+
+        PreparedStatement psSelect = conn.prepareStatement("select * from " + tableName);
+        ResultSet resultSet = psSelect.executeQuery();
+        resultSet.next();
+
+        Blob blobFromDB = resultSet.getBlob(1);
+
+        InputStream inputStreamFromDB = blobFromDB.getBinaryStream();
+
+        InputStream inputStreamTestFile = new ByteArrayInputStream(blobBytes);
+
+        int byteFile = inputStreamTestFile.read();
+        int blobByte = inputStreamFromDB.read();
+
+        while (byteFile != -1) {
+
+            Assert.assertEquals(byteFile, blobByte);
+            byteFile = inputStreamTestFile.read();
+            blobByte = inputStreamFromDB.read();
+        }
+
+        while (blobByte != -1) {
 
             Assert.assertEquals(byteFile, blobByte);
             byteFile = inputStreamTestFile.read();
