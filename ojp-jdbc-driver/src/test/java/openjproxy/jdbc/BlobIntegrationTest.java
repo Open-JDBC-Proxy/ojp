@@ -275,8 +275,8 @@ public class BlobIntegrationTest {
                 " insert into " + tableName + " (val_blob) values (?)"
         );
 
-        // Create a 5MB blob
-        byte[] blobBytes = new byte[5 * 1024 * 1024];
+        // Create a 3MB blob (under gRPC 4MB limit)
+        byte[] blobBytes = new byte[3 * 1024 * 1024];
         for (int i = 0; i < blobBytes.length; i++) {
             blobBytes[i] = (byte) (i % 256);
         }
