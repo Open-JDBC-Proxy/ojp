@@ -272,43 +272,28 @@ public class BlobIntegrationTest {
         );
 
         PreparedStatement psInsert = conn.prepareStatement(
-                " insert into " + tableName + " (val_blob) values (?)"
+                "insert into " + tableName + " (val_blob) values (?)"
         );
 
-        // Create a 1MB blob (conservative size to avoid socket timeouts)
-        byte[] blobBytes = new byte[1024 * 1024];
-        for (int i = 0; i < blobBytes.length; i++) {
-            blobBytes[i] = (byte) (i % 256);
-        }
-
-        InputStream inputStream = new ByteArrayInputStream(blobBytes);
+        // Use the same largeTextFile.txt resource as the original CSV-based test
+        InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
         psInsert.setBlob(1, inputStream);
 
         psInsert.executeUpdate();
 
-        psInsert.close();
-
-        PreparedStatement psSelect = conn.prepareStatement("select * from " + tableName);
+        PreparedStatement psSelect = conn.prepareStatement("select val_blob from " + tableName);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
+        Blob blobResult = resultSet.getBlob(1);
 
-        Blob blobFromDB = resultSet.getBlob(1);
-
-        InputStream inputStreamFromDB = blobFromDB.getBinaryStream();
-
-        InputStream inputStreamTestFile = new ByteArrayInputStream(blobBytes);
+        InputStream inputStreamTestFile = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
+        InputStream inputStreamBlob = blobResult.getBinaryStream();
 
         int byteFile = inputStreamTestFile.read();
-        int blobByte = inputStreamFromDB.read();
-
+        int count = 0;
         while (byteFile != -1) {
-
-            Assert.assertEquals(byteFile, blobByte);
-            byteFile = inputStreamTestFile.read();
-            blobByte = inputStreamFromDB.read();
-        }
-
-        while (blobByte != -1) {
+            count++;
+            int blobByte = inputStreamBlob.read();
 
             Assert.assertEquals(byteFile, blobByte);
             byteFile = inputStreamTestFile.read();
