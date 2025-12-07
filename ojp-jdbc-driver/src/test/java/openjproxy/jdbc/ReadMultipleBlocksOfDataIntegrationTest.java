@@ -1,6 +1,7 @@
 package openjproxy.jdbc;
 
 import org.junit.Assert;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,12 +33,12 @@ public class ReadMultipleBlocksOfDataIntegrationTest {
     public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // Skip H2 tests if not enabled
         if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
-            return;
+            Assumptions.assumeFalse(true, "Skipping H2 tests - not enabled");
         }
         // Skip Postgres connections in this test - they're tested separately using TestContainers
         // See multiplePagesOfRowsResultSetSuccessfulPostgres() method below
         if (url.contains("postgresql")) {
-            return;
+            Assumptions.assumeFalse(true, "Skipping Postgres tests");
         }
         Connection conn = DriverManager.getConnection(url, user, pwd);
 

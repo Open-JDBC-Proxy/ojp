@@ -3,6 +3,7 @@ package openjproxy.jdbc;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.Assert;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -32,10 +33,10 @@ public class BinaryStreamIntegrationTest {
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
     public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
-            return;
+            Assumptions.assumeFalse(true, "Skipping H2 tests - not enabled");
         }
         if (isPostgresTestDisabled && url.contains("postgresql")) {
-            return;
+            Assumptions.assumeFalse(true, "Skipping Postgres tests");
         }
 
         ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
