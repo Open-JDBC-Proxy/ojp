@@ -17,10 +17,12 @@ import static openjproxy.helpers.SqlHelper.executeUpdate;
 
 public class ReadMultipleBlocksOfDataIntegrationTest {
 
+    private static boolean isH2TestEnabled;
     private static boolean isPostgresTestEnabled;
 
     @BeforeAll
     public static void checkTestConfiguration() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "true"));
         isPostgresTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
@@ -28,6 +30,10 @@ public class ReadMultipleBlocksOfDataIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections_with_record_counts.csv")
     public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
+        // Skip H2 tests if not enabled
+        if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
+            return;
+        }
         // Skip Postgres connections in this test - they're tested separately using TestContainers
         // See multiplePagesOfRowsResultSetSuccessfulPostgres() method below
         if (url.contains("postgresql")) {

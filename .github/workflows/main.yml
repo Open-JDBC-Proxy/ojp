@@ -135,7 +135,7 @@ jobs:
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Test (ojp-jdbc-driver)
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMySQLTests=false -DenablePostgresTests=false -DenableCockroachDBTests=false
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableH2Tests=true -DenableMySQLTests=false -DenablePostgresTests=false -DenableCockroachDBTests=false
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail

@@ -1,10 +1,14 @@
 # This workflow runs only DB2 integration tests using TestContainers.
 # It disables all other database integration tests to focus on DB2 testing.
 # TestContainers automatically manages the DB2 container lifecycle.
+# This workflow only runs after the Main CI workflow succeeds.
 name: DB2 Integration Tests
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Main CI"]
+    types:
+      - completed
     branches: [ main ]
   pull_request:
     branches: [ main ]
@@ -14,6 +18,7 @@ jobs:
   db2-tests:
     name: DB2 Integration Tests
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     
     permissions:
       contents: read

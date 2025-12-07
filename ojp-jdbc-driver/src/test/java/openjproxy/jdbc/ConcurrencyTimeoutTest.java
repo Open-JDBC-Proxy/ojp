@@ -2,6 +2,7 @@ package openjproxy.jdbc;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -23,8 +24,15 @@ public class ConcurrencyTimeoutTest {
     private static final int THREADS = 50; // Smaller number for quick testing
     private static final int OPERATIONS_PER_THREAD = 5;
 
+    private static boolean isH2TestEnabled;
     private static AtomicInteger successfulOperations = new AtomicInteger(0);
     private static AtomicInteger failedOperations = new AtomicInteger(0);
+
+    @BeforeAll
+    public static void checkH2TestsEnabled() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "true"));
+        Assumptions.assumeTrue(isH2TestEnabled, "H2 tests are not enabled");
+    }
 
     @SneakyThrows
     @ParameterizedTest

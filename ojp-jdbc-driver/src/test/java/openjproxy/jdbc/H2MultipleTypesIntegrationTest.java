@@ -2,6 +2,8 @@ package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
@@ -20,6 +22,14 @@ import java.text.SimpleDateFormat;
 import static openjproxy.helpers.SqlHelper.executeUpdate;
 
 public class H2MultipleTypesIntegrationTest {
+
+    private static boolean isH2TestEnabled;
+
+    @BeforeAll
+    public static void checkH2TestsEnabled() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "true"));
+        Assumptions.assumeTrue(isH2TestEnabled, "H2 tests are not enabled");
+    }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")

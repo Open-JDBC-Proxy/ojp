@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class BlobIntegrationTest {
 
+    private static boolean isH2TestEnabled;
     private static boolean isMySQLTestDisabled;
     private static boolean isMariaDBTestEnabled;
     private static boolean isOracleTestEnabled;
@@ -32,6 +33,7 @@ public class BlobIntegrationTest {
 
     @BeforeAll
     public static void checkTestConfiguration() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "true"));
         isMySQLTestDisabled = !Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
@@ -50,6 +52,7 @@ public class BlobIntegrationTest {
             assumeFalse(!isOracleTestEnabled, "Oracle tests are disabled");
             this.tableName += "_oracle";
         } else {
+            assumeFalse(!isH2TestEnabled, "H2 tests are not enabled");
             this.tableName += "_h2";
         }
         Class.forName(driverClass);

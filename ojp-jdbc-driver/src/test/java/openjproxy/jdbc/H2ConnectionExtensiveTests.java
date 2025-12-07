@@ -4,6 +4,8 @@ import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
@@ -35,7 +37,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class H2ConnectionExtensiveTests {
 
+    private static boolean isH2TestEnabled;
     private Connection connection;
+
+    @BeforeAll
+    public static void setup() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "true"));
+        Assumptions.assumeTrue(isH2TestEnabled, "H2 tests are not enabled");
+    }
 
     @SneakyThrows
     public void setUp(String driverClass, String url, String user, String password) throws SQLException {

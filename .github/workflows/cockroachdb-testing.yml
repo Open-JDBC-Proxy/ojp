@@ -1,10 +1,14 @@
 # This workflow runs only CockroachDB integration tests using TestContainers.
 # It disables all other database integration tests to focus on CockroachDB testing.
 # TestContainers automatically manages the CockroachDB container lifecycle.
+# This workflow only runs after the Main CI workflow succeeds.
 name: CockroachDB Integration Tests
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Main CI"]
+    types:
+      - completed
     branches: [ main ]
   pull_request:
     branches: [ main ]
@@ -14,6 +18,7 @@ jobs:
   cockroachdb-tests:
     name: CockroachDB Integration Tests
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     
     permissions:
       contents: read
