@@ -1,7 +1,7 @@
-# This workflow runs only DB2 integration tests using TestContainers.
-# It disables all other database integration tests to focus on DB2 testing.
-# TestContainers automatically manages the DB2 container lifecycle.
-name: DB2 Integration Tests
+# This workflow runs only CockroachDB integration tests using TestContainers.
+# It disables all other database integration tests to focus on CockroachDB testing.
+# TestContainers automatically manages the CockroachDB container lifecycle.
+name: CockroachDB Integration Tests
 
 on:
   push:
@@ -11,8 +11,8 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  db2-tests:
-    name: DB2 Integration Tests
+  cockroachdb-tests:
+    name: CockroachDB Integration Tests
     runs-on: ubuntu-latest
     
     permissions:
@@ -28,25 +28,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Add DB2 JDBC Driver to ojp-server
-        run: |
-          # Create temporary file with DB2 JDBC dependency
-          cat > /tmp/db2-dep.txt << 'EOF'
-          <!-- DB2 JDBC Driver (added by CI) -->
-          <dependency>
-              <groupId>com.ibm.db2</groupId>
-              <artifactId>jcc</artifactId>
-              <version>11.5.9.0</version>
-          </dependency>
-          EOF
-          
-          # Insert after the placeholder comment
-          sed -i '/<!-- PROPRIETARY DATABASE DRIVERS PLACEHOLDER -->/r /tmp/db2-dep.txt' ojp-server/pom.xml
-          
-          # Verify the insertion
-          echo "=== Modified ojp-server/pom.xml dependencies section ==="
-          sed -n '/PROPRIETARY DATABASE DRIVERS PLACEHOLDER/,/HikariCP/p' ojp-server/pom.xml
 
       - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
@@ -82,15 +63,14 @@ jobs:
       - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
-      - name: Run DB2 Integration Tests
+      - name: Run CockroachDB Integration Tests
         run: |
           mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
-            -DenableDb2Tests=true \
+            -DenableCockroachDBTests=true \
             -DdisablePostgresTests=true \
             -DdisableMySQLTests=true \
-            -DenableMariaDBTests=false \
-            -DenableCockroachDBTests=false \
-            -Dtest="Db2*"
+            -DdisableMariaDBTests=true \
+            -Dtest="CockroachDB*"
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail

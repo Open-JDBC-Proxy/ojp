@@ -69,7 +69,7 @@ jobs:
             -DenablePostgresTests=true \
             -DdisableMySQLTests=true \
             -DdisableMariaDBTests=true \
-            -DdisableCockroachDBTests=true \
+            -DenableCockroachDBTests=false \
             -Dtest="Postgres*"
 
       - name: Show ojp-server.log

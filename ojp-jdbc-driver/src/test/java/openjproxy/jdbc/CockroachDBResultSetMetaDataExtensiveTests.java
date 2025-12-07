@@ -3,14 +3,17 @@ package openjproxy.jdbc;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.CockroachDBConnectionProvider;
 
 import java.sql.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@EnabledIf("openjproxy.jdbc.testutil.CockroachDBTestContainer#isEnabled")
 public class CockroachDBResultSetMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -19,7 +22,7 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
     @SneakyThrows
@@ -56,7 +59,7 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
@@ -173,7 +176,7 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testResultSetMetaDataWithNullValues(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
         
@@ -204,7 +207,7 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testResultSetMetaDataWithComplexTypes(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
         

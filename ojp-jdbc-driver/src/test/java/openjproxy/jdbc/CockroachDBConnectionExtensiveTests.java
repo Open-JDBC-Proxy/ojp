@@ -4,8 +4,10 @@ import lombok.extern.slf4j.Slf4j;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import openjproxy.jdbc.testutil.CockroachDBConnectionProvider;
 
 import java.sql.*;
 
@@ -17,17 +19,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * These tests verify that OJP can properly handle CockroachDB-specific SQL syntax and features.
  */
 @Slf4j
+@EnabledIf("openjproxy.jdbc.testutil.CockroachDBTestContainer#isEnabled")
 public class CockroachDBConnectionExtensiveTests {
 
     private static boolean isTestDisabled;
 
     @BeforeAll
     public static void setup() {
-        isTestDisabled = Boolean.parseBoolean(System.getProperty("disableCockroachDBTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
 
@@ -66,7 +69,7 @@ public class CockroachDBConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBAutoIncrement(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
 
@@ -98,7 +101,7 @@ public class CockroachDBConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBTransactionHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
 
@@ -160,7 +163,7 @@ public class CockroachDBConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBPreparedStatements(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
 
@@ -196,7 +199,7 @@ public class CockroachDBConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
 
@@ -245,7 +248,7 @@ public class CockroachDBConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBJoins(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
 
@@ -300,7 +303,7 @@ public class CockroachDBConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    @ArgumentsSource(CockroachDBConnectionProvider.class)
     public void testCockroachDBMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "CockroachDB tests are disabled");
 

@@ -1,6 +1,6 @@
 # This workflow builds and tests the project on pushes and pull requests to the main branch.
-# It uses services for MySQL, MariaDB, and CockroachDB integration tests.
-# PostgreSQL tests are run in a separate workflow using TestContainers.
+# It uses services for MySQL and MariaDB integration tests.
+# PostgreSQL, Oracle, SQL Server, DB2, and CockroachDB tests are run in separate workflows using TestContainers.
 # The workflow result is reported in the Actions tab of the repository.
 name: Main CI
 
@@ -100,12 +100,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Start CockroachDB
-        run: |
-          docker run --name ojp-cockroachdb -p 26257:26257 -p 8080:8080 -d cockroachdb/cockroach:v24.3.4 start-single-node --insecure
-          # Wait for CockroachDB to be ready
-          timeout 60 bash -c 'until curl -f http://localhost:8080/health?ready=1 2>/dev/null; do sleep 2; done'
-
       - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
         with:
@@ -141,7 +135,7 @@ jobs:
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Test (ojp-jdbc-driver)
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMySQLTests=false -DenablePostgresTests=false
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMySQLTests=false -DenablePostgresTests=false -DenableCockroachDBTests=false
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail

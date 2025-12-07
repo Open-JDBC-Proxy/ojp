@@ -26,7 +26,7 @@
    Navigate to the ojp-jdbc-driver folder first:
    ```bash
    cd ojp-jdbc-driver
-   mvn test -DdisablePostgresTests -DdisableMySQLTests -DenableMariaDBTests=false -DdisableCockroachDBTests -DdisablePostgresXATests
+   mvn test -DdisablePostgresTests -DdisableMySQLTests -DenableMariaDBTests=false -DenableCockroachDBTests=false -DdisablePostgresXATests
    ```
 **Note:** With the disable flags only H2 integration tests will run, to run the full set of integration tests you have to run all the databases locally, follow the instructions at [Run Local Databases](../../documents/environment-setup/run-local-databases.md)
 
@@ -60,7 +60,7 @@ MariaDB integration tests use TestContainers to automatically manage the databas
 For detailed MariaDB setup instructions, see [MariaDB Testing Guide](../../documents/environment-setup/mariadb-testing-guide.md).
 
 ### CockroachDB Database Setup (Optional)
-CockroachDB integration tests use the PostgreSQL JDBC driver which is already included in OJP dependencies.
+CockroachDB integration tests use TestContainers which automatically manages the CockroachDB instance.
 For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../../documents/environment-setup/cockroachdb-testing-guide.md).
 
 
@@ -73,8 +73,8 @@ For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../
 ### Test Options
 - `-DdisablePostgresTests` - Skip PostgreSQL integration tests
 - `-DdisableMySQLTests` - Skip MySQL integration tests
-- `-DdisableCockroachDBTests` - Skip CockroachDB integration tests
 - `-DenableMariaDBTests` - Enable MariaDB integration tests (disabled by default, uses TestContainers)
+- `-DenableCockroachDBTests` - Enable CockroachDB integration tests (disabled by default, uses TestContainers)
 - `-DenableOracleTests` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
 - `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default, uses TestContainers)
 - `-DenableDb2Tests` - Enable DB2 integration tests (disabled by default, uses TestContainers)
