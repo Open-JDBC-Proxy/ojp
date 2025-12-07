@@ -91,7 +91,8 @@ For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../
 - `-DdisableMariaDBTests` - Skip MariaDB integration tests
 - `-DdisableCockroachDBTests` - Skip CockroachDB integration tests
 - `-DenableOracleTests` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
-- `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default)
+- `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default, requires Microsoft JDBC driver)
+- `-DenableDb2Tests` - Enable DB2 integration tests (disabled by default, requires IBM JDBC driver)
 
 ### Contributing code
 1. Fork the repository

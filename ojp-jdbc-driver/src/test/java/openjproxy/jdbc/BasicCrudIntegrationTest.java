@@ -44,51 +44,67 @@ public class BasicCrudIntegrationTest {
     @CsvFileSource(resources = "/h2_postgres_mysql_mariadb_oracle_sqlserver_connections.csv")
     public void crudTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // Skip H2 tests if disabled
-        if (url.toLowerCase().contains(":h2:") && isH2TestDisabled) {
-            Assumptions.assumeFalse(true, "Skipping H2 tests");
+        if (url.toLowerCase().contains(":h2:")) {
             tablePrefix = "h2_";
+            if (isH2TestDisabled) {
+                Assumptions.assumeFalse(true, "Skipping H2 tests");
+            }
         }
         
         // Skip PostgreSQL tests if disabled
-        if (url.toLowerCase().contains("postgresql") && isPostgresTestDisabled) {
-            Assumptions.assumeFalse(true, "Skipping Postgres tests");
+        if (url.toLowerCase().contains("postgresql")) {
             tablePrefix = "postgres_";
+            if (isPostgresTestDisabled) {
+                Assumptions.assumeFalse(true, "Skipping Postgres tests");
+            }
         }
         
         // Skip MySQL tests if disabled
-        if (url.toLowerCase().contains("mysql") && isMySQLTestDisabled) {
-            Assumptions.assumeFalse(true, "Skipping MySQL tests");
+        if (url.toLowerCase().contains("mysql")) {
             tablePrefix = "mysql_";
+            if (isMySQLTestDisabled) {
+                Assumptions.assumeFalse(true, "Skipping MySQL tests");
+            }
         }
 
         // Skip MariaDB tests if disabled
-        if (url.toLowerCase().contains("mariadb") && isMariaDBTestDisabled) {
-            Assumptions.assumeFalse(true, "Skipping MariaDB tests");
+        if (url.toLowerCase().contains("mariadb")) {
             tablePrefix = "mariadb_";
+            if (isMariaDBTestDisabled) {
+                Assumptions.assumeFalse(true, "Skipping MariaDB tests");
+            }
         }
 
         // Skip Oracle tests if not enabled
-        if (url.toLowerCase().contains("oracle") && !isOracleTestEnabled) {
-            Assumptions.assumeFalse(true, "Skipping Oracle tests - not enabled");
+        if (url.toLowerCase().contains("oracle")) {
             tablePrefix = "oracle_";
+            if (!isOracleTestEnabled) {
+                Assumptions.assumeFalse(true, "Skipping Oracle tests - not enabled");
+            }
         }
 
         // Skip SQL Server tests if not enabled
-        if (url.toLowerCase().contains("sqlserver") && !isSqlServerTestEnabled) {
-            Assumptions.assumeFalse(true, "Skipping SQL Server tests - not enabled");
+        if (url.toLowerCase().contains("sqlserver")) {
             tablePrefix = "sqlserver_";
+            if (!isSqlServerTestEnabled) {
+                Assumptions.assumeFalse(true, "Skipping SQL Server tests - not enabled");
+            }
         }
 
         // Skip DB2 tests if not enabled
-        if (url.toLowerCase().contains("db2") && !isDb2TestEnabled) {
-            Assumptions.assumeFalse(true, "Skipping DB2 tests - not enabled");
+        if (url.toLowerCase().contains("db2")) {
             tablePrefix = "db2_";
+            if (!isDb2TestEnabled) {
+                Assumptions.assumeFalse(true, "Skipping DB2 tests - not enabled");
+            }
         }
 
         // Skip CockroachDB tests if disabled  
-        if (url.toLowerCase().contains("26257") && isCockroachDBTestDisabled) {
-            Assumptions.assumeFalse(true, "Skipping CockroachDB tests");
+        if (url.toLowerCase().contains("26257")) {
             tablePrefix = "cockroachdb_";
+            if (isCockroachDBTestDisabled) {
+                Assumptions.assumeFalse(true, "Skipping CockroachDB tests");
+            }
         }
 
         ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
