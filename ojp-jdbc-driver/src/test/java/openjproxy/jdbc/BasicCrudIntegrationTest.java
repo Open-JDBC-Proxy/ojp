@@ -1,12 +1,15 @@
 package openjproxy.jdbc;
 
 import lombok.extern.slf4j.Slf4j;
+import openjproxy.jdbc.testutil.MariaDBConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.sql.Connection;
@@ -20,7 +23,7 @@ public class BasicCrudIntegrationTest {
 
     private static boolean isPostgresTestDisabled;
     private static boolean isMySQLTestDisabled;
-    private static boolean isMariaDBTestDisabled;
+    private static boolean isMariaDBTestEnabled;
     private static boolean isCockroachDBTestDisabled;
     private static boolean isOracleTestEnabled;
     private static boolean isSqlServerTestEnabled;
@@ -31,7 +34,7 @@ public class BasicCrudIntegrationTest {
     public static void setup() {
         isPostgresTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
         isMySQLTestDisabled = !Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
-        isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
+        isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
         isCockroachDBTestDisabled = !Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
         isSqlServerTestEnabled = Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
@@ -53,9 +56,9 @@ public class BasicCrudIntegrationTest {
             tablePrefix = "mysql_";
         }
 
-        // Skip MariaDB tests if disabled
-        if (url.toLowerCase().contains("mariadb") && isMariaDBTestDisabled) {
-            Assumptions.assumeFalse(true, "Skipping MariaDB tests");
+        // Skip MariaDB tests if not enabled
+        if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
+            Assumptions.assumeFalse(true, "Skipping MariaDB tests - not enabled");
             tablePrefix = "mariadb_";
         }
 
@@ -159,6 +162,107 @@ public class BasicCrudIntegrationTest {
         Assert.assertEquals("TITLE_1_UPDATED", titleUpdated);
 
         executeUpdate(conn, " delete from " + tableName + " where id=1 and title='TITLE_1_UPDATED'");
+        connResult.commit();
+        
+        // Start new transaction for next operation
+        connResult.startXATransactionIfNeeded();
+
+        ResultSet resultSetAfterDeletion = psSelect.executeQuery();
+        Assert.assertFalse(resultSetAfterDeletion.next());
+
+        resultSet.close();
+        psSelect.close();
+        
+        // Clean up - drop the test table
+        try {
+            executeUpdate(conn, "drop table " + tableName);
+            connResult.commit();
+        } catch (Exception e) {
+            // Ignore cleanup errors
+        }
+        
+        connResult.close();
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(MariaDBConnectionProvider.class)
+    @EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")
+    public void crudTestSuccessfulMariaDB(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
+        // This method tests MariaDB using TestContainers
+        tablePrefix = "mariadb_";
+        String tableName = tablePrefix + "basic_crud_test";
+
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
+
+        // For non-XA connections, set autocommit to false for explicit transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        // Start transaction if needed
+        connResult.startXATransactionIfNeeded();
+
+        // Drop table if it exists from previous test run
+        try {
+            executeUpdate(conn, "drop table " + tableName);
+            connResult.commit();
+        } catch (Exception e) {
+            // Table doesn't exist yet, ignore
+            try {
+                connResult.rollback();
+            } catch (Exception ex) {
+                // Ignore rollback errors
+            }
+        }
+        
+        // Start new transaction for next operation
+        connResult.startXATransactionIfNeeded();
+
+        executeUpdate(conn, "create table " + tableName + "(" +
+                "id INT NOT NULL," +
+                "title VARCHAR(50) NOT NULL" +
+                ")");
+        connResult.commit();
+        
+        // Start new transaction for next operation
+        connResult.startXATransactionIfNeeded();
+
+        executeUpdate(conn, " insert into " + tableName + " (id, title) values (1, 'TITLE_1')");
+        connResult.commit();
+        
+        // Start new transaction for next operation
+        connResult.startXATransactionIfNeeded();
+
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from " + tableName + " where id = ?");
+        psSelect.setInt(1, 1);
+        ResultSet resultSet = psSelect.executeQuery();
+        resultSet.next();
+        int id = resultSet.getInt(1);
+        String title = resultSet.getString(2);
+        Assert.assertEquals(1, id);
+        Assert.assertEquals("TITLE_1", title);
+        connResult.commit();
+        
+        // Start new transaction for next operation
+        connResult.startXATransactionIfNeeded();
+
+        executeUpdate(conn, " update " + tableName + " set title = 'TITLE_1_UPDATED' where id = 1");
+        connResult.commit();
+        
+        // Start new transaction for next operation
+        connResult.startXATransactionIfNeeded();
+
+        ResultSet resultSetAfterUpdate = psSelect.executeQuery();
+        resultSetAfterUpdate.next();
+        String titleAfterUpdate = resultSetAfterUpdate.getString(2);
+        Assert.assertEquals("TITLE_1_UPDATED", titleAfterUpdate);
+        connResult.commit();
+        
+        // Start new transaction for next operation
+        connResult.startXATransactionIfNeeded();
+
+        executeUpdate(conn, " delete from " + tableName + " where id = 1");
         connResult.commit();
         
         // Start new transaction for next operation

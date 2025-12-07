@@ -42,7 +42,7 @@ To run only Oracle tests:
 
 ```bash
 cd ojp-jdbc-driver
-mvn test -DenableOracleTests -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests
+mvn test -DenableOracleTests=true -DdisablePostgresTests -DdisableMySQLTests -DenableMariaDBTests=false
 ```
 
 ## Test Configuration Files

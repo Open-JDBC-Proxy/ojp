@@ -49,7 +49,7 @@ mvn test -pl ojp-jdbc-driver \
   -DenableCockroachDBTests=true \
   -DdisablePostgresTests=true \
   -DdisableMySQLTests=true \
-  -DdisableMariaDBTests=true \
+  -DenableMariaDBTests=false \
   -Dgpg.skip=true \
   -Dtest="CockroachDB*"
 ```

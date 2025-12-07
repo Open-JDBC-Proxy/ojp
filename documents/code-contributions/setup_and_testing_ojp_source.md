@@ -26,7 +26,7 @@
    Navigate to the ojp-jdbc-driver folder first:
    ```bash
    cd ojp-jdbc-driver
-   mvn test -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -DenableCockroachDBTests=false -DdisablePostgresXATests
+   mvn test -DdisablePostgresTests -DdisableMySQLTests -DenableMariaDBTests=false -DenableCockroachDBTests=false -DdisablePostgresXATests
    ```
 **Note:** With the disable flags only H2 integration tests will run, to run the full set of integration tests you have to run all the databases locally, follow the instructions at [Run Local Databases](../../documents/environment-setup/run-local-databases.md)
 
@@ -41,7 +41,7 @@ We have comprehensive JDBC integration tests with OJP for the following database
 - DB2
 - H2
 
-The free and open source databases (H2, Postgres, MySQL, MariaDB and CockroachDB) jdbc drivers are packed with OJP. Integration tests for PostgreSQL, Oracle, SQL Server, DB2, and CockroachDB use TestContainers and run in dedicated CI workflows.
+The free and open source databases (H2, Postgres, MySQL and CockroachDB) JDBC drivers are packed with OJP and have integration tests always running in our CI pipelines. MariaDB, CockroachDB tests use TestContainers and are disabled by default. For proprietary databases like Oracle, SQL Server, and DB2, see their specific sections.
 
 ### Oracle Database Setup (Optional)
 Oracle integration tests require the Oracle JDBC driver and due to licensing restrictions we do not pack it with OJP.
@@ -54,6 +54,10 @@ For detailed SQL Server setup instructions, see [SQL Server Testing Guide](../..
 ### DB2 Database Setup (Optional)
 DB2 integration tests use the IBM JDBC driver which is not included in OJP dependencies.
 For detailed DB2 instructions, see [DB2 Testing Guide](../../documents/environment-setup/db2-testing-guide.md).
+
+### MariaDB Database Setup (Optional)
+MariaDB integration tests use TestContainers to automatically manage the database lifecycle. Tests are disabled by default.
+For detailed MariaDB setup instructions, see [MariaDB Testing Guide](../../documents/environment-setup/mariadb-testing-guide.md).
 
 ### CockroachDB Database Setup (Optional)
 CockroachDB integration tests use TestContainers which automatically manages the CockroachDB instance.
@@ -68,9 +72,12 @@ For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../
 
 ### Test Options
 - `-DdisablePostgresTests` - Skip PostgreSQL integration tests
+- `-DdisableMySQLTests` - Skip MySQL integration tests
+- `-DenableMariaDBTests` - Enable MariaDB integration tests (disabled by default, uses TestContainers)
 - `-DenableCockroachDBTests` - Enable CockroachDB integration tests (disabled by default, uses TestContainers)
 - `-DenableOracleTests` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
-- `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default)
+- `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default, uses TestContainers)
+- `-DenableDb2Tests` - Enable DB2 integration tests (disabled by default, uses TestContainers)
 
 ### Contributing code
 1. Fork the repository
