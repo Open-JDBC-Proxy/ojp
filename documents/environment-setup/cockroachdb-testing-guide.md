@@ -48,14 +48,12 @@ cd ojp
 mvn test -pl ojp-jdbc-driver -Dgpg.skip=true
 ```
 
-The CockroachDB integration tests will run automatically along with H2, PostgreSQL, MySQL, and MariaDB tests.
-
 #### Running CockroachDB Tests in Isolation
 
 To run **only** CockroachDB integration tests, disable the other databases that are enabled by default:
 
 ```bash
-mvn test -pl ojp-jdbc-driver -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests -Dgpg.skip=true
+mvn test -pl ojp-jdbc-driver -DdisablePostgresTests -DdisableMySQLTests -DenableMariaDBTests=false -Dgpg.skip=true
 ```
 
 ## Test Configuration Files

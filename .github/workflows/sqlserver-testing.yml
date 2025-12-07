@@ -88,7 +88,7 @@ jobs:
             -DenableSqlServerTests=true \
             -DdisablePostgresTests=true \
             -DdisableMySQLTests=true \
-            -DdisableMariaDBTests=true \
+            -DenableMariaDBTests=false \
             -DdisableCockroachDBTests=true \
             -Dtest="SQLServer*"
 

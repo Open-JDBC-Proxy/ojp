@@ -79,7 +79,7 @@ To run only SQL Server tests:
 
 ```bash
 cd ojp-jdbc-driver
-mvn test -DenableSqlServerTests -DdisablePostgresTests -DdisableMySQLTests -DdisableMariaDBTests
+mvn test -DenableSqlServerTests=true -DdisablePostgresTests -DdisableMySQLTests -DenableMariaDBTests=false
 ```
 
 To run SQL Server tests alongside other databases:
