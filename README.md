@@ -103,6 +103,7 @@ If Docker is not available in your environment, you can build and run OJP Server
 - [OJP Components](documents/OJPComponents.md) - Core modules that define OJP’s architecture, including the server, JDBC driver, and shared gRPC contracts.
 - [Targeted Problem and Solution](documents/targeted-problem/README.md) - Explanation of the problem OJP solves and how it addresses it.
 - [BigDecimal Wire Format](documents/protocol/BIGDECIMAL_WIRE_FORMAT.md) - Protocol specification for language-neutral BigDecimal serialization.
+- [CI/CD Workflow Structure](documents/ci-cd-workflow-structure.md) - Explains the multi-stage CI/CD workflow with H2 fail-fast mechanism.
 
 ---
 
