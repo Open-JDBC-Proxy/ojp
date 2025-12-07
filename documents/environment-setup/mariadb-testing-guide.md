@@ -2,18 +2,41 @@
 
 This document explains how to set up and run MariaDB Database tests with OJP using TestContainers.
 
+## Overview
+
+All MariaDB integration tests have been migrated to use TestContainers. This provides:
+- Automatic MariaDB container management
+- Consistent test environment across all environments
+- No need for external MariaDB instances
+- Automatic container lifecycle management
+
 ## Prerequisites
 
 1. **Docker** - Required for TestContainers to run MariaDB locally
 2. **MariaDB JDBC Driver** - Automatically included in test dependencies
 
-## Overview
+## How It Works
 
-MariaDB integration tests use **TestContainers** to automatically manage the MariaDB container lifecycle. This means:
-- No manual Docker commands needed
-- Container starts automatically when tests run
-- Container stops automatically when tests complete
-- Consistent testing environment across all developers and CI
+### TestContainer Setup
+
+1. **MariaDBTestContainer** - Singleton class that manages a shared MariaDB container
+   - Located: `ojp-jdbc-driver/src/test/java/openjproxy/jdbc/testutil/MariaDBTestContainer.java`
+   - Uses `mariadb:10.11` Docker image
+   - Automatically starts on first test execution
+   - Shared across all MariaDB tests for efficiency
+   - Automatically stops when tests complete
+
+2. **MariaDBConnectionProvider** - Custom JUnit ArgumentsProvider
+   - Located: `ojp-jdbc-driver/src/test/java/openjproxy/jdbc/testutil/MariaDBConnectionProvider.java`
+   - Provides dynamic connection details from the TestContainer
+   - Replaces CSV-based connection configuration
+
+### Test Changes
+
+All MariaDB test classes have been updated:
+- Changed from `@CsvFileSource` to `@ArgumentsSource(MariaDBConnectionProvider.class)`
+- Added `@EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")` annotation
+- Tests automatically use TestContainer when `enableMariaDBTests=true`
 
 ## Running MariaDB Tests
 
@@ -44,7 +67,7 @@ mvn test -DenableMariaDBTests=true -DenableOracleTests=true -DenableSqlServerTes
 
 ## Test Infrastructure
 
-### TestContainers
+### TestContainers Configuration
 
 The tests use the following TestContainer configuration:
 - **Image**: `mariadb:10.11`
@@ -56,6 +79,27 @@ The tests use the following TestContainer configuration:
 The container is managed by:
 - `MariaDBTestContainer.java` - Singleton container manager
 - `MariaDBConnectionProvider.java` - Provides connection parameters to tests
+
+### Dependencies
+
+#### ojp-jdbc-driver/pom.xml
+```xml
+<!-- MariaDB JDBC Driver - Required by TestContainers MariaDB -->
+<dependency>
+    <groupId>org.mariadb.jdbc</groupId>
+    <artifactId>mariadb-java-client</artifactId>
+    <version>3.5.1</version>
+    <scope>test</scope>
+</dependency>
+
+<!-- TestContainers MariaDB -->
+<dependency>
+    <groupId>org.testcontainers</groupId>
+    <artifactId>mariadb</artifactId>
+    <version>1.20.4</version>
+    <scope>test</scope>
+</dependency>
+```
 
 ### Test Files
 
@@ -70,6 +114,26 @@ MariaDB-specific test files include:
 These tests are annotated with `@EnabledIf("openjproxy.jdbc.testutil.MariaDBTestContainer#isEnabled")` to ensure they only run when MariaDB tests are explicitly enabled.
 
 **Note:** These test files were duplicated from their MySQL counterparts (`MySQLMariaDBConnectionExtensiveTests.java`, etc.) to allow independent testing of MySQL and MariaDB with separate TestContainers and enable flags.
+
+### MySQL Test Files (Separate)
+
+MySQL test files (remain unchanged, using MySQLTestContainer):
+- `MySQLMariaDBConnectionExtensiveTests.java`
+- `MySQLDatabaseMetaDataExtensiveTests.java`
+- `MySQLMultipleTypesIntegrationTest.java`
+- `MySQLPreparedStatementExtensiveTests.java`
+- `MySQLSpecificFeaturesIntegrationTest.java`
+- `MySQLStatementExtensiveTests.java`
+
+### Multi-Database Tests
+
+Multi-database tests updated for both flags:
+- `BasicCrudIntegrationTest.java` (supports both `enableMySQLTests` and `enableMariaDBTests`)
+- `BlobIntegrationTest.java` (supports both `enableMySQLTests` and `enableMariaDBTests`)
+
+## Files Removed
+
+- `mysql_mariadb_connection.csv` - No longer needed with TestContainers
 
 ## Connection String Format
 
@@ -140,6 +204,22 @@ docker info | grep Memory
 
 ## Differences from Previous Setup
 
+### Flag Change
+
+**Previous behavior:**
+- Flag: `-DdisableMariaDBTests` (default: `false`, tests enabled)
+- MariaDB tests ran by default in main CI workflow
+- Used manually started MariaDB service in GitHub Actions
+
+**New behavior:**
+- Flag: `-DenableMariaDBTests` (default: `false`, tests disabled)
+- MariaDB tests are disabled by default
+- Must explicitly enable with `-DenableMariaDBTests=true`
+- Uses TestContainers for automatic container management
+- Has dedicated `mariadb-testing.yml` workflow
+
+### Migration Summary
+
 Previously, MariaDB tests:
 - Used a manually started MariaDB service in CI
 - Used CSV configuration files (`mysql_mariadb_connection.csv`)
@@ -150,6 +230,22 @@ Now, MariaDB tests:
 - Use `MariaDBConnectionProvider` for test parameterization
 - Are controlled by `-DenableMariaDBTests` flag (default false)
 - Run in a dedicated CI workflow
+
+### Benefits
+
+1. **No External Dependencies** - No need to set up external MariaDB
+2. **Consistency** - Same environment for all developers and CI
+3. **Isolation** - Each test run uses fresh containers
+4. **Speed** - Shared container across tests improves performance
+5. **Simplicity** - Automatic container lifecycle management
+6. **Explicit Opt-in** - Tests only run when explicitly enabled
+
+### Migration Notes
+
+If you were previously relying on MariaDB tests running automatically:
+- Update your test commands to include `-DenableMariaDBTests=true`
+- Update any CI/CD pipelines to explicitly enable MariaDB tests
+- Remove any manual MariaDB service configurations (no longer needed)
 
 ## Additional Resources
 
