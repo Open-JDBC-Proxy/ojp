@@ -47,7 +47,7 @@ public class BasicCrudIntegrationTest {
     @CsvFileSource(resources = "/h2_postgres_mysql_mariadb_oracle_sqlserver_connections.csv")
     public void crudTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // Skip H2 tests if not enabled
-        if (url.toLowerCase().contains("_h2:") && !isH2TestEnabled) {
+        if (url.toLowerCase().contains("h2:") && !isH2TestEnabled) {
             Assumptions.assumeFalse(true, "Skipping H2 tests - not enabled");
         }
 

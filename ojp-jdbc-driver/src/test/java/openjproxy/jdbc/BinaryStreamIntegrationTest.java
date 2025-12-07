@@ -32,10 +32,10 @@ public class BinaryStreamIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
     public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
-        if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
+        if (!isH2TestEnabled && url.toLowerCase().contains("h2:")) {
             Assumptions.assumeFalse(true, "Skipping H2 tests - not enabled");
         }
-        if (isPostgresTestDisabled && url.contains("postgresql")) {
+        if (isPostgresTestDisabled && url.toLowerCase().contains("postgresql")) {
             Assumptions.assumeFalse(true, "Skipping Postgres tests");
         }
 

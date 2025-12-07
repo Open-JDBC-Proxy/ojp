@@ -38,11 +38,11 @@ public class ResultSetTest {
     @SneakyThrows
     public void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
         // Skip H2 tests if not enabled
-        if (url.toLowerCase().contains("_h2:") && !isH2TestEnabled) {
+        if (url.toLowerCase().contains("h2:") && !isH2TestEnabled) {
             Assumptions.assumeFalse(true, "Skipping H2 tests");
         }
         // Skip PostgreSQL tests if disabled
-        if (url.contains("postgresql") && isPostgresTestDisabled) {
+        if (url.toLowerCase().contains("postgresql") && isPostgresTestDisabled) {
             Assumptions.assumeFalse(true, "Skipping Postgres tests");
         }
 

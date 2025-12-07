@@ -32,12 +32,12 @@ public class ReadMultipleBlocksOfDataIntegrationTest {
     @CsvFileSource(resources = "/h2_postgres_connections_with_record_counts.csv")
     public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // Skip H2 tests if not enabled
-        if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
+        if (!isH2TestEnabled && url.toLowerCase().contains("h2:")) {
             Assumptions.assumeFalse(true, "Skipping H2 tests - not enabled");
         }
         // Skip Postgres connections in this test - they're tested separately using TestContainers
         // See multiplePagesOfRowsResultSetSuccessfulPostgres() method below
-        if (url.contains("postgresql")) {
+        if (url.toLowerCase().contains("postgresql")) {
             Assumptions.assumeFalse(true, "Skipping Postgres tests");
         }
         Connection conn = DriverManager.getConnection(url, user, pwd);
