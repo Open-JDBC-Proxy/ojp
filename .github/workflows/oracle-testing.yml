@@ -1,18 +1,21 @@
 # This workflow runs Oracle Database tests autonomously without requiring Oracle JDBC drivers in the repository.
 # It dynamically adds the Oracle JDBC driver during CI execution and runs Oracle-specific tests.
+# This workflow runs only after Main CI completes successfully.
 name: Oracle Database Testing
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_run:
+    workflows: ["Main CI"]
+    types:
+      - completed
+    branches: [main]
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
   oracle-test:
     name: Oracle Tests (JDK ${{ matrix.java-version }})
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     
     permissions:
       contents: read

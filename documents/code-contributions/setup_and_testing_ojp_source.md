@@ -30,6 +30,22 @@
    ```
 **Note:** With the disable flags only H2 integration tests will run, to run the full set of integration tests you have to run all the databases locally, follow the instructions at [Run Local Databases](../../documents/environment-setup/run-local-databases.md)
 
+### CI/CD Workflow Strategy
+
+The OJP project uses a fail-fast CI/CD strategy to save build cycles and provide faster feedback:
+
+1. **Main CI (H2 Tests Only)**: Runs first on every push/pull request
+   - Executes only H2 database tests (in-memory, fast)
+   - Acts as a fail-fast mechanism to catch major issues quickly
+   - If this fails, other workflows are not triggered
+
+2. **Dependent Workflows**: Run only after Main CI succeeds
+   - Multinode Integration Tests
+   - Oracle Database Testing
+   - SQL Server Integration Tests
+
+This approach ensures that expensive database-specific tests only run when basic functionality is confirmed working, saving CI resources and providing faster feedback on common issues.
+
 ### Databases with integration tests
 We have comprehensive JDBC integration tests with OJP for the following databases:
 - Postgres
@@ -67,7 +83,10 @@ For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../
 - See [run-local-databases.md](documents/environment-setup/run-local-databases.md) for local database setup
 
 ### Test Options
+- `-DdisableH2Tests` - Skip H2 integration tests
 - `-DdisablePostgresTests` - Skip PostgreSQL integration tests
+- `-DdisableMySQLTests` - Skip MySQL integration tests
+- `-DdisableMariaDBTests` - Skip MariaDB integration tests
 - `-DdisableCockroachDBTests` - Skip CockroachDB integration tests
 - `-DenableOracleTests` - Enable Oracle integration tests (disabled by default, requires manual Oracle JDBC driver setup)
 - `-DenableSqlServerTests` - Enable SQL Server integration tests (disabled by default)

@@ -18,6 +18,7 @@ import static openjproxy.helpers.SqlHelper.executeUpdate;
 @Slf4j
 public class BasicCrudIntegrationTest {
 
+    private static boolean isH2TestDisabled;
     private static boolean isPostgresTestDisabled;
     private static boolean isMySQLTestDisabled;
     private static boolean isMariaDBTestDisabled;
@@ -29,6 +30,7 @@ public class BasicCrudIntegrationTest {
 
     @BeforeAll
     public static void setup() {
+        isH2TestDisabled = Boolean.parseBoolean(System.getProperty("disableH2Tests", "false"));
         isPostgresTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
         isMySQLTestDisabled = Boolean.parseBoolean(System.getProperty("disableMySQLTests", "false"));
         isMariaDBTestDisabled = Boolean.parseBoolean(System.getProperty("disableMariaDBTests", "false"));
@@ -41,6 +43,12 @@ public class BasicCrudIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_mysql_mariadb_oracle_sqlserver_connections.csv")
     public void crudTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
+        // Skip H2 tests if disabled
+        if (url.toLowerCase().contains(":h2:") && isH2TestDisabled) {
+            Assumptions.assumeFalse(true, "Skipping H2 tests");
+            tablePrefix = "h2_";
+        }
+        
         // Skip PostgreSQL tests if disabled
         if (url.toLowerCase().contains("postgresql") && isPostgresTestDisabled) {
             Assumptions.assumeFalse(true, "Skipping Postgres tests");

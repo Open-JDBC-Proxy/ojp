@@ -19,16 +19,21 @@ import static openjproxy.helpers.SqlHelper.executeUpdate;
 
 public class BinaryStreamIntegrationTest {
 
+    private static boolean isH2TestDisabled;
     private static boolean isPostgresTestDisabled;
 
     @BeforeAll
     public static void setup() {
+        isH2TestDisabled = Boolean.parseBoolean(System.getProperty("disableH2Tests", "false"));
         isPostgresTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
     public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
+        if (isH2TestDisabled && url.toLowerCase().contains(":h2:")) {
+            return;
+        }
         if (isPostgresTestDisabled && url.contains("postgresql")) {
             return;
         }

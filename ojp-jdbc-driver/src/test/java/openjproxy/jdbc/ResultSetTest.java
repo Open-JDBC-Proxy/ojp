@@ -26,15 +26,22 @@ public class ResultSetTest {
     private Statement statement;
     private ResultSet resultSet;
 
+    private static boolean isH2TestDisabled;
     private static boolean isPostgresTestDisabled;
 
     @BeforeAll
     public static void checkTestConfiguration() {
+        isH2TestDisabled = Boolean.parseBoolean(System.getProperty("disableH2Tests", "false"));
         isPostgresTestDisabled = Boolean.parseBoolean(System.getProperty("disablePostgresTests", "false"));
     }
 
     @SneakyThrows
     public void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
+        // Skip H2 tests if disabled
+        if (url.toLowerCase().contains(":h2:") && isH2TestDisabled) {
+            Assumptions.assumeFalse(true, "Skipping H2 tests");
+        }
+        
         // Skip PostgreSQL tests if disabled
         if (url.contains("postgresql") && isPostgresTestDisabled) {
             Assumptions.assumeFalse(true, "Skipping Postgres tests");

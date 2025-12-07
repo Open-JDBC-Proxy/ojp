@@ -170,8 +170,8 @@ jobs:
       - name: Build (ojp-jdbc-driver) with JDK ${{ matrix.java-version }}
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-jdbc-driver)
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true
+      - name: Test (ojp-jdbc-driver) - H2 only
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DdisablePostgresTests=true -DdisableMySQLTests=true -DdisableMariaDBTests=true -DdisableCockroachDBTests=true
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
