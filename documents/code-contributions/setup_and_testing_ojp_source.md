@@ -46,6 +46,8 @@ The OJP project uses a fail-fast CI/CD strategy to save build cycles and provide
 
 This approach ensures that expensive database-specific tests only run when basic functionality is confirmed working, saving CI resources and providing faster feedback on common issues.
 
+**For detailed information about the CI/CD strategy, workflow execution order, and test flags, see [CI/CD Workflow Strategy](ci-workflow-strategy.md).**
+
 ### Databases with integration tests
 We have comprehensive JDBC integration tests with OJP for the following databases:
 - Postgres
