@@ -27,31 +27,13 @@ Wait for the server to start (look for "Server started" in logs).
 
 #### 2. Run CockroachDB Tests
 
+To run **only** CockroachDB integration tests, disable the other databases:
+
 In another terminal:
 
 ```bash
 cd ojp
 mvn test -pl ojp-jdbc-driver -DenableCockroachDBTests=true -Dgpg.skip=true
-```
-
-TestContainers will automatically:
-- Download the CockroachDB Docker image (if not already cached)
-- Start a CockroachDB container
-- Run the tests against the container
-- Stop and remove the container when tests complete
-
-#### Running CockroachDB Tests in Isolation
-
-To run **only** CockroachDB integration tests, disable the other databases:
-
-```bash
-mvn test -pl ojp-jdbc-driver \
-  -DenableCockroachDBTests=true \
-  -DdisablePostgresTests=true \
-  -DdisableMySQLTests=true \
-  -DenableMariaDBTests=false \
-  -Dgpg.skip=true \
-  -Dtest="CockroachDB*"
 ```
 
 ## GitHub Actions Workflow

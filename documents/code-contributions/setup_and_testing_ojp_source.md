@@ -41,7 +41,7 @@ We have comprehensive JDBC integration tests with OJP for the following database
 - DB2
 - H2
 
-The free and open source databases (H2, Postgres, MySQL and CockroachDB) JDBC drivers are packed with OJP and have integration tests always running in our CI pipelines. MariaDB, CockroachDB tests use TestContainers and are disabled by default. For proprietary databases like Oracle, SQL Server, and DB2, see their specific sections.
+The free and open source databases (H2, Postgres, MySQL and CockroachDB) JDBC drivers are packed with OJP and have integration tests always running in our CI pipelines. MariaDB tests use TestContainers and are disabled by default (see [MariaDB Testing Guide](../../documents/environment-setup/mariadb-testing-guide.md)). For proprietary databases like Oracle, SQL Server, and DB2, see their specific sections.
 
 ### Oracle Database Setup (Optional)
 Oracle integration tests require the Oracle JDBC driver and due to licensing restrictions we do not pack it with OJP.
