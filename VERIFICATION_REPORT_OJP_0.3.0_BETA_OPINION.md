@@ -394,26 +394,38 @@ ojp.prometheus.allowedIps=0.0.0.0/0
 
 ## Summary of Corrections Needed
 
-### Documentation Updates Required:
+### ✅ OJP Official Documentation Status: ACCURATE
 
-1. **Per-Endpoint Datasource Documentation** (`documents/multinode/per-endpoint-datasources.md`)
-   - ✅ Already correctly documents limitations
-   - Current status clearly stated: "Only the FIRST datasource's configuration is currently used"
+**IMPORTANT FINDING:** After thorough review, the **official OJP documentation is accurate** and does NOT make the false claims found in the external opinion.
+
+- ✅ `README.md` - Accurate, no false routing claims
+- ✅ `documents/multinode/README.md` - Accurate multinode documentation
+- ✅ `documents/multinode/per-endpoint-datasources.md` - **Correctly documents current limitations**
+- ✅ `documents/xa/*.md` - Accurate XA documentation
+- ✅ No competitive claims against Oracle RAC or IBM DB2 in official docs
+
+### External Opinion Corrections Required:
+
+The **external opinion** (not OJP documentation) contains inaccuracies that should be corrected:
+
+1. **Advanced Routing Claims** ❌
+   - **REMOVE** claims about "workload type, region, tenant, DB replica role, SLA class, app domain" routing
+   - These features are **NOT IMPLEMENTED** in OJP v0.3.0-beta
+   - The opinion appears to have confused per-endpoint datasource *parsing* with full routing implementation
    
-2. **Advanced Routing Claims**
-   - ❌ **REMOVE** or mark as **FUTURE**: Claims about "workload type, region, tenant, DB replica role, SLA class, app domain" routing
-   - These features are **NOT IMPLEMENTED**
-   
-3. **Test Harness Description**
-   - ⚠️ Soften "chaos" language unless specific chaos engineering framework is used
-   - ⚠️ Clarify testcontainers usage (not universal, mainly SQL Server)
+2. **Test Harness Description** ⚠️
+   - Soften "chaos" language - tests exist but no formal chaos engineering framework
+   - Clarify testcontainers usage (not universal, mainly SQL Server)
+   - Test suite is comprehensive but "industrial-grade chaos testing" is overstated
 
-4. **Load Balancer Removal**
-   - ⚠️ Add context: "No load balancer needed for OJP proxy tier; driver handles client-side load balancing"
+3. **Competitive Claims** ❌
+   - Remove unbacked competitive claims: "competitive with Oracle RAC's XA proxy logic", "competitive with IBM DB2 XA"
+   - No benchmarks or feature parity analysis found
+   - ✅ Can claim "implements XA protocol" without competitive comparisons
 
-5. **Competitive Claims**
-   - ❌ Remove unbacked competitive claims without benchmarks
-   - ✅ Can claim "implements XA protocol" without comparing to Oracle/IBM
+4. **Load Balancer Removal** ⚠️
+   - Add context: "No load balancer needed for OJP proxy tier; driver handles client-side load balancing"
+   - Current claim is technically true but could mislead readers
 
 ---
 
@@ -436,10 +448,43 @@ The following major claims are **VERIFIED and ACCURATE**:
 
 ## Conclusion
 
-**Overall Assessment:** The opinion is **largely accurate** for the core architectural claims about multinode, XA, failover, and protocol. However, it contains **significant overstatements** about:
+### Overall Assessment
 
-1. Advanced routing features (region, tenant, workload type, SLA) - **NOT IMPLEMENTED**
-2. Competitive comparisons - **NOT BACKED BY DATA**
-3. "Industrial-grade chaos testing" - Good tests exist, but language overstates sophistication
+**OJP Official Documentation:** ✅ **ACCURATE AND TRUSTWORTHY**
+- All official OJP documentation accurately represents implemented features
+- Current limitations are clearly documented (e.g., per-endpoint datasource limitations)
+- No false or misleading claims found in official docs
 
-**Recommendation:** Update external documentation/opinions to remove unsupported claims about advanced routing and competitive comparisons. The project has genuinely impressive distributed systems features without needing inflated claims.
+**External Opinion Accuracy:** **MIXED - Largely accurate with significant overstatements**
+
+**Accurate Claims:** The opinion is **largely accurate** for:
+- ✅ Core architectural claims about multinode clustering
+- ✅ XA transaction support and failover
+- ✅ gRPC/Protobuf protocol implementation
+- ✅ Session stickiness and intelligent failover
+- ✅ Load-aware server selection
+- ✅ Global connection pool coordination
+- ✅ Comprehensive configuration options
+
+**Inaccurate Claims:** The opinion contains **significant overstatements** about:
+1. ❌ Advanced routing features (region, tenant, workload type, SLA, read/write split) - **NOT IMPLEMENTED**
+2. ❌ Competitive comparisons (Oracle RAC, IBM DB2) - **NOT BACKED BY DATA**
+3. ⚠️ "Industrial-grade chaos testing" - Good tests exist, but language overstates sophistication
+4. ⚠️ "Per-endpoint datasource roles" - Basic parsing exists, full implementation incomplete
+
+### Recommendations
+
+**For External Opinion Authors:**
+1. Remove claims about advanced routing features (region, tenant, SLA, workload type) that are not implemented
+2. Remove unbacked competitive performance claims against Oracle RAC and IBM DB2
+3. Clarify that per-endpoint datasource feature is partially implemented (parsing only)
+4. Soften "chaos testing" language to "comprehensive failure scenario testing"
+
+**For OJP Project:**
+1. ✅ **No changes needed** - Official documentation is already accurate
+2. Consider adding a "Frequently Misunderstood Features" section to clarify:
+   - Per-endpoint datasource current status
+   - What routing features exist vs. planned
+3. Continue documenting limitations clearly (as already done)
+
+**Final Note:** OJP v0.3.0-beta has genuinely impressive distributed systems features - multinode clustering, XA failover, load-aware routing, and global pool coordination. These real achievements don't need embellishment with claims about unimplemented features.
