@@ -39,7 +39,7 @@ This report systematically verifies the claims made in an external opinion about
 - **Code Evidence:**
   - `MultinodeConnectionManager.java` implements multinode support
   - URL format: `jdbc:ojp[host1:port1,host2:port2,host3:port3]_actual_jdbc_url`
-  - Load-aware selection implemented in `selectByLeastConnections()` method (line 787)
+  - Load-aware selection called at line 769, implemented in `selectByLeastConnections()` method (defined at line 787)
   
 - **Configuration:**
   ```java
@@ -172,12 +172,15 @@ This report systematically verifies the claims made in an external opinion about
   - URL format: `jdbc:ojp[endpoint1(datasource1),endpoint2(datasource2)]_...`
 
 - **Current Limitations (from documentation):**
-  > "**Issue**: Only the FIRST datasource's configuration is currently used for all connections."
-  > 
-  > "**To Fix**: Requires server-side changes:
-  > 1. Extend ConnectionDetails proto to support per-endpoint datasource mapping
-  > 2. Update MultinodeConnectionManager to pass appropriate datasource per server
-  > 3. Modify server-side pool configuration to use per-connection datasource"
+
+  ```
+  Issue: Only the FIRST datasource's configuration is currently used for all connections.
+  
+  To Fix: Requires server-side changes:
+  1. Extend ConnectionDetails proto to support per-endpoint datasource mapping
+  2. Update MultinodeConnectionManager to pass appropriate datasource per server
+  3. Modify server-side pool configuration to use per-connection datasource
+  ```
 
 **What Works:**
 - ✅ URL parsing supports per-endpoint datasource names
@@ -348,7 +351,7 @@ This report systematically verifies the claims made in an external opinion about
 ```properties
 ojp.opentelemetry.enabled=true  # default
 ojp.prometheus.port=9159
-ojp.prometheus.allowedIps=0.0.0.0/0
+ojp.prometheus.allowedIps=0.0.0.0/0  # ⚠️ SECURITY: Use restrictive IPs in production!
 ```
 
 **Status:** ✅ **BASIC SUPPORT EXISTS** - Metrics infrastructure present, but not all suggested metrics available
