@@ -23,6 +23,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
+    private ConnectionResult connectionResult;
 
     @BeforeAll
     public static void checkTestConfiguration() {

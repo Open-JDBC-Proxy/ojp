@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class OracleBinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
+    private ConnectionResult connectionResult;
 
     @BeforeAll
     public static void setup() {

@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     private static boolean isTestDisabled;
+    private ConnectionResult connectionResult;
 
     @BeforeAll
     public static void checkTestConfiguration() {
@@ -30,7 +31,7 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections_with_record_counts.csv")
-    public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
