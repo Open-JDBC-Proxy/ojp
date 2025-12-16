@@ -33,7 +33,13 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
     public void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         System.out.println("Testing Oracle retrieving " + totalRecords + " records from url -> " + url);
 
@@ -80,7 +86,13 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
     public void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         System.out.println("Testing Oracle large dataset pagination for url -> " + url);
 
@@ -145,7 +157,13 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
     public void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         System.out.println("Testing Oracle ResultSet scrolling for url -> " + url);
 
@@ -208,7 +226,13 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
     public void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         System.out.println("Testing Oracle multiple data types in large result set for url -> " + url);
 

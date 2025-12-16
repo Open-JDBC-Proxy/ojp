@@ -40,7 +40,13 @@ public class OracleBlobIntegrationTest {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
         this.tableName = "oracle_blob_test";
-        conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
         
         try {
             executeUpdate(conn, "DROP TABLE " + tableName);
