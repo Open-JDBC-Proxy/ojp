@@ -1,6 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,6 +34,9 @@ public class PostgresPreparedStatementExtensiveTests {
 
     private static boolean isTestEnabled;
 
+    private ConnectionResult connectionResult;
+
+
     private Connection connection;
     private PreparedStatement ps;
 
@@ -41,10 +45,16 @@ public class PostgresPreparedStatementExtensiveTests {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
         
-        connection = DriverManager.getConnection(url, user, password);
+        connectionResult = TestDBUtils.createConnection(url, user, password, isXA);
+        connection = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            connection.setAutoCommit(false);
+        }
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE postgres_prepared_stmt_test");
@@ -67,8 +77,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testBasicParameterSetting(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testBasicParameterSetting(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         
         ps.setInt(1, 1);
@@ -92,8 +102,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testNullParameterHandling(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testNullParameterHandling(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         
         ps.setInt(1, 2);
@@ -120,8 +130,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testNumericParameterTypes(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testNumericParameterTypes(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         
         // Test BigDecimal
         Statement stmt = connection.createStatement();
@@ -148,8 +158,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testDateTimeParameterTypes(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testDateTimeParameterTypes(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, dt) VALUES (?, ?, ?)");
         
         java.sql.Date sqlDate = new java.sql.Date(System.currentTimeMillis());
@@ -173,8 +183,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testLargeObjectHandling(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testLargeObjectHandling(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, data, info) VALUES (?, ?, ?, ?)");
         
         byte[] testData = "This is test binary data".getBytes();
@@ -203,8 +213,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testStreamHandling(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testStreamHandling(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, data, info) VALUES (?, ?, ?, ?)");
         
         byte[] testData = "Stream binary data".getBytes();
@@ -223,8 +233,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testParameterMetaData(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testParameterMetaData(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         
         // Basic parameter metadata operations
@@ -236,8 +246,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testBatchOperations(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testBatchOperations(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         
         // Add multiple batches
@@ -264,8 +274,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testResultSetHandling(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testResultSetHandling(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         
         // Insert test data first
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
@@ -294,8 +304,8 @@ public class PostgresPreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testErrorHandling(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testErrorHandling(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         ps = connection.prepareStatement("INSERT INTO postgres_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         
         // Test setting invalid parameter index - PostgreSQL may allow this without immediate error

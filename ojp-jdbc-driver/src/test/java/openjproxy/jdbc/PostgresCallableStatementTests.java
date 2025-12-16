@@ -10,6 +10,8 @@ import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -32,6 +34,9 @@ public class PostgresCallableStatementTests {
 
     private static boolean isTestEnabled;
 
+    private ConnectionResult connectionResult;
+
+
     private Connection connection;
     private CallableStatement callableStatement;
 
@@ -40,11 +45,17 @@ public class PostgresCallableStatementTests {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
         
         // Connect to the PostgreSQL database
-        connection = DriverManager.getConnection(url, user, password);
+        connectionResult = TestDBUtils.createConnection(url, user, password, isXA);
+        connection = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            connection.setAutoCommit(false);
+        }
 
         // Ensure the employee table and stored procedures exist
         try (Statement stmt = connection.createStatement()) {
@@ -85,13 +96,15 @@ public class PostgresCallableStatementTests {
     @AfterEach
     public void tearDown() throws Exception {
         if (callableStatement != null) callableStatement.close();
-        if (connection != null) connection.close();
+        if (connectionResult != null) {
+            connectionResult.close();
+        }
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testExecuteProcedure(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testExecuteProcedure(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         callableStatement = connection.prepareCall("CALL update_salary(?, ?, ?)");
         callableStatement.setInt(1, 1);
         callableStatement.setBigDecimal(2, new BigDecimal("60000"));
@@ -120,8 +133,8 @@ public class PostgresCallableStatementTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testDateTimeParameters(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testDateTimeParameters(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         callableStatement = connection.prepareCall("CALL update_employee_dates(?, ?, ?, ?, ?, ?, ?)");
         int empId = 1;
         Date newDate = Date.valueOf(LocalDate.of(2024, 6, 27));
@@ -160,8 +173,8 @@ public class PostgresCallableStatementTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testSetAndGetStringAndBoolean(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testSetAndGetStringAndBoolean(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
 
         // Add an employee with a boolean flag using the name column as a boolean string
         try (Statement stmt = connection.createStatement()) {
@@ -190,8 +203,8 @@ public class PostgresCallableStatementTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testSetObjectAndGetObject(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testSetObjectAndGetObject(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         callableStatement = connection.prepareCall("CALL update_salary(?, ?, ?)");
         callableStatement.setObject(1, 1, Types.INTEGER);
         callableStatement.setObject(2, new BigDecimal("70000.00"), Types.NUMERIC);
@@ -209,8 +222,8 @@ public class PostgresCallableStatementTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testInvalidParameterIndex(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testInvalidParameterIndex(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         // This test will intentionally fail due to an invalid parameter index
         assertThrows(SQLException.class, () -> {
             callableStatement = connection.prepareCall("{ CALL update_salary(?, ?, ?) }");

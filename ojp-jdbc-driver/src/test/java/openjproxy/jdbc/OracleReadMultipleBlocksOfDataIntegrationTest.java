@@ -7,6 +7,8 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -70,12 +72,12 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    public void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -135,12 +137,12 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
         page2.close();
         psPage1.close();
         psPage2.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    public void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -198,12 +200,12 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         scrollableRs.close();
         scrollableStmt.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    public void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -261,6 +263,6 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 }

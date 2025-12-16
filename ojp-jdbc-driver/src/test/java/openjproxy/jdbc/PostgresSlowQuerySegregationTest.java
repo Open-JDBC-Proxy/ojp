@@ -12,6 +12,8 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;

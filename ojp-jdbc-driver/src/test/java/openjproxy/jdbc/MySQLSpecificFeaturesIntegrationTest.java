@@ -7,6 +7,8 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -77,7 +79,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
@@ -137,7 +139,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
@@ -182,7 +184,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
@@ -243,7 +245,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
@@ -301,6 +303,6 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        conn.close();
+        connResult.close();
     }
 }

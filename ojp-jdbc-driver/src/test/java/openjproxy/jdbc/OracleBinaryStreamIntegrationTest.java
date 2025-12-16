@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -88,7 +90,7 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
@@ -138,12 +140,12 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    public void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -198,6 +200,6 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 }

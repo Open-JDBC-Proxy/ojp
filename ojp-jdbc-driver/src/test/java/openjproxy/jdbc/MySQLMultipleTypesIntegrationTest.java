@@ -1,6 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -122,7 +123,7 @@ public class MySQLMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
@@ -199,6 +200,6 @@ public class MySQLMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        conn.close();
+        connResult.close();
     }
 }

@@ -12,6 +12,8 @@ import java.io.InputStream;
 import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -36,7 +38,7 @@ public class BlobIntegrationTest {
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    public void setUp(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
 
         this.tableName = "blob_test_blob";
         if (url.toLowerCase().contains("mysql")) {
@@ -59,7 +61,7 @@ public class BlobIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
     public void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
-        this.setUp(driverClass, url, user, pwd);
+        this.setUp(driverClass, url, user, pwd, isXA);
         System.out.println("Testing for url -> " + url);
 
         try {
@@ -127,13 +129,13 @@ public class BlobIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
     public void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException, ClassNotFoundException {
-        this.setUp(driverClass, url, user, pwd);
+        this.setUp(driverClass, url, user, pwd, isXA);
         System.out.println("Testing for url -> " + url);
 
         try {
@@ -179,7 +181,7 @@ public class BlobIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 
 }
