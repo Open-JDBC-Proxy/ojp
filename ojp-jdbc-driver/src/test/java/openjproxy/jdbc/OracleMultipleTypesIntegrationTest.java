@@ -133,7 +133,7 @@ public class OracleMultipleTypesIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -188,7 +188,7 @@ public class OracleMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -242,7 +242,7 @@ public class OracleMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     /**

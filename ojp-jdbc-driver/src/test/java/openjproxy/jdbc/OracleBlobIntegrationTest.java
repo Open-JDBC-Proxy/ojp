@@ -28,6 +28,7 @@ public class OracleBlobIntegrationTest {
 
     private static boolean isTestDisabled;
     private String tableName;
+    private ConnectionResult connectionResult;
     private Connection conn;
 
     @BeforeAll
@@ -92,7 +93,7 @@ public class OracleBlobIntegrationTest {
         psInsert.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -140,7 +141,7 @@ public class OracleBlobIntegrationTest {
         psInsert.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -188,7 +189,7 @@ public class OracleBlobIntegrationTest {
         psSelect.close();
         rs.close();
         binaryStream.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -235,7 +236,7 @@ public class OracleBlobIntegrationTest {
         psUpdate.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -279,6 +280,6 @@ public class OracleBlobIntegrationTest {
         psInsert.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        connectionResult.close();
     }
 }

@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class PostgresDatabaseMetaDataExtensiveTests {
 
     private static boolean isTestEnabled;
+    private static ConnectionResult connectionResult;
     private static Connection connection;
 
     @BeforeAll
@@ -42,7 +43,7 @@ public class PostgresDatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password) throws Exception {
+    public void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
         this.setUp(driverClass, url, user, password, isXA);
         DatabaseMetaData meta = connection.getMetaData();
 

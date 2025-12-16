@@ -79,7 +79,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -139,7 +139,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -184,7 +184,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -245,7 +245,7 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -303,6 +303,6 @@ public class MySQLSpecificFeaturesIntegrationTest {
             rs.close();
         }
 
-        connResult.close();
+        connectionResult.close();
     }
 }

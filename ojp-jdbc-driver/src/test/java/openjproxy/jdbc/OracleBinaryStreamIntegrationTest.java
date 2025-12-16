@@ -90,7 +90,7 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -140,7 +140,7 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -200,6 +200,6 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 }

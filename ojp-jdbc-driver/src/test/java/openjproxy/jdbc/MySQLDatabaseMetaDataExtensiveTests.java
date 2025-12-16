@@ -19,6 +19,7 @@ public class MySQLDatabaseMetaDataExtensiveTests {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
+    private static ConnectionResult connectionResult;
     private static Connection connection;
 
     @BeforeAll

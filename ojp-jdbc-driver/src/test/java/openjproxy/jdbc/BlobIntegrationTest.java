@@ -28,6 +28,7 @@ public class BlobIntegrationTest {
     private static boolean isMariaDBTestEnabled;
     private static boolean isOracleTestEnabled;
     private String tableName;
+    private ConnectionResult connectionResult;
     private Connection conn;
 
     @BeforeAll
@@ -55,12 +56,18 @@ public class BlobIntegrationTest {
             this.tableName += "_h2";
         }
         Class.forName(driverClass);
-        this.conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        this.conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    public void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    public void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         this.setUp(driverClass, url, user, pwd, isXA);
         System.out.println("Testing for url -> " + url);
 
@@ -129,12 +136,12 @@ public class BlobIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    public void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException, ClassNotFoundException {
+    public void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException, ClassNotFoundException {
         this.setUp(driverClass, url, user, pwd, isXA);
         System.out.println("Testing for url -> " + url);
 
@@ -181,7 +188,7 @@ public class BlobIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 
 }

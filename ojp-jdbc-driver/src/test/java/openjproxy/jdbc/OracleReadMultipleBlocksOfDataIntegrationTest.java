@@ -72,7 +72,7 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -137,7 +137,7 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
         page2.close();
         psPage1.close();
         psPage2.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -200,7 +200,7 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         scrollableRs.close();
         scrollableStmt.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -263,6 +263,6 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        connectionResult.close();
     }
 }

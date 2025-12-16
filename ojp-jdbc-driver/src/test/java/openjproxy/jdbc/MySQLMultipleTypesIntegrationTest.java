@@ -123,7 +123,7 @@ public class MySQLMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        connResult.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
@@ -200,6 +200,6 @@ public class MySQLMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        connResult.close();
+        connectionResult.close();
     }
 }
