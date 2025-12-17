@@ -23,20 +23,29 @@ public class OjpXAResource implements XAResource {
 
     private final StatementService statementService;
     private SessionInfo sessionInfo;
-    private final OjpXAConnection xaConnection; // Phase 1: Reference to parent connection for session recreation
+    private final OjpXAConnection xaConnection; // Reference to parent connection for session recreation
+    private OjpXALogicalConnection logicalConnection; // Track the logical connection for alteration checking
 
     public OjpXAResource(StatementService statementService, SessionInfo sessionInfo, OjpXAConnection xaConnection) {
         this.statementService = statementService;
         this.sessionInfo = sessionInfo;
         this.xaConnection = xaConnection;
     }
+    
+    /**
+     * Sets the logical connection for alteration tracking.
+     * Called by OjpXAConnection when getConnection() is called.
+     */
+    void setLogicalConnection(OjpXALogicalConnection connection) {
+        this.logicalConnection = connection;
+    }
 
     @Override
     public void start(Xid xid, int flags) throws XAException {
         log.debug("start: xid={}, flags={}", xid, flags);
         
-        // Phase 1: Implement retry logic for xaStart
-        // Safe to retry because no transaction state exists yet
+        // Implement retry logic for xaStart with connection alteration check
+        // Safe to retry on different server only if connection not altered
         int maxRetries = getMaxRetries();
         int attempt = 0;
         XAException lastException = null;
@@ -53,7 +62,10 @@ public class OjpXAResource implements XAResource {
                     throw new XAException(response.getMessage());
                 }
                 
-                // Success - return immediately
+                // Success - reset alteration flag and return
+                if (logicalConnection != null) {
+                    logicalConnection.resetAlterationFlag();
+                }
                 if (attempt > 0) {
                     log.info("xaStart succeeded on retry attempt {}", attempt);
                 }
@@ -73,20 +85,28 @@ public class OjpXAResource implements XAResource {
                     throw xae;
                 }
                 
-                // Connection-level error - can retry
+                // Connection-level error - check if safe to retry
                 lastException = new XAException(XAException.XAER_RMFAIL);
                 lastException.initCause(e);
                 
                 attempt++;
                 
                 if (attempt < maxRetries) {
+                    // Check if connection was altered before xaStart
+                    if (logicalConnection != null && logicalConnection.isConnectionAltered()) {
+                        log.error("Cannot retry xaStart - connection was altered before xaStart (unsafe to retry on different server)");
+                        XAException xae = new XAException(XAException.XAER_RMFAIL);
+                        xae.initCause(e);
+                        throw xae;
+                    }
+                    
                     log.warn("xaStart failed with connection error (attempt {}/{}): {}. Attempting to recreate session...", 
                             attempt, maxRetries, e.getMessage());
                     
                     try {
-                        // Recreate session on a different server
+                        // Recreate session on a different server (round-robin)
                         this.sessionInfo = xaConnection.recreateSession();
-                        log.info("Session recreated successfully on attempt {}", attempt);
+                        log.info("Session recreated successfully on attempt {} (using round-robin)", attempt);
                     } catch (SQLException recreateEx) {
                         log.error("Failed to recreate session on attempt {}: {}", attempt, recreateEx.getMessage());
                         // Continue to next retry if we have attempts left

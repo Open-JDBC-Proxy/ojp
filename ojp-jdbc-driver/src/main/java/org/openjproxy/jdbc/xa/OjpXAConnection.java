@@ -140,7 +140,11 @@ public class OjpXAConnection implements XAConnection {
         checkClosed();
         if (xaResource == null) {
             SessionInfo session = getOrCreateSession();
-            xaResource = new OjpXAResource(statementService, session, this); // Phase 1: Pass this connection to XAResource
+            xaResource = new OjpXAResource(statementService, session, this);
+            // Link any existing logical connection for alteration tracking
+            if (logicalConnection instanceof OjpXALogicalConnection) {
+                xaResource.setLogicalConnection((OjpXALogicalConnection) logicalConnection);
+            }
         }
         return xaResource;
     }
@@ -167,6 +171,11 @@ public class OjpXAConnection implements XAConnection {
         
         // Create a new logical connection that uses the same XA session on the server
         logicalConnection = new OjpXALogicalConnection(this, session, url);
+        
+        // Link the logical connection to XAResource for alteration tracking
+        if (xaResource != null) {
+            xaResource.setLogicalConnection((OjpXALogicalConnection) logicalConnection);
+        }
         
         return logicalConnection;
     }
