@@ -8,6 +8,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.openjproxy.testcontainers.OJPContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -22,14 +25,27 @@ import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@Testcontainers
 @EnabledIf("openjproxy.jdbc.testutil.PostgreSQLTestContainer#isEnabled")
 public class PostgresMultipleTypesIntegrationTest {
 
     private static boolean isTestDisabled;
 
+    // OJP container that connects to the PostgreSQL container
+    @Container
+    static OJPContainer ojpContainer = new OJPContainer()
+        .withNetwork(PostgreSQLTestContainer.getNetwork())
+        .dependsOn(PostgreSQLTestContainer.getInstance());
+
     @BeforeAll
     public static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
+        
+        // Set the OJP proxy configuration for the connection provider
+        if (!isTestDisabled && ojpContainer.isRunning()) {
+            System.setProperty("ojp.proxy.host", ojpContainer.getHost());
+            System.setProperty("ojp.proxy.port", String.valueOf(ojpContainer.getGrpcPort()));
+        }
     }
 
     @ParameterizedTest

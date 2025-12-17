@@ -1,18 +1,19 @@
 package openjproxy.jdbc.testutil;
 
-import org.openjproxy.testcontainers.OJPContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Singleton PostgreSQL test container setup for all PostgreSQL integration tests.
- * This ensures that all tests share the same PostgreSQL and OJP instances to improve 
+ * Singleton PostgreSQL test container for all PostgreSQL integration tests.
+ * This ensures that all tests share the same PostgreSQL instance to improve 
  * test performance and reduce resource usage.
  * 
  * The container is configured with max_prepared_transactions=100 to support
  * distributed transaction testing.
+ * 
+ * Note: OJP container is managed separately by each test class to allow flexibility.
  */
 public class PostgreSQLTestContainer {
     
@@ -22,14 +23,13 @@ public class PostgreSQLTestContainer {
     // Shared network for PostgreSQL and OJP containers
     private static Network network;
     private static PostgreSQLContainer<?> postgresContainer;
-    private static OJPContainer ojpContainer;
     private static boolean isStarted = false;
     private static boolean shutdownHookRegistered = false;
     private static ReentrantLock initLock = new ReentrantLock();
     
     /**
-     * Gets or creates the shared PostgreSQL and OJP test container instances.
-     * The containers are automatically started on first access.
+     * Gets or creates the shared PostgreSQL test container instance.
+     * The container is automatically started on first access.
      * 
      * @return the shared PostgreSQLContainer instance
      */
@@ -56,23 +56,13 @@ public class PostgreSQLTestContainer {
                     .withDatabaseName("defaultdb");
             }
             
-            if (ojpContainer == null) {
-                ojpContainer = new OJPContainer()
-                    .withNetwork(network)
-                    .dependsOn(postgresContainer);
-            }
-            
             if (!isStarted) {
                 postgresContainer.start();
-                ojpContainer.start();
                 isStarted = true;
                 
-                // Add shutdown hook to stop containers when JVM exits
+                // Add shutdown hook to stop container when JVM exits
                 if (!shutdownHookRegistered) {
                     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                        if (ojpContainer != null && ojpContainer.isRunning()) {
-                            ojpContainer.stop();
-                        }
                         if (postgresContainer != null && postgresContainer.isRunning()) {
                             postgresContainer.stop();
                         }
@@ -112,6 +102,16 @@ public class PostgreSQLTestContainer {
     }
     
     /**
+     * Gets the shared network for containers.
+     * 
+     * @return Network instance
+     */
+    public static Network getNetwork() {
+        getInstance(); // Ensure network is created
+        return network;
+    }
+    
+    /**
      * Gets the username for connecting to the test container.
      * 
      * @return username string
@@ -127,16 +127,6 @@ public class PostgreSQLTestContainer {
      */
     public static String getPassword() {
         return getInstance().getPassword();
-    }
-    
-    /**
-     * Gets the OJP container instance.
-     * 
-     * @return OJPContainer instance
-     */
-    public static OJPContainer getOJPContainer() {
-        getInstance(); // Ensure containers are started
-        return ojpContainer;
     }
     
     /**
