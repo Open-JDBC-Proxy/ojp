@@ -12,15 +12,15 @@ import org.testcontainers.utility.DockerImageName;
  * Database connection details are passed through the JDBC URL when your tests connect.</p>
  * 
  * <p>Example usage:</p>
- * <pre>{@code
- * @Container
+ * <pre>
+ * &#64;Container
  * static OJPContainer ojp = new OJPContainer();
  * 
  * // In your test - database config is in the JDBC URL
  * String jdbcUrl = "jdbc:ojp[" + ojp.getHost() + ":" + ojp.getGrpcPort() + "]_" +
  *                  "postgresql://localhost:5432/test";
  * Connection conn = DriverManager.getConnection(jdbcUrl, "user", "pass");
- * }</pre>
+ * </pre>
  */
 public class OJPContainer extends GenericContainer<OJPContainer> {
     
