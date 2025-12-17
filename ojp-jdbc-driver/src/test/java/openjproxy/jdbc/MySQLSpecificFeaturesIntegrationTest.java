@@ -70,6 +70,9 @@ public class MySQLSpecificFeaturesIntegrationTest {
             conn.setAutoCommit(false);
         }
 
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
+
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("INSERT INTO mysql_upsert_test (id, name, count_val) VALUES (1, 'Test Item', 1)");
 
@@ -129,6 +132,9 @@ public class MySQLSpecificFeaturesIntegrationTest {
         // After DDL is complete, set autocommit to false for transaction control
         conn.setAutoCommit(false);
 
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
+
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("SELECT id, balance FROM mysql_lock_test WHERE id = 1 FOR UPDATE");
             Assert.assertTrue(rs.next());
@@ -186,6 +192,9 @@ public class MySQLSpecificFeaturesIntegrationTest {
             conn.setAutoCommit(false);
         }
 
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
+
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("SHOW TABLES");
             boolean foundTable = false;
@@ -241,6 +250,9 @@ public class MySQLSpecificFeaturesIntegrationTest {
         if (!isXA) {
             conn.setAutoCommit(false);
         }
+
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
 
         try (Statement stmt = conn.createStatement()) {
             // Insert data and test LAST_INSERT_ID()

@@ -58,6 +58,9 @@ public class MySQLMultipleTypesIntegrationTest {
             conn.setAutoCommit(false);
         }
 
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
+
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into mysql_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +
                         "val_smallint, val_boolean, val_decimal, val_float, val_byte, val_binary, val_date, val_time, " +
@@ -159,6 +162,9 @@ public class MySQLMultipleTypesIntegrationTest {
         if (!isXA) {
             conn.setAutoCommit(false);
         }
+
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into mysql_specific_types_test (enum_col, json_col, text_col, mediumtext_col, " +

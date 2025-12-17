@@ -212,9 +212,9 @@ public class TestDBUtils {
             XAConnection xaConnection = xaDataSource.getXAConnection(user, password);
             Connection connection = xaConnection.getConnection();
             ConnectionResult result = new ConnectionResult(connection, xaConnection);
-            // For XA connections, set autocommit to false and start transaction immediately
+            // For XA connections, set autocommit to false but DON'T start transaction yet
+            // Tests must call startXATransactionIfNeeded() AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL errors
             connection.setAutoCommit(false);
-            result.startXATransactionIfNeeded();
             return result;
         } else {
             Connection connection = DriverManager.getConnection(url, user, password);

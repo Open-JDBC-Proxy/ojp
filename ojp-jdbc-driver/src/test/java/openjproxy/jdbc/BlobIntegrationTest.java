@@ -88,6 +88,9 @@ public class BlobIntegrationTest {
             conn.setAutoCommit(false);
         }
 
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
+
         PreparedStatement psInsert = conn.prepareStatement(
                 " insert into " + tableName + " (val_blob, val_blob2, val_blob3) values (?, ?, ?)"
         );
@@ -164,6 +167,9 @@ public class BlobIntegrationTest {
         if (!isXA) {
             conn.setAutoCommit(false);
         }
+
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
 
         PreparedStatement psInsert = conn.prepareStatement(
                 "insert into " + tableName + " (val_blob) values (?)"
