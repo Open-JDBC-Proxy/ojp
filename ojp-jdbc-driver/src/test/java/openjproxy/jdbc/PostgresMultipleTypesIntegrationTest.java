@@ -1,13 +1,13 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.PostgreSQLConnectionProvider;
+import openjproxy.jdbc.testutil.PostgreSQLTestContainer;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
-import org.junit.jupiter.api.Test;
-import org.openjproxy.testcontainers.OJPContainer;
-import org.testcontainers.containers.Network;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -20,34 +20,26 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
-@Testcontainers
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
+
+@EnabledIf("openjproxy.jdbc.testutil.PostgreSQLTestContainer#isEnabled")
 public class PostgresMultipleTypesIntegrationTest {
 
-    private static final Network network = Network.newNetwork();
+    private static boolean isTestDisabled;
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17")
-        .withNetwork(network)
-        .withNetworkAliases("postgres")
-        .withCommand("postgres", "-c", "max_prepared_transactions=100")
-        .withUsername("testuser")
-        .withPassword("testpassword")
-        .withDatabaseName("defaultdb");
+    @BeforeAll
+    public static void checkTestConfiguration() {
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
+    }
 
-    @Container
-    static OJPContainer ojp = new OJPContainer()
-        .withNetwork(network)
-        .dependsOn(postgres);
-
-    @Test
-    public void typesCoverageTestSuccessful() throws SQLException, ParseException {
-        // Build OJP JDBC URL using network alias for PostgreSQL
-        String postgresNetworkUrl = "jdbc:postgresql://postgres:5432/defaultdb";
-        String ojpUrl = ojp.buildJdbcUrl(postgresNetworkUrl);
+    @ParameterizedTest
+    @ArgumentsSource(PostgreSQLConnectionProvider.class)
+    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException {
+        assumeFalse(isTestDisabled, "Postgres tests are disabled");
         
-        Connection conn = DriverManager.getConnection(ojpUrl, "testuser", "testpassword");
+        Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing for url -> " + ojpUrl);
+        System.out.println("Testing for url -> " + url);
 
         TestDBUtils.createMultiTypeTestTable(conn, "postgres_multi_types_test", TestDBUtils.SqlSyntax.POSTGRES);
 
@@ -145,15 +137,14 @@ public class PostgresMultipleTypesIntegrationTest {
         conn.close();
     }
 
-    @Test
-    public void testPostgresSpecificTypes() throws SQLException {
-        // Build OJP JDBC URL using network alias for PostgreSQL
-        String postgresNetworkUrl = "jdbc:postgresql://postgres:5432/defaultdb";
-        String ojpUrl = ojp.buildJdbcUrl(postgresNetworkUrl);
+    @ParameterizedTest
+    @ArgumentsSource(PostgreSQLConnectionProvider.class)
+    public void testPostgresSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+        assumeFalse(isTestDisabled, "Postgres tests are disabled");
         
-        Connection conn = DriverManager.getConnection(ojpUrl, "testuser", "testpassword");
+        Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing PostgreSQL-specific types for url -> " + ojpUrl);
+        System.out.println("Testing PostgreSQL-specific types for url -> " + url);
 
         // Test UUID, JSON, and array types (PostgreSQL-specific)
         try {
