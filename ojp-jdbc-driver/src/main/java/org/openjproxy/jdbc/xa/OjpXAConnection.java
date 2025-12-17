@@ -6,8 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.MultinodeConnectionManager;
 import org.openjproxy.grpc.client.MultinodeStatementService;
-import org.openjproxy.grpc.client.ServerEndpoint;
-import org.openjproxy.grpc.client.ServerHealthListener;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.jdbc.ClientUUID;
 
@@ -31,10 +29,12 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>The server-side session is created lazily when first needed (either when getting
  * the XAResource or when getting a Connection), to avoid creating unnecessary sessions.
  * 
- * <p>Phase 2: Implements ServerHealthListener to handle server failures proactively.
+ * <p>With Narayana pooling, XA connections use round-robin load balancing like non-XA
+ * connections. Session stickiness ensures all operations within a transaction stay on
+ * the same server.
  */
 @Slf4j
-public class OjpXAConnection implements XAConnection, ServerHealthListener {
+public class OjpXAConnection implements XAConnection {
 
     private final StatementService statementService;
     private SessionInfo sessionInfo; // Lazily initialized
@@ -47,7 +47,6 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
     private boolean closed = false;
     private List<String> serverEndpoints;
     private final List<ConnectionEventListener> listeners = new ArrayList<>();
-    private String boundServerAddress; // Phase 2: Track which server this connection is bound to
     private final ReentrantLock sessionLock = new ReentrantLock();
 
     public OjpXAConnection(StatementService statementService, String url, String user, String password, Properties properties, List<String> serverEndpoints) {
@@ -59,16 +58,8 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
         this.properties = properties;
         this.serverEndpoints = serverEndpoints;
         // Session is created lazily when needed
-        
-        // Register as health listener if using multinode
-        if (statementService instanceof MultinodeStatementService) {
-            MultinodeStatementService ms = (MultinodeStatementService) statementService;
-            MultinodeConnectionManager cm = ms.getConnectionManager();
-            if (cm != null) {
-                cm.addHealthListener(this);
-                log.debug("Registered XA connection as health listener with MultinodeConnectionManager");
-            }
-        }
+        // With Narayana pooling, sessions use round-robin load balancing
+        // Session stickiness ensures transaction stays on same server
     }
     
     /**
@@ -108,13 +99,7 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
 
             this.sessionInfo = statementService.connect(connBuilder.build());
             
-            // Phase 2: Track the bound server from session info
-            if (sessionInfo.getTargetServer() != null && !sessionInfo.getTargetServer().isEmpty()) {
-                this.boundServerAddress = sessionInfo.getTargetServer();
-                log.debug("XA connection bound to server: {}", boundServerAddress);
-            }
-            
-            log.debug("XA connection established with session: {}", sessionInfo.getSessionUUID());
+            log.debug("XA session created with UUID: {}", sessionInfo.getSessionUUID());
             return sessionInfo;
 
         } catch (Exception e) {
@@ -140,10 +125,9 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
 
             // Clear existing session
             sessionInfo = null;
-            boundServerAddress = null;
             xaResource = null; // Force recreation of XAResource with new session
 
-            // Create new session (will use round-robin to select a different server)
+            // Create new session (will use round-robin to select a server)
             return getOrCreateSession();
         } finally {
             sessionLock.unlock();
@@ -184,38 +168,7 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
         // Create a new logical connection that uses the same XA session on the server
         logicalConnection = new OjpXALogicalConnection(this, session, url);
         
-        // Register with ConnectionTracker if using multinode
-        if (statementService instanceof MultinodeStatementService) {
-            MultinodeStatementService multinodeService = (MultinodeStatementService) statementService;
-            MultinodeConnectionManager connectionManager = multinodeService.getConnectionManager();
-            if (connectionManager != null && boundServerAddress != null) {
-                // Find the ServerEndpoint for the bound server
-                ServerEndpoint boundEndpoint = findServerEndpoint(connectionManager, boundServerAddress);
-                if (boundEndpoint != null) {
-                    connectionManager.getConnectionTracker().register(logicalConnection, boundEndpoint);
-                    log.debug("Registered connection with tracker for server: {}", boundServerAddress);
-                }
-            }
-        }
-        
         return logicalConnection;
-    }
-    
-    /**
-     * Find the ServerEndpoint matching the bound server address.
-     */
-    private ServerEndpoint findServerEndpoint(MultinodeConnectionManager connectionManager, String serverAddress) {
-        try {
-            log.debug("Finding server endpoint for address: {}", serverAddress);
-            ServerEndpoint serverEndpoint = connectionManager.getServerEndpoints().stream().filter(se ->
-                se.getAddress().equalsIgnoreCase(serverAddress)
-            ).findFirst().orElse(null);
-            log.debug("Server endpoint for address {} found {}", serverAddress, serverEndpoint != null ? "successfully" : "not found");
-            return serverEndpoint;
-        } catch (Exception e) {
-            log.warn("Failed to find server endpoint for {}: {}", serverAddress, e.getMessage());
-            return null;
-        }
     }
     
     /**
@@ -304,39 +257,5 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
         if (closed) {
             throw new SQLException("XA Connection is closed");
         }
-    }
-    
-    /**
-     * Phase 2: Called when a server becomes unhealthy.
-     * If this connection is bound to that server, close it proactively
-     * so Atomikos will create a new connection.
-     */
-    @Override
-    public void onServerUnhealthy(ServerEndpoint endpoint, Exception exception) {
-        String serverAddr = endpoint.getHost() + ":" + endpoint.getPort();
-        
-        // Check if this connection is bound to the failed server
-        if (boundServerAddress != null && boundServerAddress.equals(serverAddr)) {
-            log.warn("XA connection bound to unhealthy server {}, closing connection proactively", serverAddr);
-            try {
-                // Close this connection - Atomikos will remove it from pool and create a new one
-                close();
-            } catch (SQLException e) {
-                log.error("Error closing XA connection after server failure: {}", e.getMessage(), e);
-            }
-        }
-    }
-    
-    /**
-     * Phase 2: Called when a server recovers.
-     * Intentionally conservative: do not recreate or close sessions here to avoid 
-     * disrupting in-flight XA transactions. Redistribution policy is handled centrally 
-     * by XAConnectionRedistributor which acts only on idle connections.
-     */
-    @Override
-    public void onServerRecovered(ServerEndpoint endpoint) {
-        log.debug("Server {} recovered (XA connection listener)", endpoint.getAddress());
-        // Intentionally conservative: do not recreate or close sessions here to avoid disrupting in-flight XA transactions.
-        // Redistribution policy is handled centrally by XAConnectionRedistributor which acts only on idle connections.
     }
 }
