@@ -115,15 +115,19 @@ import org.testcontainers.utility.DockerImageName;
  * TestContainer for OJP (Open J Proxy) server.
  * Provides an easy way to run OJP server in integration tests.
  * 
+ * The OJP server acts as a proxy - it doesn't need database configuration at startup.
+ * Database connection details are passed through the JDBC URL when your tests connect.
+ * 
  * Example usage:
  * <pre>
  * {@code
  * @Container
- * static OJPContainer ojp = new OJPContainer()
- *     .withDatabaseConfig("mydb", "jdbc:postgresql://postgres:5432/test", "user", "pass");
+ * static OJPContainer ojp = new OJPContainer();
  * 
- * // In your test
- * String ojpUrl = ojp.getJdbcUrl("mydb");
+ * // In your test - database config is in the JDBC URL
+ * String jdbcUrl = "jdbc:ojp[" + ojp.getHost() + ":" + ojp.getGrpcPort() + "]_" +
+ *                  "postgresql://localhost:5432/test";
+ * Connection conn = DriverManager.getConnection(jdbcUrl, "user", "pass");
  * }
  * </pre>
  */
@@ -134,7 +138,6 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
     private static final int DEFAULT_GRPC_PORT = 1059;
     private static final int DEFAULT_PROMETHEUS_PORT = 9159;
     
-    private final Map<String, DatabaseConfig> databases = new HashMap<>();
     private boolean telemetryEnabled = true; // Enabled by default
     
     public OJPContainer() {
@@ -153,40 +156,45 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
     }
     
     /**
-     * Configure a database connection in OJP server
-     */
-    public OJPContainer withDatabaseConfig(String name, String jdbcUrl, 
-                                           String username, String password) {
-        databases.put(name, new DatabaseConfig(name, jdbcUrl, username, password));
-        
-        // Set environment variables for OJP server configuration
-        withEnv("OJP_DB_" + name.toUpperCase() + "_URL", jdbcUrl);
-        withEnv("OJP_DB_" + name.toUpperCase() + "_USERNAME", username);
-        withEnv("OJP_DB_" + name.toUpperCase() + "_PASSWORD", password);
-        
-        return this;
-    }
-    
-    /**
-     * Get OJP JDBC URL for connecting through the container
-     */
-    public String getJdbcUrl(String dbName) {
-        DatabaseConfig db = databases.get(dbName);
-        if (db == null) {
-            throw new IllegalArgumentException("Database not configured: " + dbName);
-        }
-        
-        String host = getHost();
-        int port = getMappedPort(DEFAULT_GRPC_PORT);
-        
-        return "jdbc:ojp[" + host + ":" + port + "]_" + db.getTargetJdbcUrl();
-    }
-    
-    /**
-     * Get the gRPC connection string for direct gRPC clients
+     * Get the gRPC connection string for OJP server.
+     * Use this to construct your JDBC URL.
+     * 
+     * @return gRPC connection string (e.g., "localhost:32768")
      */
     public String getGrpcUrl() {
         return getHost() + ":" + getMappedPort(DEFAULT_GRPC_PORT);
+    }
+    
+    /**
+     * Get the mapped gRPC port.
+     * The port is randomly assigned to avoid conflicts.
+     * 
+     * @return The host port mapped to the container's gRPC port
+     */
+    public int getGrpcPort() {
+        return getMappedPort(DEFAULT_GRPC_PORT);
+    }
+    
+    /**
+     * Build an OJP JDBC URL from the original database JDBC URL.
+     * This is a convenience method to construct the proper OJP JDBC URL format.
+     * 
+     * Example:
+     * <pre>
+     * String ojpUrl = ojp.buildJdbcUrl("jdbc:postgresql://localhost:5432/test");
+     * // Returns: "jdbc:ojp[localhost:32768]_postgresql://localhost:5432/test"
+     * </pre>
+     * 
+     * @param originalJdbcUrl The original database JDBC URL
+     * @return OJP-prefixed JDBC URL
+     */
+    public String buildJdbcUrl(String originalJdbcUrl) {
+        // Remove "jdbc:" prefix from original URL
+        String dbUrl = originalJdbcUrl.startsWith("jdbc:") 
+            ? originalJdbcUrl.substring(5) 
+            : originalJdbcUrl;
+        
+        return "jdbc:ojp[" + getHost() + ":" + getMappedPort(DEFAULT_GRPC_PORT) + "]_" + dbUrl;
     }
     
     /**
@@ -369,15 +377,18 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class MyIntegrationTest {
     
     @Container
-    static OJPContainer ojp = new OJPContainer()
-        .withDatabaseConfig("h2test", "jdbc:h2:mem:test", "sa", "");
+    static OJPContainer ojp = new OJPContainer();
     
     @Test
     void testDatabaseAccess() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(
-            ojp.getJdbcUrl("h2test"), "sa", "")) {
-            
+        // Database connection info is in the JDBC URL
+        String ojpUrl = ojp.buildJdbcUrl("jdbc:h2:mem:test");
+        
+        try (Connection conn = DriverManager.getConnection(ojpUrl, "sa", "")) {
             // Your test code here
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT 1");
+            assertTrue(rs.next());
         }
     }
 }
@@ -399,20 +410,22 @@ class PostgresIntegrationTest {
     @Container
     static OJPContainer ojp = new OJPContainer()
         .withNetwork(network)
-        .dependsOn(postgres)
-        .withDatabaseConfig("testdb", 
-            postgres.getJdbcUrl(), 
-            postgres.getUsername(), 
-            postgres.getPassword());
+        .dependsOn(postgres);
     
     @Test
     void testThroughOJP() throws SQLException {
+        // Build OJP URL with the database connection details
+        String ojpUrl = ojp.buildJdbcUrl(postgres.getJdbcUrl());
+        
         try (Connection conn = DriverManager.getConnection(
-            ojp.getJdbcUrl("testdb"), 
+            ojpUrl, 
             postgres.getUsername(), 
             postgres.getPassword())) {
             
-            // Access PostgreSQL through OJP
+            // Access PostgreSQL through OJP proxy
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT 1");
+            assertTrue(rs.next());
         }
     }
 }
@@ -427,8 +440,7 @@ public abstract class BaseOJPTest {
     
     static {
         OJP_CONTAINER = new OJPContainer()
-            .withReuse(true) // Enable container reuse
-            .withDatabaseConfig("h2", "jdbc:h2:mem:test", "sa", "");
+            .withReuse(true); // Enable container reuse
         
         OJP_CONTAINER.start();
     }
@@ -436,8 +448,13 @@ public abstract class BaseOJPTest {
 
 class MyTest extends BaseOJPTest {
     @Test
-    void test() {
-        // Use OJP_CONTAINER
+    void test() throws SQLException {
+        // Build JDBC URL for your database
+        String ojpUrl = OJP_CONTAINER.buildJdbcUrl("jdbc:h2:mem:test");
+        
+        try (Connection conn = DriverManager.getConnection(ojpUrl, "sa", "")) {
+            // Your test code
+        }
     }
 }
 ```
@@ -452,14 +469,32 @@ OJPContainer ojp = new OJPContainer()
         .withCircuitBreakerTimeout(5000)
         .withCircuitBreakerThreshold(10)
         .withThreadPoolSize(50)
-        .withMaxRequestSize(4 * 1024 * 1024))
-    .withDatabaseConfig("db1", ...)
-    .withDatabaseConfig("db2", ...);
+        .withMaxRequestSize(4 * 1024 * 1024));
 ```
 
 ### 2. Multi-Database Support
 
-The container should support multiple database configurations simultaneously, which is already a feature of OJP server.
+The OJP server automatically supports multiple databases - just connect with different JDBC URLs through the same OJP container. No pre-configuration needed.
+
+```java
+@Container
+static OJPContainer ojp = new OJPContainer();
+
+@Test
+void testMultipleDatabases() throws SQLException {
+    // Connect to PostgreSQL through OJP
+    String pgUrl = ojp.buildJdbcUrl("jdbc:postgresql://localhost:5432/db1");
+    try (Connection conn1 = DriverManager.getConnection(pgUrl, "user1", "pass1")) {
+        // Use PostgreSQL
+    }
+    
+    // Connect to MySQL through the same OJP instance
+    String mysqlUrl = ojp.buildJdbcUrl("jdbc:mysql://localhost:3306/db2");
+    try (Connection conn2 = DriverManager.getConnection(mysqlUrl, "user2", "pass2")) {
+        // Use MySQL
+    }
+}
+```
 
 ### 3. Observability Support
 
@@ -749,14 +784,10 @@ public class OJPWithOracleTestContainer {
             .withNetworkAliases("oracle-db")
             .withReuse(true);  // Optional: reuse container across test runs
         
-        // Start OJP container configured to connect to Oracle
+        // Start OJP container (no database config needed)
         ojpContainer = new OJPContainer()
             .withNetwork(network)
             .dependsOn(oracleContainer)
-            .withDatabaseConfig("oracle", 
-                "jdbc:oracle:thin:@oracle-db:1521/XEPDB1",
-                oracleContainer.getUsername(),
-                oracleContainer.getPassword())
             .withReuse(true);  // Optional: reuse container across test runs
         
         // Start both containers in parallel
@@ -781,10 +812,12 @@ public class OJPWithOracleTestContainer {
     
     /**
      * Get OJP JDBC URL for Oracle database.
+     * The database connection details are embedded in the URL.
      */
     public static String getOJPJdbcUrl() {
         initialize();
-        return ojpContainer.getJdbcUrl("oracle");
+        // Use the network alias for Oracle (oracle-db) since they're in the same network
+        return ojpContainer.buildJdbcUrl("jdbc:oracle:thin:@oracle-db:1521/XEPDB1");
     }
     
     /**
@@ -880,11 +913,7 @@ public class OJPWithSQLServerTestContainer {
         
         ojpContainer = new OJPContainer()
             .withNetwork(network)
-            .dependsOn(sqlServerContainer)
-            .withDatabaseConfig("sqlserver",
-                sqlServerContainer.getJdbcUrl(),
-                sqlServerContainer.getUsername(),
-                sqlServerContainer.getPassword());
+            .dependsOn(sqlServerContainer);
         
         sqlServerContainer.start();
         ojpContainer.start();
@@ -894,7 +923,20 @@ public class OJPWithSQLServerTestContainer {
     
     public static String getOJPJdbcUrl() {
         initialize();
-        return ojpContainer.getJdbcUrl("sqlserver");
+        // Use network alias in the JDBC URL
+        String sqlServerNetworkUrl = sqlServerContainer.getJdbcUrl()
+            .replace(sqlServerContainer.getHost(), "sqlserver-db");
+        return ojpContainer.buildJdbcUrl(sqlServerNetworkUrl);
+    }
+    
+    public static String getUsername() {
+        initialize();
+        return sqlServerContainer.getUsername();
+    }
+    
+    public static String getPassword() {
+        initialize();
+        return sqlServerContainer.getPassword();
     }
 }
 ```
@@ -927,11 +969,7 @@ public class OJPWithDb2TestContainer {
         
         ojpContainer = new OJPContainer()
             .withNetwork(network)
-            .dependsOn(db2Container)
-            .withDatabaseConfig("db2",
-                db2Container.getJdbcUrl(),
-                db2Container.getUsername(),
-                db2Container.getPassword());
+            .dependsOn(db2Container);
         
         db2Container.start();
         ojpContainer.start();
@@ -941,7 +979,20 @@ public class OJPWithDb2TestContainer {
     
     public static String getOJPJdbcUrl() {
         initialize();
-        return ojpContainer.getJdbcUrl("db2");
+        // Use network alias in the JDBC URL
+        String db2NetworkUrl = db2Container.getJdbcUrl()
+            .replace(db2Container.getHost(), "db2-db");
+        return ojpContainer.buildJdbcUrl(db2NetworkUrl);
+    }
+    
+    public static String getUsername() {
+        initialize();
+        return db2Container.getUsername();
+    }
+    
+    public static String getPassword() {
+        initialize();
+        return db2Container.getPassword();
     }
 }
 ```

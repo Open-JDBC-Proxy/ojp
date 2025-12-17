@@ -165,12 +165,15 @@ pkill -f ojp-server
 @Testcontainers
 class MyTest {
     @Container
-    static OJPContainer ojp = new OJPContainer()
-        .withDatabaseConfig("testdb", "jdbc:postgresql://...", "user", "pass");
+    static OJPContainer ojp = new OJPContainer();
     
     @Test
     void test() throws SQLException {
-        // Everything automatic! Just use ojp.getJdbcUrl("testdb")
+        // Database config is in the JDBC URL
+        String ojpUrl = ojp.buildJdbcUrl("jdbc:postgresql://localhost:5432/test");
+        try (Connection conn = DriverManager.getConnection(ojpUrl, "user", "pass")) {
+            // Everything automatic!
+        }
     }
 }
 ```
@@ -250,16 +253,15 @@ import org.openjproxy.testcontainers.OJPContainer;
 class MyDatabaseTest {
     
     @Container
-    static OJPContainer ojp = new OJPContainer()
-        .withDatabaseConfig("mydb", 
-            "jdbc:postgresql://postgres:5432/test", 
-            "user", 
-            "password");
+    static OJPContainer ojp = new OJPContainer();
     
     @Test
     void testDatabaseAccess() throws SQLException {
+        // Build OJP JDBC URL from original database URL
+        String ojpUrl = ojp.buildJdbcUrl("jdbc:postgresql://localhost:5432/test");
+        
         try (Connection conn = DriverManager.getConnection(
-                ojp.getJdbcUrl("mydb"), "user", "password")) {
+                ojpUrl, "user", "password")) {
             
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users");
@@ -299,11 +301,15 @@ Developers can create simple custom TestContainer implementations for proprietar
 ```java
 // Your project: src/test/java/com/mycompany/testutil/OJPWithOracleContainer.java
 public class OJPWithOracleContainer {
-    private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim");
+    private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim")
+        .withNetworkAliases("oracle-db");
     private static OJPContainer ojp = new OJPContainer()
-        .withDatabaseConfig("oracle", oracle.getJdbcUrl(), ...);
+        .withNetwork(network)
+        .dependsOn(oracle);
     
-    // Initialize and use...
+    public static String getOJPJdbcUrl() {
+        return ojp.buildJdbcUrl("jdbc:oracle:thin:@oracle-db:1521/XEPDB1");
+    }
 }
 ```
 

@@ -74,15 +74,15 @@ import org.openjproxy.testcontainers.OJPContainer;
 @Testcontainers
 class DatabaseTest {
     @Container
-    static OJPContainer ojp = new OJPContainer()
-        .withDatabaseConfig("testdb", 
-            "jdbc:postgresql://postgres:5432/test", 
-            "user", "password");
+    static OJPContainer ojp = new OJPContainer();
     
     @Test
     void testQuery() throws SQLException {
+        // Database config is in the JDBC URL
+        String ojpUrl = ojp.buildJdbcUrl("jdbc:postgresql://localhost:5432/test");
+        
         try (Connection conn = DriverManager.getConnection(
-            ojp.getJdbcUrl("testdb"), "user", "password")) {
+            ojpUrl, "user", "password")) {
             
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT 1");
@@ -274,15 +274,12 @@ public class OJPWithOracleContainer {
     private static Network network = Network.newNetwork();
     
     private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim")
-        .withNetwork(network);
+        .withNetwork(network)
+        .withNetworkAliases("oracle-db");
     
     private static OJPContainer ojp = new OJPContainer()
         .withNetwork(network)
-        .dependsOn(oracle)
-        .withDatabaseConfig("oracle", 
-            oracle.getJdbcUrl(), 
-            oracle.getUsername(), 
-            oracle.getPassword());
+        .dependsOn(oracle);
     
     public static void initialize() {
         oracle.start();
@@ -290,7 +287,16 @@ public class OJPWithOracleContainer {
     }
     
     public static String getOJPJdbcUrl() {
-        return ojp.getJdbcUrl("oracle");
+        // Use network alias in the JDBC URL
+        return ojp.buildJdbcUrl("jdbc:oracle:thin:@oracle-db:1521/XEPDB1");
+    }
+    
+    public static String getUsername() {
+        return oracle.getUsername();
+    }
+    
+    public static String getPassword() {
+        return oracle.getPassword();
     }
 }
 ```

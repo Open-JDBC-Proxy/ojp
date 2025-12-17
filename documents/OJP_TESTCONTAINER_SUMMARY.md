@@ -123,16 +123,12 @@ import org.junit.jupiter.api.Test;
 class MyApplicationTest {
     
     @Container
-    static OJPContainer ojp = new OJPContainer()
-        .withDatabaseConfig("testdb", 
-            "jdbc:postgresql://postgres:5432/test", 
-            "user", 
-            "password");
+    static OJPContainer ojp = new OJPContainer();
     
     @Test
     void testDatabaseAccess() throws SQLException {
-        // Get OJP JDBC URL
-        String jdbcUrl = ojp.getJdbcUrl("testdb");
+        // Build OJP JDBC URL - database config is in the URL
+        String jdbcUrl = ojp.buildJdbcUrl("jdbc:postgresql://localhost:5432/test");
         
         try (Connection conn = DriverManager.getConnection(
                 jdbcUrl, "user", "password")) {
@@ -179,10 +175,15 @@ For licensing reasons, proprietary databases require custom implementations:
 ```java
 // src/test/java/com/mycompany/testutil/OJPWithOracleContainer.java
 public class OJPWithOracleContainer {
-    private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim");
+    private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim")
+        .withNetworkAliases("oracle-db");
     private static OJPContainer ojp = new OJPContainer()
-        .withDatabaseConfig("oracle", oracle.getJdbcUrl(), ...);
+        .withNetwork(network)
+        .dependsOn(oracle);
     
+    public static String getOJPJdbcUrl() {
+        return ojp.buildJdbcUrl("jdbc:oracle:thin:@oracle-db:1521/XEPDB1");
+    }
     // Container lifecycle methods...
 }
 ```
@@ -192,7 +193,7 @@ public class OJPWithOracleContainer {
 ### Phase 1: MVP (2-3 weeks)
 - [ ] Create `ojp-testcontainers` module
 - [ ] Implement `OJPContainer` class
-- [ ] Basic database configuration
+- [ ] `buildJdbcUrl()` convenience method
 - [ ] Health check
 - [ ] H2 integration tests
 - [ ] Documentation
