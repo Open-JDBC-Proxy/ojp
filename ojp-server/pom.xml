@@ -40,6 +40,12 @@
             <artifactId>ojp-datasource-hikari</artifactId>
             <version>0.3.1-snapshot</version>
         </dependency>
+        <!-- OJP Datasource Narayana for XA connection pooling -->
+        <dependency>
+            <groupId>org.openjproxy</groupId>
+            <artifactId>ojp-datasource-narayana</artifactId>
+            <version>0.3.1-snapshot</version>
+        </dependency>
 
         <dependency>
             <groupId>io.grpc</groupId>

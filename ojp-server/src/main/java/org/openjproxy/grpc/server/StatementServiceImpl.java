@@ -48,12 +48,12 @@ import org.openjproxy.grpc.server.utils.MethodReflectionUtils;
 import org.openjproxy.grpc.server.utils.MethodNameGenerator;
 import org.openjproxy.grpc.server.utils.SessionInfoUtils;
 import org.openjproxy.grpc.server.statement.ParameterHandler;
-import org.openjproxy.grpc.server.xa.XADataSourceFactory;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.lob.LobProcessor;
 import org.openjproxy.grpc.server.utils.StatementRequestValidator;
 import org.openjproxy.datasource.ConnectionPoolProviderRegistry;
+import org.openjproxy.datasource.XAConnectionPoolProviderRegistry;
 import org.openjproxy.datasource.PoolConfig;
 
 import javax.sql.DataSource;
@@ -249,25 +249,51 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         connHash, serverEndpoints.size(), actualMaxXaTransactions);
             }
             
-            // Handle XA connection - create native XADataSource (pass-through approach)
+            // Handle XA connection - use Narayana XA connection pool
             XADataSource xaDataSource = this.xaDataSourceMap.get(connHash);
             if (xaDataSource == null) {
                 try {
-                    // Create XADataSource for the database using factory
+                    // Create pooled XADataSource using XAConnectionPoolProvider
                     String url = UrlParser.parseUrl(connectionDetails.getUrl());
-                    xaDataSource = XADataSourceFactory.createXADataSource(url, connectionDetails);
+                    
+                    // Extract pool configuration from client properties
+                    DataSourceConfigurationManager.DataSourceConfiguration dsConfig = 
+                            DataSourceConfigurationManager.getConfiguration(
+                                    ConnectionPoolConfigurer.extractClientProperties(connectionDetails));
+                    
+                    // Build PoolConfig for XA datasource
+                    PoolConfig.Builder configBuilder = PoolConfig.builder()
+                            .url(url)
+                            .username(connectionDetails.getUser())
+                            .password(connectionDetails.getPassword().toCharArray())
+                            .maxPoolSize(dsConfig.getMaximumPoolSize())
+                            .minIdle(dsConfig.getMinimumIdle())
+                            .connectionTimeoutMs(dsConfig.getConnectionTimeout())
+                            .idleTimeoutMs(dsConfig.getIdleTimeout())
+                            .maxLifetimeMs(dsConfig.getMaxLifetime());
+                    
+                    // Add datasource name to metrics prefix
+                    if (dsConfig.getDataSourceName() != null && !dsConfig.getDataSourceName().isEmpty()) {
+                        configBuilder.metricsPrefix("ojp-xa-" + dsConfig.getDataSourceName());
+                    }
+                    
+                    PoolConfig poolConfig = configBuilder.build();
+                    
+                    // Create pooled XA datasource using default provider (Narayana)
+                    xaDataSource = XAConnectionPoolProviderRegistry.createXADataSource(poolConfig);
                     
                     this.xaDataSourceMap.put(connHash, xaDataSource);
                     
                     // Create slow query segregation manager for XA datasource
-                    // Use actualMaxXaTransactions as the pool size for XA operations
-                    createSlowQuerySegregationManagerForDatasource(connHash, actualMaxXaTransactions, true, xaStartTimeoutMillis);
+                    // Use pool's max size as the "pool size" for segregation manager
+                    createSlowQuerySegregationManagerForDatasource(connHash, dsConfig.getMaximumPoolSize(), true, xaStartTimeoutMillis);
                     
-                    log.info("Created new native XADataSource for XA pass-through with connHash: {}", connHash);
+                    log.info("Created new Narayana pooled XADataSource for connHash: {}, maxPoolSize: {}, minIdle: {}", 
+                            connHash, dsConfig.getMaximumPoolSize(), dsConfig.getMinimumIdle());
                     
                 } catch (Exception e) {
-                    log.error("Failed to create XA datasource for connection hash {}: {}", connHash, e.getMessage(), e);
-                    SQLException sqlException = new SQLException("Failed to create XA datasource: " + e.getMessage(), e);
+                    log.error("Failed to create pooled XA datasource for connection hash {}: {}", connHash, e.getMessage(), e);
+                    SQLException sqlException = new SQLException("Failed to create pooled XA datasource: " + e.getMessage(), e);
                     sendSQLExceptionMetadata(sqlException, responseObserver);
                     return;
                 }
