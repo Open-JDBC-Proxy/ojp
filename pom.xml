@@ -19,6 +19,7 @@
         <module>ojp-datasource-api</module>
         <module>ojp-datasource-hikari</module>
         <module>ojp-datasource-dbcp</module>
+        <module>ojp-datasource-narayana</module>
     </modules>
 
     <properties>
