@@ -59,10 +59,8 @@ public class BlobIntegrationTest {
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         this.conn = connectionResult.getConnection();
         
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
+        // Keep autocommit=true initially for DDL operations (CREATE/DROP TABLE)
+        // Will be set to false later for DML operations
     }
 
     @ParameterizedTest
@@ -84,6 +82,11 @@ public class BlobIntegrationTest {
                         " val_blob3 BLOB" +
                         ")"
         );
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         PreparedStatement psInsert = conn.prepareStatement(
                 " insert into " + tableName + " (val_blob, val_blob2, val_blob3) values (?, ?, ?)"
@@ -156,6 +159,11 @@ public class BlobIntegrationTest {
                         " val_blob  BLOB" +
                         ")"
         );
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         PreparedStatement psInsert = conn.prepareStatement(
                 "insert into " + tableName + " (val_blob) values (?)"

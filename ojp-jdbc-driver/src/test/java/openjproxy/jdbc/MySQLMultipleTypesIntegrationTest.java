@@ -47,15 +47,16 @@ public class MySQLMultipleTypesIntegrationTest {
 
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connectionResult.getConnection();
-        
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
 
         System.out.println("Testing for url -> " + url);
 
+        // Execute DDL with autocommit=true (default)
         TestDBUtils.createMultiTypeTestTable(conn, "mysql_multi_types_test", TestDBUtils.SqlSyntax.MYSQL);
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into mysql_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +
@@ -141,22 +142,23 @@ public class MySQLMultipleTypesIntegrationTest {
             assumeFalse(true, "Skipping MySQL tests");
         }
         
-        // Skip MariaDB tests if not enabled  
+        // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
         
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connectionResult.getConnection();
-        
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
 
         System.out.println("Testing MySQL-specific types for url -> " + url);
 
+        // Execute DDL with autocommit=true (default)
         TestDBUtils.createMySQLSpecificTestTable(conn, "mysql_specific_types_test");
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into mysql_specific_types_test (enum_col, json_col, text_col, mediumtext_col, " +

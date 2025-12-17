@@ -46,30 +46,31 @@ public class MySQLSpecificFeaturesIntegrationTest {
 
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connectionResult.getConnection();
-        
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
 
         System.out.println("Testing ON DUPLICATE KEY UPDATE for url -> " + url);
 
         try (Statement stmt = conn.createStatement()) {
-            // Drop table if exists
+            // Drop table if exists (DDL with autocommit=true)
             try {
                 stmt.execute("DROP TABLE mysql_upsert_test");
             } catch (SQLException e) {
                 // Ignore - table might not exist
             }
 
-            // Create table with unique constraint
+            // Create table with unique constraint (DDL with autocommit=true)
             stmt.execute("CREATE TABLE mysql_upsert_test (" +
                     "id INT PRIMARY KEY, " +
                     "name VARCHAR(100), " +
                     "count_val INT DEFAULT 1" +
                     ")");
+        }
 
-            // Insert initial data
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        try (Statement stmt = conn.createStatement()) {
             stmt.execute("INSERT INTO mysql_upsert_test (id, name, count_val) VALUES (1, 'Test Item', 1)");
 
             // Test ON DUPLICATE KEY UPDATE
@@ -104,35 +105,31 @@ public class MySQLSpecificFeaturesIntegrationTest {
         
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connectionResult.getConnection();
-        
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
 
         System.out.println("Testing SELECT ... FOR UPDATE for url -> " + url);
 
         try (Statement stmt = conn.createStatement()) {
-            // Drop table if exists
+            // Drop table if exists (DDL with autocommit=true)
             try {
                 stmt.execute("DROP TABLE mysql_lock_test");
             } catch (SQLException e) {
                 // Ignore - table might not exist
             }
 
-            // Create table
+            // Create table (DDL with autocommit=true)
             stmt.execute("CREATE TABLE mysql_lock_test (" +
                     "id INT PRIMARY KEY, " +
                     "balance DECIMAL(10,2)" +
                     ")");
 
-            // Insert test data
+            // Insert test data (still with autocommit=true)
             stmt.execute("INSERT INTO mysql_lock_test (id, balance) VALUES (1, 100.00)");
+        }
 
-            // Disable autocommit to test locking
-            conn.setAutoCommit(false);
+        // After DDL is complete, set autocommit to false for transaction control
+        conn.setAutoCommit(false);
 
-            // Test SELECT ... FOR UPDATE
+        try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("SELECT id, balance FROM mysql_lock_test WHERE id = 1 FOR UPDATE");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(1, rs.getInt("id"));
@@ -170,16 +167,11 @@ public class MySQLSpecificFeaturesIntegrationTest {
         
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connectionResult.getConnection();
-        
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
 
         System.out.println("Testing SHOW TABLES for url -> " + url);
 
         try (Statement stmt = conn.createStatement()) {
-            // Create a test table
+            // Create a test table (DDL with autocommit=true)
             try {
                 stmt.execute("DROP TABLE mysql_show_test");
             } catch (SQLException e) {
@@ -187,8 +179,14 @@ public class MySQLSpecificFeaturesIntegrationTest {
             }
 
             stmt.execute("CREATE TABLE mysql_show_test (id INT PRIMARY KEY)");
+        }
 
-            // Test SHOW TABLES
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("SHOW TABLES");
             boolean foundTable = false;
             while (rs.next()) {
@@ -221,28 +219,30 @@ public class MySQLSpecificFeaturesIntegrationTest {
         
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connectionResult.getConnection();
-        
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
 
         System.out.println("Testing AUTO_INCREMENT and LAST_INSERT_ID() for url -> " + url);
 
         try (Statement stmt = conn.createStatement()) {
-            // Drop table if exists
+            // Drop table if exists (DDL with autocommit=true)
             try {
                 stmt.execute("DROP TABLE mysql_auto_increment_test");
             } catch (SQLException e) {
                 // Ignore - table might not exist
             }
 
-            // Create table with auto-increment
+            // Create table with auto-increment (DDL with autocommit=true)
             stmt.execute("CREATE TABLE mysql_auto_increment_test (" +
                     "id INT AUTO_INCREMENT PRIMARY KEY, " +
                     "name VARCHAR(100)" +
                     ")");
+        }
 
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        try (Statement stmt = conn.createStatement()) {
             // Insert data and test LAST_INSERT_ID()
             stmt.execute("INSERT INTO mysql_auto_increment_test (name) VALUES ('First Item')");
             ResultSet rs = stmt.executeQuery("SELECT LAST_INSERT_ID()");
@@ -288,13 +288,12 @@ public class MySQLSpecificFeaturesIntegrationTest {
         
         connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connectionResult.getConnection();
-        
-        // For non-XA connections, set autocommit to false for transaction control
-        if (!isXA) {
-            conn.setAutoCommit(false);
-        }
 
         System.out.println("Testing MySQL INFORMATION_SCHEMA queries for url -> " + url);
+
+        // For non-XA connections, set autocommit to false for transaction control
+        // For this test, we can use autocommit=true as we're only doing SELECT queries
+        // No need to change autocommit
 
         try (Statement stmt = conn.createStatement()) {
             // Test INFORMATION_SCHEMA.TABLES
