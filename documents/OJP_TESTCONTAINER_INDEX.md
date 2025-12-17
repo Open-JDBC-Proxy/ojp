@@ -326,6 +326,7 @@ public class OJPWithOracleContainer {
 | Maintenance burden | 🟢 Low | Part of main repository |
 | Implementation complexity | 🟡 Medium | Well-understood technology, clear design |
 | Docker availability | 🟡 Medium | Clear documentation, graceful fallback |
+| Port conflicts | 🟢 Low | Automatic random port mapping for gRPC (1059) and Prometheus (9159) |
 | Community adoption | 🟢 Low | Solves real pain point |
 
 **Overall Risk**: 🟢 **LOW** - Safe to proceed

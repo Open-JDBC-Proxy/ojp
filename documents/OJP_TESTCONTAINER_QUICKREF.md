@@ -363,8 +363,11 @@ OJPContainer ojp = new OJPContainer()
         .withCircuitBreakerTimeout(5000)
         .withThreadPoolSize(50)
         .withMaxRequestSize(4 * 1024 * 1024))
-    .withTelemetryEnabled(true)
-    .withPrometheusPort(9090);
+    .withTelemetryEnabled(true);  // Enabled by default
+
+// Access Prometheus metrics (port automatically mapped to avoid conflicts)
+String metricsUrl = ojp.getPrometheusUrl();  // e.g., http://localhost:54321/metrics
+int prometheusPort = ojp.getPrometheusPort();  // e.g., 54321 (random)
 ```
 
 ### Q: How do I migrate existing tests?
@@ -414,6 +417,27 @@ class Test {
 2. Read CONTRIBUTING.md
 3. Fork, implement, test, PR
 4. Follow existing code patterns
+
+### Q: Will there be port conflicts when running multiple OJP containers?
+
+**A**: No! Both the gRPC port (1059) and Prometheus port (9159) are automatically mapped to random available host ports by TestContainers.
+
+```java
+// Each container gets its own random ports
+OJPContainer ojp1 = new OJPContainer();
+OJPContainer ojp2 = new OJPContainer();
+
+// Ports are different for each container
+int grpcPort1 = ojp1.getMappedPort(1059);    // e.g., 32768
+int grpcPort2 = ojp2.getMappedPort(1059);    // e.g., 32769
+int prometheusPort1 = ojp1.getPrometheusPort(); // e.g., 32770
+int prometheusPort2 = ojp2.getPrometheusPort(); // e.g., 32771
+
+// Access metrics
+String metricsUrl = ojp1.getPrometheusUrl();  // http://localhost:32770/metrics
+```
+
+This allows you to run multiple OJP containers in parallel without any conflicts.
 
 ---
 

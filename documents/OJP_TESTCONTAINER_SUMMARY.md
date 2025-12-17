@@ -154,6 +154,7 @@ class MyApplicationTest {
 5. **Flexible**: Supports multiple databases and configurations
 6. **Reusable**: Published to Maven Central for community use
 7. **License Compliant**: Only open-source databases in published artifact; custom implementations available for proprietary databases
+8. **Conflict-Free**: Automatic port mapping (gRPC and Prometheus) prevents conflicts in parallel tests
 
 ## Licensing Strategy
 

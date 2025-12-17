@@ -80,6 +80,9 @@ Benefit: Automatic, reliable, fast feedback loop
 │   │  + withDatabaseConfig(...)                │                  │
 │   │  + getJdbcUrl(...)                        │                  │
 │   │  + getGrpcUrl()                           │                  │
+│   │  + getPrometheusUrl()                     │                  │
+│   │  + getPrometheusPort()                    │                  │
+│   │  + withTelemetryEnabled(...)              │                  │
 │   │  + withServerConfiguration(...)           │                  │
 │   └────────────────────────────────────────────┘                  │
 │                       │                                            │
@@ -101,9 +104,13 @@ Benefit: Automatic, reliable, fast feedback loop
 │   │  ┌──────────────────────────────────────────┐          │      │
 │   │  │  OJP gRPC Server (Java 21)               │          │      │
 │   │  │                                          │          │      │
-│   │  │  - Port: 1059 (mapped to random port)   │          │      │
+│   │  │  - gRPC Port: 1059 → random (e.g. 32768)│          │      │
+│   │  │  - Prometheus: 9159 → random (e.g. 32769)│         │      │
 │   │  │  - Health Check: gRPC health service    │          │      │
 │   │  │  - Configuration: ENV variables         │          │      │
+│   │  │                                          │          │      │
+│   │  │  Note: Both ports mapped to random host │          │      │
+│   │  │        ports to prevent conflicts       │          │      │
 │   │  └──────────────────────────────────────────┘          │      │
 │   │                                                        │      │
 │   │  ┌──────────────────────────────────────────┐          │      │

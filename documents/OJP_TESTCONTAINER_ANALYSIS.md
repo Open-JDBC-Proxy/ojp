@@ -132,8 +132,10 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
     private static final String DEFAULT_IMAGE_NAME = "rrobetti/ojp";
     private static final String DEFAULT_TAG = "0.3.1-snapshot";
     private static final int DEFAULT_GRPC_PORT = 1059;
+    private static final int DEFAULT_PROMETHEUS_PORT = 9159;
     
     private final Map<String, DatabaseConfig> databases = new HashMap<>();
+    private boolean telemetryEnabled = true; // Enabled by default
     
     public OJPContainer() {
         this(DEFAULT_IMAGE_NAME + ":" + DEFAULT_TAG);
@@ -142,8 +144,9 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
     public OJPContainer(String dockerImageName) {
         super(DockerImageName.parse(dockerImageName));
         
-        // Expose default gRPC port
-        withExposedPorts(DEFAULT_GRPC_PORT);
+        // Expose default gRPC port and Prometheus port
+        // Both ports will be mapped to random available ports to avoid conflicts
+        withExposedPorts(DEFAULT_GRPC_PORT, DEFAULT_PROMETHEUS_PORT);
         
         // Wait for health check
         waitingFor(Wait.forHealthcheck());
@@ -185,6 +188,40 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
     public String getGrpcUrl() {
         return getHost() + ":" + getMappedPort(DEFAULT_GRPC_PORT);
     }
+    
+    /**
+     * Enable or disable telemetry/Prometheus metrics.
+     * Telemetry is enabled by default.
+     */
+    public OJPContainer withTelemetryEnabled(boolean enabled) {
+        this.telemetryEnabled = enabled;
+        withEnv("ojp.opentelemetry.enabled", String.valueOf(enabled));
+        return this;
+    }
+    
+    /**
+     * Get the Prometheus metrics endpoint URL.
+     * The Prometheus port is automatically mapped to a random available port
+     * to avoid conflicts when running multiple containers.
+     * 
+     * @return Prometheus metrics URL (e.g., "http://localhost:54321/metrics")
+     */
+    public String getPrometheusUrl() {
+        if (!telemetryEnabled) {
+            throw new IllegalStateException("Telemetry is disabled. Enable it with withTelemetryEnabled(true)");
+        }
+        return "http://" + getHost() + ":" + getMappedPort(DEFAULT_PROMETHEUS_PORT) + "/metrics";
+    }
+    
+    /**
+     * Get the mapped Prometheus port.
+     * The port is randomly assigned to avoid conflicts.
+     * 
+     * @return The host port mapped to the container's Prometheus port
+     */
+    public int getPrometheusPort() {
+        return getMappedPort(DEFAULT_PROMETHEUS_PORT);
+    }
 }
 ```
 
@@ -195,6 +232,7 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
    - Optional: Circuit breaker settings
    - Optional: Connection pool settings
    - Optional: IP whitelisting (for production-like testing)
+   - Optional: Telemetry/Prometheus configuration
 
 2. **Network Integration**
    - Support for Testcontainers network (to connect to other database containers)
@@ -208,6 +246,11 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
    - Proper cleanup on test completion
    - Support for singleton pattern (shared across tests)
    - Support for per-test instances
+
+5. **Port Management**
+   - Automatic port mapping for gRPC (1059) and Prometheus (9159) to random available ports
+   - Prevents conflicts when running multiple containers in parallel
+   - Both ports accessible via getMappedPort() methods
 
 ### 4. Maven Configuration (pom.xml)
 
@@ -420,14 +463,27 @@ The container should support multiple database configurations simultaneously, wh
 
 ### 3. Observability Support
 
+**Important**: Both the gRPC port (1059) and Prometheus port (9159) are automatically mapped to random available host ports to prevent conflicts when running multiple OJP containers.
+
 ```java
 OJPContainer ojp = new OJPContainer()
-    .withTelemetryEnabled(true)
-    .withPrometheusPort(9090);
+    .withTelemetryEnabled(true)  // Enabled by default
+    .withDatabaseConfig("db", ...);
 
-// Access metrics endpoint
-String metricsUrl = ojp.getMetricsUrl();
+// Access metrics endpoint - port is automatically mapped to avoid conflicts
+String metricsUrl = ojp.getPrometheusUrl();  // e.g., "http://localhost:54321/metrics"
+int prometheusPort = ojp.getPrometheusPort();  // e.g., 54321 (random)
+
+// Disable telemetry if not needed
+OJPContainer ojpNoMetrics = new OJPContainer()
+    .withTelemetryEnabled(false)
+    .withDatabaseConfig("db", ...);
 ```
+
+**Port Mapping Strategy**:
+- **gRPC Port (1059)**: Mapped to random host port (e.g., 32768)
+- **Prometheus Port (9159)**: Mapped to random host port (e.g., 32769)
+- This ensures no conflicts when running multiple containers in parallel tests
 
 ### 4. Custom OJP Server Image
 
