@@ -44,6 +44,15 @@ Located in [configuration/](configuration/):
 - [OJP JDBC Configuration](configuration/ojp-jdbc-configuration.md) - JDBC driver configuration
 - [OJP Server Configuration](configuration/ojp-server-configuration.md) - Server configuration
 
+## TestContainers Integration
+
+**OJP TestContainer Analysis** - Plan for creating a reusable TestContainer for OJP:
+- [Quick Reference](OJP_TESTCONTAINER_QUICKREF.md) - Start here! Quick guide and navigation
+- [Executive Summary](OJP_TESTCONTAINER_SUMMARY.md) - Key recommendations and decisions
+- [Technical Analysis](OJP_TESTCONTAINER_ANALYSIS.md) - Full technical analysis and design
+- [Architecture Diagrams](OJP_TESTCONTAINER_ARCHITECTURE.md) - Visual architecture and data flow
+- [SQL Server TestContainer Guide](SQLSERVER_TESTCONTAINER_GUIDE.md) - Existing SQL Server implementation
+
 ## Database Setup Guides
 
 Located in [environment-setup/](environment-setup/):
@@ -155,5 +164,11 @@ documents/
 ├── runnable-jar/              # JAR execution guides
 ├── targeted-problem/          # Problem statements
 ├── telemetry/                 # Telemetry documentation
-└── xa/                        # XA transaction documentation
+├── troubleshooting/           # Troubleshooting guides
+├── xa/                        # XA transaction documentation
+├── OJP_TESTCONTAINER_QUICKREF.md       # TestContainer quick reference
+├── OJP_TESTCONTAINER_SUMMARY.md        # TestContainer executive summary
+├── OJP_TESTCONTAINER_ANALYSIS.md       # TestContainer technical analysis
+├── OJP_TESTCONTAINER_ARCHITECTURE.md   # TestContainer architecture diagrams
+└── SQLSERVER_TESTCONTAINER_GUIDE.md    # SQL Server TestContainer guide
 ```
