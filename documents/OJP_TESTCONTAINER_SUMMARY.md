@@ -36,6 +36,8 @@ Use the existing Docker image `rrobetti/ojp:0.3.1-snapshot` by default.
 - Matches production usage
 - Simpler implementation
 
+**Important Licensing Note**: The published Maven Central artifact will only include pre-configured support for **open-source databases** (PostgreSQL, MySQL, MariaDB, H2). For proprietary databases (Oracle, SQL Server, DB2), developers can create custom TestContainer implementations following documented patterns. See the full analysis for detailed guidance.
+
 ### 3. Target Java Version: **Java 11** ✅
 
 **Why?**
@@ -151,6 +153,38 @@ class MyApplicationTest {
 4. **Realistic**: Uses actual OJP Docker image
 5. **Flexible**: Supports multiple databases and configurations
 6. **Reusable**: Published to Maven Central for community use
+7. **License Compliant**: Only open-source databases in published artifact; custom implementations available for proprietary databases
+
+## Licensing Strategy
+
+### Published to Maven Central (Open-Source Databases Only)
+
+The `ojp-testcontainers` Maven artifact will include pre-configured support for:
+- ✅ PostgreSQL
+- ✅ MySQL / MariaDB
+- ✅ H2
+- ✅ Other open-source databases
+
+### Custom Implementations (Proprietary Databases)
+
+For licensing reasons, proprietary databases require custom implementations:
+- ❌ Oracle Database - developers create custom TestContainer
+- ❌ Microsoft SQL Server - developers create custom TestContainer
+- ❌ IBM DB2 - developers create custom TestContainer
+
+**Documentation Provided**: Complete guide on creating custom TestContainers for proprietary databases, including code examples for Oracle, SQL Server, and DB2. See [Section 8 of the full analysis](OJP_TESTCONTAINER_ANALYSIS.md#8-custom-testcontainers-for-proprietary-databases).
+
+**Example Custom Implementation** (developers add to their test code):
+```java
+// src/test/java/com/mycompany/testutil/OJPWithOracleContainer.java
+public class OJPWithOracleContainer {
+    private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim");
+    private static OJPContainer ojp = new OJPContainer()
+        .withDatabaseConfig("oracle", oracle.getJdbcUrl(), ...);
+    
+    // Container lifecycle methods...
+}
+```
 
 ## Implementation Roadmap
 

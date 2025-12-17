@@ -54,6 +54,26 @@ Integration tests in `ojp-jdbc-driver` follow this pattern:
 - ❌ More complex release coordination
 - ⚠️ Only consider if planning to support multiple OJP versions simultaneously
 
+### 1.1. **Licensing Considerations for Database TestContainers** ⚠️
+
+**IMPORTANT**: The published `ojp-testcontainers` module to Maven Central will **only include support for open-source databases** due to licensing restrictions.
+
+**Open-Source Databases** (Can be published to Maven Central):
+- ✅ PostgreSQL
+- ✅ MySQL
+- ✅ MariaDB
+- ✅ H2
+- ✅ Other OSS databases with compatible licenses
+
+**Proprietary Databases** (Cannot be published to Maven Central):
+- ❌ Oracle Database (requires accepting license)
+- ❌ Microsoft SQL Server (requires accepting license)
+- ❌ IBM DB2 (requires accepting license)
+- ❌ Other proprietary databases
+
+**Solution for Proprietary Databases**:
+Developers can create their own TestContainer implementations locally by following the patterns and documentation we provide. See [Section 8: Custom TestContainers for Proprietary Databases](#8-custom-testcontainers-for-proprietary-databases) for detailed guidance.
+
 ### 2. Module Structure
 
 ```
@@ -574,6 +594,407 @@ void test() {
 
 5. **Version strategy**: Same version as parent or independent?
    - Recommendation: Same version (release together)
+
+## 8. Custom TestContainers for Proprietary Databases
+
+### Overview
+
+Due to licensing restrictions, the published `ojp-testcontainers` Maven artifact **cannot include** pre-built TestContainers for proprietary databases (Oracle, SQL Server, DB2). However, developers can easily create their own TestContainer implementations following the patterns documented here.
+
+### Why Custom Implementations are Needed
+
+**Licensing Restrictions**:
+- Proprietary database containers require accepting specific license agreements
+- These licenses cannot be automatically accepted in a published library
+- Maven Central policies prohibit redistributing proprietary database drivers
+
+**Benefits of Custom Implementation**:
+- ✅ Full control over database version and configuration
+- ✅ Can use specific JDBC driver versions required by your project
+- ✅ Can customize database settings for your use case
+- ✅ Compliant with database vendor licensing requirements
+
+### Creating a Custom OJP TestContainer
+
+#### Step 1: Add Dependencies to Your Test Scope
+
+Add the OJP TestContainer dependency and the specific database container you need:
+
+```xml
+<!-- pom.xml -->
+<dependencies>
+    <!-- Published OJP TestContainer (for OJP server) -->
+    <dependency>
+        <groupId>org.openjproxy</groupId>
+        <artifactId>ojp-testcontainers</artifactId>
+        <version>0.3.1-snapshot</version>
+        <scope>test</scope>
+    </dependency>
+    
+    <!-- For Oracle Database -->
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>oracle-xe</artifactId>
+        <version>1.20.4</version>
+        <scope>test</scope>
+    </dependency>
+    
+    <!-- Oracle JDBC Driver -->
+    <dependency>
+        <groupId>com.oracle.database.jdbc</groupId>
+        <artifactId>ojdbc11</artifactId>
+        <version>23.3.0.23.09</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+#### Step 2: Create a Custom TestContainer Class
+
+Create a utility class in your test source directory:
+
+```java
+// src/test/java/com/mycompany/testutil/OJPWithOracleTestContainer.java
+package com.mycompany.testutil;
+
+import org.openjproxy.testcontainers.OJPContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.OracleContainer;
+import org.testcontainers.lifecycle.Startables;
+
+import java.util.stream.Stream;
+
+/**
+ * Custom TestContainer setup that combines OJP with Oracle Database.
+ * This is a local implementation due to Oracle licensing restrictions.
+ */
+public class OJPWithOracleTestContainer {
+    
+    private static Network network;
+    private static OracleContainer oracleContainer;
+    private static OJPContainer ojpContainer;
+    private static boolean initialized = false;
+    
+    /**
+     * Initialize and start both Oracle and OJP containers.
+     * This method is idempotent - safe to call multiple times.
+     */
+    public static synchronized void initialize() {
+        if (initialized) {
+            return;
+        }
+        
+        // Create shared network
+        network = Network.newNetwork();
+        
+        // Start Oracle container
+        oracleContainer = new OracleContainer("gvenzl/oracle-xe:21-slim")
+            .withNetwork(network)
+            .withNetworkAliases("oracle-db")
+            .withReuse(true);  // Optional: reuse container across test runs
+        
+        // Start OJP container configured to connect to Oracle
+        ojpContainer = new OJPContainer()
+            .withNetwork(network)
+            .dependsOn(oracleContainer)
+            .withDatabaseConfig("oracle", 
+                "jdbc:oracle:thin:@oracle-db:1521/XEPDB1",
+                oracleContainer.getUsername(),
+                oracleContainer.getPassword())
+            .withReuse(true);  // Optional: reuse container across test runs
+        
+        // Start both containers in parallel
+        Startables.deepStart(Stream.of(oracleContainer, ojpContainer))
+            .join();
+        
+        initialized = true;
+        
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (ojpContainer != null) {
+                ojpContainer.stop();
+            }
+            if (oracleContainer != null) {
+                oracleContainer.stop();
+            }
+            if (network != null) {
+                network.close();
+            }
+        }));
+    }
+    
+    /**
+     * Get OJP JDBC URL for Oracle database.
+     */
+    public static String getOJPJdbcUrl() {
+        initialize();
+        return ojpContainer.getJdbcUrl("oracle");
+    }
+    
+    /**
+     * Get direct Oracle JDBC URL (bypassing OJP).
+     */
+    public static String getDirectOracleUrl() {
+        initialize();
+        return oracleContainer.getJdbcUrl();
+    }
+    
+    /**
+     * Get Oracle username.
+     */
+    public static String getUsername() {
+        initialize();
+        return oracleContainer.getUsername();
+    }
+    
+    /**
+     * Get Oracle password.
+     */
+    public static String getPassword() {
+        initialize();
+        return oracleContainer.getPassword();
+    }
+}
+```
+
+#### Step 3: Use in Your Tests
+
+```java
+import com.mycompany.testutil.OJPWithOracleTestContainer;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class OracleIntegrationTest {
+    
+    @BeforeAll
+    static void setup() {
+        // Initialize containers (happens once for all tests)
+        OJPWithOracleTestContainer.initialize();
+    }
+    
+    @Test
+    void testOracleViaOJP() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                OJPWithOracleTestContainer.getOJPJdbcUrl(),
+                OJPWithOracleTestContainer.getUsername(),
+                OJPWithOracleTestContainer.getPassword())) {
+            
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT 1 FROM DUAL");
+            assertTrue(rs.next());
+        }
+    }
+}
+```
+
+### Examples for Different Proprietary Databases
+
+#### SQL Server Example
+
+```java
+package com.mycompany.testutil;
+
+import org.openjproxy.testcontainers.OJPContainer;
+import org.testcontainers.containers.MSSQLServerContainer;
+import org.testcontainers.containers.Network;
+
+public class OJPWithSQLServerTestContainer {
+    
+    private static Network network;
+    private static MSSQLServerContainer<?> sqlServerContainer;
+    private static OJPContainer ojpContainer;
+    private static boolean initialized = false;
+    
+    public static synchronized void initialize() {
+        if (initialized) return;
+        
+        network = Network.newNetwork();
+        
+        sqlServerContainer = new MSSQLServerContainer<>("mcr.microsoft.com/mssql/server:2022-latest")
+            .withNetwork(network)
+            .withNetworkAliases("sqlserver-db")
+            .acceptLicense();
+        
+        ojpContainer = new OJPContainer()
+            .withNetwork(network)
+            .dependsOn(sqlServerContainer)
+            .withDatabaseConfig("sqlserver",
+                sqlServerContainer.getJdbcUrl(),
+                sqlServerContainer.getUsername(),
+                sqlServerContainer.getPassword());
+        
+        sqlServerContainer.start();
+        ojpContainer.start();
+        
+        initialized = true;
+    }
+    
+    public static String getOJPJdbcUrl() {
+        initialize();
+        return ojpContainer.getJdbcUrl("sqlserver");
+    }
+}
+```
+
+#### DB2 Example
+
+```java
+package com.mycompany.testutil;
+
+import org.openjproxy.testcontainers.OJPContainer;
+import org.testcontainers.containers.Db2Container;
+import org.testcontainers.containers.Network;
+
+public class OJPWithDb2TestContainer {
+    
+    private static Network network;
+    private static Db2Container db2Container;
+    private static OJPContainer ojpContainer;
+    private static boolean initialized = false;
+    
+    public static synchronized void initialize() {
+        if (initialized) return;
+        
+        network = Network.newNetwork();
+        
+        db2Container = new Db2Container("icr.io/db2_community/db2:11.5.9.0")
+            .withNetwork(network)
+            .withNetworkAliases("db2-db")
+            .acceptLicense();
+        
+        ojpContainer = new OJPContainer()
+            .withNetwork(network)
+            .dependsOn(db2Container)
+            .withDatabaseConfig("db2",
+                db2Container.getJdbcUrl(),
+                db2Container.getUsername(),
+                db2Container.getPassword());
+        
+        db2Container.start();
+        ojpContainer.start();
+        
+        initialized = true;
+    }
+    
+    public static String getOJPJdbcUrl() {
+        initialize();
+        return ojpContainer.getJdbcUrl("db2");
+    }
+}
+```
+
+### Testing with Specific JDBC Driver Versions
+
+To test with exact JDBC driver versions:
+
+```xml
+<dependencies>
+    <!-- Specify exact driver version -->
+    <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <version>42.7.3</version>  <!-- Your specific version -->
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+Then configure your test:
+
+```java
+@Test
+void testSpecificDriverVersion() throws Exception {
+    // The JDBC driver version in your classpath will be used
+    // OJP will proxy connections using this specific driver version
+    try (Connection conn = DriverManager.getConnection(
+            ojpContainer.getJdbcUrl("postgres"), "user", "pass")) {
+        
+        DatabaseMetaData meta = conn.getMetaData();
+        System.out.println("Driver version: " + meta.getDriverVersion());
+        
+        // Your test code
+    }
+}
+```
+
+### Best Practices for Custom TestContainers
+
+1. **Create Once, Reuse**: Use singleton pattern to share containers across tests
+2. **Use Networks**: Connect database and OJP containers via TestContainers Network
+3. **Container Reuse**: Enable `.withReuse(true)` for faster test iterations
+4. **Proper Cleanup**: Register shutdown hooks to clean up resources
+5. **Documentation**: Document your custom setup in your project's README
+6. **Version Control**: Commit your custom TestContainer classes to version control
+7. **Team Sharing**: Share custom implementations across your team via internal repositories
+
+### Advanced: Using with Different Database Versions
+
+You can test against multiple database versions:
+
+```java
+public class OJPWithMultiplePostgresVersions {
+    
+    public static OJPContainer createWithPostgres(String postgresVersion) {
+        Network network = Network.newNetwork();
+        
+        PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+                "postgres:" + postgresVersion)
+            .withNetwork(network)
+            .withNetworkAliases("postgres-db");
+        
+        OJPContainer ojp = new OJPContainer()
+            .withNetwork(network)
+            .dependsOn(postgres)
+            .withDatabaseConfig("postgres",
+                postgres.getJdbcUrl(),
+                postgres.getUsername(),
+                postgres.getPassword());
+        
+        postgres.start();
+        ojp.start();
+        
+        return ojp;
+    }
+}
+
+// In your test
+@ParameterizedTest
+@ValueSource(strings = {"12", "13", "14", "15", "16"})
+void testAcrossPostgresVersions(String version) throws Exception {
+    OJPContainer ojp = OJPWithMultiplePostgresVersions.createWithPostgres(version);
+    
+    try (Connection conn = DriverManager.getConnection(
+            ojp.getJdbcUrl("postgres"), "test", "test")) {
+        // Test against specific version
+    } finally {
+        ojp.stop();
+    }
+}
+```
+
+### Summary: Licensing Approach
+
+| Database Type | Published in ojp-testcontainers | Custom Implementation Required |
+|--------------|--------------------------------|-------------------------------|
+| PostgreSQL | ✅ Yes | ❌ No (use published artifact) |
+| MySQL/MariaDB | ✅ Yes | ❌ No (use published artifact) |
+| H2 | ✅ Yes | ❌ No (use published artifact) |
+| Oracle | ❌ No | ✅ Yes (create custom as shown above) |
+| SQL Server | ❌ No | ✅ Yes (create custom as shown above) |
+| DB2 | ❌ No | ✅ Yes (create custom as shown above) |
+
+This approach ensures:
+- ✅ Compliance with all database licensing requirements
+- ✅ Maven Central publication is legally sound
+- ✅ Developers have full flexibility for proprietary databases
+- ✅ Documentation provides clear guidance for all scenarios
 
 ## References
 

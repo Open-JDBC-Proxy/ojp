@@ -147,6 +147,22 @@ OJPContainer ojp = new OJPContainer()
 - Same process as other modules
 - Wide accessibility
 
+### ✅ Decision 6: Database Licensing Strategy
+**Published artifact: Open-source databases only**
+
+**Included in Maven Central**:
+- ✅ PostgreSQL, MySQL, MariaDB, H2
+
+**Custom implementations** (documentation provided):
+- 📝 Oracle Database
+- 📝 Microsoft SQL Server
+- 📝 IBM DB2
+
+**Why?**
+- Licensing compliance with Maven Central policies
+- Proprietary databases require accepting licenses
+- Full documentation provided for custom implementations
+
 ---
 
 ## Implementation Plan
@@ -234,11 +250,52 @@ OJPContainer ojp = new OJPContainer()
 
 ### Q: What databases will be supported?
 
-**A**: OJP supports any database with a JDBC driver. The TestContainer will support all of them. Examples will focus on:
-- H2 (embedded, no Docker needed)
-- PostgreSQL
-- MySQL
-- SQL Server
+**A**: The published Maven Central artifact includes **open-source databases only** due to licensing:
+
+**Included in published JAR**:
+- ✅ H2 (embedded, no Docker needed)
+- ✅ PostgreSQL
+- ✅ MySQL / MariaDB
+
+**Requires custom implementation** (full documentation provided):
+- 📝 Oracle Database
+- 📝 Microsoft SQL Server  
+- 📝 IBM DB2
+
+For proprietary databases, you create a simple custom TestContainer in your test code following our documented patterns. See the [full analysis](OJP_TESTCONTAINER_ANALYSIS.md#8-custom-testcontainers-for-proprietary-databases) for complete examples.
+
+### Q: How do I use OJP with Oracle/SQL Server/DB2?
+
+**A**: Create a custom TestContainer in your test code:
+
+```java
+// src/test/java/com/mycompany/testutil/OJPWithOracleContainer.java
+public class OJPWithOracleContainer {
+    private static Network network = Network.newNetwork();
+    
+    private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim")
+        .withNetwork(network);
+    
+    private static OJPContainer ojp = new OJPContainer()
+        .withNetwork(network)
+        .dependsOn(oracle)
+        .withDatabaseConfig("oracle", 
+            oracle.getJdbcUrl(), 
+            oracle.getUsername(), 
+            oracle.getPassword());
+    
+    public static void initialize() {
+        oracle.start();
+        ojp.start();
+    }
+    
+    public static String getOJPJdbcUrl() {
+        return ojp.getJdbcUrl("oracle");
+    }
+}
+```
+
+Full examples for Oracle, SQL Server, and DB2 are in the [technical analysis](OJP_TESTCONTAINER_ANALYSIS.md#8-custom-testcontainers-for-proprietary-databases).
 
 ### Q: Will this work in CI/CD?
 

@@ -130,6 +130,7 @@ This analysis provides a complete blueprint for creating an OJP TestContainer th
 | **Java Version** | Java 11 | Maximum compatibility |
 | **API Design** | Fluent API + Environment variables | Great DX, works well with OJP |
 | **Publication** | Maven Central | Using existing infrastructure |
+| **Database Support** | Open-source only in published JAR | Licensing compliance; custom implementations for proprietary DBs |
 
 ---
 
@@ -273,6 +274,47 @@ class MyDatabaseTest {
 - ✅ Configures connection pools
 - ✅ Provides connection URLs
 - ✅ Stops after tests
+
+---
+
+## 🔐 Database Licensing Strategy
+
+### Published to Maven Central (Open-Source Databases)
+
+The `ojp-testcontainers` artifact will include **pre-configured support for open-source databases only**:
+
+| Database | Status | Reason |
+|----------|--------|--------|
+| PostgreSQL | ✅ Included | Open-source, no license restrictions |
+| MySQL / MariaDB | ✅ Included | Open-source, no license restrictions |
+| H2 | ✅ Included | Open-source, no license restrictions |
+| Oracle | 📝 Custom only | Proprietary license, cannot publish |
+| SQL Server | 📝 Custom only | Proprietary license, cannot publish |
+| DB2 | 📝 Custom only | Proprietary license, cannot publish |
+
+### Custom Implementations for Proprietary Databases
+
+Developers can create simple custom TestContainer implementations for proprietary databases following documented patterns:
+
+```java
+// Your project: src/test/java/com/mycompany/testutil/OJPWithOracleContainer.java
+public class OJPWithOracleContainer {
+    private static OracleContainer oracle = new OracleContainer("gvenzl/oracle-xe:21-slim");
+    private static OJPContainer ojp = new OJPContainer()
+        .withDatabaseConfig("oracle", oracle.getJdbcUrl(), ...);
+    
+    // Initialize and use...
+}
+```
+
+**Full Documentation**: Complete code examples for Oracle, SQL Server, and DB2 are provided in [Section 8 of the Technical Analysis](OJP_TESTCONTAINER_ANALYSIS.md#8-custom-testcontainers-for-proprietary-databases).
+
+**Benefits of This Approach**:
+- ✅ Complies with Maven Central policies and database licensing
+- ✅ Published artifact is legally sound
+- ✅ Developers retain full flexibility for proprietary databases
+- ✅ Can use exact JDBC driver versions needed
+- ✅ Complete documentation and examples provided
 
 ---
 

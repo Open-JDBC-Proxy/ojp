@@ -317,9 +317,71 @@ OJP Server (reads from environment)
 
 ---
 
+## Database Support Strategy
+
+### Published JAR (Maven Central)
+
+```
+┌────────────────────────────────────────────────────┐
+│     ojp-testcontainers (Maven Central)             │
+│                                                    │
+│  ┌──────────────────────────────────────────┐     │
+│  │  Pre-configured Database Support         │     │
+│  │                                          │     │
+│  │  ✅ PostgreSQL                           │     │
+│  │  ✅ MySQL / MariaDB                      │     │
+│  │  ✅ H2                                   │     │
+│  │                                          │     │
+│  │  License: Open-source, no restrictions  │     │
+│  └──────────────────────────────────────────┘     │
+│                                                    │
+│  ┌──────────────────────────────────────────┐     │
+│  │  Documentation for Custom Impl           │     │
+│  │                                          │     │
+│  │  📝 Oracle Database (example code)       │     │
+│  │  📝 SQL Server (example code)            │     │
+│  │  📝 DB2 (example code)                   │     │
+│  │                                          │     │
+│  │  Cannot publish due to licensing        │     │
+│  └──────────────────────────────────────────┘     │
+└────────────────────────────────────────────────────┘
+```
+
+### Custom Implementation (User's Project)
+
+```
+User's Project
+    │
+    ├─► src/test/java/com/company/testutil/
+    │       │
+    │       ├─► OJPWithOracleContainer.java
+    │       │   └─► OracleContainer + OJPContainer
+    │       │
+    │       ├─► OJPWithSQLServerContainer.java
+    │       │   └─► MSSQLServerContainer + OJPContainer
+    │       │
+    │       └─► OJPWithDb2Container.java
+    │           └─► Db2Container + OJPContainer
+    │
+    └─► pom.xml
+            │
+            ├─► ojp-testcontainers (from Maven Central)
+            ├─► testcontainers-oracle (from Maven Central)
+            └─► oracle-jdbc (from Maven/vendor)
+```
+
+**Benefits**:
+- ✅ Legal compliance with licensing
+- ✅ Full flexibility for proprietary databases
+- ✅ Can use exact driver versions needed
+- ✅ Complete code examples provided
+
+---
+
 This architecture enables:
 ✅ Automatic OJP server lifecycle management
 ✅ Isolated test environments
 ✅ Easy multi-database testing
 ✅ CI/CD integration
 ✅ No manual setup required
+✅ License-compliant Maven Central publication
