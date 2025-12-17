@@ -40,15 +40,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- OJP JDBC Driver for testing -->
-        <dependency>
-            <groupId>org.openjproxy</groupId>
-            <artifactId>ojp-jdbc-driver</artifactId>
-            <version>0.3.1-snapshot</version>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- H2 Database for testing -->
+        <!-- H2 Database for testing (basic container tests only) -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
