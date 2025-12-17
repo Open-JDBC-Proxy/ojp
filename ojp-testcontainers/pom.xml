@@ -32,6 +32,14 @@
             <version>${testcontainers.version}</version>
         </dependency>
 
+        <!-- TestContainers JUnit Jupiter Integration -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
