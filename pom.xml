@@ -16,6 +16,7 @@
         <module>ojp-grpc-commons</module>
         <module>ojp-jdbc-driver</module>
         <module>ojp-server</module>
+        <module>ojp-testcontainers</module>
     </modules>
 
     <properties>
