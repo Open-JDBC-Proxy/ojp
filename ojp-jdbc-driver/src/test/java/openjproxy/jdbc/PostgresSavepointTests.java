@@ -74,6 +74,11 @@ public class PostgresSavepointTests {
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (2, 'Bob')");
         connection.rollback(savepoint);
 
+        // Commit the transaction to finalize the first insert
+        connectionResult.commit();
+
+        // Start new transaction for query
+        connectionResult.startXATransactionIfNeeded();
         ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM savepoint_test_table order by id desc");
         assertTrue(resultSet.next());
         assertEquals(1, resultSet.getInt("id"));

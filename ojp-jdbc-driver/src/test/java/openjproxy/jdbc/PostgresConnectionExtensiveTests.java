@@ -106,19 +106,24 @@ public class PostgresConnectionExtensiveTests {
         
         // PostgreSQL DDL statements are transactional, so we need to create and commit the table first
         TestDBUtils.createBasicTestTable(connection, "postgres_connection_test", TestDBUtils.SqlSyntax.POSTGRES, true);
-        connection.commit(); // Ensure table creation is committed
+        connectionResult.commit(); // Ensure table creation is committed using ConnectionResult
         
-        connection.setAutoCommit(false);
+        // Start new transaction for DML
+        connectionResult.startXATransactionIfNeeded();
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
-        connection.rollback();
+        connectionResult.rollback();
 
+        // Start new transaction for query
+        connectionResult.startXATransactionIfNeeded();
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
         assertEquals(false, rs.next());
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
-        connection.commit();
+        connectionResult.commit();
 
+        // Start new transaction for query
+        connectionResult.startXATransactionIfNeeded();
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
         assertEquals(true, rs.next());
     }
@@ -130,9 +135,10 @@ public class PostgresConnectionExtensiveTests {
         
         // PostgreSQL DDL statements are transactional, so we need to create and commit the table first
         TestDBUtils.createBasicTestTable(connection, "postgres_connection_test", TestDBUtils.SqlSyntax.POSTGRES, true);
-        connection.commit(); // Ensure table creation is committed
+        connectionResult.commit(); // Ensure table creation is committed using ConnectionResult
         
-        connection.setAutoCommit(false);
+        // Start new transaction for DML
+        connectionResult.startXATransactionIfNeeded();
 
         Savepoint sp1 = connection.setSavepoint("Savepoint1");
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
@@ -145,8 +151,10 @@ public class PostgresConnectionExtensiveTests {
         // sp1 is no longer valid after rollback, so create a new savepoint to demonstrate release functionality  
         Savepoint sp2 = connection.setSavepoint("Savepoint2");
         connection.releaseSavepoint(sp2);
-        connection.commit();
+        connectionResult.commit();
 
+        // Start new transaction for query
+        connectionResult.startXATransactionIfNeeded();
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
         assertEquals(true, rs.next());
     }

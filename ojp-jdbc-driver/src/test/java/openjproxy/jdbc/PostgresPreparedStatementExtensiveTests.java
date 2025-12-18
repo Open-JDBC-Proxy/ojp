@@ -68,6 +68,10 @@ public class PostgresPreparedStatementExtensiveTests {
                 "info TEXT, " +   // PostgreSQL equivalent of CLOB
                 "dt DATE)");
         stmt.close();
+        
+        // Commit DDL and start new transaction for DML
+        connectionResult.commit();
+        connectionResult.startXATransactionIfNeeded();
     }
 
     @AfterEach
