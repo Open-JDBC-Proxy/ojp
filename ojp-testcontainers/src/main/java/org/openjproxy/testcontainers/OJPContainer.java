@@ -94,11 +94,6 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
                 .copy("ojp-server.jar", "/app/ojp-server.jar")
                 .workDir("/app")
                 .expose(DEFAULT_GRPC_PORT, DEFAULT_PROMETHEUS_PORT)
-                .healthCheck(cmd -> cmd
-                    .withTest("CMD", "true")  // Simple health check - can be enhanced
-                    .withInterval(Duration.ofSeconds(5))
-                    .withTimeout(Duration.ofSeconds(3))
-                    .withRetries(3))
                 .entryPoint("java", "-jar", "ojp-server.jar")
                 .build())
             .withFileFromPath("ojp-server.jar", ojpServerJar);
