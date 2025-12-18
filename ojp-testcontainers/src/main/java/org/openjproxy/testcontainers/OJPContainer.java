@@ -2,7 +2,15 @@ package org.openjproxy.testcontainers;
 
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.utility.DockerImageName;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.stream.Stream;
 
 /**
  * TestContainer for OJP (Open J Proxy) server.
@@ -24,18 +32,19 @@ import org.testcontainers.utility.DockerImageName;
  */
 public class OJPContainer extends GenericContainer<OJPContainer> {
     
-    private static final String DEFAULT_IMAGE_NAME = "rrobetti/ojp";
-    private static final String DEFAULT_TAG = "0.3.1-snapshot";
     private static final int DEFAULT_GRPC_PORT = 1059;
     private static final int DEFAULT_PROMETHEUS_PORT = 9159;
     
     private boolean telemetryEnabled = true; // Enabled by default
     
     /**
-     * Creates an OJP container with the default image.
+     * Creates an OJP container by building a Docker image from the local ojp-server JAR.
+     * This eliminates the need for pre-published Docker images.
+     * 
+     * <p>Prerequisites: Run 'mvn clean install' to build the ojp-server JAR before running tests.</p>
      */
     public OJPContainer() {
-        this(DEFAULT_IMAGE_NAME + ":" + DEFAULT_TAG);
+        this(buildImageFromLocalJar());
     }
     
     /**
@@ -45,13 +54,94 @@ public class OJPContainer extends GenericContainer<OJPContainer> {
      */
     public OJPContainer(String dockerImageName) {
         super(DockerImageName.parse(dockerImageName));
-        
+        commonSetup();
+    }
+    
+    /**
+     * Creates an OJP container from a dynamically built image.
+     * 
+     * @param imageFromDockerfile the image builder
+     */
+    private OJPContainer(ImageFromDockerfile imageFromDockerfile) {
+        super(imageFromDockerfile);
+        commonSetup();
+    }
+    
+    /**
+     * Common setup for all constructors.
+     */
+    private void commonSetup() {
         // Expose default gRPC port and Prometheus port
         // Both ports will be mapped to random available ports to avoid conflicts
         withExposedPorts(DEFAULT_GRPC_PORT, DEFAULT_PROMETHEUS_PORT);
         
-        // Wait for health check
-        waitingFor(Wait.forHealthcheck());
+        // Wait for health check with timeout
+        waitingFor(Wait.forHealthcheck().withStartupTimeout(Duration.ofSeconds(60)));
+    }
+    
+    /**
+     * Builds a Docker image from the local ojp-server JAR file.
+     * 
+     * @return ImageFromDockerfile that builds the OJP container image
+     * @throws IllegalStateException if the ojp-server JAR cannot be found
+     */
+    private static ImageFromDockerfile buildImageFromLocalJar() {
+        Path ojpServerJar = findOjpServerJar();
+        
+        return new ImageFromDockerfile()
+            .withDockerfileFromBuilder(builder -> builder
+                .from("eclipse-temurin:21-jre-alpine")
+                .copy("ojp-server.jar", "/app/ojp-server.jar")
+                .workDir("/app")
+                .expose(DEFAULT_GRPC_PORT, DEFAULT_PROMETHEUS_PORT)
+                .healthCheck(cmd -> cmd
+                    .withTest("CMD", "true")  // Simple health check - can be enhanced
+                    .withInterval(Duration.ofSeconds(5))
+                    .withTimeout(Duration.ofSeconds(3))
+                    .withRetries(3))
+                .entryPoint("java", "-jar", "ojp-server.jar")
+                .build())
+            .withFileFromPath("ojp-server.jar", ojpServerJar);
+    }
+    
+    /**
+     * Finds the ojp-server shaded JAR file in the Maven build output.
+     * 
+     * @return Path to the ojp-server JAR
+     * @throws IllegalStateException if the JAR cannot be found
+     */
+    private static Path findOjpServerJar() {
+        // Try common locations relative to the test module
+        Path[] searchPaths = {
+            Paths.get("../ojp-server/target"),
+            Paths.get("../../ojp-server/target"),
+            Paths.get("ojp-server/target"),
+            Paths.get("target")
+        };
+        
+        for (Path searchPath : searchPaths) {
+            if (Files.exists(searchPath) && Files.isDirectory(searchPath)) {
+                try (Stream<Path> files = Files.walk(searchPath, 1)) {
+                    Path jarFile = files
+                        .filter(path -> path.getFileName().toString().matches("ojp-server-.*-shaded\\.jar"))
+                        .findFirst()
+                        .orElse(null);
+                    
+                    if (jarFile != null && Files.exists(jarFile)) {
+                        return jarFile.toAbsolutePath();
+                    }
+                } catch (IOException e) {
+                    // Continue searching
+                }
+            }
+        }
+        
+        throw new IllegalStateException(
+            "Cannot find ojp-server-*-shaded.jar. " +
+            "Please run 'mvn clean install' to build the OJP server JAR before running tests. " +
+            "Searched paths: " + String.join(", ", 
+                Stream.of(searchPaths).map(Path::toString).toArray(String[]::new))
+        );
     }
     
     /**
