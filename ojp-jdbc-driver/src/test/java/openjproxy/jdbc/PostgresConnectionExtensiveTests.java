@@ -82,7 +82,13 @@ public class PostgresConnectionExtensiveTests {
     @CsvFileSource(resources = "/postgres_connection.csv")
     public void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
         this.setUp(driverClass, url, user, password, isXA);
-        assertEquals(true, connection.getAutoCommit());
+        
+        // XA connections have autocommit set to false by createConnection()
+        // Non-XA connections have autocommit set to false by setUp()
+        // Both should have autocommit=false after setUp()
+        assertEquals(false, connection.getAutoCommit());
+        
+        // Verify we can set it (even though it's already false)
         connection.setAutoCommit(false);
         assertEquals(false, connection.getAutoCommit());
 
