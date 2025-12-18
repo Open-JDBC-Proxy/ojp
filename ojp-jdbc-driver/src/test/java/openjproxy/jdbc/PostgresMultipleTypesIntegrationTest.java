@@ -1,10 +1,16 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.PostgreSQLConnectionProvider;
+import openjproxy.jdbc.testutil.PostgreSQLTestContainer;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.openjproxy.testcontainers.OJPContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -19,19 +25,33 @@ import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+@Testcontainers
+@EnabledIf("openjproxy.jdbc.testutil.PostgreSQLTestContainer#isEnabled")
 public class PostgresMultipleTypesIntegrationTest {
 
-    private static boolean isTestEnabled;
+    private static boolean isTestDisabled;
+
+    // OJP container that connects to the PostgreSQL container
+    @Container
+    static OJPContainer ojpContainer = new OJPContainer()
+        .withNetwork(PostgreSQLTestContainer.getNetwork())
+        .dependsOn(PostgreSQLTestContainer.getInstance());
 
     @BeforeAll
     public static void checkTestConfiguration() {
-        isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
+        isTestDisabled = !Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
+        
+        // Set the OJP proxy configuration for the connection provider
+        if (!isTestDisabled && ojpContainer.isRunning()) {
+            System.setProperty("ojp.proxy.host", ojpContainer.getHost());
+            System.setProperty("ojp.proxy.port", String.valueOf(ojpContainer.getGrpcPort()));
+        }
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
-        assumeFalse(!isTestEnabled, "Postgres tests are disabled");
+    @ArgumentsSource(PostgreSQLConnectionProvider.class)
+    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException {
+        assumeFalse(isTestDisabled, "Postgres tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -134,9 +154,9 @@ public class PostgresMultipleTypesIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testPostgresSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
-        assumeFalse(!isTestEnabled, "Postgres tests are disabled");
+    @ArgumentsSource(PostgreSQLConnectionProvider.class)
+    public void testPostgresSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+        assumeFalse(isTestDisabled, "Postgres tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
