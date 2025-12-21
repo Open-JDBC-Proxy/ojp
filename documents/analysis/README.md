@@ -22,6 +22,24 @@ Comprehensive analysis of implementing XA-aware backend session pooling with Apa
 
 **Summary**: Proposes XA-specific pooling layer using Commons Pool 2, separate from the existing ConnectionPoolProvider SPI. Includes detailed component design, state machine requirements, durability considerations, and phased implementation plan.
 
+### Deprecated XA Pass-Through Removal Analysis
+**File**: [DEPRECATED_XA_REMOVAL_ANALYSIS.md](./DEPRECATED_XA_REMOVAL_ANALYSIS.md)  
+**Date**: 2025-12-21  
+**Status**: Complete - Ready for Review
+
+Comprehensive analysis of what is required to fully remove the deprecated pass-through XA implementation from the OJP codebase.
+
+**Key Topics**:
+- Background on pass-through XA implementation and why it was deprecated
+- Complete inventory of code components to remove
+- Dependencies and references across the codebase
+- Detailed removal plan with 4 phases
+- Risk analysis and mitigation strategies
+- Testing requirements and success criteria
+- Timeline estimate: 2-3 weeks
+
+**Summary**: Provides a complete roadmap for removing ~492 lines of deprecated XA pass-through code, including the `XADataSourceFactory` and `XidImpl` classes, and simplifying the `StatementServiceImpl` branching logic. The XA Pool Provider SPI is mature and stable, making the pass-through code unnecessary.
+
 ---
 
 ## How to Use This Directory
