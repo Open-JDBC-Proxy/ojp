@@ -34,6 +34,7 @@ Located in [xa/](xa/):
 
 Located in [analysis/](analysis/):
 - [XA Transaction Testing Plan](analysis/xa-transaction-testing-plan.md) - Comprehensive plan for testing XA capabilities across Oracle, SQL Server, DB2, and message queues
+- [XA Testing Implementation Phases](analysis/xa-testing-implementation-phases.md) - Phased implementation plan broken into 12 executable phases
 
 ## Multinode Deployments
 
@@ -125,7 +126,8 @@ Diagrams and images are located in [images/](images/)
 - Implementation Details: [XA Transaction Flow](xa/XA_TRANSACTION_FLOW.md)
 - Configuration: [Atomikos XA Integration](xa/ATOMIKOS_XA_INTEGRATION.md)
 - Multinode: [XA Multinode Failover](xa/XA_MULTINODE_FAILOVER.md)
-- Testing: [XA Transaction Testing Plan](analysis/xa-transaction-testing-plan.md)
+- Testing Plan: [XA Transaction Testing Plan](analysis/xa-transaction-testing-plan.md)
+- Implementation Phases: [XA Testing Implementation Phases](analysis/xa-testing-implementation-phases.md)
 
 **Multinode Deployments:**
 - Overview: [Multinode README](multinode/README.md)
