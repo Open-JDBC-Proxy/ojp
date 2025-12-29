@@ -1101,3 +1101,484 @@ The identified questions and concerns highlight areas requiring decisions and ca
 2. Set up development environment and TestContainers
 3. Begin Phase 1: Native driver baseline testing
 4. Iterate based on findings and feedback
+
+## Detailed Test Implementation Structure
+
+Based on comprehensive XA testing analysis, the following detailed structure should be implemented:
+
+### Project Structure
+
+```
+ojp-jdbc-driver/src/test/java/
+└── org/openjproxy/xa/baseline/
+    ├── common/
+    │   ├── XATestBase.java              # Base class for all XA tests
+    │   ├── XidGenerator.java            # Utility for creating XIDs
+    │   ├── TransactionCoordinator.java  # Manual 2PC coordinator
+    │   └── TestContainerManager.java    # Container lifecycle management
+    │
+    ├── containers/
+    │   ├── OracleXAContainer.java       # Oracle TestContainer wrapper
+    │   ├── SQLServerXAContainer.java    # SQL Server TestContainer wrapper
+    │   ├── DB2XAContainer.java          # DB2 TestContainer wrapper
+    │   ├── ArtemisXAContainer.java      # ActiveMQ Artemis TestContainer wrapper
+    │   └── IBMMQXAContainer.java        # IBM MQ TestContainer wrapper (optional)
+    │
+    ├── single/
+    │   ├── OracleXABasicTest.java       # Oracle basic XA tests
+    │   ├── SQLServerXABasicTest.java    # SQL Server basic XA tests
+    │   ├── DB2XABasicTest.java          # DB2 basic XA tests
+    │   ├── OracleXARecoveryTest.java    # Oracle recovery tests
+    │   ├── SQLServerXARecoveryTest.java # SQL Server recovery tests
+    │   ├── DB2XARecoveryTest.java       # DB2 recovery tests
+    │   ├── OracleXAEdgeCasesTest.java   # Oracle edge cases
+    │   ├── SQLServerXAEdgeCasesTest.java # SQL Server edge cases
+    │   └── DB2XAEdgeCasesTest.java      # DB2 edge cases
+    │
+    ├── distributed/
+    │   ├── TwoPhaseCommitTest.java      # 2PC across databases
+    │   ├── MixedDatabaseXATest.java     # Different database vendors
+    │   ├── DistributedRollbackTest.java # Rollback scenarios
+    │   └── PartialFailureTest.java      # Failure during prepare
+    │
+    ├── queue/
+    │   ├── DatabaseQueueXATest.java     # DB + Queue transactions
+    │   ├── QueueProducerConsumerTest.java # Producer/Consumer pattern
+    │   └── QueueFailureTest.java        # Queue failure scenarios
+    │
+    ├── atomikos/
+    │   ├── AtomikosIntegrationTest.java # Atomikos coordination
+    │   ├── AtomikosRecoveryTest.java    # Atomikos recovery
+    │   └── AtomikosTimeoutTest.java     # Timeout handling
+    │
+    ├── performance/
+    │   ├── ConcurrentXATest.java        # Concurrent transactions
+    │   ├── LongRunningXATest.java       # Long-duration transactions
+    │   └── LargeDataXATest.java         # Large data volume
+    │
+    └── dbspecific/
+        ├── OracleSpecificTest.java      # Oracle-specific features
+        ├── SQLServerSpecificTest.java   # SQL Server-specific features
+        └── DB2SpecificTest.java         # DB2-specific features
+```
+
+### Test Resources Structure
+
+```
+ojp-jdbc-driver/src/test/resources/
+└── xa-baseline/
+    ├── sql/
+    │   ├── oracle-xa-setup.sql
+    │   ├── sqlserver-xa-setup.sql
+    │   └── db2-xa-setup.sql
+    ├── properties/
+    │   ├── atomikos.properties
+    │   └── jta.properties
+    └── testdata/
+        ├── large-dataset.csv
+        └── test-messages.json
+```
+
+## Edge Cases and Protocol Violations
+
+The reference document identifies **59 edge case tests** across these categories:
+
+### Protocol Violations (15 tests - HIGH priority)
+
+1. **Start Before Previous Transaction Ended**: Call `start()` with new XID while previous transaction still active
+   - Expected: `XAException(XAER_PROTO)`
+
+2. **End Before Start**: Call `end()` without calling `start()` first
+   - Expected: `XAException(XAER_PROTO or XAER_NOTA)`
+
+3. **Prepare Before End**: Call `prepare()` without calling `end()` first
+   - Expected: `XAException(XAER_PROTO)`
+
+4. **Commit Without Prepare (Two-Phase Mode)**: Call `commit(xid, false)` without calling `prepare()` first
+   - Expected: `XAException(XAER_PROTO)` OR auto-prepare (document database-specific behavior)
+
+5. **Double Prepare**: Call `prepare()` twice on same XID
+   - Expected: `XAException(XAER_PROTO or XAER_NOTA)`
+
+6. **Double Commit**: Call `commit()` twice on same XID
+   - Expected: `XAException(XAER_NOTA)` - XID not found after first commit
+
+7. **Reuse XID After Commit**: Try to start new transaction with previously committed XID
+   - Expected: `XAException(XAER_DUPID or XAER_NOTA)`
+
+8. **Double Rollback**: Call `rollback()` twice on same XID
+   - Expected: `XAException(XAER_NOTA)`
+
+9. **Rollback After Commit**: Try to rollback a committed transaction
+   - Expected: `XAException(XAER_NOTA)`
+
+10. **Commit After Rollback**: Try to commit a rolled-back transaction
+    - Expected: `XAException(XAER_NOTA)`
+
+11. **Start with TMJOIN Without Existing Transaction**: Use TMJOIN flag without an existing transaction to join
+    - Expected: `XAException(XAER_NOTA or XAER_PROTO)`
+
+12. **Resume Without Suspend**: Use TMRESUME flag without previous TMSUSPEND
+    - Expected: `XAException(XAER_PROTO)`
+
+13. **Multiple End Calls**: Call `end()` multiple times on same transaction
+    - Expected: `XAException(XAER_PROTO)`
+
+14. **SQL Operations After End But Before Start**: Execute SQL when no XA transaction is active
+    - Expected: May succeed (auto-commit) or fail - document behavior
+
+15. **Prepare on Read-Only Transaction Then Commit**: Call `commit()` after receiving XA_RDONLY from `prepare()`
+    - Expected: `XAException(XAER_NOTA)` - transaction already completed
+
+### Resource Lifecycle Violations (8 tests - HIGH priority)
+
+1. **Manual Commit on XA Connection**: Call `connection.commit()` while XA transaction is active
+   - Expected: SQLException
+
+2. **SetAutoCommit(true) During XA Transaction**: Try to enable auto-commit while XA transaction is active
+   - Expected: SQLException or silently ignored
+
+3. **Use Connection After Close**: Execute SQL after closing connection
+   - Expected: SQLException
+
+4. **XA Operations After Logical Connection Close**: Close logical connection but try to continue using XAResource
+   - Expected: May work or fail - document behavior per database
+
+5. **Close Connection With Active Transaction**: Close connection without ending XA transaction
+   - Expected: Auto-rollback expected
+
+6. **Close XAConnection With Prepared Transaction**: Close XAConnection while transaction is in prepared state
+   - Expected: Prepared transaction persists, can be recovered
+
+7. **Use XAResource After XAConnection Close**: Try to use XAResource after closing XAConnection
+   - Expected: XAException or SQLException
+
+8. **Resource Leak - Many Unclosed Connections**: Create many connections without closing them
+   - Expected: Eventually hit connection pool limit
+
+### Common Developer Mistakes (10 tests - HIGH priority)
+
+1. **Not Checking Prepare Result**: Always call `commit()` after `prepare()` without checking for XA_RDONLY
+2. **Mixing One-Phase and Two-Phase Commit**: Call `prepare()` then `commit()` with onePhase=true
+3. **Non-Unique Global Transaction IDs**: Reuse global transaction ID across different transactions
+4. **XID Component Too Long**: Create XID with globalTransactionId > 64 bytes
+5. **Using TMSUCCESS Flag on Failed Transaction**: Use TMSUCCESS even though transaction encountered errors
+6. **Forgetting to End Transaction Before Timeout**: Let transaction timeout without calling `end()`
+7. **Not Handling Heuristic Outcomes**: Ignore XA_HEUR* exceptions, don't call `forget()`
+8. **Assuming isSameRM() Returns True**: Not checking `isSameRM()` result before optimization
+9. **Concurrent Access to Single XAResource**: Use XAResource from multiple threads without synchronization
+10. **Not Cleaning Up After Exception**: Forget to rollback after exception
+
+### Null and Invalid Parameters (6 tests - MEDIUM priority)
+
+1. Null XID to all methods
+2. XID with null components
+3. Invalid flag values
+4. Negative transaction timeout
+5. Zero format ID
+6. Null parameter to `isSameRM()`
+
+### Concurrency and Threading Issues (5 tests - MEDIUM priority)
+
+1. Concurrent `start()` calls
+2. Concurrent SQL execution
+3. Start on one thread, end on another
+4. Concurrent `recover()` calls
+5. Race between prepare and timeout
+
+### Timeout Edge Cases (4 tests - MEDIUM priority)
+
+1. Zero timeout
+2. Very short timeout (1 second)
+3. Timeout during long-running SQL
+4. Change timeout mid-transaction
+
+### Recovery Edge Cases (5 tests - MEDIUM priority)
+
+1. Recover with no prepared transactions
+2. Multiple recover without ENDRSCAN
+3. Forget non-existent transaction
+4. Commit/rollback recovered transaction twice
+5. Recover during active transactions
+
+### Database-Specific Edge Cases (6 tests - LOW priority)
+
+1. Oracle RAC node failure
+2. SQL Server MSDTC not running
+3. DB2 log full
+4. Tablespace/Disk full during prepare
+5. Database restart during prepared transaction
+6. Deadlock during XA transaction
+
+## Maven Dependencies
+
+Complete Maven dependencies required for XA baseline testing:
+
+```xml
+<dependencies>
+    <!-- Oracle XA Driver -->
+    <dependency>
+        <groupId>com.oracle.database.jdbc</groupId>
+        <artifactId>ojdbc11</artifactId>
+        <version>23.3.0.23.09</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- SQL Server XA Driver -->
+    <dependency>
+        <groupId>com.microsoft.sqlserver</groupId>
+        <artifactId>mssql-jdbc</artifactId>
+        <version>12.8.2.jre11</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- DB2 XA Driver -->
+    <dependency>
+        <groupId>com.ibm.db2</groupId>
+        <artifactId>jcc</artifactId>
+        <version>11.5.9.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Atomikos Transaction Manager -->
+    <dependency>
+        <groupId>com.atomikos</groupId>
+        <artifactId>transactions-jta</artifactId>
+        <version>6.0.0</version>
+        <classifier>jakarta</classifier>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>com.atomikos</groupId>
+        <artifactId>transactions-jdbc</artifactId>
+        <version>6.0.0</version>
+        <classifier>jakarta</classifier>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- ActiveMQ Artemis XA -->
+    <dependency>
+        <groupId>org.apache.activemq</groupId>
+        <artifactId>artemis-jakarta-client</artifactId>
+        <version>2.35.0</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.activemq</groupId>
+        <artifactId>artemis-jms-client</artifactId>
+        <version>2.35.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- JTA API -->
+    <dependency>
+        <groupId>jakarta.transaction</groupId>
+        <artifactId>jakarta.transaction-api</artifactId>
+        <version>2.0.1</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- JMS API -->
+    <dependency>
+        <groupId>jakarta.jms</groupId>
+        <artifactId>jakarta.jms-api</artifactId>
+        <version>3.1.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- TestContainers -->
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers</artifactId>
+        <version>1.20.4</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>oracle-xe</artifactId>
+        <version>1.20.4</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>mssqlserver</artifactId>
+        <version>1.20.4</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>db2</artifactId>
+        <version>1.20.4</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Logging -->
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>2.0.17</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.5.16</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- JUnit 5 -->
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.12.1</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+## Test Implementation Template
+
+Each test should follow this structure for consistency:
+
+```java
+/**
+ * Test Case: [Brief Description]
+ * Objective: [What this test validates]
+ * Expected: [Expected behavior/exception]
+ * Database Variations: [Known differences if any]
+ */
+@Test
+public void test[Scenario]_[Database]() throws Exception {
+    // Setup
+    XADataSource xaDataSource = createXADataSource();
+    XAConnection xaConnection = xaDataSource.getXAConnection();
+    XAResource xaResource = xaConnection.getXAResource();
+    Connection connection = xaConnection.getConnection();
+    
+    try {
+        // Create test table
+        String tableName = "xa_test_" + System.currentTimeMillis();
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("CREATE TABLE " + tableName + " (id INT, data VARCHAR(100))");
+        }
+        
+        // Execute test scenario
+        Xid xid = XidGenerator.createXid();
+        xaResource.start(xid, XAResource.TMNOFLAGS);
+        
+        // ... test-specific operations ...
+        
+        xaResource.end(xid, XAResource.TMSUCCESS);
+        int prepareResult = xaResource.prepare(xid);
+        
+        if (prepareResult == XAResource.XA_OK) {
+            xaResource.commit(xid, false);
+        }
+        
+        // Assertions
+        // ... verify expected behavior ...
+        
+        // Cleanup
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("DROP TABLE " + tableName);
+        }
+    } finally {
+        if (connection != null) connection.close();
+        if (xaConnection != null) xaConnection.close();
+    }
+}
+```
+
+## Test Execution Commands
+
+```bash
+# Run all baseline XA tests
+mvn test -Dtest="org.openjproxy.xa.baseline.**"
+
+# Run Oracle-specific tests
+mvn test -Dtest="org.openjproxy.xa.baseline.single.Oracle*"
+
+# Run SQL Server-specific tests
+mvn test -Dtest="org.openjproxy.xa.baseline.single.SQLServer*"
+
+# Run DB2-specific tests
+mvn test -Dtest="org.openjproxy.xa.baseline.single.DB2*"
+
+# Run distributed transaction tests
+mvn test -Dtest="org.openjproxy.xa.baseline.distributed.*"
+
+# Run queue integration tests
+mvn test -Dtest="org.openjproxy.xa.baseline.queue.*"
+
+# Run Atomikos tests
+mvn test -Dtest="org.openjproxy.xa.baseline.atomikos.*"
+
+# Run performance tests
+mvn test -Dtest="org.openjproxy.xa.baseline.performance.*"
+
+# Run edge case tests
+mvn test -Dtest="org.openjproxy.xa.baseline.single.*EdgeCases*"
+```
+
+## XA Error Codes Reference
+
+| Error Code | Value | Meaning | Common Causes |
+|-----------|-------|---------|---------------|
+| XA_OK | 0 | Normal execution | Prepare succeeded, commit needed |
+| XA_RDONLY | 3 | Read-only transaction | Prepare succeeded, no commit needed |
+| XA_HEURCOM | 7 | Heuristic commit | Transaction committed outside XA |
+| XA_HEURMIX | 5 | Heuristic mixed | Some branches committed, some rolled back |
+| XA_HEURHAZ | 8 | Heuristic hazard | State unknown due to heuristic decision |
+| XA_HEURRB | 6 | Heuristic rollback | Transaction rolled back outside XA |
+| XAER_RMERR | -3 | Resource manager error | Database internal error |
+| XAER_NOTA | -4 | XID not valid | Unknown or invalid XID |
+| XAER_INVAL | -5 | Invalid arguments | Invalid parameters passed |
+| XAER_PROTO | -6 | Protocol error | Operation called in wrong sequence |
+| XAER_RMFAIL | -7 | Resource manager failed | Database unavailable |
+| XAER_DUPID | -8 | Duplicate XID | XID already in use |
+| XAER_OUTSIDE | -9 | Outside valid state | Operation not valid in current state |
+
+## Two-Phase Commit Protocol Flow
+
+```
+Transaction Manager         Resource Manager 1         Resource Manager 2
+      |                            |                         |
+      |--- xaStart(xid1) --------->|                         |
+      |--- xaStart(xid2) -------------------------------->|  |
+      |                            |                         |
+      |   (Application executes SQL operations)              |
+      |                            |                         |
+      |--- xaEnd(xid1) ----------->|                         |
+      |--- xaEnd(xid2) ----------------------------------->|  |
+      |                            |                         |
+      |            PREPARE PHASE                             |
+      |--- xaPrepare(xid1) ------->|                         |
+      |<-- XA_OK ------------------|                         |
+      |--- xaPrepare(xid2) ---------------------------->|   |
+      |<-- XA_OK -----------------------------------------|   |
+      |                            |                         |
+      |     (All prepares successful - decide to commit)     |
+      |                            |                         |
+      |            COMMIT PHASE                              |
+      |--- xaCommit(xid1, false) ->|                         |
+      |<-- Success ----------------|                         |
+      |--- xaCommit(xid2, false) ------------------------>|  |
+      |<-- Success ----------------------------------------|  |
+      |                            |                         |
+      |        TRANSACTION COMPLETE                          |
+```
+
+## Summary of Enhanced Test Coverage
+
+This enhanced plan now includes:
+
+1. **Detailed Project Structure**: Complete package and class organization
+2. **59 Edge Case Tests**: Comprehensive coverage of protocol violations, lifecycle issues, and developer mistakes
+3. **Complete Maven Dependencies**: All required libraries for XA testing
+4. **Test Templates**: Standardized test implementation patterns
+5. **Error Code Reference**: Quick reference for XA error codes
+6. **2PC Protocol Diagram**: Visual representation of two-phase commit
+7. **Test Execution Commands**: Ready-to-use Maven commands
+
+The plan maintains the original baseline-first strategy while adding significant depth in test scenario detail, edge case coverage, and implementation guidance.
+
