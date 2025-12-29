@@ -30,6 +30,11 @@ Located in [xa/](xa/):
 - [Atomikos XA Integration](xa/ATOMIKOS_XA_INTEGRATION.md) - Integration with Atomikos transaction manager
 - [XA Multinode Failover](xa/XA_MULTINODE_FAILOVER.md) - Automatic retry and failover for XA in multinode deployments
 
+### XA Testing and Analysis
+
+Located in [analysis/](analysis/):
+- [XA Transaction Testing Plan](analysis/xa-transaction-testing-plan.md) - Comprehensive plan for testing XA capabilities across Oracle, SQL Server, DB2, and message queues
+
 ## Multinode Deployments
 
 Located in [multinode/](multinode/):
@@ -120,6 +125,7 @@ Diagrams and images are located in [images/](images/)
 - Implementation Details: [XA Transaction Flow](xa/XA_TRANSACTION_FLOW.md)
 - Configuration: [Atomikos XA Integration](xa/ATOMIKOS_XA_INTEGRATION.md)
 - Multinode: [XA Multinode Failover](xa/XA_MULTINODE_FAILOVER.md)
+- Testing: [XA Transaction Testing Plan](analysis/xa-transaction-testing-plan.md)
 
 **Multinode Deployments:**
 - Overview: [Multinode README](multinode/README.md)
@@ -141,6 +147,7 @@ All documentation is organized under the `documents/` folder with the following 
 ```
 documents/
 ├── ADRs/                      # Architecture Decision Records
+├── analysis/                  # Analysis and planning documents
 ├── code-contributions/        # Contributing guides
 ├── configuration/             # Configuration documentation
 ├── contributor-badges/        # Recognition program
