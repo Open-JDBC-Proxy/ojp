@@ -84,9 +84,6 @@ public class SQLServerXAContainer extends MSSQLServerContainer<SQLServerXAContai
         xaDataSource.setUser("sa");
         xaDataSource.setPassword(getPassword());
         
-        // Enable XA transactions (note: method name has no 's' between Transaction and Enable)
-        xaDataSource.setXATransactionEnable(true);
-        
         // Trust server certificate (for testing)
         xaDataSource.setTrustServerCertificate(true);
         xaDataSource.setEncrypt(false);

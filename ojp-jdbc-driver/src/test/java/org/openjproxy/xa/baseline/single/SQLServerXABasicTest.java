@@ -115,7 +115,7 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testBasicXATransactionLifecycle() throws Exception {
         System.out.println("\n=== Test 1.2: Basic XA Transaction Lifecycle (2PC) ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
 
@@ -184,7 +184,7 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testXATransactionRollback() throws Exception {
         System.out.println("\n=== Test 1.3: XA Transaction Rollback ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
 
@@ -242,7 +242,7 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testOnePhaseCommitOptimization() throws Exception {
         System.out.println("\n=== Test 1.4: One-Phase Commit Optimization ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
 
@@ -310,7 +310,7 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testReadOnlyTransactionOptimization() throws Exception {
         System.out.println("\n=== Test 1.5: Read-Only Transaction Optimization ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
 
@@ -365,7 +365,7 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testTransactionSuspensionAndResumption() throws Exception {
         System.out.println("\n=== Test 2.1: Transaction Suspension and Resumption ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
 
@@ -448,11 +448,11 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testTransactionBranchJoining() throws Exception {
         System.out.println("\n=== Test 2.2: Transaction Branch Joining ===");
 
-        XAConnection xaConn1 = getXADataSource().getXAConnection();
+        XAConnection xaConn1 = createXADataSource().getXAConnection();
         XAResource xaRes1 = xaConn1.getXAResource();
         Connection conn1 = xaConn1.getConnection();
 
-        XAConnection xaConn2 = getXADataSource().getXAConnection();
+        XAConnection xaConn2 = createXADataSource().getXAConnection();
         XAResource xaRes2 = xaConn2.getXAResource();
         Connection conn2 = xaConn2.getConnection();
 
@@ -532,7 +532,7 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testTransactionFailureMarking() throws Exception {
         System.out.println("\n=== Test 2.3: Transaction Failure Marking ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
 
