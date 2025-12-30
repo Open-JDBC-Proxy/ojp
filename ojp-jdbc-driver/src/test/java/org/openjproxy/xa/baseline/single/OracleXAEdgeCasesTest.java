@@ -860,9 +860,32 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         byte[] bqual = new byte[10];
         
         Xid invalidXid = new javax.transaction.xa.Xid() {
-    @Override
-    protected String getDatabaseType() {
-        return "Oracle";
+            @Override
+            public int getFormatId() {
+                return 1;
+            }
+            
+            @Override
+            public byte[] getGlobalTransactionId() {
+                return gtrid;
+            }
+            
+            @Override
+            public byte[] getBranchQualifier() {
+                return bqual;
+            }
+        };
+        
+        // Try to use oversized XID
+        try {
+            xaRes.start(invalidXid, XAResource.TMNOFLAGS);
+            xaRes.end(invalidXid, XAResource.TMSUCCESS);
+            xaRes.rollback(invalidXid);
+            // Some databases may allow this
+        } catch (XAException e) {
+            // Expected: XID exceeds size limit
+            assertTrue(e.errorCode == XAException.XAER_INVAL || e.errorCode == XAException.XAER_NOTA);
+        }
     }
 
     /**
