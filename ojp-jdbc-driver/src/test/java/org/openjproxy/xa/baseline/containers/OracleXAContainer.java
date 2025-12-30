@@ -55,7 +55,7 @@ public class OracleXAContainer extends OracleContainer {
         super(dockerImageName);
         
         // Configure container
-        withDatabaseName(DEFAULT_DATABASE_NAME);
+        // Note: Do not call withDatabaseName() - Oracle XE 21 uses XEPDB1 by default
         withUsername(DEFAULT_USERNAME);
         withPassword(DEFAULT_PASSWORD);
         

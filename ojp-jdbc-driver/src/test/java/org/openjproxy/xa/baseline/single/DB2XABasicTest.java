@@ -1,8 +1,12 @@
 package org.openjproxy.xa.baseline.single;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.DB2XAContainer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
@@ -26,6 +30,41 @@ import static org.junit.jupiter.api.Assertions.*;
  * Results establish baseline behavior for comparison with Oracle, SQL Server, and OJP.
  */
 public class DB2XABasicTest extends XATestBase {
+    
+    private static final Logger logger = LoggerFactory.getLogger(DB2XABasicTest.class);
+    
+    private static DB2XAContainer db2Container;
+    protected static XADataSource staticXADataSource;
+    
+    @BeforeAll
+    public static void setUpClass() throws Exception {
+        logger.info("=== Starting DB2 XA Basic Tests (Phase 7) ===");
+        logger.info("Setting up DB2 XA Container...");
+        
+        // Start DB2 container (shared across all tests)
+        db2Container = new DB2XAContainer();
+        db2Container.start();
+        
+        logger.info("DB2 XA Container started successfully");
+        logger.info("JDBC URL: {}", db2Container.getJdbcUrl());
+        
+        // Create XA DataSource
+        staticXADataSource = db2Container.createXADataSource();
+        
+        logger.info("DB2 XA DataSource created successfully");
+    }
+    
+    @AfterAll
+    public static void tearDownClass() {
+        logger.info("Tearing down DB2 XA Container...");
+        
+        if (db2Container != null) {
+            db2Container.stop();
+            logger.info("DB2 XA Container stopped");
+        }
+        
+        logger.info("=== DB2 XA Basic Tests Complete ===");
+    }
 
     @Override
     protected String getDatabaseType() {
@@ -34,7 +73,7 @@ public class DB2XABasicTest extends XATestBase {
 
     @Override
     protected javax.sql.XADataSource createXADataSource() throws SQLException {
-        throw new UnsupportedOperationException("DB2XABasicTest must use @BeforeAll pattern - see OracleXABasicTest");
+        return staticXADataSource;
     }
 
     // ===========================================================================================
