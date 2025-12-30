@@ -40,13 +40,12 @@ public class OracleXAContainerSmokeTest {
     
     @BeforeAll
     public static void setUpClass() throws Exception {
-        logger.info("Starting Oracle XA Container for smoke test...");
+        logger.info("Setting up Oracle XA Container for smoke test...");
         
-        // Create and start Oracle container
+        // Create Oracle container wrapper (uses singleton internally)
         oracleContainer = new OracleXAContainer();
-        oracleContainer.start();
         
-        logger.info("Oracle XA Container started successfully");
+        logger.info("Oracle XA Container is ready");
         logger.info("JDBC URL: {}", oracleContainer.getJdbcUrl());
         
         // Create XA DataSource
@@ -58,12 +57,8 @@ public class OracleXAContainerSmokeTest {
     
     @AfterAll
     public static void tearDownClass() {
-        logger.info("Stopping Oracle XA Container...");
-        
-        if (oracleContainer != null) {
-            oracleContainer.stop();
-            logger.info("Oracle XA Container stopped");
-        }
+        logger.info("Test completed - singleton container managed by shutdown hook");
+        // No explicit stop needed - singleton container is managed by shutdown hook
     }
     
     @Test

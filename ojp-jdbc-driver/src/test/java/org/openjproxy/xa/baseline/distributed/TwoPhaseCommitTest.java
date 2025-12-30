@@ -45,44 +45,25 @@ public class TwoPhaseCommitTest extends XATestBase {
     
     @BeforeAll
     public static void setUpContainers() {
-        logger.info("Starting containers for distributed transaction tests...");
+        logger.info("Setting up containers for distributed transaction tests...");
         
-        // Start all three database containers
+        // Create database container wrappers (use singletons internally)
         oracleContainer = new OracleXAContainer();
-        oracleContainer.start();
-        logger.info("Oracle container started: {}", oracleContainer.getJdbcUrl());
+        logger.info("Oracle container ready: {}", oracleContainer.getJdbcUrl());
         
         sqlServerContainer = new SQLServerXAContainer();
-        sqlServerContainer.start();
-        logger.info("SQL Server container started: {}", sqlServerContainer.getJdbcUrl());
+        logger.info("SQL Server container ready: {}", sqlServerContainer.getJdbcUrl());
         
         db2Container = new DB2XAContainer();
-        db2Container.start();
-        logger.info("DB2 container started: {}", db2Container.getJdbcUrl());
+        logger.info("DB2 container ready: {}", db2Container.getJdbcUrl());
         
-        logger.info("All containers started successfully");
+        logger.info("All containers are ready");
     }
     
     @AfterAll
     public static void tearDownContainers() {
-        logger.info("Stopping containers...");
-        
-        if (oracleContainer != null) {
-            oracleContainer.stop();
-            logger.info("Oracle container stopped");
-        }
-        
-        if (sqlServerContainer != null) {
-            sqlServerContainer.stop();
-            logger.info("SQL Server container stopped");
-        }
-        
-        if (db2Container != null) {
-            db2Container.stop();
-            logger.info("DB2 container stopped");
-        }
-        
-        logger.info("All containers stopped");
+        logger.info("Test completed - singleton containers managed by shutdown hooks");
+        // No explicit stop needed - singleton containers are managed by shutdown hooks
     }
 
     @Override
