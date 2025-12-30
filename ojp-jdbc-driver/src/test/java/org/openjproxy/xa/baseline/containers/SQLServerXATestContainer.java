@@ -25,18 +25,24 @@ public class SQLServerXATestContainer {
     /**
      * Gets or creates the shared SQL Server XA test container instance.
      * The container is automatically started on first access.
+     * Thread-safe: ensures only one container start operation even with parallel test execution.
      * 
      * @return the shared MSSQLServerContainer instance
      */
     public static MSSQLServerContainer<?> getInstance() {
-        // Fast-path: if container already created and running, return it without locking
-        MSSQLServerContainer<?> local = container;
-        if (local != null && local.isRunning()) {
-            return local;
+        // Fast-path: if container already started, return it without locking
+        if (isStarted && container != null) {
+            return container;
         }
         
+        // Slow-path: need to create/start container (with lock to ensure single initialization)
         initLock.lock();
         try {
+            // Double-check: another thread may have initialized while we waited for lock
+            if (isStarted && container != null) {
+                return container;
+            }
+            
             if (container == null) {
                 container = new MSSQLServerContainer<>(MSSQL_IMAGE)
                     .acceptLicense()
@@ -45,7 +51,6 @@ public class SQLServerXATestContainer {
             
             if (!isStarted) {
                 container.start();
-                isStarted = true;
                 
                 // Post-start initialization for XA features
                 try {
@@ -56,6 +61,8 @@ public class SQLServerXATestContainer {
                 } catch (Exception e) {
                     System.err.println("[SQLServerXATestContainer] Warning: Failed to initialize XA: " + e.getMessage());
                 }
+                
+                isStarted = true; // Set AFTER start() and initialization complete to prevent race
                 
                 // Add shutdown hook to stop container when JVM exits
                 if (!shutdownHookRegistered) {

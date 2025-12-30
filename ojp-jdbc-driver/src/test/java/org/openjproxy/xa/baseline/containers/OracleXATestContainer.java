@@ -26,18 +26,24 @@ public class OracleXATestContainer {
     /**
      * Gets or creates the shared Oracle XA test container instance.
      * The container is automatically started on first access.
+     * Thread-safe: ensures only one container start operation even with parallel test execution.
      * 
      * @return the shared OracleContainer instance
      */
     public static OracleContainer getInstance() {
-        // Fast-path: if container already created and running, return it without locking
-        OracleContainer local = container;
-        if (local != null && local.isRunning()) {
-            return local;
+        // Fast-path: if container already started, return it without locking
+        if (isStarted && container != null) {
+            return container;
         }
         
+        // Slow-path: need to create/start container (with lock to ensure single initialization)
         initLock.lock();
         try {
+            // Double-check: another thread may have initialized while we waited for lock
+            if (isStarted && container != null) {
+                return container;
+            }
+            
             if (container == null) {
                 container = new OracleContainer(
                     DockerImageName.parse(ORACLE_IMAGE)
@@ -51,7 +57,7 @@ public class OracleXATestContainer {
             
             if (!isStarted) {
                 container.start();
-                isStarted = true;
+                isStarted = true; // Set AFTER start() completes to prevent race
                 
                 // Add shutdown hook to stop container when JVM exits
                 if (!shutdownHookRegistered) {

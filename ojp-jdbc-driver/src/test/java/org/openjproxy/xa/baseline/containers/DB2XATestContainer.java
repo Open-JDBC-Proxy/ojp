@@ -26,18 +26,24 @@ public class DB2XATestContainer {
     /**
      * Gets or creates the shared DB2 XA test container instance.
      * The container is automatically started on first access.
+     * Thread-safe: ensures only one container start operation even with parallel test execution.
      * 
      * @return the shared Db2Container instance
      */
     public static Db2Container getInstance() {
-        // Fast-path: if container already created and running, return it without locking
-        Db2Container local = container;
-        if (local != null && local.isRunning()) {
-            return local;
+        // Fast-path: if container already started, return it without locking
+        if (isStarted && container != null) {
+            return container;
         }
         
+        // Slow-path: need to create/start container (with lock to ensure single initialization)
         initLock.lock();
         try {
+            // Double-check: another thread may have initialized while we waited for lock
+            if (isStarted && container != null) {
+                return container;
+            }
+            
             if (container == null) {
                 container = new Db2Container(
                     DockerImageName.parse(DB2_IMAGE)
@@ -53,7 +59,6 @@ public class DB2XATestContainer {
             
             if (!isStarted) {
                 container.start();
-                isStarted = true;
                 
                 // Post-start initialization for XA features
                 try {
@@ -61,6 +66,8 @@ public class DB2XATestContainer {
                 } catch (Exception e) {
                     System.err.println("[DB2XATestContainer] Warning: Failed to configure TM_DATABASE: " + e.getMessage());
                 }
+                
+                isStarted = true; // Set AFTER start() and initialization complete to prevent race
                 
                 // Add shutdown hook to stop container when JVM exits
                 if (!shutdownHookRegistered) {
