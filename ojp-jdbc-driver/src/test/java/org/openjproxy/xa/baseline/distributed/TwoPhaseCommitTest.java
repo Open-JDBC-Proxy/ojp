@@ -34,9 +34,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * -DenableOracleTests=true -DenableSqlServerTests=true -DenableDb2Tests=true
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@EnabledIf("org.openjproxy.xa.baseline.containers.OracleXATestContainer#isEnabled")
-@EnabledIf("org.openjproxy.xa.baseline.containers.SQLServerXATestContainer#isEnabled")
-@EnabledIf("org.openjproxy.xa.baseline.containers.DB2XATestContainer#isEnabled")
+@Disabled("Requires all three databases to be enabled: -DenableOracleTests=true -DenableSqlServerTests=true -DenableDb2Tests=true")
 public class TwoPhaseCommitTest extends XATestBase {
 
     private static final Logger logger = LoggerFactory.getLogger(TwoPhaseCommitTest.class);
