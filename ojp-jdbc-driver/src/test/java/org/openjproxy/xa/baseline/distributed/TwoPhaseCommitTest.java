@@ -6,8 +6,8 @@ import org.openjproxy.xa.baseline.common.XidGenerator;
 import org.openjproxy.xa.baseline.containers.DB2XAContainer;
 import org.openjproxy.xa.baseline.containers.OracleXAContainer;
 import org.openjproxy.xa.baseline.containers.SQLServerXAContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
@@ -28,18 +28,56 @@ import static org.junit.jupiter.api.Assertions.*;
  * These tests validate that XA transactions can coordinate commits and rollbacks
  * across multiple databases atomically.
  */
-@Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TwoPhaseCommitTest extends XATestBase {
 
-    @Container
-    private static final OracleXAContainer oracleContainer = new OracleXAContainer();
-
-    @Container
-    private static final SQLServerXAContainer sqlServerContainer = new SQLServerXAContainer();
-
-    @Container
-    private static final DB2XAContainer db2Container = new DB2XAContainer();
+    private static final Logger logger = LoggerFactory.getLogger(TwoPhaseCommitTest.class);
+    
+    private static OracleXAContainer oracleContainer;
+    private static SQLServerXAContainer sqlServerContainer;
+    private static DB2XAContainer db2Container;
+    
+    @BeforeAll
+    public static void setUpContainers() {
+        logger.info("Starting containers for distributed transaction tests...");
+        
+        // Start all three database containers
+        oracleContainer = new OracleXAContainer();
+        oracleContainer.start();
+        logger.info("Oracle container started: {}", oracleContainer.getJdbcUrl());
+        
+        sqlServerContainer = new SQLServerXAContainer();
+        sqlServerContainer.start();
+        logger.info("SQL Server container started: {}", sqlServerContainer.getJdbcUrl());
+        
+        db2Container = new DB2XAContainer();
+        db2Container.start();
+        logger.info("DB2 container started: {}", db2Container.getJdbcUrl());
+        
+        logger.info("All containers started successfully");
+    }
+    
+    @AfterAll
+    public static void tearDownContainers() {
+        logger.info("Stopping containers...");
+        
+        if (oracleContainer != null) {
+            oracleContainer.stop();
+            logger.info("Oracle container stopped");
+        }
+        
+        if (sqlServerContainer != null) {
+            sqlServerContainer.stop();
+            logger.info("SQL Server container stopped");
+        }
+        
+        if (db2Container != null) {
+            db2Container.stop();
+            logger.info("DB2 container stopped");
+        }
+        
+        logger.info("All containers stopped");
+    }
 
     /**
      * Test Case 9.1: Two-Database Transaction (Same Type - Oracle to Oracle)
