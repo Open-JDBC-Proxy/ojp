@@ -219,28 +219,28 @@ public class TransactionCoordinator {
     /**
      * Checks if all branches are prepared.
      * 
-     * @return true if all prepared, false otherwise
+     * @return true if all prepared, false otherwise (including when no resources are enlisted)
      */
     public boolean areAllPrepared() {
-        return branches.stream().allMatch(TransactionBranch::isPrepared);
+        return !branches.isEmpty() && branches.stream().allMatch(TransactionBranch::isPrepared);
     }
     
     /**
      * Checks if all branches are committed.
      * 
-     * @return true if all committed, false otherwise
+     * @return true if all committed, false otherwise (including when no resources are enlisted)
      */
     public boolean areAllCommitted() {
-        return branches.stream().allMatch(TransactionBranch::isCommitted);
+        return !branches.isEmpty() && branches.stream().allMatch(TransactionBranch::isCommitted);
     }
     
     /**
      * Checks if all branches are rolled back.
      * 
-     * @return true if all rolled back, false otherwise
+     * @return true if all rolled back, false otherwise (including when no resources are enlisted)
      */
     public boolean areAllRolledBack() {
-        return branches.stream().allMatch(TransactionBranch::isRolledBack);
+        return !branches.isEmpty() && branches.stream().allMatch(TransactionBranch::isRolledBack);
     }
     
     /**
