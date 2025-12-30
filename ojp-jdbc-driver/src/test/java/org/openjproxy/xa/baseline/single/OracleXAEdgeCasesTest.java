@@ -5,6 +5,7 @@ import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.OracleXAContainer;
 
 import javax.sql.XAConnection;
+import javax.sql.XADataSource;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
@@ -862,11 +863,6 @@ public class OracleXAEdgeCasesTest extends XATestBase {
     @Override
     protected String getDatabaseType() {
         return "Oracle";
-    }
-
-    @Override
-    protected XADataSource createXADataSource() throws SQLException {
-        return OracleXABasicTest.staticXADataSource;
     }
 
     /**

@@ -5,6 +5,7 @@ import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.DB2XAContainer;
 
 import javax.sql.XAConnection;
+import javax.sql.XADataSource;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 import java.sql.Connection;
