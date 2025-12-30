@@ -103,9 +103,6 @@ public class TwoPhaseCommitTest extends XATestBase {
         XAConnection xaConn1 = xaDataSource1.getXAConnection();
         XAConnection xaConn2 = xaDataSource2.getXAConnection();
         
-        trackResource(xaConn1);
-        trackResource(xaConn2);
-        
         XAResource xaRes1 = xaConn1.getXAResource();
         XAResource xaRes2 = xaConn2.getXAResource();
         
@@ -113,9 +110,9 @@ public class TwoPhaseCommitTest extends XATestBase {
         Connection conn2 = xaConn2.getConnection();
         
         // Generate global XID and branch XIDs
-        Xid globalXid = XidGenerator.createXid("DIST-2PC-ORACLE");
-        Xid branchXid1 = XidGenerator.createBranchXid(globalXid, 1);
-        Xid branchXid2 = XidGenerator.createBranchXid(globalXid, 2);
+        String globalTxId = "DIST-2PC-ORACLE-" + System.currentTimeMillis();
+        Xid branchXid1 = XidGenerator.createBranchXid(1, globalTxId, "branch-1");
+        Xid branchXid2 = XidGenerator.createBranchXid(1, globalTxId, "branch-2");
         
         try {
             // Phase: Start transactions
@@ -182,18 +179,15 @@ public class TwoPhaseCommitTest extends XATestBase {
         XAConnection oracleXAConn = oracleXADS.getXAConnection();
         XAConnection sqlServerXAConn = sqlServerXADS.getXAConnection();
         
-        trackResource(oracleXAConn);
-        trackResource(sqlServerXAConn);
-        
         XAResource oracleXARes = oracleXAConn.getXAResource();
         XAResource sqlServerXARes = sqlServerXAConn.getXAResource();
         
         Connection oracleConn = oracleXAConn.getConnection();
         Connection sqlServerConn = sqlServerXAConn.getConnection();
         
-        Xid globalXid = XidGenerator.createXid("DIST-ORA-SQL");
-        Xid oracleXid = XidGenerator.createBranchXid(globalXid, 1);
-        Xid sqlServerXid = XidGenerator.createBranchXid(globalXid, 2);
+        String globalTxId = "DIST-ORA-SQL-" + System.currentTimeMillis();
+        Xid oracleXid = XidGenerator.createBranchXid(1, globalTxId, "oracle-branch");
+        Xid sqlServerXid = XidGenerator.createBranchXid(1, globalTxId, "sqlserver-branch");
         
         try {
             // Start distributed transaction
@@ -264,18 +258,15 @@ public class TwoPhaseCommitTest extends XATestBase {
         XAConnection oracleXAConn = oracleXADS.getXAConnection();
         XAConnection db2XAConn = db2XADS.getXAConnection();
         
-        trackResource(oracleXAConn);
-        trackResource(db2XAConn);
-        
         XAResource oracleXARes = oracleXAConn.getXAResource();
         XAResource db2XARes = db2XAConn.getXAResource();
         
         Connection oracleConn = oracleXAConn.getConnection();
         Connection db2Conn = db2XAConn.getConnection();
         
-        Xid globalXid = XidGenerator.createXid("DIST-ROLLBACK");
-        Xid oracleXid = XidGenerator.createBranchXid(globalXid, 1);
-        Xid db2Xid = XidGenerator.createBranchXid(globalXid, 2);
+        String globalTxId = "DIST-ROLLBACK-" + System.currentTimeMillis();
+        Xid oracleXid = XidGenerator.createBranchXid(1, globalTxId, "oracle-branch");
+        Xid db2Xid = XidGenerator.createBranchXid(1, globalTxId, "db2-branch");
         
         try {
             // Start distributed transaction
@@ -334,18 +325,15 @@ public class TwoPhaseCommitTest extends XATestBase {
         XAConnection sqlServerXAConn = sqlServerXADS.getXAConnection();
         XAConnection db2XAConn = db2XADS.getXAConnection();
         
-        trackResource(sqlServerXAConn);
-        trackResource(db2XAConn);
-        
         XAResource sqlServerXARes = sqlServerXAConn.getXAResource();
         XAResource db2XARes = db2XAConn.getXAResource();
         
         Connection sqlServerConn = sqlServerXAConn.getConnection();
         Connection db2Conn = db2XAConn.getConnection();
         
-        Xid globalXid = XidGenerator.createXid("DIST-FAIL");
-        Xid sqlServerXid = XidGenerator.createBranchXid(globalXid, 1);
-        Xid db2Xid = XidGenerator.createBranchXid(globalXid, 2);
+        String globalTxId = "DIST-FAIL-" + System.currentTimeMillis();
+        Xid sqlServerXid = XidGenerator.createBranchXid(1, globalTxId, "sqlserver-branch");
+        Xid db2Xid = XidGenerator.createBranchXid(1, globalTxId, "db2-branch");
         
         try {
             // Start transactions

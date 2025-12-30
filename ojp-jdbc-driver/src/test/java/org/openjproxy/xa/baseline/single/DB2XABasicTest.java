@@ -107,7 +107,8 @@ public class DB2XABasicTest extends XATestBase {
         xaRes.commit(xid, false); // two-phase commit
         
         // Verify data was committed
-        verifyDataExists(testName, "test-value");
+        Connection verifyConn = xaConnection.getConnection();
+        verifyDataExists(verifyConn, testName);
     }
 
     /**
@@ -140,7 +141,8 @@ public class DB2XABasicTest extends XATestBase {
         xaRes.rollback(xid);
         
         // Verify data was NOT committed
-        verifyDataNotExists(testName);
+        Connection verifyConn = xaConnection.getConnection();
+        verifyDataNotExists(verifyConn, testName);
     }
 
     /**
@@ -174,7 +176,8 @@ public class DB2XABasicTest extends XATestBase {
         xaRes.commit(xid, true); // onePhase = true
         
         // Verify data was committed
-        verifyDataExists(testName, "onephase-value");
+        Connection verifyConn = xaConnection.getConnection();
+        verifyDataExists(verifyConn, testName);
     }
 
     /**
@@ -274,7 +277,8 @@ public class DB2XABasicTest extends XATestBase {
         xaRes.commit(xid, false);
         
         // Verify final state
-        verifyDataExists(testName, "part2");
+        Connection verifyConn = xaConnection.getConnection();
+        verifyDataExists(verifyConn, testName);
     }
 
     /**
@@ -326,7 +330,8 @@ public class DB2XABasicTest extends XATestBase {
         xaRes1.commit(xid, false);
         
         // Verify both changes were applied
-        verifyDataExists(testName, "from-conn2");
+        Connection verifyConn = xaConnection.getConnection();
+        verifyDataExists(verifyConn, testName);
         
         xaConn2.close();
     }
@@ -371,6 +376,7 @@ public class DB2XABasicTest extends XATestBase {
         xaRes.rollback(xid);
         
         // Verify data was NOT committed
-        verifyDataNotExists(testName);
+        Connection verifyConn = xaConnection.getConnection();
+        verifyDataNotExists(verifyConn, testName);
     }
 }

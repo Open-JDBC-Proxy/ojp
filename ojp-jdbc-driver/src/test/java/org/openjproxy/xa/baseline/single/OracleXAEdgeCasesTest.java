@@ -139,7 +139,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Start and end transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-commit-without-prepare", "test-value");
+        insertTestData(conn, "test-commit-without-prepare", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         
         // Try to commit without prepare (two-phase mode)
@@ -170,7 +170,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Complete first prepare
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-double-prepare", "test-value");
+        insertTestData(conn, "test-double-prepare", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         int result = xaRes.prepare(xid);
         
@@ -204,7 +204,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Complete first commit
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-double-commit", "test-value");
+        insertTestData(conn, "test-double-commit", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         int result = xaRes.prepare(xid);
         if (result != XAResource.XA_RDONLY) {
@@ -235,7 +235,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Complete first transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-reuse-xid", "first-value");
+        insertTestData(conn, "test-reuse-xid", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         xaRes.commit(xid, true); // One-phase commit
         
@@ -264,7 +264,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Complete first rollback
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-double-rollback", "test-value");
+        insertTestData(conn, "test-double-rollback", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         xaRes.rollback(xid);
         
@@ -292,7 +292,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Commit transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-rollback-after-commit", "test-value");
+        insertTestData(conn, "test-rollback-after-commit", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         xaRes.commit(xid, true);
         
@@ -320,7 +320,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Rollback transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-commit-after-rollback", "test-value");
+        insertTestData(conn, "test-commit-after-rollback", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         xaRes.rollback(xid);
         
@@ -423,9 +423,9 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         // Try to execute SQL without active XA transaction
         // Behavior may vary - Oracle typically requires an active transaction
         try {
-            insertTestData(conn, "test-no-xa-transaction", "test-value");
+            insertTestData(conn, "test-no-xa-transaction", 1);
             // If no exception, check if data was committed (shouldn't be with auto-commit off)
-            assertFalse(dataExists(conn, "test-no-xa-transaction"),
+            assertFalse(verifyDataExists(conn, "test-no-xa-transaction"),
                 "Data should not be committed without XA transaction");
         } catch (SQLException e) {
             // Some databases may throw exception - document this behavior
@@ -490,7 +490,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-manual-commit", "test-value");
+        insertTestData(conn, "test-manual-commit", 1);
         
         // Try to manually commit
         SQLException exception = assertThrows(SQLException.class, () -> {
@@ -555,7 +555,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Try to use closed connection
         SQLException exception = assertThrows(SQLException.class, () -> {
-            insertTestData(conn, "test-closed-connection", "test-value");
+            insertTestData(conn, "test-closed-connection", 1);
         });
         
         assertTrue(exception.getMessage().toLowerCase().contains("closed"),
@@ -576,7 +576,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-xa-after-close", "test-value");
+        insertTestData(conn, "test-xa-after-close", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         
         // Close logical connection
@@ -612,7 +612,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-close-active-tx", "test-value");
+        insertTestData(conn, "test-close-active-tx", 1);
         // Don't call end()
         
         // Close connection with active transaction
@@ -646,7 +646,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Prepare transaction
         xaRes1.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn1, "test-close-prepared", "test-value");
+        insertTestData(conn1, "test-close-prepared", 1);
         xaRes1.end(xid, XAResource.TMSUCCESS);
         xaRes1.prepare(xid);
         
@@ -791,7 +791,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-mixed-commit", "test-value");
+        insertTestData(conn, "test-mixed-commit", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         
         int result = xaRes.prepare(xid);
@@ -952,7 +952,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         xaRes.setTransactionTimeout(2); // 2 seconds
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-timeout-forget-end", "test-value");
+        insertTestData(conn, "test-timeout-forget-end", 1);
         
         // Wait for timeout (mistake: not calling end)
         Thread.sleep(3000); // Wait 3 seconds
@@ -996,7 +996,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         // Normal transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
-        insertTestData(conn, "test-heuristic", "test-value");
+        insertTestData(conn, "test-heuristic", 1);
         xaRes.end(xid, XAResource.TMSUCCESS);
         xaRes.prepare(xid);
         
@@ -1042,12 +1042,12 @@ public class OracleXAEdgeCasesTest extends XATestBase {
             // Can use TMJOIN
             Xid xid = createXid();
             xaRes1.start(xid, XAResource.TMNOFLAGS);
-            insertTestData(xaConn1.getConnection(), "test-same-rm", "value1");
+            insertTestData(xaConn1.getConnection(), "test-same-rm", 1);
             xaRes1.end(xid, XAResource.TMSUCCESS);
             
             // Join from second resource
             xaRes2.start(xid, XAResource.TMJOIN);
-            insertTestData(xaConn2.getConnection(), "test-same-rm", "value2");
+            insertTestData(xaConn2.getConnection(), "test-same-rm", 2);
             xaRes2.end(xid, XAResource.TMSUCCESS);
             
             // Cleanup

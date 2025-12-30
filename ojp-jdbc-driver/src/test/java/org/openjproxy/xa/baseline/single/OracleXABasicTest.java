@@ -40,7 +40,7 @@ public class OracleXABasicTest extends XATestBase {
     private static final Logger logger = LoggerFactory.getLogger(OracleXABasicTest.class);
     
     private static OracleXAContainer oracleContainer;
-    private static XADataSource staticXADataSource;
+    protected static XADataSource staticXADataSource;
     
     @BeforeAll
     public static void setUpClass() throws Exception {
