@@ -4,112 +4,91 @@ import com.microsoft.sqlserver.jdbc.SQLServerXADataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import javax.sql.XADataSource;
+import java.sql.SQLException;
 
 /**
- * TestContainer wrapper for SQL Server with XA configuration.
+ * SQL Server XA DataSource factory that uses the singleton SQLServerXATestContainer.
  * 
- * This class provides a ready-to-use SQL Server container with:
- * - XA transaction support enabled via sp_sqljdbc_xa_install
- * - Required XA permissions granted (SqlJDBCXAUser role)
- * - Test database configured
- * - Initialization scripts executed
- * 
- * SQL Server XA Requirements:
- * - Must run sp_sqljdbc_xa_install stored procedure
- * - User must be member of SqlJDBCXAUser role
- * - MS DTC service must be enabled (handled by docker image)
+ * This class provides a simple way to create XADataSources for SQL Server XA tests
+ * without manually managing container lifecycle. The singleton pattern ensures
+ * all tests share the same SQL Server container instance.
  * 
  * Usage:
  * <pre>
  * SQLServerXAContainer sqlServer = new SQLServerXAContainer();
- * sqlServer.start();
  * XADataSource xaDataSource = sqlServer.createXADataSource();
  * </pre>
  */
-public class SQLServerXAContainer extends MSSQLServerContainer<SQLServerXAContainer> {
+public class SQLServerXAContainer {
     
     private static final Logger logger = LoggerFactory.getLogger(SQLServerXAContainer.class);
     
-    // SQL Server 2022 image - includes XA support
-    private static final DockerImageName SQLSERVER_IMAGE = 
-        DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-latest")
-            .asCompatibleSubstituteFor("mcr.microsoft.com/mssql/server");
-    
-    // Default credentials
-    private static final String DEFAULT_PASSWORD = "YourStrong!Passw0rd";
-    
     /**
-     * Creates SQL Server XA container with default configuration.
-     */
-    public SQLServerXAContainer() {
-        this(SQLSERVER_IMAGE);
-    }
-    
-    /**
-     * Creates SQL Server XA container with specified image.
-     */
-    public SQLServerXAContainer(DockerImageName dockerImageName) {
-        super(dockerImageName);
-        
-        // Set strong password (SQL Server requirement)
-        withPassword(DEFAULT_PASSWORD);
-        
-        // Accept EULA
-        acceptLicense();
-        
-        // Load initialization script for XA setup
-        withInitScript("xa-baseline/sql/sqlserver-xa-setup.sql");
-        
-        // Increase startup timeout for XA setup
-        withStartupTimeoutSeconds(180);
-        
-        logger.info("SQL Server XA container configured with image: {}", dockerImageName);
-    }
-    
-    /**
-     * Creates an XADataSource for this SQL Server instance.
+     * Creates an XADataSource configured to connect to the singleton SQL Server container.
+     * The container is automatically started if not already running.
      * 
-     * @return Configured SQLServerXADataSource
+     * @return configured XADataSource
+     * @throws SQLException if DataSource creation fails
      */
-    public XADataSource createXADataSource() {
+    public XADataSource createXADataSource() throws SQLException {
+        // Get the singleton container (starts it if needed)
+        MSSQLServerContainer<?> container = SQLServerXATestContainer.getInstance();
+        
         SQLServerXADataSource xaDataSource = new SQLServerXADataSource();
         
-        // Set connection properties
-        xaDataSource.setServerName(getHost());
-        xaDataSource.setPortNumber(getMappedPort(MS_SQL_SERVER_PORT));
-        xaDataSource.setDatabaseName("tempdb"); // Use tempdb for tests
-        xaDataSource.setUser("sa");
-        xaDataSource.setPassword(getPassword());
+        // Configure connection properties using the singleton container
+        String jdbcUrl = SQLServerXATestContainer.getJdbcUrl();
+        xaDataSource.setServerName(container.getHost());
+        xaDataSource.setPortNumber(container.getMappedPort(MSSQLServerContainer.MS_SQL_SERVER_PORT));
+        xaDataSource.setDatabaseName("tempdb");
+        xaDataSource.setUser(SQLServerXATestContainer.getUsername());
+        xaDataSource.setPassword(SQLServerXATestContainer.getPassword());
         
         // Trust server certificate (for testing)
         xaDataSource.setTrustServerCertificate(true);
         xaDataSource.setEncrypt(false);
         
-        logger.info("Created SQLServerXADataSource: {}:{}", getHost(), getMappedPort(MS_SQL_SERVER_PORT));
+        logger.info("Created SQL Server XADataSource for URL: {}", jdbcUrl);
+        
         return xaDataSource;
     }
     
     /**
-     * Gets the JDBC URL for this SQL Server instance.
+     * Gets the JDBC URL from the singleton container.
      * 
      * @return JDBC URL
      */
-    @Override
     public String getJdbcUrl() {
-        return "jdbc:sqlserver://" + getHost() + ":" + getMappedPort(MS_SQL_SERVER_PORT) + 
-               ";databaseName=tempdb;trustServerCertificate=true;encrypt=false";
+        return SQLServerXATestContainer.getJdbcUrl();
     }
     
     /**
-     * Gets the username for this SQL Server instance.
+     * Gets the username from the singleton container.
      * 
-     * @return Username (always "sa")
+     * @return username
      */
-    @Override
     public String getUsername() {
-        return "sa";
+        return SQLServerXATestContainer.getUsername();
+    }
+    
+    /**
+     * Gets the password from the singleton container.
+     * 
+     * @return password
+     */
+    public String getPassword() {
+        return SQLServerXATestContainer.getPassword();
+    }
+    
+    /**
+     * Checks if the singleton container is running.
+     * 
+     * @return true if container is running
+     */
+    public boolean isRunning() {
+        MSSQLServerContainer<?> container = SQLServerXATestContainer.getInstance();
+        return container != null && container.isRunning();
     }
 }

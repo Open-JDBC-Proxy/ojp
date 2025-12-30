@@ -42,19 +42,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @EnabledIf("org.openjproxy.xa.baseline.containers.SQLServerXATestContainer#isEnabled")
 public class SQLServerXARecoveryTest extends XATestBase {
 
-    private static SQLServerXAContainer container;
-
     @BeforeAll
-    public static void setUpContainer() {
-        container = new SQLServerXAContainer();
-        container.start();
-    }
-
-    @AfterAll
-    public static void tearDownContainer() {
-        if (container != null) {
-            container.stop();
-        }
+    public static void setUpClass() throws SQLException {
+        // Singleton container managed by SQLServerXATestContainer
     }
 
     @Override
@@ -64,7 +54,7 @@ public class SQLServerXARecoveryTest extends XATestBase {
 
     @Override
     protected XADataSource createXADataSource() throws SQLException {
-        return container.createXADataSource();
+        return new SQLServerXAContainer().createXADataSource();
     }
 
     // ==================== Test Case 6: Recovery Operations ====================

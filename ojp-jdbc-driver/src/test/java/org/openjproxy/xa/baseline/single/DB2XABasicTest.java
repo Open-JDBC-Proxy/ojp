@@ -1,6 +1,5 @@
 package org.openjproxy.xa.baseline.single;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -37,37 +36,22 @@ public class DB2XABasicTest extends XATestBase {
     
     private static final Logger logger = LoggerFactory.getLogger(DB2XABasicTest.class);
     
-    private static DB2XAContainer db2Container;
     protected static XADataSource staticXADataSource;
     
     @BeforeAll
     public static void setUpClass() throws Exception {
         logger.info("=== Starting DB2 XA Basic Tests (Phase 7) ===");
-        logger.info("Setting up DB2 XA Container...");
+        logger.info("Setting up DB2 XA Container (using singleton)...");
         
-        // Start DB2 container (shared across all tests)
-        db2Container = new DB2XAContainer();
-        db2Container.start();
+        // Create container wrapper (uses singleton internally)
+        DB2XAContainer db2Container = new DB2XAContainer();
         
-        logger.info("DB2 XA Container started successfully");
         logger.info("JDBC URL: {}", db2Container.getJdbcUrl());
         
         // Create XA DataSource
         staticXADataSource = db2Container.createXADataSource();
         
         logger.info("DB2 XA DataSource created successfully");
-    }
-    
-    @AfterAll
-    public static void tearDownClass() {
-        logger.info("Tearing down DB2 XA Container...");
-        
-        if (db2Container != null) {
-            db2Container.stop();
-            logger.info("DB2 XA Container stopped");
-        }
-        
-        logger.info("=== DB2 XA Basic Tests Complete ===");
     }
 
     @Override

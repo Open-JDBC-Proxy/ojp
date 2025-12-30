@@ -1,6 +1,5 @@
 package org.openjproxy.xa.baseline.containers;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -45,13 +44,11 @@ public class SQLServerXAContainerSmokeTest {
     
     @BeforeAll
     public static void setUpClass() throws Exception {
-        logger.info("Starting SQL Server XA Container for smoke test...");
+        logger.info("SQL Server XA Container setup ready (using singleton)");
         
-        // Create and start SQL Server container
+        // Create container wrapper (uses singleton internally)
         sqlServerContainer = new SQLServerXAContainer();
-        sqlServerContainer.start();
         
-        logger.info("SQL Server XA Container started successfully");
         logger.info("JDBC URL: {}", sqlServerContainer.getJdbcUrl());
         
         // Create XA DataSource
@@ -59,16 +56,6 @@ public class SQLServerXAContainerSmokeTest {
         assertNotNull(xaDataSource, "XA DataSource should not be null");
         
         logger.info("XA DataSource created successfully");
-    }
-    
-    @AfterAll
-    public static void tearDownClass() {
-        logger.info("Stopping SQL Server XA Container...");
-        
-        if (sqlServerContainer != null) {
-            sqlServerContainer.stop();
-            logger.info("SQL Server XA Container stopped");
-        }
     }
     
     @Test

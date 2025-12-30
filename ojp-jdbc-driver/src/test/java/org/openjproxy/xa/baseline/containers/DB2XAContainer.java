@@ -1,137 +1,102 @@
 package org.openjproxy.xa.baseline.containers;
 
 import com.ibm.db2.jcc.DB2XADataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.Db2Container;
-import org.testcontainers.utility.DockerImageName;
 
 import javax.sql.XADataSource;
-import java.sql.Connection;
-import java.sql.Statement;
+import java.sql.SQLException;
 
 /**
- * TestContainer wrapper for IBM DB2 with XA transaction support.
+ * DB2 XA DataSource factory that uses the singleton DB2XATestContainer.
  * 
- * Phase 7: DB2 Setup
+ * This class provides a simple way to create XADataSources for DB2 XA tests
+ * without manually managing container lifecycle. The singleton pattern ensures
+ * all tests share the same DB2 container instance.
  * 
- * Configures DB2 container with:
- * - XA transaction support (TM_DATABASE configuration)
- * - DBADM privileges for test user
- * - Test database and table
- * - XA permission grants
+ * Usage:
+ * <pre>
+ * DB2XAContainer db2 = new DB2XAContainer();
+ * XADataSource xaDataSource = db2.createXADataSource();
+ * </pre>
  */
-public class DB2XAContainer extends Db2Container {
+public class DB2XAContainer {
     
-    private static final String DB2_IMAGE = "icr.io/db2_community/db2:11.5.9.0";
-    private static final String DB_NAME = "xatestdb";
-    private static final String USERNAME = "db2inst1";
-    private static final String PASSWORD = "testpass123";
-    
-    public DB2XAContainer() {
-        super(DockerImageName.parse(DB2_IMAGE)
-                .asCompatibleSubstituteFor("ibmcom/db2"));
-        
-        // Configure DB2 with XA support
-        withDatabaseName(DB_NAME);
-        withUsername(USERNAME);
-        withPassword(PASSWORD);
-        
-        // Accept DB2 license
-        withEnv("LICENSE", "accept");
-        
-        // Enable archive logging (required for XA)
-        withEnv("ARCHIVE_LOGS", "true");
-        
-        // Set larger shared memory for XA transactions
-        withEnv("DBNAME", DB_NAME);
-        
-        // Increase startup timeout for DB2
-        withStartupTimeout(java.time.Duration.ofMinutes(5));
-    }
-    
-    @Override
-    public void start() {
-        super.start();
-        
-        // Initialize XA support after container starts
-        try {
-            initializeXASupport();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize DB2 XA support", e);
-        }
-    }
+    private static final Logger logger = LoggerFactory.getLogger(DB2XAContainer.class);
     
     /**
-     * Initialize DB2 XA transaction support.
-     * This includes:
-     * - Setting up TM_DATABASE for XA coordination
-     * - Granting necessary privileges
-     * - Creating test table and sequence
-     */
-    private void initializeXASupport() throws Exception {
-        try (Connection conn = createConnection(getJdbcUrl(), getUsername(), getPassword());
-             Statement stmt = conn.createStatement()) {
-            
-            // Read and execute setup SQL
-            String setupSQL = loadSetupSQL();
-            
-            // Execute each statement separately (DB2 doesn't support multiple statements)
-            String[] statements = setupSQL.split(";");
-            for (String sql : statements) {
-                String trimmed = sql.trim();
-                if (!trimmed.isEmpty() && !trimmed.startsWith("--")) {
-                    try {
-                        stmt.execute(trimmed);
-                    } catch (Exception e) {
-                        // Log but don't fail on individual statement errors
-                        // Some statements may be idempotent
-                        System.err.println("Warning: DB2 setup statement failed: " + trimmed);
-                        System.err.println("Error: " + e.getMessage());
-                    }
-                }
-            }
-            
-            conn.commit();
-        }
-    }
-    
-    /**
-     * Load DB2 XA setup SQL from resources.
-     */
-    private String loadSetupSQL() {
-        try {
-            return new String(getClass().getClassLoader()
-                    .getResourceAsStream("xa-baseline/sql/db2-xa-setup.sql")
-                    .readAllBytes());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load db2-xa-setup.sql", e);
-        }
-    }
-    
-    /**
-     * Create XADataSource for DB2.
+     * Creates an XADataSource configured to connect to the singleton DB2 container.
+     * The container is automatically started if not already running.
      * 
-     * @return Configured DB2XADataSource
+     * @return configured XADataSource
+     * @throws SQLException if DataSource creation fails
      */
-    public XADataSource createXADataSource() {
+    public XADataSource createXADataSource() throws SQLException {
+        // Get the singleton container (starts it if needed)
+        Db2Container container = DB2XATestContainer.getInstance();
+        
         DB2XADataSource xaDataSource = new DB2XADataSource();
         
-        xaDataSource.setServerName(getHost());
-        xaDataSource.setPortNumber(getMappedPort(DB2_PORT));
-        xaDataSource.setDatabaseName(getDatabaseName());
-        xaDataSource.setUser(getUsername());
-        xaDataSource.setPassword(getPassword());
+        // Configure connection properties using the singleton container
+        String jdbcUrl = DB2XATestContainer.getJdbcUrl();
+        xaDataSource.setServerName(container.getHost());
+        xaDataSource.setPortNumber(container.getMappedPort(Db2Container.DB2_PORT));
+        xaDataSource.setDatabaseName(DB2XATestContainer.getDatabaseName());
+        xaDataSource.setUser(DB2XATestContainer.getUsername());
+        xaDataSource.setPassword(DB2XATestContainer.getPassword());
         
         // Enable XA support
         xaDataSource.setDriverType(4);  // Type 4 driver (pure Java)
+        
+        logger.info("Created DB2 XADataSource for URL: {}", jdbcUrl);
         
         return xaDataSource;
     }
     
     /**
-     * Helper to create JDBC connection for setup.
+     * Gets the JDBC URL from the singleton container.
+     * 
+     * @return JDBC URL
      */
-    private Connection createConnection(String url, String user, String password) throws Exception {
-        Class.forName("com.ibm.db2.jcc.DB2Driver");
-        return java.sql.DriverManager.getConnection(url, user, password);
+    public String getJdbcUrl() {
+        return DB2XATestContainer.getJdbcUrl();
+    }
+    
+    /**
+     * Gets the username from the singleton container.
+     * 
+     * @return username
+     */
+    public String getUsername() {
+        return DB2XATestContainer.getUsername();
+    }
+    
+    /**
+     * Gets the password from the singleton container.
+     * 
+     * @return password
+     */
+    public String getPassword() {
+        return DB2XATestContainer.getPassword();
+    }
+    
+    /**
+     * Gets the database name from the singleton container.
+     * 
+     * @return database name
+     */
+    public String getDatabaseName() {
+        return DB2XATestContainer.getDatabaseName();
+    }
+    
+    /**
+     * Checks if the singleton container is running.
+     * 
+     * @return true if container is running
+     */
+    public boolean isRunning() {
+        Db2Container container = DB2XATestContainer.getInstance();
+        return container != null && container.isRunning();
     }
 }

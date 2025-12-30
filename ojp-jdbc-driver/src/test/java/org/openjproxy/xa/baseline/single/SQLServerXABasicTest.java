@@ -39,21 +39,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @EnabledIf("org.openjproxy.xa.baseline.containers.SQLServerXATestContainer#isEnabled")
 public class SQLServerXABasicTest extends XATestBase {
 
-    private static SQLServerXAContainer container;
     protected static XADataSource staticXADataSource;
 
     @BeforeAll
-    public static void setUpContainer() throws SQLException {
-        container = new SQLServerXAContainer();
-        container.start();
+    public static void setUpClass() throws SQLException {
+        SQLServerXAContainer container = new SQLServerXAContainer();
         staticXADataSource = container.createXADataSource();
-    }
-
-    @AfterAll
-    public static void tearDownContainer() {
-        if (container != null) {
-            container.stop();
-        }
     }
 
     @Override
