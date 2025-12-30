@@ -51,7 +51,12 @@ public class SQLServerXABasicTest extends XATestBase {
     }
 
     @Override
-    protected XADataSource getXADataSource() throws Exception {
+    protected String getDatabaseType() {
+        return "SQL Server";
+    }
+
+    @Override
+    protected XADataSource createXADataSource() throws SQLException {
         return container.createXADataSource();
     }
 
@@ -79,14 +84,12 @@ public class SQLServerXABasicTest extends XATestBase {
 
         XAConnection xaConn = xaDataSource.getXAConnection();
         assertNotNull(xaConn, "XAConnection should not be null");
-        trackResource(xaConn);
 
         XAResource xaRes = xaConn.getXAResource();
         assertNotNull(xaRes, "XAResource should not be null");
 
         Connection conn = xaConn.getConnection();
         assertNotNull(conn, "Logical connection should not be null");
-        trackResource(conn);
 
         // Verify auto-commit is disabled (XA requirement)
         assertFalse(conn.getAutoCommit(), "Auto-commit must be disabled for XA transactions");
@@ -113,12 +116,10 @@ public class SQLServerXABasicTest extends XATestBase {
         System.out.println("\n=== Test 1.2: Basic XA Transaction Lifecycle (2PC) ===");
 
         XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid = xidGenerator.createXid("TEST-2PC");
+        Xid xid = createXid();
         String testValue = "BasicLifecycle-" + System.currentTimeMillis();
 
         try {
@@ -184,12 +185,10 @@ public class SQLServerXABasicTest extends XATestBase {
         System.out.println("\n=== Test 1.3: XA Transaction Rollback ===");
 
         XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid = xidGenerator.createXid("TEST-ROLLBACK");
+        Xid xid = createXid();
         String testValue = "RollbackTest-" + System.currentTimeMillis();
 
         try {
@@ -244,10 +243,8 @@ public class SQLServerXABasicTest extends XATestBase {
         System.out.println("\n=== Test 1.4: One-Phase Commit Optimization ===");
 
         XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
         // First insert a row to update
         String testValue = "OnePhaseBefore-" + System.currentTimeMillis();
@@ -258,7 +255,7 @@ public class SQLServerXABasicTest extends XATestBase {
             pstmt.executeUpdate();
         }
 
-        Xid xid = xidGenerator.createXid("TEST-1PC");
+        Xid xid = createXid();
         String updatedValue = "OnePhaseAfter-" + System.currentTimeMillis();
 
         try {
@@ -314,12 +311,10 @@ public class SQLServerXABasicTest extends XATestBase {
         System.out.println("\n=== Test 1.5: Read-Only Transaction Optimization ===");
 
         XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid = xidGenerator.createXid("TEST-RDONLY");
+        Xid xid = createXid();
 
         System.out.println("Starting XA transaction...");
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -371,12 +366,10 @@ public class SQLServerXABasicTest extends XATestBase {
         System.out.println("\n=== Test 2.1: Transaction Suspension and Resumption ===");
 
         XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid = xidGenerator.createXid("TEST-SUSPEND");
+        Xid xid = createXid();
         String testValue = "SuspendTest-" + System.currentTimeMillis();
 
         try {
@@ -456,19 +449,15 @@ public class SQLServerXABasicTest extends XATestBase {
         System.out.println("\n=== Test 2.2: Transaction Branch Joining ===");
 
         XAConnection xaConn1 = getXADataSource().getXAConnection();
-        trackResource(xaConn1);
         XAResource xaRes1 = xaConn1.getXAResource();
         Connection conn1 = xaConn1.getConnection();
-        trackResource(conn1);
 
         XAConnection xaConn2 = getXADataSource().getXAConnection();
-        trackResource(xaConn2);
         XAResource xaRes2 = xaConn2.getXAResource();
         Connection conn2 = xaConn2.getConnection();
-        trackResource(conn2);
 
         // Use same XID for both branches
-        Xid xid = xidGenerator.createXid("TEST-JOIN");
+        Xid xid = createXid();
         String testValue = "JoinTest-" + System.currentTimeMillis();
 
         try {
@@ -544,12 +533,10 @@ public class SQLServerXABasicTest extends XATestBase {
         System.out.println("\n=== Test 2.3: Transaction Failure Marking ===");
 
         XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid = xidGenerator.createXid("TEST-FAIL");
+        Xid xid = createXid();
         String testValue = "FailTest-" + System.currentTimeMillis();
 
         try {

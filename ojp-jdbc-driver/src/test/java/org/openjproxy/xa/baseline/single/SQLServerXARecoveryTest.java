@@ -54,7 +54,12 @@ public class SQLServerXARecoveryTest extends XATestBase {
     }
 
     @Override
-    protected XADataSource getXADataSource() throws Exception {
+    protected String getDatabaseType() {
+        return "SQL Server";
+    }
+
+    @Override
+    protected XADataSource createXADataSource() throws SQLException {
         return container.createXADataSource();
     }
 

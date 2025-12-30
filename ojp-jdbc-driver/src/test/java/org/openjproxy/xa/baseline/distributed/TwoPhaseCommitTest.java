@@ -79,6 +79,17 @@ public class TwoPhaseCommitTest extends XATestBase {
         logger.info("All containers stopped");
     }
 
+    @Override
+    protected String getDatabaseType() {
+        return "Distributed";
+    }
+
+    @Override
+    protected XADataSource createXADataSource() throws SQLException {
+        // Return Oracle datasource as default (tests create their own as needed)
+        return oracleContainer.createXADataSource();
+    }
+
     /**
      * Test Case 9.1: Two-Database Transaction (Same Type - Oracle to Oracle)
      * 
