@@ -36,11 +36,13 @@ import static org.junit.jupiter.api.Assertions.*;
 public class SQLServerXABasicTest extends XATestBase {
 
     private static SQLServerXAContainer container;
+    protected static XADataSource staticXADataSource;
 
     @BeforeAll
-    public static void setUpContainer() {
+    public static void setUpContainer() throws SQLException {
         container = new SQLServerXAContainer();
         container.start();
+        staticXADataSource = container.createXADataSource();
     }
 
     @AfterAll
@@ -57,7 +59,7 @@ public class SQLServerXABasicTest extends XATestBase {
 
     @Override
     protected XADataSource createXADataSource() throws SQLException {
-        return container.createXADataSource();
+        return staticXADataSource;
     }
 
     // ==================== Test Case 1: Core XA Operations ====================
