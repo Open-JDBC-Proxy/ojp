@@ -291,4 +291,52 @@ public abstract class XATestBase {
             logger.warn("Wait interrupted", e);
         }
     }
+    
+    /**
+     * Inserts test data into the xa_test_baseline table.
+     * 
+     * @param conn the connection to use
+     * @param testName the test name
+     * @param testValue the test value
+     * @throws SQLException if insert fails
+     */
+    protected void insertTestData(Connection conn, String testName, int testValue) throws SQLException {
+        String sql = "INSERT INTO xa_test_baseline (id, test_name, test_value, test_timestamp) " +
+                    "VALUES (xa_test_seq.NEXTVAL, ?, ?, SYSTIMESTAMP)";
+        try (var pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, testName);
+            pstmt.setInt(2, testValue);
+            pstmt.executeUpdate();
+        }
+    }
+    
+    /**
+     * Verifies that data exists in the xa_test_baseline table.
+     * 
+     * @param conn the connection to use
+     * @param testName the test name to look for
+     * @return true if data exists
+     * @throws SQLException if query fails
+     */
+    protected boolean verifyDataExists(Connection conn, String testName) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM xa_test_baseline WHERE test_name = ?";
+        try (var pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, testName);
+            try (var rs = pstmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+    
+    /**
+     * Verifies that data does NOT exist in the xa_test_baseline table.
+     * 
+     * @param conn the connection to use
+     * @param testName the test name to look for
+     * @return true if data does not exist
+     * @throws SQLException if query fails
+     */
+    protected boolean verifyDataNotExists(Connection conn, String testName) throws SQLException {
+        return !verifyDataExists(conn, testName);
+    }
 }

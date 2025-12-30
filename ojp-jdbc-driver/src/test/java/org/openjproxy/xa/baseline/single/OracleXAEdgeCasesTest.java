@@ -28,8 +28,13 @@ import static org.junit.jupiter.api.Assertions.*;
 public class OracleXAEdgeCasesTest extends XATestBase {
 
     @Override
-    protected OracleXAContainer createContainer() {
-        return new OracleXAContainer();
+    protected String getDatabaseType() {
+        return "Oracle";
+    }
+
+    @Override
+    protected XADataSource createXADataSource() throws SQLException {
+        return OracleXABasicTest.staticXADataSource;
     }
 
     // ===========================================================================================
@@ -43,11 +48,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testStartBeforePreviousTransactionEnded() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid1 = generateXid();
-        Xid xid2 = generateXid();
+        Xid xid1 = createXid();
+        Xid xid2 = createXid();
         
         // Start first transaction
         xaRes.start(xid1, XAResource.TMNOFLAGS);
@@ -73,10 +78,10 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testEndBeforeStart() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Try to end without start
         XAException exception = assertThrows(XAException.class, () -> {
@@ -96,11 +101,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testPrepareBeforeEnd() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -125,11 +130,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCommitWithoutPrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start and end transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -156,11 +161,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testDoublePrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Complete first prepare
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -190,11 +195,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testDoubleCommit() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Complete first commit
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -221,11 +226,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testReuseXidAfterCommit() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Complete first transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -250,11 +255,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testDoubleRollback() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Complete first rollback
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -278,11 +283,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testRollbackAfterCommit() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Commit transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -306,11 +311,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCommitAfterRollback() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Rollback transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -334,10 +339,10 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testJoinWithoutExistingTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Try to join non-existent transaction
         XAException exception = assertThrows(XAException.class, () -> {
@@ -356,10 +361,10 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testResumeWithoutSuspend() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Try to resume without suspend
         XAException exception = assertThrows(XAException.class, () -> {
@@ -378,10 +383,10 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testMultipleEndCalls() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start and end once
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -407,7 +412,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testSqlOperationsWithoutActiveTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
@@ -434,11 +439,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCommitAfterReadOnlyPrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Create read-only transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -477,11 +482,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testManualCommitDuringXaTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
         insertTestData(conn, "test-manual-commit", "test-value");
@@ -508,11 +513,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testSetAutoCommitTrueDuringXaTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
         
@@ -542,7 +547,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testUseConnectionAfterClose() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         Connection conn = xaConn.getConnection();
         
         conn.close();
@@ -563,11 +568,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testXaOperationsAfterLogicalConnectionClose() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
         insertTestData(conn, "test-xa-after-close", "test-value");
@@ -599,11 +604,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCloseConnectionWithActiveTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
         insertTestData(conn, "test-close-active-tx", "test-value");
@@ -632,11 +637,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCloseXaConnectionWithPreparedTransaction() throws Exception {
-        XAConnection xaConn1 = getXAConnection();
+        XAConnection xaConn1 = xaConnection;
         XAResource xaRes1 = xaConn1.getXAResource();
         Connection conn1 = xaConn1.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Prepare transaction
         xaRes1.start(xid, XAResource.TMNOFLAGS);
@@ -649,7 +654,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         xaConn1.close();
         
         // Open new connection and recover
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn2 = xaConnection;
         XAResource xaRes2 = xaConn2.getXAResource();
         
         Xid[] recovered = xaRes2.recover(XAResource.TMSTARTRSCAN | XAResource.TMENDRSCAN);
@@ -679,10 +684,10 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testUseXaResourceAfterXaConnectionClose() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Close XAConnection
         xaConn.close();
@@ -708,7 +713,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
     //     try {
     //         // Try to create many connections
     //         for (int i = 0; i < 100; i++) {
-    //             connections.add(getXAConnection());
+    //             connections.add(xaConnection);
     //         }
     //         
     //         // If we got here, connection pool is large or unlimited
@@ -741,11 +746,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNotCheckingPrepareResult() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Create potentially read-only transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -778,11 +783,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testMixingOnePhaseTwoPhaseCommit() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
         insertTestData(conn, "test-mixed-commit", "test-value");
@@ -813,12 +818,12 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNonUniqueGlobalTransactionIds() throws Exception {
-        XAConnection xaConn1 = getXAConnection();
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn1 = xaConnection;
+        XAConnection xaConn2 = xaConnection;
         XAResource xaRes1 = xaConn1.getXAResource();
         XAResource xaRes2 = xaConn2.getXAResource();
         
-        Xid xid = generateXid(); // Same XID for both
+        Xid xid = createXid(); // Same XID for both
         
         // Start first transaction
         xaRes1.start(xid, XAResource.TMNOFLAGS);
@@ -843,7 +848,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testXidComponentTooLong() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
         // Create XID with globalTransactionId > 64 bytes
@@ -854,20 +859,14 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         byte[] bqual = new byte[10];
         
         Xid invalidXid = new javax.transaction.xa.Xid() {
-            @Override
-            public int getFormatId() { return 1; }
-            
-            @Override
-            public byte[] getGlobalTransactionId() { return gtrid; }
-            
-            @Override
-            public byte[] getBranchQualifier() { return bqual; }
-        };
-        
-        // Try to use invalid XID
-        assertThrows(XAException.class, () -> {
-            xaRes.start(invalidXid, XAResource.TMNOFLAGS);
-        }, "XID with components exceeding 64 bytes should throw XAException");
+    @Override
+    protected String getDatabaseType() {
+        return "Oracle";
+    }
+
+    @Override
+    protected XADataSource createXADataSource() throws SQLException {
+        return OracleXABasicTest.staticXADataSource;
     }
 
     /**
@@ -877,11 +876,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testTmsSuccessOnFailedTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
         
@@ -924,11 +923,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testForgettingToEndTransactionBeforeTimeout() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Set short timeout
         xaRes.setTransactionTimeout(2); // 2 seconds
@@ -970,11 +969,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNotHandlingHeuristicOutcomes() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Normal transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -1007,8 +1006,8 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testAssumingIsSameRmReturnsTrue() throws Exception {
-        XAConnection xaConn1 = getXAConnection();
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn1 = xaConnection;
+        XAConnection xaConn2 = xaConnection;
         XAResource xaRes1 = xaConn1.getXAResource();
         XAResource xaRes2 = xaConn2.getXAResource();
         
@@ -1022,7 +1021,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         
         if (sameRM) {
             // Can use TMJOIN
-            Xid xid = generateXid();
+            Xid xid = createXid();
             xaRes1.start(xid, XAResource.TMNOFLAGS);
             insertTestData(xaConn1.getConnection(), "test-same-rm", "value1");
             xaRes1.end(xid, XAResource.TMSUCCESS);
@@ -1050,7 +1049,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     // @Test
     // void testConcurrentAccessToSingleXaResource() throws Exception {
-    //     XAConnection xaConn = getXAConnection();
+    //     XAConnection xaConn = xaConnection;
     //     XAResource xaRes = xaConn.getXAResource();
     //     
     //     // Concurrent access from multiple threads
@@ -1064,11 +1063,11 @@ public class OracleXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNotCleaningUpAfterException() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         xaRes.start(xid, XAResource.TMNOFLAGS);
         

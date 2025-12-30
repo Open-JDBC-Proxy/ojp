@@ -28,8 +28,13 @@ import static org.junit.jupiter.api.Assertions.*;
 public class SQLServerXAEdgeCasesTest extends XATestBase {
 
     @Override
-    protected SQLServerXAContainer createContainer() {
-        return new SQLServerXAContainer();
+    protected String getDatabaseType() {
+        return "SQL Server";
+    }
+
+    @Override
+    protected javax.sql.XADataSource createXADataSource() throws SQLException {
+        return SQLServerXABasicTest.staticXADataSource;
     }
 
     // ===========================================================================================
@@ -43,11 +48,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testStartBeforePreviousTransactionEnded() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid1 = generateXid();
-        Xid xid2 = generateXid();
+        Xid xid1 = createXid();
+        Xid xid2 = createXid();
         
         // Start first transaction
         xaRes.start(xid1, XAResource.TMNOFLAGS);
@@ -73,10 +78,10 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testEndBeforeStart() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Try to end without start
         XAException exception = assertThrows(XAException.class, () -> {
@@ -96,11 +101,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testPrepareBeforeEnd() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -134,11 +139,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCommitBeforePrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start and end transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -170,11 +175,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testDoublePrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Complete transaction with prepare
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -207,11 +212,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testDoubleCommit() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Complete transaction and commit
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -242,11 +247,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testDoubleRollback() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Complete transaction and rollback
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -276,11 +281,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testXidReuseAfterCommit() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // First transaction - commit
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -322,11 +327,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testXidReuseAfterRollback() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // First transaction - rollback
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -366,10 +371,10 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testStartWithTMJOINWithoutPreviousStart() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Try to join non-existent transaction
         XAException exception = assertThrows(XAException.class, () -> {
@@ -389,10 +394,10 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testStartWithTMRESUMEWithoutSuspend() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Try to resume non-suspended transaction
         XAException exception = assertThrows(XAException.class, () -> {
@@ -412,11 +417,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testMultipleEndCalls() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -449,11 +454,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCommitAfterReadOnlyPrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction with only SELECT (no modifications)
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -488,11 +493,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testRollbackAfterPrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Prepare transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -520,11 +525,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testOnePhaseCommitAfterPrepare() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Prepare transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -561,11 +566,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testManualCommitDuringXATransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start XA transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -595,11 +600,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testManualRollbackDuringXATransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start XA transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -629,11 +634,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testSetAutoCommitTrueDuringXATransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Verify auto-commit is false
         assertFalse(conn.getAutoCommit(), "Auto-commit should be false for XA connection");
@@ -660,11 +665,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCloseConnectionWithActiveTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -681,7 +686,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
         
         // Transaction should be rolled back by SQL Server
         // Get new connection to verify
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn2 = xaConnection;
         verifyDataNotExists("close-active");
         xaConn2.close();
     }
@@ -693,11 +698,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testCloseConnectionWithPreparedTransaction() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Prepare transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -715,7 +720,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
         xaConn.close();
         
         // Get new connection and verify transaction is in recovery
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn2 = xaConnection;
         XAResource xaRes2 = xaConn2.getXAResource();
         
         Xid[] recovered = xaRes2.recover(XAResource.TMSTARTRSCAN | XAResource.TMENDRSCAN);
@@ -744,10 +749,10 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testUseXAResourceAfterConnectionClose() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Close connection
         xaConn.close();
@@ -768,7 +773,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testUseLogicalConnectionAfterClose() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         Connection conn = xaConn.getConnection();
         
         // Close logical connection
@@ -791,7 +796,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testMultipleLogicalConnections() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         
         // Get first connection
         Connection conn1 = xaConn.getConnection();
@@ -832,11 +837,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNotCheckingPrepareResult() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Read-only transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -871,11 +876,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testMixingOnePhaseAndTwoPhaseCommit() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Two-phase commit: prepare first
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -907,12 +912,12 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNonUniqueXIDGeneration() throws Exception {
-        XAConnection xaConn1 = getXAConnection();
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn1 = xaConnection;
+        XAConnection xaConn2 = xaConnection;
         XAResource xaRes1 = xaConn1.getXAResource();
         XAResource xaRes2 = xaConn2.getXAResource();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start first transaction
         xaRes1.start(xid, XAResource.TMNOFLAGS);
@@ -940,7 +945,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testXIDComponentSizeViolation() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
         // Create XID with oversized GTRID (> 64 bytes)
@@ -968,11 +973,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testEndWithTMSUCCESSAfterFailure() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -1012,7 +1017,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testTransactionTimeoutWithoutEnd() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
@@ -1024,7 +1029,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
             return;
         }
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -1068,11 +1073,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
     void testNotHandlingHeuristicOutcomes() throws Exception {
         // SQL Server typically doesn't generate heuristic outcomes in normal testing
         // This test documents the expected behavior
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Normal transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -1110,8 +1115,8 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNotCheckingIsSameRM() throws Exception {
-        XAConnection xaConn1 = getXAConnection();
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn1 = xaConnection;
+        XAConnection xaConn2 = xaConnection;
         XAResource xaRes1 = xaConn1.getXAResource();
         XAResource xaRes2 = xaConn2.getXAResource();
         
@@ -1133,11 +1138,11 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testNotCleaningUpAfterException() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         try {
             xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -1161,7 +1166,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
         
         // Verify cleanup was needed by trying to use same XID
         // Should be able to start new transaction with different XID
-        Xid xid2 = generateXid();
+        Xid xid2 = createXid();
         assertDoesNotThrow(() -> {
             xaRes.start(xid2, XAResource.TMNOFLAGS);
             xaRes.end(xid2, XAResource.TMFAIL);
@@ -1176,7 +1181,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
      */
     @Test
     void testIncorrectUseOfRecoveryFlags() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         
         // Mistake: use TMENDRSCAN without TMSTARTRSCAN first

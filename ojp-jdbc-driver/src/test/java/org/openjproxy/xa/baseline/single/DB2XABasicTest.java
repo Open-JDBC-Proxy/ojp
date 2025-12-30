@@ -26,8 +26,13 @@ import static org.junit.jupiter.api.Assertions.*;
 public class DB2XABasicTest extends XATestBase {
 
     @Override
-    protected DB2XAContainer createContainer() {
-        return new DB2XAContainer();
+    protected String getDatabaseType() {
+        return "DB2";
+    }
+
+    @Override
+    protected javax.sql.XADataSource createXADataSource() throws SQLException {
+        throw new UnsupportedOperationException("DB2XABasicTest must use @BeforeAll pattern - see OracleXABasicTest");
     }
 
     // ===========================================================================================
@@ -41,7 +46,7 @@ public class DB2XABasicTest extends XATestBase {
     @Test
     void testXAConnectionCreation() throws Exception {
         // Get XA connection
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         assertNotNull(xaConn, "XAConnection should not be null");
         
         // Get XA resource
@@ -70,12 +75,12 @@ public class DB2XABasicTest extends XATestBase {
      */
     @Test
     void testBasicXATransactionLifecycle() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
         // Generate unique XID
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Phase 1: Start XA transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -109,11 +114,11 @@ public class DB2XABasicTest extends XATestBase {
      */
     @Test
     void testXATransactionRollback() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction and do work
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -142,11 +147,11 @@ public class DB2XABasicTest extends XATestBase {
      */
     @Test
     void testOnePhaseCommitOptimization() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -177,11 +182,11 @@ public class DB2XABasicTest extends XATestBase {
      */
     @Test
     void testReadOnlyTransactionOptimization() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -227,11 +232,11 @@ public class DB2XABasicTest extends XATestBase {
      */
     @Test
     void testTransactionSuspensionAndResumption() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
@@ -276,15 +281,15 @@ public class DB2XABasicTest extends XATestBase {
      */
     @Test
     void testTransactionBranchJoining() throws Exception {
-        XAConnection xaConn1 = getXAConnection();
-        XAConnection xaConn2 = getXAConnection();
+        XAConnection xaConn1 = xaConnection;
+        XAConnection xaConn2 = xaConnection;
         XAResource xaRes1 = xaConn1.getXAResource();
         XAResource xaRes2 = xaConn2.getXAResource();
         Connection conn1 = xaConn1.getConnection();
         Connection conn2 = xaConn2.getConnection();
         
         // Use same XID for both connections
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction on first connection
         xaRes1.start(xid, XAResource.TMNOFLAGS);
@@ -330,11 +335,11 @@ public class DB2XABasicTest extends XATestBase {
      */
     @Test
     void testTransactionFailureMarking() throws Exception {
-        XAConnection xaConn = getXAConnection();
+        XAConnection xaConn = xaConnection;
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
         
-        Xid xid = generateXid();
+        Xid xid = createXid();
         
         // Start transaction
         xaRes.start(xid, XAResource.TMNOFLAGS);
