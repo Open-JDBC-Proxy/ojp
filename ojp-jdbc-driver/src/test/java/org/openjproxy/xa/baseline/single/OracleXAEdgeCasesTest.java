@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.OracleXAContainer;
+import org.openjproxy.xa.baseline.containers.OracleXATestContainer;
 
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;

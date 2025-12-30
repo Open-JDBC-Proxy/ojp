@@ -43,22 +43,16 @@ public class OracleXABasicTest extends XATestBase {
     
     private static final Logger logger = LoggerFactory.getLogger(OracleXABasicTest.class);
     
-    private static OracleXAContainer oracleContainer;
     protected static XADataSource staticXADataSource;
     
     @BeforeAll
     public static void setUpClass() throws Exception {
         logger.info("=== Starting Oracle XA Basic Tests (Phase 3) ===");
-        logger.info("Setting up Oracle XA Container...");
+        logger.info("Using shared Oracle XA Container from singleton...");
         
-        // Start Oracle container (shared across all tests)
-        oracleContainer = new OracleXAContainer();
-        oracleContainer.start();
-        
-        logger.info("Oracle XA Container started successfully");
-        logger.info("JDBC URL: {}", oracleContainer.getJdbcUrl());
-        
-        // Create XA DataSource
+        // Create XA DataSource using the OracleXAContainer wrapper
+        // The wrapper internally uses OracleXATestContainer singleton
+        OracleXAContainer oracleContainer = new OracleXAContainer();
         staticXADataSource = oracleContainer.createXADataSource();
         
         logger.info("Oracle XA DataSource created successfully");
@@ -66,14 +60,8 @@ public class OracleXABasicTest extends XATestBase {
     
     @AfterAll
     public static void tearDownClass() {
-        logger.info("Tearing down Oracle XA Container...");
-        
-        if (oracleContainer != null) {
-            oracleContainer.stop();
-            logger.info("Oracle XA Container stopped");
-        }
-        
         logger.info("=== Oracle XA Basic Tests Complete ===");
+        // Note: Singleton container managed by OracleXATestContainer, no need to stop here
     }
     
     @Override
