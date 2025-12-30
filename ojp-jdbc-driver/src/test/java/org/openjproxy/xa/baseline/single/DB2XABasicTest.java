@@ -3,6 +3,7 @@ package org.openjproxy.xa.baseline.single;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.DB2XAContainer;
 import org.slf4j.Logger;
@@ -28,7 +29,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * These tests validate that DB2 correctly implements the XA protocol using native JDBC driver.
  * Results establish baseline behavior for comparison with Oracle, SQL Server, and OJP.
+ * 
+ * These tests are disabled by default and only run when -DenableDb2Tests=true
  */
+@EnabledIf("org.openjproxy.xa.baseline.containers.DB2XATestContainer#isEnabled")
 public class DB2XABasicTest extends XATestBase {
     
     private static final Logger logger = LoggerFactory.getLogger(DB2XABasicTest.class);

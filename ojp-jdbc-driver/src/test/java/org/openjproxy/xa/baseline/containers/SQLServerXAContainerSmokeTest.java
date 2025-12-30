@@ -3,6 +3,7 @@ package org.openjproxy.xa.baseline.containers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XidGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +32,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * - sp_sqljdbc_xa_install stored procedure executed
  * - SqlJDBCXAUser role permissions
  * - XA extended stored procedures available
+ * 
+ * These tests are disabled by default and only run when -DenableSqlServerTests=true
  */
+@EnabledIf("org.openjproxy.xa.baseline.containers.SQLServerXATestContainer#isEnabled")
 public class SQLServerXAContainerSmokeTest {
     
     private static final Logger logger = LoggerFactory.getLogger(SQLServerXAContainerSmokeTest.class);

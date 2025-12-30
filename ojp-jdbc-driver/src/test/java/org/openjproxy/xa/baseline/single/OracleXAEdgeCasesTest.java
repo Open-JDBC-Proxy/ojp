@@ -1,6 +1,7 @@
 package org.openjproxy.xa.baseline.single;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.OracleXAContainer;
 
@@ -25,7 +26,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * These tests validate that Oracle correctly handles error conditions and protocol violations
  * according to the XA specification. Tests establish baseline behavior for comparison with OJP.
+ * 
+ * These tests are disabled by default and only run when -DenableOracleTests=true
  */
+@EnabledIf("org.openjproxy.xa.baseline.containers.OracleXATestContainer#isEnabled")
 public class OracleXAEdgeCasesTest extends XATestBase {
 
     @Override

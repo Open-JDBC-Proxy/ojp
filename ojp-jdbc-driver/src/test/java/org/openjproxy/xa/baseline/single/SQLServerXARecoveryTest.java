@@ -1,6 +1,7 @@
 package org.openjproxy.xa.baseline.single;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.SQLServerXAContainer;
 
@@ -34,8 +35,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * - forget() - clear heuristic outcomes
  * - Recovery with different flags (TMSTARTRSCAN, TMENDRSCAN, TMNOFLAGS)
  * - Multiple in-doubt transactions recovery
+ * 
+ * These tests are disabled by default and only run when -DenableSqlServerTests=true
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@EnabledIf("org.openjproxy.xa.baseline.containers.SQLServerXATestContainer#isEnabled")
 public class SQLServerXARecoveryTest extends XATestBase {
 
     private static SQLServerXAContainer container;

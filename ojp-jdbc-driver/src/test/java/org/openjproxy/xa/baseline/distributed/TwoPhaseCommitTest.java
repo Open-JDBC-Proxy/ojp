@@ -1,6 +1,7 @@
 package org.openjproxy.xa.baseline.distributed;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.common.XidGenerator;
 import org.openjproxy.xa.baseline.containers.DB2XAContainer;
@@ -28,8 +29,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * These tests validate that XA transactions can coordinate commits and rollbacks
  * across multiple databases atomically.
+ * 
+ * These tests are disabled by default and only run when all three databases are enabled:
+ * -DenableOracleTests=true -DenableSqlServerTests=true -DenableDb2Tests=true
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@EnabledIf("org.openjproxy.xa.baseline.containers.OracleXATestContainer#isEnabled")
+@EnabledIf("org.openjproxy.xa.baseline.containers.SQLServerXATestContainer#isEnabled")
+@EnabledIf("org.openjproxy.xa.baseline.containers.DB2XATestContainer#isEnabled")
 public class TwoPhaseCommitTest extends XATestBase {
 
     private static final Logger logger = LoggerFactory.getLogger(TwoPhaseCommitTest.class);

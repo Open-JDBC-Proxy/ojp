@@ -3,6 +3,7 @@ package org.openjproxy.xa.baseline.containers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XidGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +27,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * - XA Connection and XA Resource can be obtained
  * - XA permissions are properly configured
  * - Basic XA operations work
+ * 
+ * These tests are disabled by default and only run when -DenableOracleTests=true
  */
+@EnabledIf("org.openjproxy.xa.baseline.containers.OracleXATestContainer#isEnabled")
 public class OracleXAContainerSmokeTest {
     
     private static final Logger logger = LoggerFactory.getLogger(OracleXAContainerSmokeTest.class);

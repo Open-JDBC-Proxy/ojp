@@ -3,6 +3,7 @@ package org.openjproxy.xa.baseline.single;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XATestBase;
 import org.openjproxy.xa.baseline.containers.OracleXAContainer;
 import org.slf4j.Logger;
@@ -34,7 +35,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * Database: Oracle XE 21 (via TestContainers)
  * Driver: Oracle native JDBC driver (oracle.jdbc.xa.client.OracleXADataSource)
+ * 
+ * These tests are disabled by default and only run when -DenableOracleTests=true
  */
+@EnabledIf("org.openjproxy.xa.baseline.containers.OracleXATestContainer#isEnabled")
 public class OracleXABasicTest extends XATestBase {
     
     private static final Logger logger = LoggerFactory.getLogger(OracleXABasicTest.class);
