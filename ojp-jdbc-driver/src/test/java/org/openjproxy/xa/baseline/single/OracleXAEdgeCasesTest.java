@@ -674,7 +674,7 @@ public class OracleXAEdgeCasesTest extends XATestBase {
         assertTrue(found, "Prepared transaction should persist after XAConnection close");
         
         // Verify data was committed
-        assertTrue(dataExists(xaConn2.getConnection(), "test-close-prepared"),
+        assertTrue(verifyDataExists(xaConn2.getConnection(), "test-close-prepared"),
             "Data should be committed after recovery and commit");
     }
 

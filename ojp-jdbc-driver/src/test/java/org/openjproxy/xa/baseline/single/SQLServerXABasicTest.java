@@ -79,7 +79,7 @@ public class SQLServerXABasicTest extends XATestBase {
     public void testXAConnectionCreation() throws Exception {
         System.out.println("\n=== Test 1.1: XA Connection Creation ===");
 
-        XADataSource xaDataSource = getXADataSource();
+        XADataSource xaDataSource = createXADataSource();
         assertNotNull(xaDataSource, "XADataSource should not be null");
 
         XAConnection xaConn = xaDataSource.getXAConnection();

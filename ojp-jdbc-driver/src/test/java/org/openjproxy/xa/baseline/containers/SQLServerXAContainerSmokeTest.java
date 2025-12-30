@@ -184,7 +184,7 @@ public class SQLServerXAContainerSmokeTest {
             connection = xaConnection.getConnection();
             
             // Create XID
-            Xid xid = XidGenerator.generateXid("TEST");
+            Xid xid = XidGenerator.createXid();
             
             // Start XA transaction
             xaResource.start(xid, XAResource.TMNOFLAGS);

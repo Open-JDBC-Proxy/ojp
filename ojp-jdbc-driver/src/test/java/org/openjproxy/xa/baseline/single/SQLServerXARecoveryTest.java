@@ -83,14 +83,12 @@ public class SQLServerXARecoveryTest extends XATestBase {
     public void testRecoverPreparedTransactions() throws Exception {
         System.out.println("\n=== Test 6.1: Recover Prepared Transactions ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid1 = xidGenerator.createXid("RECOVER-TEST-1");
-        Xid xid2 = xidGenerator.createXid("RECOVER-TEST-2");
+        Xid xid1 = createXid();
+        Xid xid2 = createXid();
 
         try {
             // Prepare first transaction
@@ -186,12 +184,12 @@ public class SQLServerXARecoveryTest extends XATestBase {
     public void testRecoveryAfterConnectionLoss() throws Exception {
         System.out.println("\n=== Test 6.2: Recovery After Connection Loss ===");
 
-        Xid xid = xidGenerator.createXid("CRASH-RECOVERY");
+        Xid xid = createXid();
         String testValue = "CrashTest-" + System.currentTimeMillis();
 
         // Phase 1: Prepare transaction then "crash" (close connection)
         {
-            XAConnection xaConn = getXADataSource().getXAConnection();
+            XAConnection xaConn = createXADataSource().getXAConnection();
             XAResource xaRes = xaConn.getXAResource();
             Connection conn = xaConn.getConnection();
 
@@ -221,11 +219,9 @@ public class SQLServerXARecoveryTest extends XATestBase {
         }
 
         // Phase 2: Recovery with new connection
-        XAConnection xaConn2 = getXADataSource().getXAConnection();
-        trackResource(xaConn2);
+        XAConnection xaConn2 = createXADataSource().getXAConnection();
         XAResource xaRes2 = xaConn2.getXAResource();
         Connection conn2 = xaConn2.getConnection();
-        trackResource(conn2);
 
         try {
             System.out.println("New connection established, recovering prepared transactions...");
@@ -283,13 +279,11 @@ public class SQLServerXARecoveryTest extends XATestBase {
     public void testRecoveryFlags() throws Exception {
         System.out.println("\n=== Test 6.3: Recovery Flags ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid = xidGenerator.createXid("RECOVERY-FLAGS");
+        Xid xid = createXid();
 
         try {
             // Prepare a transaction
@@ -363,13 +357,11 @@ public class SQLServerXARecoveryTest extends XATestBase {
     public void testForgetHeuristicallyCompletedTransaction() throws Exception {
         System.out.println("\n=== Test 6.4: Forget Heuristically Completed Transaction ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid = xidGenerator.createXid("FORGET-TEST");
+        Xid xid = createXid();
         String testValue = "ForgetTest-" + System.currentTimeMillis();
 
         try {
@@ -443,15 +435,13 @@ public class SQLServerXARecoveryTest extends XATestBase {
     public void testMultipleInDoubtTransactionsRecovery() throws Exception {
         System.out.println("\n=== Test 6.5: Multiple In-Doubt Transactions Recovery ===");
 
-        XAConnection xaConn = getXADataSource().getXAConnection();
-        trackResource(xaConn);
+        XAConnection xaConn = createXADataSource().getXAConnection();
         XAResource xaRes = xaConn.getXAResource();
         Connection conn = xaConn.getConnection();
-        trackResource(conn);
 
-        Xid xid1 = xidGenerator.createXid("MULTI-RECOVER-1");
-        Xid xid2 = xidGenerator.createXid("MULTI-RECOVER-2");
-        Xid xid3 = xidGenerator.createXid("MULTI-RECOVER-3");
+        Xid xid1 = createXid();
+        Xid xid2 = createXid();
+        Xid xid3 = createXid();
 
         try {
             // Prepare transaction 1

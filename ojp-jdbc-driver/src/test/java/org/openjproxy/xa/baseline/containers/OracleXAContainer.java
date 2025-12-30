@@ -115,7 +115,7 @@ public class OracleXAContainer extends OracleContainer {
      * @return the Oracle port
      */
     public Integer getOraclePort() {
-        return getMappedPort(ORACLE_PORT);
+        return getMappedPort(1521); // Oracle default port
     }
     
     /**
@@ -133,8 +133,8 @@ public class OracleXAContainer extends OracleContainer {
      * Logs container startup information.
      */
     @Override
-    protected void containerIsStarted(org.testcontainers.containers.ContainerState containerState) {
-        super.containerIsStarted(containerState);
+    protected void containerIsStarted(com.github.dockerjava.api.command.InspectContainerResponse containerInfo) {
+        super.containerIsStarted(containerInfo);
         logger.info("Oracle XA Container started successfully");
         logger.info("JDBC URL: {}", getJdbcUrl());
         logger.info("Username: {}", getUsername());

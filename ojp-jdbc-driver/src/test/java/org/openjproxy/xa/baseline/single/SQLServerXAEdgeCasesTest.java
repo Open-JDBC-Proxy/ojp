@@ -516,7 +516,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
             "Rollback after prepare should succeed");
         
         // Verify data was NOT committed
-        verifyDataNotExists("rollback-after-prepare");
+        verifyDataNotExists(xaConnection.getConnection(), "rollback-after-prepare");
     }
 
     /**
@@ -688,7 +688,7 @@ public class SQLServerXAEdgeCasesTest extends XATestBase {
         // Transaction should be rolled back by SQL Server
         // Get new connection to verify
         XAConnection xaConn2 = xaConnection;
-        verifyDataNotExists("close-active");
+        verifyDataNotExists(xaConn2.getConnection(), "close-active");
         xaConn2.close();
     }
 
