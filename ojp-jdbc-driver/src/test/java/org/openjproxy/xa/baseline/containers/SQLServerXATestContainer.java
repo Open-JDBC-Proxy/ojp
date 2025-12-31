@@ -30,15 +30,19 @@ public class SQLServerXATestContainer {
      * @return the shared MSSQLServerContainer instance
      */
     public static MSSQLServerContainer<?> getInstance() {
-        // Fast-path: if container already created and running, return it without locking
-        MSSQLServerContainer<?> local = container;
-        if (local != null && local.isRunning()) {
-            return local;
+        // Fast-path: if container already started, return it without locking
+        if (isStarted && container != null) {
+            return container;
         }
         
         // Slow-path: need to create/start container (with lock to ensure single initialization)
         initLock.lock();
         try {
+            // Double-check after acquiring lock
+            if (isStarted && container != null) {
+                return container;
+            }
+            
             if (container == null) {
                 container = new MSSQLServerContainer<>(MSSQL_IMAGE)
                     .acceptLicense();
