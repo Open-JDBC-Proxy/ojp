@@ -54,9 +54,19 @@ public class DB2XATestContainer {
                 .withPassword(DEFAULT_PASSWORD)
                 .withDatabaseName(DEFAULT_DATABASE)
                 .acceptLicense()
+                // DB2 requires additional environment variables for proper startup
+                .withEnv("DB2INSTANCE", DEFAULT_USERNAME)
+                .withEnv("DBNAME", DEFAULT_DATABASE)
+                .withEnv("BLU", "false")
+                .withEnv("ENABLE_ORACLE_COMPATIBILITY", "false")
+                .withEnv("UPDATEAVAIL", "NO")
+                .withEnv("TO_CREATE_SAMPLEDB", "false")
+                .withEnv("REPODB", "false")
+                // DB2 requires shared memory for proper operation
+                .withSharedMemorySize(256 * 1024 * 1024L) // 256MB
                 // Note: No init script - DB2 permissions don't allow GRANT commands via init script
                 // XA configuration is done via configureTmDatabase() below
-                .withStartupTimeoutSeconds(180); // DB2 can be slow to start
+                .withStartupTimeoutSeconds(300); // DB2 can be very slow to start (5 minutes)
             }
             
             if (!isStarted) {
