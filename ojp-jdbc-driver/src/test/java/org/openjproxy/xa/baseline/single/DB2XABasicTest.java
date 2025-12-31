@@ -86,7 +86,7 @@ public class DB2XABasicTest extends XATestBase {
                 }
                 
                 stmt.execute("CREATE TABLE xa_test_baseline (" +
-                            "id INTEGER NOT NULL PRIMARY KEY, " +
+                            "id INTEGER NOT NULL PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1), " +
                             "test_name VARCHAR(100), " +
                             "test_value VARCHAR(200))");
                 
