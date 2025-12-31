@@ -54,7 +54,8 @@ public class DB2XATestContainer {
                 .withPassword(DEFAULT_PASSWORD)
                 .withDatabaseName(DEFAULT_DATABASE)
                 .acceptLicense()
-                .withInitScript("xa-baseline/sql/db2-xa-setup.sql")
+                // Note: No init script - DB2 permissions don't allow GRANT commands via init script
+                // XA configuration is done via configureTmDatabase() below
                 .withStartupTimeoutSeconds(180); // DB2 can be slow to start
             }
             
@@ -64,8 +65,9 @@ public class DB2XATestContainer {
                 // Post-start initialization for XA features
                 try {
                     configureTmDatabase();
+                    createTestTable();
                 } catch (Exception e) {
-                    System.err.println("[DB2XATestContainer] Warning: Failed to configure TM_DATABASE: " + e.getMessage());
+                    System.err.println("[DB2XATestContainer] Warning: Failed to initialize DB2 XA: " + e.getMessage());
                 }
                 
                 isStarted = true; // Set AFTER start() and initialization complete to prevent race
@@ -97,9 +99,46 @@ public class DB2XATestContainer {
             "db2 UPDATE DBM CFG USING TM_DATABASE " + DEFAULT_DATABASE + " IMMEDIATE"
         };
         
-        org.testcontainers.containers.Container.ExecResult res = getInstance().execInContainer(cmd);
+        org.testcontainers.containers.Container.ExecResult res = container.execInContainer(cmd);
         if (res.getExitCode() != 0) {
             System.err.println("TM_DATABASE configuration warning: " + res.getStderr());
+        }
+    }
+    
+    /**
+     * Creates the XA test table.
+     */
+    private static void createTestTable() throws Exception {
+        // Construct direct DB2 JDBC URL (not OJP-wrapped)
+        String db2JdbcUrl = String.format("jdbc:db2://%s:%d/%s",
+            container.getHost(),
+            container.getMappedPort(50000),
+            DEFAULT_DATABASE
+        );
+        
+        // Load DB2 driver explicitly
+        Class.forName("com.ibm.db2.jcc.DB2Driver");
+        
+        // Use JDBC to create the test table
+        try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
+                db2JdbcUrl,
+                DEFAULT_USERNAME,
+                DEFAULT_PASSWORD);
+             java.sql.Statement stmt = conn.createStatement()) {
+            
+            // Create test table
+            stmt.execute(
+                "CREATE TABLE xa_test_baseline (" +
+                "    id INTEGER NOT NULL GENERATED ALWAYS AS IDENTITY (START WITH 1, INCREMENT BY 1)," +
+                "    test_name VARCHAR(100) NOT NULL," +
+                "    test_value VARCHAR(255)," +
+                "    test_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP," +
+                "    PRIMARY KEY (id)" +
+                ")"
+            );
+            
+            // Create index
+            stmt.execute("CREATE INDEX idx_xa_test_name ON xa_test_baseline(test_name)");
         }
     }
     

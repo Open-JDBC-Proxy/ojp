@@ -22,26 +22,21 @@
 -- SECTION 1: Database Configuration for XA
 -- =====================================================================================
 
--- Update database configuration for XA support
--- Enable type 2 connectivity for local XA transactions
-UPDATE DB CFG FOR xatestdb USING DFT_SQLMATHWARN YES;
-
--- Set transaction log configuration for XA
--- Archive logging must be enabled (done via container environment)
-UPDATE DB CFG FOR xatestdb USING LOGARCHMETH1 LOGRETAIN;
-
--- Configure TM_DATABASE for XA transaction coordination
--- This allows DB2 to coordinate with external transaction managers
-UPDATE DB CFG FOR xatestdb USING TM_DATABASE ON;
-
--- Set larger log file size for XA transactions
-UPDATE DB CFG FOR xatestdb USING LOGFILSIZ 4096;
-
--- Set number of primary log files
-UPDATE DB CFG FOR xatestdb USING LOGPRIMARY 10;
-
--- Set number of secondary log files
-UPDATE DB CFG FOR xatestdb USING LOGSECOND 10;
+-- NOTE: DB2 database configuration (UPDATE DB CFG) commands cannot be run as SQL.
+-- These are DB2 CLP commands and must be executed via container exec after startup.
+-- The DB2XATestContainer.configureTmDatabase() method handles TM_DATABASE configuration.
+--
+-- Container environment variables handle other DB2 configuration:
+-- - ARCHIVE_LOGS=true enables archive logging
+-- - DB2INST1_PASSWORD sets the instance password
+-- - DBNAME sets the database name
+--
+-- For reference, these configurations would be done via CLP:
+-- - UPDATE DBM CFG USING TM_DATABASE xatestdb IMMEDIATE
+-- - UPDATE DB CFG FOR xatestdb USING LOGARCHMETH1 LOGRETAIN
+-- - UPDATE DB CFG FOR xatestdb USING LOGFILSIZ 4096
+-- - UPDATE DB CFG FOR xatestdb USING LOGPRIMARY 10
+-- - UPDATE DB CFG FOR xatestdb USING LOGSECOND 10
 
 -- =====================================================================================
 -- SECTION 2: User Privileges for XA
