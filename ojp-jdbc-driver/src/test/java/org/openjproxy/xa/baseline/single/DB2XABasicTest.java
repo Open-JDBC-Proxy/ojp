@@ -90,7 +90,7 @@ public class DB2XABasicTest extends XATestBase {
                             "test_name VARCHAR(100), " +
                             "test_value VARCHAR(200))");
                 
-                stmt.execute("CREATE INDEX idx_xa_test_name ON xa_test_baseline(name)");
+                stmt.execute("CREATE INDEX idx_xa_test_name ON xa_test_baseline(test_name)");
                 
                 logger.info("DB2 XA test table created successfully");
             }
