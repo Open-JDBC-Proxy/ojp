@@ -70,8 +70,8 @@ Contains:
 - **MySQL** - 4 tests (High Priority)
 - **MariaDB** - ~2 tests (High Priority)
 - **CockroachDB** - 4 tests (Medium Priority)
-- **Oracle** - 7 tests (Medium Priority, requires license)
-- **DB2** - 4 tests (Low Priority, requires license)
+- **Oracle** - 7 tests (Medium Priority, Oracle Free/XE is free for testing)
+- **DB2** - 4 tests (Low Priority, requires commercial license)
 
 ### 📝 Special Cases
 - **H2** - 5 tests (Embedded database, TestContainers not applicable)

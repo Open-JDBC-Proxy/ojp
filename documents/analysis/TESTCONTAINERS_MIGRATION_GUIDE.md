@@ -454,9 +454,10 @@ container = new OracleContainer("gvenzl/oracle-free:23-slim-faststart")
 ```
 
 **Special Considerations:**
-- Oracle containers are larger and slower to start
-- Consider using shared containers across test classes
-- May require accepting Oracle license terms
+- Oracle containers are larger and slower to start (especially first time)
+- Consider using shared containers across test classes for better performance
+- **Oracle Free/XE is free to use for testing and development** - no license required
+- Only production use of Oracle Database requires commercial licensing
 
 **Tests to Migrate:**
 - `OracleBinaryStreamIntegrationTest.java`
@@ -630,7 +631,7 @@ container.withReuse(true);
 1. Add appropriate delays: `Thread.sleep(1000)`
 2. Check container logs: `container.getLogs()`
 3. Verify JDBC driver compatibility
-4. Check database-specific requirements (e.g., Oracle license acceptance)
+4. Check database-specific requirements (e.g., container image availability)
 
 ### Issue: Tests work locally but fail in CI
 

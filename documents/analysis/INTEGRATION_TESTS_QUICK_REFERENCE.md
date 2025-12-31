@@ -66,10 +66,10 @@ Quick reference table for all integration tests in the OJP project.
 
 ### 🟡 Medium Priority
 4. **CockroachDB** (4 tests) - Good TestContainers support, PostgreSQL compatible
-5. **Oracle** (7 tests) - TestContainers support available, requires license acceptance
+5. **Oracle** (7 tests) - Good TestContainers support (Oracle Free/XE is free for testing)
 
 ### ⚪ Low Priority / Special Cases
-6. **DB2** (4 tests) - TestContainers support available, requires license acceptance
+6. **DB2** (4 tests) - TestContainers support available, requires commercial license
 7. **H2** (5 tests) - Embedded database, TestContainers not beneficial
 8. **Multinode** (2 tests) - Tests OJP server architecture, not database-specific
 
