@@ -69,7 +69,7 @@ Quick reference table for all integration tests in the OJP project.
 5. **Oracle** (7 tests) - Good TestContainers support (Oracle Free/XE is free for testing)
 
 ### ⚪ Low Priority / Special Cases
-6. **DB2** (4 tests) - TestContainers support available, requires commercial license
+6. **DB2** (4 tests) - TestContainers support available (Community Edition free for testing)
 7. **H2** (5 tests) - Embedded database, TestContainers not beneficial
 8. **Multinode** (2 tests) - Tests OJP server architecture, not database-specific
 

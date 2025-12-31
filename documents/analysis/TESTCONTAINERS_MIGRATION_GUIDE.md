@@ -21,11 +21,27 @@ This guide provides instructions for migrating OJP integration tests from extern
 - ✅ Better CI/CD integration
 - ✅ Automatic cleanup and isolation
 
+### Database Licensing for Testing
+
+**All major databases provide free editions for testing and development:**
+
+- **SQL Server Developer Edition** - Free for development and testing (not production)
+- **Oracle Database Free/XE** - Free for development and testing (not production)
+- **DB2 Community Edition** - Free for development and testing (not production)
+- **PostgreSQL** - Open source, free for all use cases
+- **MySQL** - Open source, free for all use cases
+- **MariaDB** - Open source, free for all use cases
+- **CockroachDB** - Open source core, free for all use cases
+
+**Important:** Production use of SQL Server, Oracle, and DB2 requires appropriate commercial licenses. TestContainers uses the free editions suitable for automated testing.
+
 ### Reference Implementation
 See the SQL Server implementation as the gold standard:
 - `SQLServerTestContainer.java` - Container management
 - `SQLServerConnectionProvider.java` - JUnit integration
 - `SQLServerBinaryStreamIntegrationTest.java` - Example test usage
+
+**Note:** SQL Server uses the Developer Edition container image (`mcr.microsoft.com/mssql/server:2022-latest`) which is free for development and testing. Production use requires appropriate licensing.
 
 ## Prerequisites
 
@@ -465,6 +481,45 @@ container = new OracleContainer("gvenzl/oracle-free:23-slim-faststart")
 - `OracleMultipleTypesIntegrationTest.java`
 - `OracleReadMultipleBlocksOfDataIntegrationTest.java`
 - `OracleXAIntegrationTest.java`
+
+### DB2 Migration
+
+**Container Image:** `icr.io/db2_community/db2:latest`
+
+**Dependencies:**
+```xml
+<dependency>
+    <groupId>org.testcontainers</groupId>
+    <artifactId>db2</artifactId>
+    <version>1.20.4</version>
+    <scope>test</scope>
+</dependency>
+```
+
+**Container Setup:**
+```java
+import org.testcontainers.containers.Db2Container;
+
+container = new Db2Container("icr.io/db2_community/db2:latest")
+    .withDatabaseName("testdb")
+    .withUsername("testuser")
+    .withPassword("testpass")
+    .acceptLicense(); // Required for DB2 Community Edition
+```
+
+**Special Considerations:**
+- DB2 containers are large and can be slow to start (first time startup may take several minutes)
+- **DB2 Community Edition is free to use for testing and development** - no license required
+- You must accept the IBM license agreement using `.acceptLicense()` method
+- Only production use of DB2 requires commercial licensing
+- Consider using shared containers across test classes due to long startup time
+- DB2 Community Edition has resource limits (16GB memory, 4 CPU cores) suitable for testing
+
+**Tests to Migrate:**
+- `Db2BinaryStreamIntegrationTest.java`
+- `Db2BlobIntegrationTest.java`
+- `Db2MultipleTypesIntegrationTest.java`
+- `Db2ReadMultipleBlocksOfDataIntegrationTest.java`
 
 ## Best Practices
 

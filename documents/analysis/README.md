@@ -71,7 +71,7 @@ Contains:
 - **MariaDB** - ~2 tests (High Priority)
 - **CockroachDB** - 4 tests (Medium Priority)
 - **Oracle** - 7 tests (Medium Priority, Oracle Free/XE is free for testing)
-- **DB2** - 4 tests (Low Priority, requires commercial license)
+- **DB2** - 4 tests (Low Priority, Community Edition free for testing)
 
 ### 📝 Special Cases
 - **H2** - 5 tests (Embedded database, TestContainers not applicable)

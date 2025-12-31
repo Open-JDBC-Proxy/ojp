@@ -132,9 +132,9 @@ The following **25 tests** currently use CSV files for connection configuration 
 
 | Database | Total Tests | Uses TestContainers | Uses CSV Files | TestContainers Available |
 |----------|-------------|-------------------|---------------|------------------------|
-| SQL Server | 5 | 5 | 0 | ✅ Yes (implemented) |
+| SQL Server | 5 | 5 | 0 | ✅ Yes (implemented, Developer Edition free for testing) |
 | Oracle | 7 | 0 | 7 | ✅ Yes (Oracle Free/XE is free for testing) |
-| DB2 | 4 | 0 | 4 | 🔶 Possible (commercial license required) |
+| DB2 | 4 | 0 | 4 | ✅ Yes (Community Edition free for testing) |
 | PostgreSQL | 4 | 0 | 4 | ✅ Yes (easy migration) |
 | MySQL | 4 | 0 | 4 | ✅ Yes (easy migration) |
 | MariaDB | ~2 | 0 | ~2 | ✅ Yes (easy migration) |
@@ -154,7 +154,7 @@ The following **25 tests** currently use CSV files for connection configuration 
 5. **Oracle** - 7 tests, TestContainers support available (Oracle Free/XE is free for testing)
 
 ### Low Priority (Special Cases)
-6. **DB2** - 4 tests, TestContainers support available but requires commercial license
+6. **DB2** - 4 tests, TestContainers support available (Community Edition free for testing)
 7. **H2** - 5 tests, embedded database, TestContainers not beneficial
 8. **Multinode** - 2 tests, require special OJP server setup, not database-specific
 
