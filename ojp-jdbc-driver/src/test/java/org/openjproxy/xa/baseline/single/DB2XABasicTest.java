@@ -1,10 +1,10 @@
 package org.openjproxy.xa.baseline.single;
 
+import com.ibm.db2.jcc.DB2XADataSource;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.openjproxy.xa.baseline.common.XATestBase;
-import org.openjproxy.xa.baseline.containers.DB2XAContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +16,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,29 +30,81 @@ import static org.junit.jupiter.api.Assertions.*;
  * These tests validate that DB2 correctly implements the XA protocol using native JDBC driver.
  * Results establish baseline behavior for comparison with Oracle, SQL Server, and OJP.
  * 
- * These tests are disabled by default and only run when -DenableDb2Tests=true
+ * These tests assume a running DB2 instance and are disabled by default.
+ * To run: mvn test -DenableDb2Tests=true
+ * 
+ * Requires: DB2 instance at localhost:50000/testdb with user db2inst1/testpass
  */
-@EnabledIf("org.openjproxy.xa.baseline.containers.DB2XATestContainer#isEnabled")
 public class DB2XABasicTest extends XATestBase {
     
     private static final Logger logger = LoggerFactory.getLogger(DB2XABasicTest.class);
     
     protected static XADataSource staticXADataSource;
+    private static boolean isDb2TestEnabled;
+    
+    // DB2 connection details (matches db2_connection.csv pattern)
+    private static final String DB2_HOST = "localhost";
+    private static final int DB2_PORT = 50000;
+    private static final String DB2_DATABASE = "testdb";
+    private static final String DB2_USER = "db2inst1";
+    private static final String DB2_PASSWORD = "testpass";
     
     @BeforeAll
     public static void setUpClass() throws Exception {
+        isDb2TestEnabled = Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
+        Assumptions.assumeFalse(!isDb2TestEnabled, "Skipping DB2 XA tests (use -DenableDb2Tests=true to enable)");
+        
         logger.info("=== Starting DB2 XA Basic Tests (Phase 7) ===");
-        logger.info("Setting up DB2 XA Container (using singleton)...");
+        logger.info("Connecting to external DB2 instance at {}:{}/{}", DB2_HOST, DB2_PORT, DB2_DATABASE);
         
-        // Create container wrapper (uses singleton internally)
-        DB2XAContainer db2Container = new DB2XAContainer();
+        // Create XA DataSource for external DB2 instance
+        DB2XADataSource xaDataSource = new DB2XADataSource();
+        xaDataSource.setServerName(DB2_HOST);
+        xaDataSource.setPortNumber(DB2_PORT);
+        xaDataSource.setDatabaseName(DB2_DATABASE);
+        xaDataSource.setUser(DB2_USER);
+        xaDataSource.setPassword(DB2_PASSWORD);
+        xaDataSource.setDriverType(4); // Type 4 - pure Java driver
         
-        logger.info("JDBC URL: {}", db2Container.getJdbcUrl());
+        staticXADataSource = xaDataSource;
         
-        // Create XA DataSource
-        staticXADataSource = db2Container.createXADataSource();
+        // Verify connection and create test table
+        XAConnection xaConn = null;
+        try {
+            xaConn = staticXADataSource.getXAConnection();
+            try (Connection conn = xaConn.getConnection();
+                 Statement stmt = conn.createStatement()) {
+                
+                // Set schema explicitly
+                stmt.execute("SET SCHEMA DB2INST1");
+                
+                // Create test table if it doesn't exist
+                try {
+                    stmt.execute("DROP TABLE xa_test_baseline");
+                } catch (SQLException e) {
+                    // Ignore if table doesn't exist
+                }
+                
+                stmt.execute("CREATE TABLE xa_test_baseline (" +
+                            "id INTEGER NOT NULL PRIMARY KEY, " +
+                            "name VARCHAR(100), " +
+                            "value INTEGER)");
+                
+                stmt.execute("CREATE INDEX idx_xa_test_name ON xa_test_baseline(name)");
+                
+                logger.info("DB2 XA test table created successfully");
+            }
+        } finally {
+            if (xaConn != null) {
+                try {
+                    xaConn.close();
+                } catch (SQLException e) {
+                    logger.warn("Error closing XA connection", e);
+                }
+            }
+        }
         
-        logger.info("DB2 XA DataSource created successfully");
+        logger.info("DB2 XA DataSource configured successfully");
     }
 
     @Override
