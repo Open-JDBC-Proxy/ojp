@@ -132,7 +132,7 @@ public class SQLServerXATestContainer {
             "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'xa_test_baseline')",
             "BEGIN",
             "CREATE TABLE xa_test_baseline (",
-            "id INT PRIMARY KEY,",
+            "id INT PRIMARY KEY IDENTITY(1,1),",
             "test_name NVARCHAR(100) NOT NULL,",
             "test_value NVARCHAR(255),",
             "test_timestamp DATETIME2 DEFAULT GETDATE()",
