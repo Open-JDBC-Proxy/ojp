@@ -41,8 +41,9 @@ public class SQLServerXATestContainer {
         try {
             if (container == null) {
                 container = new MSSQLServerContainer<>(MSSQL_IMAGE)
-                    .acceptLicense()
-                    .withInitScript("xa-baseline/sql/sqlserver-xa-setup.sql");
+                    .acceptLicense();
+                    // Note: Do NOT use .withInitScript() - GO statements don't work via JDBC
+                    // All initialization is done programmatically via sqlcmd after container starts
             }
             
             if (!isStarted) {
@@ -57,10 +58,12 @@ public class SQLServerXATestContainer {
                 try {
                     installXaStoredProcedures();
                     createTestDatabase();
+                    createTestTableAndSequence();
                     createTestUser();
                     grantXaPermissions();
                 } catch (Exception e) {
                     System.err.println("[SQLServerXATestContainer] Warning: Failed to initialize XA: " + e.getMessage());
+                    e.printStackTrace();
                 }
                 
                 isStarted = true; // Set AFTER start() and initialization complete to prevent race
@@ -114,6 +117,49 @@ public class SQLServerXATestContainer {
             "IF DB_ID('" + TEST_DATABASE + "') IS NULL CREATE DATABASE " + TEST_DATABASE + ";"
         };
         container.execInContainer(cmd);
+    }
+    
+    /**
+     * Creates the test table and sequence in the test database.
+     */
+    private static void createTestTableAndSequence() throws Exception {
+        final String sqlcmd = "/opt/mssql-tools18/bin/sqlcmd";
+        final String saUser = container.getUsername();
+        final String saPassword = container.getPassword();
+        
+        // Create test table
+        String createTableScript = String.join(" ",
+            "IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'xa_test_baseline')",
+            "BEGIN",
+            "CREATE TABLE xa_test_baseline (",
+            "id INT PRIMARY KEY,",
+            "test_name NVARCHAR(100) NOT NULL,",
+            "test_value NVARCHAR(255),",
+            "test_timestamp DATETIME2 DEFAULT GETDATE()",
+            ");",
+            "CREATE INDEX idx_xa_test_name ON xa_test_baseline(test_name);",
+            "END"
+        );
+        
+        String[] createTableCmd = new String[] {
+            sqlcmd, "-S", "localhost", "-U", saUser, "-P", saPassword,
+            "-d", TEST_DATABASE, "-C", "-Q", createTableScript
+        };
+        container.execInContainer(createTableCmd);
+        
+        // Create sequence for ID generation
+        String createSeqScript = String.join(" ",
+            "IF NOT EXISTS (SELECT * FROM sys.sequences WHERE name = 'xa_test_seq')",
+            "BEGIN",
+            "CREATE SEQUENCE xa_test_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 9999999999 NO CYCLE CACHE 10;",
+            "END"
+        );
+        
+        String[] createSeqCmd = new String[] {
+            sqlcmd, "-S", "localhost", "-U", saUser, "-P", saPassword,
+            "-d", TEST_DATABASE, "-C", "-Q", createSeqScript
+        };
+        container.execInContainer(createSeqCmd);
     }
     
     /**
