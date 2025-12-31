@@ -30,19 +30,15 @@ public class SQLServerXATestContainer {
      * @return the shared MSSQLServerContainer instance
      */
     public static MSSQLServerContainer<?> getInstance() {
-        // Fast-path: if container already started, return it without locking
-        if (isStarted && container != null) {
-            return container;
+        // Fast-path: if container already created and running, return it without locking
+        MSSQLServerContainer<?> local = container;
+        if (local != null && local.isRunning()) {
+            return local;
         }
         
         // Slow-path: need to create/start container (with lock to ensure single initialization)
         initLock.lock();
         try {
-            // Double-check: another thread may have initialized while we waited for lock
-            if (isStarted && container != null) {
-                return container;
-            }
-            
             if (container == null) {
                 container = new MSSQLServerContainer<>(MSSQL_IMAGE)
                     .acceptLicense()
@@ -51,6 +47,11 @@ public class SQLServerXATestContainer {
             
             if (!isStarted) {
                 container.start();
+                
+                // Wait for SQL Server to be fully ready (it needs time after container start)
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException ignored) {}
                 
                 // Post-start initialization for XA features
                 try {
@@ -86,15 +87,15 @@ public class SQLServerXATestContainer {
      */
     private static void installXaStoredProcedures() throws Exception {
         final String sqlcmd = "/opt/mssql-tools18/bin/sqlcmd";
-        final String saUser = getInstance().getUsername();
-        final String saPassword = getInstance().getPassword();
+        final String saUser = container.getUsername();
+        final String saPassword = container.getPassword();
         
         String[] cmd = new String[] {
             sqlcmd, "-S", "localhost", "-U", saUser, "-P", saPassword,
             "-d", "master", "-C", "-Q", "EXEC sp_sqljdbc_xa_install;"
         };
         
-        org.testcontainers.containers.Container.ExecResult res = getInstance().execInContainer(cmd);
+        org.testcontainers.containers.Container.ExecResult res = container.execInContainer(cmd);
         if (res.getExitCode() != 0) {
             throw new IllegalStateException("sp_sqljdbc_xa_install failed: " + res.getStderr());
         }
@@ -105,14 +106,14 @@ public class SQLServerXATestContainer {
      */
     private static void createTestDatabase() throws Exception {
         final String sqlcmd = "/opt/mssql-tools18/bin/sqlcmd";
-        final String saUser = getInstance().getUsername();
-        final String saPassword = getInstance().getPassword();
+        final String saUser = container.getUsername();
+        final String saPassword = container.getPassword();
         
         String[] cmd = new String[] {
             sqlcmd, "-S", "localhost", "-U", saUser, "-P", saPassword, "-C", "-Q",
             "IF DB_ID('" + TEST_DATABASE + "') IS NULL CREATE DATABASE " + TEST_DATABASE + ";"
         };
-        getInstance().execInContainer(cmd);
+        container.execInContainer(cmd);
     }
     
     /**
@@ -120,8 +121,8 @@ public class SQLServerXATestContainer {
      */
     private static void createTestUser() throws Exception {
         final String sqlcmd = "/opt/mssql-tools18/bin/sqlcmd";
-        final String saUser = getInstance().getUsername();
-        final String saPassword = getInstance().getPassword();
+        final String saUser = container.getUsername();
+        final String saPassword = container.getPassword();
         
         // Create login
         String[] createLogin = new String[] {
@@ -129,7 +130,7 @@ public class SQLServerXATestContainer {
             "IF NOT EXISTS (SELECT * FROM sys.sql_logins WHERE name = '" + TEST_USERNAME + "') " +
             "CREATE LOGIN " + TEST_USERNAME + " WITH PASSWORD = '" + TEST_PASSWORD + "';"
         };
-        getInstance().execInContainer(createLogin);
+        container.execInContainer(createLogin);
         
         // Create user in test database
         String[] createUser = new String[] {
@@ -139,7 +140,7 @@ public class SQLServerXATestContainer {
             "BEGIN CREATE USER " + TEST_USERNAME + " FOR LOGIN " + TEST_USERNAME + "; " +
             "ALTER ROLE db_owner ADD MEMBER " + TEST_USERNAME + "; END"
         };
-        getInstance().execInContainer(createUser);
+        container.execInContainer(createUser);
     }
     
     /**
@@ -147,8 +148,8 @@ public class SQLServerXATestContainer {
      */
     private static void grantXaPermissions() throws Exception {
         final String sqlcmd = "/opt/mssql-tools18/bin/sqlcmd";
-        final String saUser = getInstance().getUsername();
-        final String saPassword = getInstance().getPassword();
+        final String saUser = container.getUsername();
+        final String saPassword = container.getPassword();
         
         String grantScript = String.join("\n",
             "IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = '" + TEST_USERNAME + "') BEGIN",
@@ -172,7 +173,7 @@ public class SQLServerXATestContainer {
             sqlcmd, "-S", "localhost", "-U", saUser, "-P", saPassword,
             "-d", "master", "-C", "-Q", grantScript
         };
-        getInstance().execInContainer(cmd);
+        container.execInContainer(cmd);
     }
     
     /**
