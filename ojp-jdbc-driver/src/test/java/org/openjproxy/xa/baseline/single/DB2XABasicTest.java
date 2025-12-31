@@ -449,20 +449,32 @@ public class DB2XABasicTest extends XATestBase {
         }
         
         // Simulate failure by ending with TMFAIL
-        xaRes.end(xid, XAResource.TMFAIL);
+        // DB2 may immediately rollback and throw XA_RBROLLBACK here
+        boolean rolledBackOnEnd = false;
+        try {
+            xaRes.end(xid, XAResource.TMFAIL);
+        } catch (XAException e) {
+            // DB2 throws XA_RBROLLBACK immediately on end with TMFAIL
+            if (e.errorCode >= XAException.XA_RBBASE && e.errorCode <= XAException.XA_RBEND) {
+                rolledBackOnEnd = true;
+            } else {
+                throw e;
+            }
+        }
         
         // Transaction is now marked as rollback-only
-        // Attempting to prepare will fail (DB2 throws XA_RBROLLBACK which is valid)
-        try {
-            xaRes.prepare(xid);
-            fail("Prepare should fail after TMFAIL");
-        } catch (XAException e) {
-            // Expected - transaction marked for rollback
-            // DB2 returns XA_RBROLLBACK, which is a valid rollback error code
-            assertTrue(e.errorCode >= XAException.XA_RBBASE && e.errorCode <= XAException.XA_RBEND,
-                    "Expected rollback error code, got: " + e.errorCode);
-        } catch (Exception e) {
-            // Other databases might throw different exceptions - also acceptable
+        // Attempting to prepare will fail (unless already rolled back on end)
+        if (!rolledBackOnEnd) {
+            try {
+                xaRes.prepare(xid);
+                fail("Prepare should fail after TMFAIL");
+            } catch (XAException e) {
+                // Expected - transaction marked for rollback
+                assertTrue(e.errorCode >= XAException.XA_RBBASE && e.errorCode <= XAException.XA_RBEND,
+                        "Expected rollback error code, got: " + e.errorCode);
+            } catch (Exception e) {
+                // Other databases might throw different exceptions - also acceptable
+            }
         }
         
         // Must rollback - but prepare already rolled back on DB2
