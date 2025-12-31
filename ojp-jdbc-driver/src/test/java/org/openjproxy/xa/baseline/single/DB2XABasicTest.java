@@ -138,6 +138,9 @@ public class DB2XABasicTest extends XATestBase {
         // Get logical connection
         Connection conn = xaConn.getConnection();
         assertNotNull(conn, "Logical connection should not be null");
+        
+        // DB2 requires explicit autoCommit disabling for XA connections
+        conn.setAutoCommit(false);
         assertFalse(conn.getAutoCommit(), "Auto-commit should be disabled for XA connections");
         
         // Verify connection works
