@@ -232,6 +232,15 @@ public class SQLServerXATestContainer {
     }
     
     /**
+     * Gets the test database name.
+     * 
+     * @return database name string
+     */
+    public static String getTestDatabase() {
+        return TEST_DATABASE;
+    }
+    
+    /**
      * Gets the test username.
      * 
      * @return username string

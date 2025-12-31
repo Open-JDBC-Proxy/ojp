@@ -42,9 +42,9 @@ public class SQLServerXAContainer {
         String jdbcUrl = SQLServerXATestContainer.getJdbcUrl();
         xaDataSource.setServerName(container.getHost());
         xaDataSource.setPortNumber(container.getMappedPort(MSSQLServerContainer.MS_SQL_SERVER_PORT));
-        xaDataSource.setDatabaseName("tempdb");
-        xaDataSource.setUser(SQLServerXATestContainer.getUsername());
-        xaDataSource.setPassword(SQLServerXATestContainer.getPassword());
+        xaDataSource.setDatabaseName(SQLServerXATestContainer.getTestDatabase());
+        xaDataSource.setUser(SQLServerXATestContainer.getTestUsername());
+        xaDataSource.setPassword(SQLServerXATestContainer.getTestPassword());
         
         // Trust server certificate (for testing)
         xaDataSource.setTrustServerCertificate(true);

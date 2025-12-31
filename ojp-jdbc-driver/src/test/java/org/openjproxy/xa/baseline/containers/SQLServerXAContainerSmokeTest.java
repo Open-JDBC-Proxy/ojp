@@ -69,7 +69,7 @@ public class SQLServerXAContainerSmokeTest {
         
         assertNotNull(jdbcUrl, "JDBC URL should not be null");
         assertTrue(jdbcUrl.startsWith("jdbc:sqlserver://"), "JDBC URL should have correct format");
-        assertTrue(jdbcUrl.contains("tempdb"), "JDBC URL should contain database name");
+        assertTrue(jdbcUrl.contains("xatestdb"), "JDBC URL should contain database name");
         
         logger.info("JDBC URL format is correct: {}", jdbcUrl);
     }
