@@ -12,8 +12,9 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class DB2XATestContainer {
     
-    // DB2 Docker image version
-    private static final String DB2_IMAGE = "ibmcom/db2:11.5.9.0";
+    // DB2 Docker image version - using latest stable LTS version
+    // Note: IBM DB2 Developer-C Edition (free for non-production use)
+    private static final String DB2_IMAGE = "icr.io/db2_community/db2:11.5.9.0";
     private static final String DEFAULT_USERNAME = "db2inst1";
     private static final String DEFAULT_PASSWORD = "testpass123";
     private static final String DEFAULT_DATABASE = "testdb";
