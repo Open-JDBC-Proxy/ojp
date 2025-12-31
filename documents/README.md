@@ -44,7 +44,9 @@ Located in [configuration/](configuration/):
 - [OJP JDBC Configuration](configuration/ojp-jdbc-configuration.md) - JDBC driver configuration
 - [OJP Server Configuration](configuration/ojp-server-configuration.md) - Server configuration
 
-## Database Setup Guides
+## Testing
+
+### Database Setup Guides
 
 Located in [environment-setup/](environment-setup/):
 - [Run Local Databases](environment-setup/run-local-databases.md) - Quick setup for local testing
@@ -52,6 +54,14 @@ Located in [environment-setup/](environment-setup/):
 - [DB2 Testing Guide](environment-setup/db2-testing-guide.md)
 - [Oracle Testing Guide](environment-setup/oracle-testing-guide.md)
 - [SQL Server Testing Guide](environment-setup/sqlserver-testing-guide.md)
+
+### Integration Tests Analysis
+
+Located in [analysis/](analysis/):
+- [Integration Tests Quick Reference](analysis/INTEGRATION_TESTS_QUICK_REFERENCE.md) - Quick lookup table of all tests
+- [Integration Tests Analysis](analysis/INTEGRATION_TESTS_ANALYSIS.md) - Comprehensive analysis of all integration tests
+- [TestContainers Migration Guide](analysis/TESTCONTAINERS_MIGRATION_GUIDE.md) - Step-by-step guide for migrating tests to TestContainers
+- [SQL Server TestContainer Guide](SQLSERVER_TESTCONTAINER_GUIDE.md) - SQL Server TestContainers implementation reference
 
 ## Framework Integration
 
@@ -141,6 +151,7 @@ All documentation is organized under the `documents/` folder with the following 
 ```
 documents/
 ├── ADRs/                      # Architecture Decision Records
+├── analysis/                  # Analysis documents and migration guides
 ├── code-contributions/        # Contributing guides
 ├── configuration/             # Configuration documentation
 ├── contributor-badges/        # Recognition program
