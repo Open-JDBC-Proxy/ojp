@@ -277,15 +277,6 @@ public class SQLServerXATestContainer {
     }
     
     /**
-     * Gets the test database name.
-     * 
-     * @return database name
-     */
-    public static String getTestDatabase() {
-        return TEST_DATABASE;
-    }
-    
-    /**
      * Checks if SQL Server XA tests are enabled via system property.
      * 
      * @return true if SQL Server XA tests should run
