@@ -51,26 +51,31 @@ public class SQLServerXATestContainer {
             }
             
             if (!isStarted) {
+                System.out.println("[SQLServerXATestContainer] Starting SQL Server container...");
                 container.start();
-                
-                // Wait for SQL Server to be fully ready (it needs time after container start)
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException ignored) {}
+                System.out.println("[SQLServerXATestContainer] Container started, beginning XA initialization...");
                 
                 // Post-start initialization for XA features
                 try {
+                    System.out.println("[SQLServerXATestContainer] Installing XA stored procedures...");
                     installXaStoredProcedures();
+                    System.out.println("[SQLServerXATestContainer] Creating test database...");
                     createTestDatabase();
+                    System.out.println("[SQLServerXATestContainer] Creating test table and sequence...");
                     createTestTableAndSequence();
+                    System.out.println("[SQLServerXATestContainer] Creating test user...");
                     createTestUser();
+                    System.out.println("[SQLServerXATestContainer] Granting XA permissions...");
                     grantXaPermissions();
+                    System.out.println("[SQLServerXATestContainer] XA initialization complete!");
                 } catch (Exception e) {
-                    System.err.println("[SQLServerXATestContainer] Warning: Failed to initialize XA: " + e.getMessage());
+                    System.err.println("[SQLServerXATestContainer] ERROR: Failed to initialize XA: " + e.getMessage());
                     e.printStackTrace();
+                    throw new RuntimeException("SQL Server XA initialization failed", e);
                 }
                 
                 isStarted = true; // Set AFTER start() and initialization complete to prevent race
+                System.out.println("[SQLServerXATestContainer] Container fully initialized and ready for tests");
                 
                 // Add shutdown hook to stop container when JVM exits
                 if (!shutdownHookRegistered) {
