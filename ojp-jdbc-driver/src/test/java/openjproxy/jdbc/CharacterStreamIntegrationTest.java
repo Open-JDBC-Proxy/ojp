@@ -73,7 +73,7 @@ public class CharacterStreamIntegrationTest {
         
         // H2 database does not support setCharacterStream with Reader due to internal CLOB/BLOB casting issues
         // PostgreSQL does not implement createClob() method
-        if (url.toLowerCase().contains("h2") || url.contains("postgresql")) {
+        if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("postgresql")) {
             System.out.println(url + " does not support setCharacterStream with Reader - asserting expected failure");
             Assert.assertThrows(Exception.class, () -> {
                 psInsert.setCharacterStream(1, new StringReader(testString));
@@ -157,7 +157,7 @@ public class CharacterStreamIntegrationTest {
         
         // H2 database does not support setCharacterStream with Reader due to internal CLOB/BLOB casting issues
         // PostgreSQL does not implement createClob() method
-        if (url.toLowerCase().contains("h2") || url.contains("postgresql")) {
+        if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("postgresql")) {
             System.out.println(url + " does not support setCharacterStream with Reader - asserting expected failure");
             Assert.assertThrows(Exception.class, () -> {
                 psInsert.setCharacterStream(1, new StringReader(testString));
@@ -226,7 +226,7 @@ public class CharacterStreamIntegrationTest {
         
         // H2 database does not support setNCharacterStream with Reader due to internal CLOB/BLOB casting issues
         // PostgreSQL does not implement createClob() method
-        if (url.toLowerCase().contains("h2") || url.contains("postgresql")) {
+        if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("postgresql")) {
             System.out.println(url + " does not support setNCharacterStream with Reader - asserting expected failure");
             Assert.assertThrows(Exception.class, () -> {
                 psInsert.setNCharacterStream(1, new StringReader(testString), testString.length());

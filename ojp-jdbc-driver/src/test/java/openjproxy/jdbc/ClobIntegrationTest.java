@@ -76,7 +76,7 @@ public class ClobIntegrationTest {
         if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("oracle")) {
             System.out.println(url + " does not support setClob with Reader - asserting expected failure");
             // Create a simple table just for the assertion test
-            String clobType = url.toLowerCase().contains("oracle") ? "CLOB" : "CLOB";
+            String clobType = "CLOB";
             executeUpdate(conn,
                     "create table " + tableName + "(" +
                             " val_clob  " + clobType + "," +
@@ -191,7 +191,7 @@ public class ClobIntegrationTest {
         // H2 and Oracle databases do not support setClob with Reader due to internal CLOB/BLOB casting issues
         if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("oracle")) {
             System.out.println(url + " does not support setClob with Reader - asserting expected failure");
-            String clobType = url.toLowerCase().contains("oracle") ? "CLOB" : "CLOB";
+            String clobType = "CLOB";
             executeUpdate(conn,
                     "create table " + tableName + "(" +
                             " val_clob " + clobType +
