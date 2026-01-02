@@ -120,7 +120,15 @@ public class ParameterHandler {
                 if (clobUUID == null) {
                     ps.setClob(idx, (Clob) null);
                 } else {
-                    ps.setClob(idx, sessionManager.<Clob>getLob(session, (String) clobUUID));
+                    Clob clob = sessionManager.getLob(session, (String) clobUUID);
+                    // H2 database has issues with stream lifecycle when setting multiple CLOB parameters
+                    // Read the entire CLOB content and set it as a String to avoid "Stream setter is not yet closed" error
+                    if (clob != null) {
+                        String clobContent = clob.getSubString(1, (int) clob.length());
+                        ps.setString(idx, clobContent);
+                    } else {
+                        ps.setClob(idx, (Clob) null);
+                    }
                 }
                 break;
             }
