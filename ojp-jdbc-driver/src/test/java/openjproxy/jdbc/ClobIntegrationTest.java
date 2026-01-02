@@ -288,12 +288,12 @@ public class ClobIntegrationTest {
         // Read back and verify
         Statement stmt = conn.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT val_nclob FROM " + tableName);
-        Assert.assertTrue(rs.next(), "Should have at least one row");
+        Assert.assertTrue(rs.next());
         Clob clob = rs.getClob(1);
-        Assert.assertNotNull(clob, "MariaDB should return non-null Clob for NCLOB");
+        Assert.assertNotNull(clob);
         
         String result = readAllFromClob(clob);
-        Assert.assertEquals(testString, result, "MariaDB NCLOB content should match");
+        Assert.assertEquals(testString, result);
         
         rs.close();
         stmt.close();
