@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.List;
 
 import static org.openjproxy.grpc.dto.ParameterType.ARRAY;
 import static org.openjproxy.grpc.dto.ParameterType.ASCII_STREAM;

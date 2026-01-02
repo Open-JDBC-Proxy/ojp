@@ -20,7 +20,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "Hello World";
         Reader reader = new StringReader(testString);
         
-        InputStream is = invokeReaderToInputStream(null, reader);
+        InputStream is = invokeReaderToInputStream(reader);
         
         byte[] result = is.readAllBytes();
         String resultString = new String(result, java.nio.charset.StandardCharsets.UTF_8);
@@ -34,7 +34,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "Hello 世界 🌍"; // Mix of ASCII, Chinese, and emoji
         Reader reader = new StringReader(testString);
         
-        InputStream is = invokeReaderToInputStream(null, reader);
+        InputStream is = invokeReaderToInputStream(reader);
         
         byte[] result = is.readAllBytes();
         String resultString = new String(result, java.nio.charset.StandardCharsets.UTF_8);
@@ -47,7 +47,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "";
         Reader reader = new StringReader(testString);
         
-        InputStream is = invokeReaderToInputStream(null, reader);
+        InputStream is = invokeReaderToInputStream(reader);
         
         int result = is.read();
         
@@ -59,7 +59,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "A";
         Reader reader = new StringReader(testString);
         
-        InputStream is = invokeReaderToInputStream(null, reader);
+        InputStream is = invokeReaderToInputStream(reader);
         
         byte[] result = is.readAllBytes();
         String resultString = new String(result, java.nio.charset.StandardCharsets.UTF_8);
@@ -73,7 +73,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "世";
         Reader reader = new StringReader(testString);
         
-        InputStream is = invokeReaderToInputStream(null, reader);
+        InputStream is = invokeReaderToInputStream(reader);
         
         byte[] result = is.readAllBytes();
         
@@ -89,7 +89,7 @@ public class PreparedStatementHelperMethodsTest {
      * Since the actual method is private and used internally, we create
      * a standalone implementation here that mirrors the logic for testing.
      */
-    private InputStream invokeReaderToInputStream(PreparedStatement ps, Reader reader) {
+    private InputStream invokeReaderToInputStream(Reader reader) {
         return new InputStream() {
             private byte[] buffer = null;
             private int bufferPos = 0;
