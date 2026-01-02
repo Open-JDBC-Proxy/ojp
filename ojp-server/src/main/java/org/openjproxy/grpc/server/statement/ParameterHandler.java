@@ -121,11 +121,28 @@ public class ParameterHandler {
                     ps.setClob(idx, (Clob) null);
                 } else {
                     Clob clob = sessionManager.getLob(session, (String) clobUUID);
-                    // H2 database has issues with stream lifecycle when setting multiple CLOB parameters
-                    // Read the entire CLOB content and set it as a String to avoid "Stream setter is not yet closed" error
+                    // H2 database has strict stream lifecycle management. Read the entire CLOB content
+                    // into a String and set it using setString() to avoid "Stream setter is not yet closed" error
                     if (clob != null) {
-                        String clobContent = clob.getSubString(1, (int) clob.length());
-                        ps.setString(idx, clobContent);
+                        try {
+                            // Read the CLOB content using a Reader to ensure proper stream closure
+                            long length = clob.length();
+                            if (length > Integer.MAX_VALUE) {
+                                throw new SQLException("CLOB too large: " + length + " bytes");
+                            }
+                            char[] buffer = new char[(int) length];
+                            try (java.io.Reader reader = clob.getCharacterStream()) {
+                                int totalRead = 0;
+                                int read;
+                                while (totalRead < length && (read = reader.read(buffer, totalRead, (int) length - totalRead)) != -1) {
+                                    totalRead += read;
+                                }
+                                String clobContent = new String(buffer, 0, totalRead);
+                                ps.setString(idx, clobContent);
+                            }
+                        } catch (java.io.IOException e) {
+                            throw new SQLException("Failed to read CLOB content", e);
+                        }
                     } else {
                         ps.setClob(idx, (Clob) null);
                     }
