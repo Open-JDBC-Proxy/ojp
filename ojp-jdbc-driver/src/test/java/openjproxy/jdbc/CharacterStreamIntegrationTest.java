@@ -71,6 +71,18 @@ public class CharacterStreamIntegrationTest {
         Reader reader1 = new StringReader(testString);
         Reader reader2 = new StringReader(testString);
         
+        // H2 database does not fully support setCharacterStream with Reader due to internal CLOB/BLOB casting issues
+        if (url.toLowerCase().contains("h2")) {
+            System.out.println("H2 does not support setCharacterStream with Reader - asserting expected failure");
+            Assert.assertThrows(SQLException.class, () -> {
+                psInsert.setCharacterStream(1, new StringReader(testString));
+                psInsert.setCharacterStream(2, new StringReader(testString), 5);
+                psInsert.executeUpdate();
+            });
+            connResult.close();
+            return;
+        }
+        
         try {
             psInsert.setCharacterStream(1, reader1);
             psInsert.setCharacterStream(2, reader2, 5);
@@ -101,17 +113,6 @@ public class CharacterStreamIntegrationTest {
 
             resultSet.close();
             psSelect.close();
-        } catch (SQLException e) {
-            // Some databases may not support setCharacterStream with Reader or may have casting issues
-            // This is acceptable - the test passes if the database doesn't support this feature
-            System.out.println("Database at " + url + " does not fully support setCharacterStream with Reader: " + e.getMessage());
-            if (e.getMessage().contains("cannot be cast")) {
-                // Expected for databases with limited CLOB/Reader support
-                System.out.println("Test passes - database limitation detected");
-            } else {
-                // Re-throw if it's a different kind of SQL error
-                throw e;
-            }
         } finally {
             connResult.close();
         }
@@ -153,6 +154,17 @@ public class CharacterStreamIntegrationTest {
         String testString = "Hello 世界 🌍 Testing Unicode";
         Reader reader = new StringReader(testString);
         
+        // H2 database does not fully support setCharacterStream with Reader due to internal CLOB/BLOB casting issues
+        if (url.toLowerCase().contains("h2")) {
+            System.out.println("H2 does not support setCharacterStream with Reader - asserting expected failure");
+            Assert.assertThrows(SQLException.class, () -> {
+                psInsert.setCharacterStream(1, new StringReader(testString));
+                psInsert.executeUpdate();
+            });
+            connResult.close();
+            return;
+        }
+        
         try {
             psInsert.setCharacterStream(1, reader);
             psInsert.executeUpdate();
@@ -170,16 +182,6 @@ public class CharacterStreamIntegrationTest {
 
             resultSet.close();
             psSelect.close();
-        } catch (SQLException e) {
-            // Some databases may not support setCharacterStream with Reader or may have casting issues
-            System.out.println("Database at " + url + " does not fully support setCharacterStream with Reader: " + e.getMessage());
-            if (e.getMessage().contains("cannot be cast")) {
-                // Expected for databases with limited CLOB/Reader support
-                System.out.println("Test passes - database limitation detected");
-            } else {
-                // Re-throw if it's a different kind of SQL error
-                throw e;
-            }
         } finally {
             connResult.close();
         }
@@ -220,6 +222,17 @@ public class CharacterStreamIntegrationTest {
         String testString = "NCLOB VIA NCHARACTER STREAM with 中文";
         Reader reader = new StringReader(testString);
         
+        // H2 database does not fully support setNCharacterStream with Reader due to internal CLOB/BLOB casting issues
+        if (url.toLowerCase().contains("h2")) {
+            System.out.println("H2 does not support setNCharacterStream with Reader - asserting expected failure");
+            Assert.assertThrows(SQLException.class, () -> {
+                psInsert.setNCharacterStream(1, new StringReader(testString), testString.length());
+                psInsert.executeUpdate();
+            });
+            connResult.close();
+            return;
+        }
+        
         try {
             psInsert.setNCharacterStream(1, reader, testString.length());
             psInsert.executeUpdate();
@@ -237,16 +250,6 @@ public class CharacterStreamIntegrationTest {
 
             resultSet.close();
             psSelect.close();
-        } catch (SQLException e) {
-            // Some databases may not support setNCharacterStream with Reader or may have casting issues
-            System.out.println("Database at " + url + " does not fully support setNCharacterStream with Reader: " + e.getMessage());
-            if (e.getMessage().contains("cannot be cast")) {
-                // Expected for databases with limited NCLOB/Reader support
-                System.out.println("Test passes - database limitation detected");
-            } else {
-                // Re-throw if it's a different kind of SQL error
-                throw e;
-            }
         } finally {
             connResult.close();
         }

@@ -94,6 +94,21 @@ public class ClobIntegrationTest {
 
         String testString2 = "CLOB VIA READER STREAM";
 
+        // H2 database does not fully support setClob with Reader due to internal CLOB/BLOB casting issues
+        if (url.toLowerCase().contains("h2")) {
+            System.out.println("H2 does not support setClob with Reader - asserting expected failure");
+            Assert.assertThrows(SQLException.class, () -> {
+                Clob clob = conn.createClob();
+                clob.setString(1, largeText);
+                psInsert.setClob(1, clob);
+                psInsert.setClob(2, new StringReader(testString2));
+                psInsert.setClob(3, new StringReader(testString2), 5);
+                psInsert.executeUpdate();
+            });
+            conn.close();
+            return;
+        }
+
         try {
             for (int i = 0; i < 5; i++) {
                 Clob clob = conn.createClob();
@@ -136,16 +151,6 @@ public class ClobIntegrationTest {
 
             resultSet.close();
             psSelect.close();
-        } catch (SQLException e) {
-            // Some databases may not support setClob with Reader or may have casting issues
-            System.out.println("Database at " + url + " does not fully support setClob with Reader: " + e.getMessage());
-            if (e.getMessage().contains("cannot be cast")) {
-                // Expected for databases with limited CLOB/Reader support
-                System.out.println("Test passes - database limitation detected");
-            } else {
-                // Re-throw if it's a different kind of SQL error
-                throw e;
-            }
         } finally {
             conn.close();
         }
@@ -177,6 +182,17 @@ public class ClobIntegrationTest {
         String testString = "Hello 世界 こんにちは 🌍 Testing Unicode Characters!";
         Reader reader = new StringReader(testString);
         
+        // H2 database does not fully support setClob with Reader due to internal CLOB/BLOB casting issues
+        if (url.toLowerCase().contains("h2")) {
+            System.out.println("H2 does not support setClob with Reader - asserting expected failure");
+            Assert.assertThrows(SQLException.class, () -> {
+                psInsert.setClob(1, new StringReader(testString));
+                psInsert.executeUpdate();
+            });
+            conn.close();
+            return;
+        }
+        
         try {
             psInsert.setClob(1, reader);
             psInsert.executeUpdate();
@@ -193,16 +209,6 @@ public class ClobIntegrationTest {
 
             resultSet.close();
             psSelect.close();
-        } catch (SQLException e) {
-            // Some databases may not support setClob with Reader or may have casting issues
-            System.out.println("Database at " + url + " does not fully support setClob with Reader: " + e.getMessage());
-            if (e.getMessage().contains("cannot be cast")) {
-                // Expected for databases with limited CLOB/Reader support
-                System.out.println("Test passes - database limitation detected");
-            } else {
-                // Re-throw if it's a different kind of SQL error
-                throw e;
-            }
         } finally {
             conn.close();
         }
@@ -239,6 +245,17 @@ public class ClobIntegrationTest {
         String testString = "NCLOB test with 中文字符 and 日本語";
         Reader reader = new StringReader(testString);
         
+        // H2 database does not fully support setNClob with Reader due to internal CLOB/BLOB casting issues
+        if (url.toLowerCase().contains("h2")) {
+            System.out.println("H2 does not support setNClob with Reader - asserting expected failure");
+            Assert.assertThrows(SQLException.class, () -> {
+                psInsert.setNClob(1, new StringReader(testString), testString.length());
+                psInsert.executeUpdate();
+            });
+            conn.close();
+            return;
+        }
+        
         try {
             psInsert.setNClob(1, reader, testString.length());
             psInsert.executeUpdate();
@@ -264,16 +281,6 @@ public class ClobIntegrationTest {
 
             resultSet.close();
             psSelect.close();
-        } catch (SQLException e) {
-            // Some databases may not support setNClob with Reader or may have casting issues
-            System.out.println("Database at " + url + " does not fully support setNClob with Reader: " + e.getMessage());
-            if (e.getMessage().contains("cannot be cast")) {
-                // Expected for databases with limited NCLOB/Reader support
-                System.out.println("Test passes - database limitation detected");
-            } else {
-                // Re-throw if it's a different kind of SQL error
-                throw e;
-            }
         } finally {
             conn.close();
         }
