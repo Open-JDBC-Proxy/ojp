@@ -68,11 +68,17 @@ public class ClobIntegrationTest {
             //If fails disregard as per the table is most possibly not created yet
         }
 
+        // Determine appropriate column type based on database
+        String clobType = "CLOB";
+        if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            clobType = "TEXT";  // MySQL and MariaDB use TEXT instead of CLOB
+        }
+
         executeUpdate(conn,
                 "create table " + tableName + "(" +
-                        " val_clob  CLOB," +
-                        " val_clob2 CLOB," +
-                        " val_clob3 CLOB" +
+                        " val_clob  " + clobType + "," +
+                        " val_clob2 " + clobType + "," +
+                        " val_clob3 " + clobType +
                         ")"
         );
 
@@ -149,9 +155,15 @@ public class ClobIntegrationTest {
             //If fails disregard as per the table is most possibly not created yet
         }
 
+        // Determine appropriate column type based on database
+        String clobType = "CLOB";
+        if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            clobType = "TEXT";  // MySQL and MariaDB use TEXT instead of CLOB
+        }
+
         executeUpdate(conn,
                 "create table " + tableName + "(" +
-                        " val_clob  CLOB" +
+                        " val_clob  " + clobType +
                         ")"
         );
 
