@@ -15,6 +15,7 @@ import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -249,6 +250,18 @@ public class ClobIntegrationTest {
             Assert.assertThrows(SQLException.class, () -> {
                 psInsert.setNClob(1, new StringReader(testString), testString.length());
                 psInsert.executeUpdate();
+                
+                // Try to read back - this is where MariaDB fails (getClob returns null)
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT val_nclob FROM " + tableName);
+                if (rs.next()) {
+                    Clob clob = rs.getClob(1);
+                    if (clob == null) {
+                        throw new SQLException("getClob() returned null");
+                    }
+                }
+                rs.close();
+                stmt.close();
             });
             conn.close();
             return;
