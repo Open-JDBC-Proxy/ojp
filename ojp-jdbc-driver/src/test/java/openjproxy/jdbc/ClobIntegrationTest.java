@@ -46,10 +46,10 @@ public class ClobIntegrationTest {
             assumeFalse(!isMariaDBTestEnabled, "MariaDB tests are not enabled");
             this.tableName += "_mariadb";
         } else if (url.toLowerCase().contains("oracle")) {
-            assumeFalse(!isOracleTestEnabled, "Oracle tests are disabled");
+            assumeFalse(!isOracleTestEnabled, "Oracle tests are not enabled");
             this.tableName += "_oracle";
         } else {
-            assumeFalse(!isH2TestEnabled, "H2 tests are disabled");
+            assumeFalse(!isH2TestEnabled, "H2 tests are not enabled");
             this.tableName += "_h2";
         }
         Class.forName(driverClass);
@@ -121,12 +121,12 @@ public class ClobIntegrationTest {
 
             // Test getAsciiStream
             Clob clobResult2 = resultSet.getClob(2);
-            String fromClobByIdx2 = new String(clobResult2.getAsciiStream().readAllBytes());
-            Assert.assertEquals(testString2, fromClobByIdx2);
+            String fromClobAscii2 = new String(clobResult2.getAsciiStream().readAllBytes());
+            Assert.assertEquals(testString2, fromClobAscii2);
 
             Clob clobResult3 = resultSet.getClob(3);
-            String fromClobByIdx3 = new String(clobResult3.getAsciiStream().readAllBytes());
-            Assert.assertEquals(testString3.substring(0, 5), fromClobByIdx3);
+            String fromClobAscii3 = new String(clobResult3.getAsciiStream().readAllBytes());
+            Assert.assertEquals(testString3.substring(0, 5), fromClobAscii3);
         }
         Assert.assertEquals(5, countReads);
 
