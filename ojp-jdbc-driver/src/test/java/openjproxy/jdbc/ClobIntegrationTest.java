@@ -85,7 +85,7 @@ public class ClobIntegrationTest {
         // Determine appropriate column type based on database
         String clobType = "CLOB";
         if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
-            clobType = "TEXT";  // MySQL and MariaDB use TEXT instead of CLOB
+            clobType = "LONGTEXT";  // MySQL and MariaDB use LONGTEXT for large text compatibility
         }
 
         executeUpdate(conn,
@@ -201,7 +201,7 @@ public class ClobIntegrationTest {
         // Determine appropriate column type based on database
         String clobType = "CLOB";
         if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
-            clobType = "TEXT";  // MySQL and MariaDB use TEXT instead of CLOB
+            clobType = "LONGTEXT";  // MySQL and MariaDB use LONGTEXT for large text (TEXT is limited to 65KB)
         }
 
         executeUpdate(conn,

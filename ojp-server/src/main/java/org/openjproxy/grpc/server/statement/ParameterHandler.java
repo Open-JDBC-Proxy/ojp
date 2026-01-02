@@ -120,7 +120,10 @@ public class ParameterHandler {
                 if (clobUUID == null) {
                     ps.setClob(idx, (Clob) null);
                 } else {
-                    ps.setClob(idx, sessionManager.<Clob>getLob(session, (String) clobUUID));
+                    Clob clob = sessionManager.<Clob>getLob(session, (String) clobUUID);
+                    // Use setCharacterStream instead of setClob for better database compatibility
+                    // Some databases (e.g., MySQL/MariaDB) don't accept foreign Clob implementations
+                    ps.setCharacterStream(idx, clob.getCharacterStream(), clob.length());
                 }
                 break;
             case BINARY_STREAM: {
