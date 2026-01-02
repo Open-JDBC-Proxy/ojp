@@ -224,16 +224,17 @@ public class ClobIntegrationTest {
             //If fails disregard as per the table is most possibly not created yet
         }
 
-        // H2, Oracle, MySQL, and MariaDB do not support setNClob with Reader due to internal CLOB/BLOB casting issues
+        // H2, Oracle, and MySQL do not support setNClob with Reader due to internal CLOB/BLOB casting issues
+        // Note: MariaDB DOES support setNClob with Reader (unlike regular setClob)
         if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("oracle") || 
-            url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            url.toLowerCase().contains("mysql")) {
             System.out.println(url + " does not support setNClob with Reader - asserting expected failure");
             
             // Create a simple table just for the assertion test
             String clobType = "CLOB";
             if (url.toLowerCase().contains("oracle")) {
                 clobType = "NCLOB";
-            } else if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            } else if (url.toLowerCase().contains("mysql")) {
                 clobType = "LONGTEXT";
             }
             
@@ -266,6 +267,37 @@ public class ClobIntegrationTest {
             conn.close();
             return;
         }
+
+        // MariaDB: NCLOB operations actually work! Test them properly.
+        System.out.println("Testing MariaDB NCLOB with Reader - should succeed");
+        String clobType = "LONGTEXT";  // MariaDB uses LONGTEXT instead of CLOB/NCLOB
+        
+        executeUpdate(conn,
+                "create table " + tableName + "(" +
+                        " val_nclob " + clobType +
+                        ")"
+        );
+        
+        PreparedStatement psInsert = conn.prepareStatement(
+                "insert into " + tableName + " (val_nclob) values (?)"
+        );
+        String testString = "NCLOB test with 中文字符 and 日本語 and emoji 🌍";
+        psInsert.setNClob(1, new StringReader(testString), testString.length());
+        psInsert.executeUpdate();
+        
+        // Read back and verify
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT val_nclob FROM " + tableName);
+        Assert.assertTrue(rs.next(), "Should have at least one row");
+        Clob clob = rs.getClob(1);
+        Assert.assertNotNull(clob, "MariaDB should return non-null Clob for NCLOB");
+        
+        String result = readAllFromClob(clob);
+        Assert.assertEquals(testString, result, "MariaDB NCLOB content should match");
+        
+        rs.close();
+        stmt.close();
+        conn.close();
     }
 
     /**
