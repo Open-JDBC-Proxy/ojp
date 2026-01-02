@@ -104,6 +104,10 @@ public class ClobIntegrationTest {
         String testString2 = "CLOB VIA READER STREAM";
         String testString3 = "CLOB PARTIAL";
 
+        // Note: MySQL and MariaDB use TEXT columns instead of CLOB, but the OJP proxy
+        // successfully abstracts this - it creates client-side CLOB objects and handles
+        // the conversion transparently. Tests run normally for these databases.
+
         // H2 has a known limitation: when using multiple CLOB parameters through OJP proxy,
         // it throws "Feature not supported: Stream setter is not yet closed" error.
         // This is due to H2's strict stream lifecycle management which conflicts with the proxy architecture.
@@ -220,6 +224,10 @@ public class ClobIntegrationTest {
             largeText.append("Line ").append(i).append(": This is a test line with some text content.\n");
         }
         String largeTextStr = largeText.toString();
+
+        // Note: MySQL and MariaDB use TEXT columns instead of CLOB, but the OJP proxy
+        // successfully abstracts this - it creates client-side CLOB objects and handles
+        // the conversion transparently. Tests run normally for these databases.
 
         // H2 has a known limitation: when using CLOB parameters with Reader through OJP proxy,
         // it throws "Feature not supported: Stream setter is not yet closed" error.
