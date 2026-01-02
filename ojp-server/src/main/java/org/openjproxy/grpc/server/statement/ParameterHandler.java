@@ -121,9 +121,18 @@ public class ParameterHandler {
                     ps.setClob(idx, (Clob) null);
                 } else {
                     Clob clob = sessionManager.<Clob>getLob(session, (String) clobUUID);
-                    // Use setCharacterStream instead of setClob for better database compatibility
-                    // Some databases (e.g., MySQL/MariaDB) don't accept foreign Clob implementations
-                    ps.setCharacterStream(idx, clob.getCharacterStream(), clob.length());
+                    if (clob == null) {
+                        ps.setClob(idx, (Clob) null);
+                    } else {
+                        // Use setCharacterStream instead of setClob for better database compatibility
+                        // Some databases (e.g., MySQL/MariaDB) don't accept foreign Clob implementations
+                        Reader reader = clob.getCharacterStream();
+                        if (reader == null) {
+                            ps.setClob(idx, (Clob) null);
+                        } else {
+                            ps.setCharacterStream(idx, reader, clob.length());
+                        }
+                    }
                 }
                 break;
             case BINARY_STREAM: {
