@@ -72,14 +72,14 @@ public class ClobIntegrationTest {
             //If fails disregard as per the table is most possibly not created yet
         }
 
-        // H2, Oracle, MySQL, and MariaDB do not support setClob with Reader due to internal CLOB/BLOB casting issues
+        // H2, Oracle, and MySQL do not support setClob with Reader due to internal CLOB/BLOB casting issues
         if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("oracle") || 
-            url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            url.toLowerCase().contains("mysql")) {
             System.out.println(url + " does not support setClob with Reader - asserting expected failure");
             
             // Create a simple table just for the assertion test
             String clobType = "CLOB";
-            if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            if (url.toLowerCase().contains("mysql")) {
                 clobType = "LONGTEXT";
             }
             
@@ -107,9 +107,76 @@ public class ClobIntegrationTest {
             return;
         }
 
-        // NOTE: If a database is found that supports setClob with Reader, remove it from the check above
-        // and implement the table creation and test logic below
-        throw new AssertionError("Test configuration error: No database should reach this point");
+        // MariaDB supports setClob with Reader - test it properly
+        String clobType = "LONGTEXT";  // MariaDB uses LONGTEXT instead of CLOB
+
+        executeUpdate(conn,
+                "create table " + tableName + "(" +
+                        " val_clob  " + clobType + "," +
+                        " val_clob2 " + clobType + "," +
+                        " val_clob3 " + clobType +
+                        ")"
+        );
+
+        PreparedStatement psInsert = conn.prepareStatement(
+                " insert into " + tableName + " (val_clob, val_clob2, val_clob3) values (?, ?, ?)"
+        );
+
+        // Test with text data
+        String textData = "This is a test CLOB with some sample text data. ";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 20; i++) {
+            sb.append(textData);
+        }
+        String largeText = sb.toString();
+
+        String testString2 = "CLOB VIA READER STREAM";
+
+        try {
+            for (int i = 0; i < 5; i++) {
+                Clob clob = conn.createClob();
+                clob.setString(1, largeText);
+                psInsert.setClob(1, clob);
+                
+                Reader reader = new StringReader(testString2);
+                psInsert.setClob(2, reader);
+                
+                Reader reader2 = new StringReader(testString2);
+                psInsert.setClob(3, reader2, 5);
+                psInsert.executeUpdate();
+            }
+
+            PreparedStatement psSelect = conn.prepareStatement("select val_clob, val_clob2, val_clob3 from " + tableName);
+            ResultSet resultSet = psSelect.executeQuery();
+
+            int countReads = 0;
+            while(resultSet.next()) {
+                countReads++;
+                Clob clobResult = resultSet.getClob(1);
+                String text1 = readAll(clobResult.getCharacterStream());
+                Assert.assertEquals(largeText.length(), text1.length());
+
+                Clob clobResultByName = resultSet.getClob("val_clob");
+                String text1ByName = readAll(clobResultByName.getCharacterStream());
+                Assert.assertEquals(largeText.length(), text1ByName.length());
+
+                Clob clobResult2 = resultSet.getClob(2);
+                String fromClobByIdx2 = readAll(clobResult2.getCharacterStream());
+                Assert.assertEquals(testString2, fromClobByIdx2);
+
+                Clob clobResult3 = resultSet.getClob(3);
+                String fromClobByIdx3 = readAll(clobResult3.getCharacterStream());
+                Assert.assertEquals(testString2.substring(0, 5), fromClobByIdx3);
+            }
+            Assert.assertEquals(5, countReads);
+
+            executeUpdate(conn, "delete from " + tableName);
+
+            resultSet.close();
+            psSelect.close();
+        } finally {
+            conn.close();
+        }
     }
 
     @ParameterizedTest
@@ -124,14 +191,14 @@ public class ClobIntegrationTest {
             //If fails disregard as per the table is most possibly not created yet
         }
 
-        // H2, Oracle, MySQL, and MariaDB do not support setClob with Reader due to internal CLOB/BLOB casting issues
+        // H2, Oracle, and MySQL do not support setClob with Reader due to internal CLOB/BLOB casting issues
         if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("oracle") || 
-            url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            url.toLowerCase().contains("mysql")) {
             System.out.println(url + " does not support setClob with Reader - asserting expected failure");
             
             // Create a simple table just for the assertion test
             String clobType = "CLOB";
-            if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            if (url.toLowerCase().contains("mysql")) {
                 clobType = "LONGTEXT";
             }
             
@@ -153,9 +220,42 @@ public class ClobIntegrationTest {
             return;
         }
 
-        // NOTE: If a database is found that supports setClob with Reader, remove it from the check above
-        // and implement the table creation and test logic below
-        throw new AssertionError("Test configuration error: No database should reach this point");
+        // MariaDB supports setClob with Reader - test it properly
+        String clobType = "LONGTEXT";  // MariaDB uses LONGTEXT instead of CLOB
+
+        executeUpdate(conn,
+                "create table " + tableName + "(" +
+                        " val_clob " + clobType +
+                        ")"
+        );
+
+        PreparedStatement psInsert = conn.prepareStatement(
+                "insert into " + tableName + " (val_clob) values (?)"
+        );
+
+        // Test with multi-byte characters including Chinese, Japanese, and emoji
+        String testString = "Hello 世界 こんにちは 🌍 Testing Unicode Characters!";
+        Reader reader = new StringReader(testString);
+        
+        try {
+            psInsert.setClob(1, reader);
+            psInsert.executeUpdate();
+
+            PreparedStatement psSelect = conn.prepareStatement("select val_clob from " + tableName);
+            ResultSet resultSet = psSelect.executeQuery();
+            resultSet.next();
+            Clob clobResult = resultSet.getClob(1);
+
+            String resultText = readAll(clobResult.getCharacterStream());
+            Assert.assertEquals(testString, resultText);
+
+            executeUpdate(conn, "delete from " + tableName);
+
+            resultSet.close();
+            psSelect.close();
+        } finally {
+            conn.close();
+        }
     }
 
     @ParameterizedTest
@@ -170,16 +270,16 @@ public class ClobIntegrationTest {
             //If fails disregard as per the table is most possibly not created yet
         }
 
-        // H2, Oracle, MySQL, and MariaDB do not support setNClob with Reader due to internal CLOB/BLOB casting issues
+        // H2, Oracle, and MySQL do not support setNClob with Reader due to internal CLOB/BLOB casting issues
         if (url.toLowerCase().contains("h2") || url.toLowerCase().contains("oracle") || 
-            url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            url.toLowerCase().contains("mysql")) {
             System.out.println(url + " does not support setNClob with Reader - asserting expected failure");
             
             // Create a simple table just for the assertion test
             String clobType = "CLOB";
             if (url.toLowerCase().contains("oracle")) {
                 clobType = "NCLOB";
-            } else if (url.toLowerCase().contains("mysql") || url.toLowerCase().contains("mariadb")) {
+            } else if (url.toLowerCase().contains("mysql")) {
                 clobType = "LONGTEXT";
             }
             
@@ -201,9 +301,50 @@ public class ClobIntegrationTest {
             return;
         }
 
-        // NOTE: If a database is found that supports setNClob with Reader, remove it from the check above
-        // and implement the table creation and test logic below
-        throw new AssertionError("Test configuration error: No database should reach this point");
+        // MariaDB supports setNClob with Reader - test it properly
+        String clobType = "LONGTEXT";  // MariaDB uses LONGTEXT instead of NCLOB
+
+        executeUpdate(conn,
+                "create table " + tableName + "(" +
+                        " val_nclob " + clobType +
+                        ")"
+        );
+
+        PreparedStatement psInsert = conn.prepareStatement(
+                "insert into " + tableName + " (val_nclob) values (?)"
+        );
+
+        String testString = "NCLOB test with 中文字符 and 日本語";
+        Reader reader = new StringReader(testString);
+        
+        try {
+            psInsert.setNClob(1, reader, testString.length());
+            psInsert.executeUpdate();
+
+            PreparedStatement psSelect = conn.prepareStatement("select val_nclob from " + tableName);
+            ResultSet resultSet = psSelect.executeQuery();
+            resultSet.next();
+
+            // Try to get as NClob first, fall back to Clob if not supported
+            String resultText;
+            try {
+                NClob nclobResult = resultSet.getNClob(1);
+                resultText = readAll(nclobResult.getCharacterStream());
+            } catch (Exception e) {
+                // Fall back to Clob for databases that don't distinguish
+                Clob clobResult = resultSet.getClob(1);
+                resultText = readAll(clobResult.getCharacterStream());
+            }
+
+            Assert.assertEquals(testString, resultText);
+
+            executeUpdate(conn, "delete from " + tableName);
+
+            resultSet.close();
+            psSelect.close();
+        } finally {
+            conn.close();
+        }
     }
 
     /**
