@@ -118,12 +118,11 @@ public class ParameterHandler {
             case CLOB: {
                 Object clobUUID = param.getValues().get(0);
                 if (clobUUID == null) {
-                    ps.setBlob(idx, (Blob) null);
+                    ps.setClob(idx, (Clob) null);
                 } else {
-                    ps.setBlob(idx, sessionManager.<Blob>getLob(session, (String) clobUUID));
+                    Clob clob = sessionManager.getLob(session, (String) clobUUID);
+                    ps.setClob(idx, clob.getCharacterStream());
                 }
-                Clob clob = sessionManager.getLob(session, (String) param.getValues().get(0));
-                ps.setClob(idx, clob.getCharacterStream());
                 break;
             }
             case BINARY_STREAM: {
