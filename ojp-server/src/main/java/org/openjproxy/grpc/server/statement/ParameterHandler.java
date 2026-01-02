@@ -128,13 +128,13 @@ public class ParameterHandler {
                             // Read the CLOB content using a Reader to ensure proper stream closure
                             long length = clob.length();
                             if (length > Integer.MAX_VALUE) {
-                                throw new SQLException("CLOB too large: " + length + " bytes");
+                                throw new SQLException("CLOB too large: " + length + " characters");
                             }
                             char[] buffer = new char[(int) length];
                             try (java.io.Reader reader = clob.getCharacterStream()) {
                                 int totalRead = 0;
                                 int read;
-                                while (totalRead < length && (read = reader.read(buffer, totalRead, (int) length - totalRead)) != -1) {
+                                while ((read = reader.read(buffer, totalRead, (int) length - totalRead)) != -1 && totalRead < length) {
                                     totalRead += read;
                                 }
                                 String clobContent = new String(buffer, 0, totalRead);
