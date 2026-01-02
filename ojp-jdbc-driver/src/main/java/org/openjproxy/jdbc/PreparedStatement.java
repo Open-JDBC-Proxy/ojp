@@ -918,7 +918,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
 
     /**
      * Helper method to convert a Reader to an InputStream with UTF-8 encoding.
-     * This properly handles multi-byte characters by encoding them to bytes.
+     * This properly handles multi-byte characters including surrogate pairs (emoji).
      *
      * @param reader the Reader to convert
      * @return an InputStream that reads bytes from the encoded characters
@@ -927,17 +927,33 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         return new InputStream() {
             private byte[] buffer = null;
             private int bufferPos = 0;
+            private final char[] charBuffer = new char[2]; // For handling surrogate pairs
             
             @Override
             public int read() throws IOException {
-                // If buffer is empty or fully consumed, read next character and encode it
+                // If buffer is empty or fully consumed, read next character(s) and encode
                 if (buffer == null || bufferPos >= buffer.length) {
                     int ch = reader.read();
                     if (ch == -1) {
                         return -1; // End of stream
                     }
-                    // Convert character to string and encode to UTF-8 bytes
-                    buffer = String.valueOf((char) ch).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    
+                    // Check if this is a high surrogate (emoji, etc)
+                    if (Character.isHighSurrogate((char) ch)) {
+                        charBuffer[0] = (char) ch;
+                        int lowSurrogate = reader.read();
+                        if (lowSurrogate == -1 || !Character.isLowSurrogate((char) lowSurrogate)) {
+                            // Invalid surrogate pair - encode the high surrogate alone
+                            buffer = new String(charBuffer, 0, 1).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                        } else {
+                            // Valid surrogate pair - encode both characters
+                            charBuffer[1] = (char) lowSurrogate;
+                            buffer = new String(charBuffer, 0, 2).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                        }
+                    } else {
+                        // Regular character (BMP) - encode single character
+                        buffer = String.valueOf((char) ch).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    }
                     bufferPos = 0;
                 }
                 // Return next byte from buffer
