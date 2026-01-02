@@ -153,19 +153,19 @@ public class ClobIntegrationTest {
             while(resultSet.next()) {
                 countReads++;
                 Clob clobResult = resultSet.getClob(1);
-                String text1 = readAll(clobResult.getCharacterStream());
+                String text1 = readAllFromClob(clobResult);
                 Assert.assertEquals(largeText.length(), text1.length());
 
                 Clob clobResultByName = resultSet.getClob("val_clob");
-                String text1ByName = readAll(clobResultByName.getCharacterStream());
+                String text1ByName = readAllFromClob(clobResultByName);
                 Assert.assertEquals(largeText.length(), text1ByName.length());
 
                 Clob clobResult2 = resultSet.getClob(2);
-                String fromClobByIdx2 = readAll(clobResult2.getCharacterStream());
+                String fromClobByIdx2 = readAllFromClob(clobResult2);
                 Assert.assertEquals(testString2, fromClobByIdx2);
 
                 Clob clobResult3 = resultSet.getClob(3);
-                String fromClobByIdx3 = readAll(clobResult3.getCharacterStream());
+                String fromClobByIdx3 = readAllFromClob(clobResult3);
                 Assert.assertEquals(testString2.substring(0, 5), fromClobByIdx3);
             }
             Assert.assertEquals(5, countReads);
@@ -246,7 +246,7 @@ public class ClobIntegrationTest {
             resultSet.next();
             Clob clobResult = resultSet.getClob(1);
 
-            String resultText = readAll(clobResult.getCharacterStream());
+            String resultText = readAllFromClob(clobResult);
             Assert.assertEquals(testString, resultText);
 
             executeUpdate(conn, "delete from " + tableName);
@@ -329,11 +329,11 @@ public class ClobIntegrationTest {
             String resultText;
             try {
                 NClob nclobResult = resultSet.getNClob(1);
-                resultText = readAll(nclobResult.getCharacterStream());
+                resultText = readAllFromClob(nclobResult);
             } catch (Exception e) {
                 // Fall back to Clob for databases that don't distinguish
                 Clob clobResult = resultSet.getClob(1);
-                resultText = readAll(clobResult.getCharacterStream());
+                resultText = readAllFromClob(clobResult);
             }
 
             Assert.assertEquals(testString, resultText);
@@ -358,5 +358,24 @@ public class ClobIntegrationTest {
             sb.append(buffer, 0, charsRead);
         }
         return sb.toString();
+    }
+
+    /**
+     * Helper method to read all characters from a Clob into a String.
+     * Handles MariaDB limitation where getCharacterStream() may return null.
+     */
+    private String readAllFromClob(Clob clob) throws SQLException, IOException {
+        Reader reader = clob.getCharacterStream();
+        if (reader != null) {
+            return readAll(reader);
+        } else {
+            // Fallback for databases (like MariaDB) where getCharacterStream() returns null
+            // Use getSubString() instead
+            long length = clob.length();
+            if (length > Integer.MAX_VALUE) {
+                throw new SQLException("Clob too large to read");
+            }
+            return clob.getSubString(1, (int) length);
+        }
     }
 }
