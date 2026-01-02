@@ -20,9 +20,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "Hello World";
         Reader reader = new StringReader(testString);
         
-        // Access the helper method through reflection since it's private
-        PreparedStatement ps = createPreparedStatement();
-        InputStream is = invokeReaderToInputStream(ps, reader);
+        InputStream is = invokeReaderToInputStream(null, reader);
         
         byte[] result = is.readAllBytes();
         String resultString = new String(result, java.nio.charset.StandardCharsets.UTF_8);
@@ -36,8 +34,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "Hello 世界 🌍"; // Mix of ASCII, Chinese, and emoji
         Reader reader = new StringReader(testString);
         
-        PreparedStatement ps = createPreparedStatement();
-        InputStream is = invokeReaderToInputStream(ps, reader);
+        InputStream is = invokeReaderToInputStream(null, reader);
         
         byte[] result = is.readAllBytes();
         String resultString = new String(result, java.nio.charset.StandardCharsets.UTF_8);
@@ -50,8 +47,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "";
         Reader reader = new StringReader(testString);
         
-        PreparedStatement ps = createPreparedStatement();
-        InputStream is = invokeReaderToInputStream(ps, reader);
+        InputStream is = invokeReaderToInputStream(null, reader);
         
         int result = is.read();
         
@@ -63,8 +59,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "A";
         Reader reader = new StringReader(testString);
         
-        PreparedStatement ps = createPreparedStatement();
-        InputStream is = invokeReaderToInputStream(ps, reader);
+        InputStream is = invokeReaderToInputStream(null, reader);
         
         byte[] result = is.readAllBytes();
         String resultString = new String(result, java.nio.charset.StandardCharsets.UTF_8);
@@ -78,8 +73,7 @@ public class PreparedStatementHelperMethodsTest {
         String testString = "世";
         Reader reader = new StringReader(testString);
         
-        PreparedStatement ps = createPreparedStatement();
-        InputStream is = invokeReaderToInputStream(ps, reader);
+        InputStream is = invokeReaderToInputStream(null, reader);
         
         byte[] result = is.readAllBytes();
         
@@ -91,37 +85,11 @@ public class PreparedStatementHelperMethodsTest {
     }
 
     /**
-     * Helper method to create a minimal PreparedStatement instance for testing.
-     * Since PreparedStatement requires Connection and StatementService, we create
-     * a mock/minimal version for testing the helper methods only.
-     */
-    private PreparedStatement createPreparedStatement() {
-        // Create a minimal PreparedStatement for testing
-        // This is a workaround since the actual constructor requires dependencies
-        try {
-            // Use reflection to create an instance without calling the constructor
-            java.lang.reflect.Constructor<PreparedStatement> constructor = 
-                PreparedStatement.class.getDeclaredConstructor(
-                    Connection.class, 
-                    String.class, 
-                    org.openjproxy.grpc.client.StatementService.class
-                );
-            // We'll pass null for these since we're only testing the helper method
-            // which doesn't use these dependencies
-            return null; // This approach won't work, we need a different strategy
-        } catch (Exception e) {
-            fail("Cannot create PreparedStatement instance: " + e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Helper method to invoke the private readerToInputStream method via reflection.
+     * Helper method to invoke the private readerToInputStream method.
+     * Since the actual method is private and used internally, we create
+     * a standalone implementation here that mirrors the logic for testing.
      */
     private InputStream invokeReaderToInputStream(PreparedStatement ps, Reader reader) {
-        // Since the method is private, we would need reflection to test it
-        // However, this is complex and the method will be tested through integration tests
-        // For now, we'll create a standalone implementation to test the concept
         return new InputStream() {
             private byte[] buffer = null;
             private int bufferPos = 0;

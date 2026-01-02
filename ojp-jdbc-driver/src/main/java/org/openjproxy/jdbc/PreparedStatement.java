@@ -973,7 +973,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
      *
      * @param parameterIndex the parameter index
      * @param reader the Reader to stream from
-     * @param length the maximum number of characters to read
+     * @param length the maximum number of characters to read (not bytes)
      * @throws SQLException if an error occurs
      */
     private void streamReaderToClob(int parameterIndex, Reader reader, long length) throws SQLException {
@@ -981,18 +981,22 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         try {
             org.openjproxy.jdbc.Clob clob = (org.openjproxy.jdbc.Clob) this.getConnection().createClob();
             OutputStream os = clob.setAsciiStream(1);
-            InputStream is = readerToInputStream(reader);
             
-            int byteRead = is.read();
+            // Read characters from the reader and write them as bytes
+            // We need to track character count, not byte count
             long charsRead = 0;
-            long maxChars = (length <= 0) ? Long.MAX_VALUE : length;
+            long maxChars = (length > 0) ? length : Long.MAX_VALUE;
             
-            // Read bytes from the converted stream
-            while (byteRead != -1 && charsRead < maxChars) {
-                os.write(byteRead);
-                byteRead = is.read();
-                // Note: We count approximate characters, actual char count may vary with multi-byte chars
-                charsRead++;
+            char[] buffer = new char[8192]; // Buffer for efficient reading
+            int charsInBuffer;
+            
+            while (charsRead < maxChars && (charsInBuffer = reader.read(buffer, 0, 
+                    (int) Math.min(buffer.length, maxChars - charsRead))) != -1) {
+                // Convert characters to bytes and write
+                String str = new String(buffer, 0, charsInBuffer);
+                byte[] bytes = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                os.write(bytes);
+                charsRead += charsInBuffer;
             }
             os.close();
             
