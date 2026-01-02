@@ -104,9 +104,32 @@ public class ClobIntegrationTest {
         String testString2 = "CLOB VIA READER STREAM";
         String testString3 = "CLOB PARTIAL";
 
-        // Note: MySQL and MariaDB use TEXT columns instead of CLOB, but the OJP proxy
-        // successfully abstracts this - it creates client-side CLOB objects and handles
-        // the conversion transparently. Tests run normally for these databases.
+        // MySQL and MariaDB use TEXT columns and don't support JDBC CLOB operations natively.
+        // Without type conversion in OJP, these databases will throw errors.
+        if (isMySQLOrMariaDB) {
+            try {
+                for (int i = 0; i < 5; i++) {
+                    Clob clob = conn.createClob();
+                    clob.setString(1, testString1);
+                    psInsert.setClob(1, clob);
+                    
+                    Reader reader = new StringReader(testString2);
+                    psInsert.setClob(2, reader);
+                    
+                    Reader reader2 = new StringReader(testString3);
+                    psInsert.setClob(3, reader2, 5);
+                    psInsert.executeUpdate();
+                }
+                Assert.fail("Expected SQLException for MySQL/MariaDB with CLOB operations - these databases don't support CLOB type");
+            } catch (SQLException e) {
+                // Expected: MySQL/MariaDB throw errors when trying to use CLOB operations
+                System.out.println("Expected failure for MySQL/MariaDB with CLOB operations: " + e.getMessage());
+                Assert.assertTrue("Expected SQLException related to unsupported CLOB operations", 
+                    e.getMessage() != null && !e.getMessage().isEmpty());
+            }
+            conn.close();
+            return; // Skip rest of test for MySQL/MariaDB
+        }
 
         // H2 has a known limitation: when using multiple CLOB parameters through OJP proxy,
         // it throws "Feature not supported: Stream setter is not yet closed" error.
@@ -225,9 +248,23 @@ public class ClobIntegrationTest {
         }
         String largeTextStr = largeText.toString();
 
-        // Note: MySQL and MariaDB use TEXT columns instead of CLOB, but the OJP proxy
-        // successfully abstracts this - it creates client-side CLOB objects and handles
-        // the conversion transparently. Tests run normally for these databases.
+        // MySQL and MariaDB use TEXT columns and don't support JDBC CLOB operations natively.
+        // Without type conversion in OJP, these databases will throw errors.
+        if (isMySQLOrMariaDB) {
+            try {
+                Reader reader = new StringReader(largeTextStr);
+                psInsert.setClob(1, reader);
+                psInsert.executeUpdate();
+                Assert.fail("Expected SQLException for MySQL/MariaDB with CLOB Reader parameter - these databases don't support CLOB type");
+            } catch (SQLException e) {
+                // Expected: MySQL/MariaDB throw errors when trying to use CLOB operations
+                System.out.println("Expected failure for MySQL/MariaDB with CLOB Reader parameter: " + e.getMessage());
+                Assert.assertTrue("Expected SQLException related to unsupported CLOB operations", 
+                    e.getMessage() != null && !e.getMessage().isEmpty());
+            }
+            conn.close();
+            return; // Skip rest of test for MySQL/MariaDB
+        }
 
         // H2 has a known limitation: when using CLOB parameters with Reader through OJP proxy,
         // it throws "Feature not supported: Stream setter is not yet closed" error.

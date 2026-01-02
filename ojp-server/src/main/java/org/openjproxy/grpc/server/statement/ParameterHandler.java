@@ -115,40 +115,14 @@ public class ParameterHandler {
                     ps.setBlob(idx, sessionManager.<Blob>getLob(session, (String) blobUUID));
                 }
                 break;
-            case CLOB: {
+            case CLOB:
                 Object clobUUID = param.getValues().get(0);
                 if (clobUUID == null) {
                     ps.setClob(idx, (Clob) null);
                 } else {
-                    Clob clob = sessionManager.getLob(session, (String) clobUUID);
-                    // H2 database has strict stream lifecycle management. Read the entire CLOB content
-                    // into a String and set it using setString() to avoid "Stream setter is not yet closed" error
-                    if (clob != null) {
-                        try {
-                            // Read the CLOB content using a Reader to ensure proper stream closure
-                            long length = clob.length();
-                            if (length > Integer.MAX_VALUE) {
-                                throw new SQLException("CLOB too large: " + length + " characters");
-                            }
-                            char[] buffer = new char[(int) length];
-                            try (java.io.Reader reader = clob.getCharacterStream()) {
-                                int totalRead = 0;
-                                int read;
-                                while ((read = reader.read(buffer, totalRead, (int) length - totalRead)) != -1 && totalRead < length) {
-                                    totalRead += read;
-                                }
-                                String clobContent = new String(buffer, 0, totalRead);
-                                ps.setString(idx, clobContent);
-                            }
-                        } catch (java.io.IOException e) {
-                            throw new SQLException("Failed to read CLOB content", e);
-                        }
-                    } else {
-                        ps.setClob(idx, (Clob) null);
-                    }
+                    ps.setClob(idx, sessionManager.<Clob>getLob(session, (String) clobUUID));
                 }
                 break;
-            }
             case BINARY_STREAM: {
                 Object inputStreamValue = param.getValues().get(0);
                 if (inputStreamValue == null) {
