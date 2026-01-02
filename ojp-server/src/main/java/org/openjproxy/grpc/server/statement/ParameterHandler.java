@@ -121,7 +121,11 @@ public class ParameterHandler {
                     ps.setClob(idx, (Clob) null);
                 } else {
                     Clob clob = sessionManager.getLob(session, (String) clobUUID);
-                    ps.setClob(idx, clob.getCharacterStream());
+                    if (clob != null) {
+                        ps.setClob(idx, clob.getCharacterStream());
+                    } else {
+                        ps.setClob(idx, (Clob) null);
+                    }
                 }
                 break;
             }
