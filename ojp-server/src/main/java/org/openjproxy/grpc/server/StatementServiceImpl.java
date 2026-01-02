@@ -1690,6 +1690,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 responseBuilder.setSession(request.getSession());
             }
 
+            // Check if resource is null before proceeding
+            if (resource == null) {
+                throw new RuntimeException("Resource not found for UUID: " + request.getResourceUUID());
+            }
+
             List<Object> paramsReceived = (request.getTarget().getParamsCount() > 0) ?
                     ProtoConverter.parameterValuesToObjectList(request.getTarget().getParamsList()) : EMPTY_LIST;
             Class<?> clazz = resource.getClass();
