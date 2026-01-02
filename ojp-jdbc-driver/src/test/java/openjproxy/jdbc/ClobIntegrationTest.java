@@ -28,6 +28,8 @@ public class ClobIntegrationTest {
     private String tableName;
     private Connection conn;
     private boolean isMySQLOrMariaDB;
+    private boolean isH2;
+    private static final String H2_CLOB_LIMITATION_MSG = "H2's strict stream lifecycle management conflicts with OJP proxy architecture";
 
     @BeforeAll
     public static void checkTestConfiguration() {
@@ -41,6 +43,7 @@ public class ClobIntegrationTest {
 
         this.tableName = "clob_test_clob";
         this.isMySQLOrMariaDB = false;
+        this.isH2 = false;
         
         if (url.toLowerCase().contains("mysql")) {
             assumeFalse(!isMySQLTestEnabled, "MySQL tests are not enabled");
@@ -56,9 +59,12 @@ public class ClobIntegrationTest {
         } else if (url.toLowerCase().contains("h2")) {
             assumeFalse(!isH2TestEnabled, "H2 tests are not enabled");
             this.tableName += "_h2";
+            this.isH2 = true;
         } else {
+            // Default to H2 if database type cannot be determined
             assumeFalse(!isH2TestEnabled, "H2 tests are not enabled");
             this.tableName += "_h2";
+            this.isH2 = true;
         }
         Class.forName(driverClass);
         this.conn = DriverManager.getConnection(url, user, pwd);
@@ -119,7 +125,6 @@ public class ClobIntegrationTest {
         // H2 has a known limitation: when using multiple CLOB parameters through OJP proxy,
         // it throws "Feature not supported: Stream setter is not yet closed" error.
         // This is due to H2's strict stream lifecycle management which conflicts with the proxy architecture.
-        boolean isH2 = url.toLowerCase().contains("h2");
         if (isH2) {
             try {
                 for (int i = 0; i < 5; i++) {
@@ -134,7 +139,7 @@ public class ClobIntegrationTest {
                     psInsert.setClob(3, reader2, 5);
                     psInsert.executeUpdate();
                 }
-                Assert.fail("Expected SQLException for H2 with multiple CLOB parameters - H2's strict stream lifecycle management conflicts with OJP proxy architecture");
+                Assert.fail("Expected SQLException for H2 with multiple CLOB parameters - " + H2_CLOB_LIMITATION_MSG);
             } catch (SQLException e) {
                 // Expected: H2 throws "Feature not supported: Stream setter is not yet closed"
                 System.out.println("Expected failure for H2 with multiple CLOB parameters: " + e.getMessage());
@@ -255,13 +260,12 @@ public class ClobIntegrationTest {
         // H2 has a known limitation: when using CLOB parameters with Reader through OJP proxy,
         // it throws "Feature not supported: Stream setter is not yet closed" error.
         // This is due to H2's strict stream lifecycle management which conflicts with the proxy architecture.
-        boolean isH2 = url.toLowerCase().contains("h2");
         if (isH2) {
             try {
                 Reader reader = new StringReader(largeTextStr);
                 psInsert.setClob(1, reader);
                 psInsert.executeUpdate();
-                Assert.fail("Expected SQLException for H2 with CLOB Reader parameter - H2's strict stream lifecycle management conflicts with OJP proxy architecture");
+                Assert.fail("Expected SQLException for H2 with CLOB Reader parameter - " + H2_CLOB_LIMITATION_MSG);
             } catch (SQLException e) {
                 // Expected: H2 throws "Feature not supported: Stream setter is not yet closed"
                 System.out.println("Expected failure for H2 with CLOB Reader parameter: " + e.getMessage());
