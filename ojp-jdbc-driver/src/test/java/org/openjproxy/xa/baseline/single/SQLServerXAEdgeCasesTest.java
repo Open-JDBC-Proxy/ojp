@@ -25,6 +25,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * - 8 Resource Lifecycle Violations (HIGH priority)
  * - 10 Common Developer Mistakes (HIGH priority)
  * 
+ * NOTE: 3 tests are disabled due to confirmed SQL Server XA implementation limitations
+ * that cause indefinite hangs. Comparison testing with direct SQL Server connections
+ * (bypassing OJP) confirmed these are database-specific issues, not OJP bugs.
+ * 
  * These tests validate that SQL Server correctly handles error conditions and protocol violations
  * according to the XA specification. Tests establish baseline behavior for comparison with Oracle and OJP.
  * 
