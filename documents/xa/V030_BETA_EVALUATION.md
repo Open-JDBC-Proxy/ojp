@@ -12,8 +12,8 @@ This document evaluates the accuracy of four feature statements made about v0.3.
 
 ### Overall Assessment
 
-**3 out of 4 statements are fully accurate** ✅  
-**1 statement requires clarification** ⚠️
+**2 out of 4 statements are fully accurate** ✅  
+**2 statements require clarification** ⚠️
 
 All features are **production-ready** and **XA spec-compliant**.
 
@@ -45,11 +45,18 @@ public void start(Xid xid, int flags) throws XAException {
             if (!isConnectionLevelError(e)) {
                 throw e; // Not retryable
             }
+            // Connection-level error - store exception and retry
+            lastException = new XAException(XAException.XAER_RMFAIL);
+            lastException.initCause(e);
+            
             // Recreate session on different server
             this.sessionInfo = xaConnection.recreateSession();
             attempt++;
         }
     }
+    
+    // All retries exhausted - throw last exception
+    throw lastException;
 }
 ```
 

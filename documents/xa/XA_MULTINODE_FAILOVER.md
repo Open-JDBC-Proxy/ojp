@@ -28,6 +28,7 @@ The `OjpXAResource.start()` method implements intelligent retry logic that is sa
 public void start(Xid xid, int flags) throws XAException {
     int maxRetries = getMaxRetries();
     int attempt = 0;
+    XAException lastException = null;
     
     while (attempt < maxRetries) {
         try {
@@ -40,11 +41,18 @@ public void start(Xid xid, int flags) throws XAException {
                 throw e; // Database errors are not retryable
             }
             
+            // Store exception for retry exhaustion
+            lastException = new XAException(XAException.XAER_RMFAIL);
+            lastException.initCause(e);
+            
             // Recreate session on different server
             this.sessionInfo = xaConnection.recreateSession();
             attempt++;
         }
     }
+    
+    // All retries exhausted
+    throw lastException;
 }
 ```
 
