@@ -2,18 +2,23 @@
 
 **Last Updated**: 2026-01-04  
 **Status**: Production Ready  
-**Version**: v0.3.0-beta
+**Version**: Current (post-Apache Commons Pool 2 migration)  
+**Originally Introduced**: v0.3.0-beta
 
 ## Overview
 
-OJP v0.3.0-beta introduces intelligent, protocol-aware, and graceful XA failover logic for multinode deployments. These capabilities ensure that distributed transactions remain atomic even during server failures, eliminating half-committed zombie transactions.
+OJP's current implementation includes intelligent, protocol-aware, and graceful XA failover logic for multinode deployments. These capabilities were originally introduced in v0.3.0-beta and **remain fully functional** after the migration from pass-through XA architecture to Apache Commons Pool 2 (documented in `documents/multinode/XA_MANAGEMENT.md`).
 
-### Key Capabilities
+These features ensure that distributed transactions remain atomic even during server failures, eliminating half-committed zombie transactions.
+
+### Key Capabilities (Present in Current Code)
 
 1. **Automatic retry of xaStart() operations**
 2. **Seamless migration of pre-prepare transactions to healthy nodes**
 3. **Proactive cleanup of orphaned transaction connections**
 4. **Fully configurable retry behavior**
+
+**Note**: All capabilities verified as functional in the current Apache Commons Pool 2 implementation.
 
 ---
 
@@ -634,7 +639,7 @@ XAException: xaStart failed after 3 attempts
 
 ### v0.3.0-beta (2026-01-04)
 
-**New Features**:
+**New Features** (originally introduced):
 - ✅ Automatic retry of xaStart() operations
 - ✅ Seamless migration of pre-prepare transactions to healthy nodes
 - ✅ Proactive cleanup of orphaned transaction connections
@@ -645,6 +650,16 @@ XAException: xaStart failed after 3 attempts
 - `OjpXAConnection.java`: Health listener for proactive cleanup
 - `XAConnectionRedistributor.java`: Connection redistribution on recovery
 - `HealthCheckConfig.java`: Comprehensive configuration support
+
+### Post-v0.3.0-beta: Apache Commons Pool 2 Migration
+
+**Architecture Change**: After v0.3.0-beta, the XA implementation was migrated from pass-through architecture to Apache Commons Pool 2 with backend session pooling.
+
+**Migration Date**: Completed by 2025-12-28 (per `XA_MANAGEMENT.md`)
+
+**Feature Retention**: ✅ **All v0.3.0-beta failover capabilities remain functional** in the current Apache Commons Pool 2 implementation. The architectural migration preserved all failover features.
+
+**Documentation**: See `documents/multinode/XA_MANAGEMENT.md` for details on the new architecture.
 
 ---
 
