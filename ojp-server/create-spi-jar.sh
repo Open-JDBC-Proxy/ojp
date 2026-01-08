@@ -46,8 +46,13 @@ if [[ "$CLASS_DIR" =~ target/classes/ ]]; then
 elif [[ "$CLASS_DIR" =~ build/classes/ ]]; then
     PACKAGE_PATH="${CLASS_DIR#*build/classes/}"
 else
-    PACKAGE_PATH=$(dirname "$CLASS_FILE")
+    # Extract package path from class file location
+    PACKAGE_PATH="$CLASS_DIR"
 fi
+
+# Clean up package path (remove leading ./ or /)
+PACKAGE_PATH="${PACKAGE_PATH#./}"
+PACKAGE_PATH="${PACKAGE_PATH#/}"
 
 # Build fully qualified class name
 if [ -z "$PACKAGE_PATH" ] || [ "$PACKAGE_PATH" = "." ]; then
