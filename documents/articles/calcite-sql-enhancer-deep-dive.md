@@ -90,15 +90,9 @@ SELECT * FROM orders LIMIT 10;
 
 ### What is Apache Calcite?
 
-Apache Calcite is a dynamic data management framework that powers SQL capabilities for numerous open-source projects including:
-- **Apache Drill** - Schema-free SQL query engine
-- **Apache Flink** - Stream processing with SQL
-- **Apache Hive** - Data warehouse infrastructure
-- **Apache Kylin** - OLAP cube engine
-- **Apache Phoenix** - SQL layer over HBase
-- **Elasticsearch SQL** - SQL interface to Elasticsearch
+Apache Calcite is a dynamic data management framework that powers SQL capabilities for numerous open-source projects. You'll find it at the heart of Apache Drill's schema-free SQL query engine, Apache Flink's stream processing with SQL, Apache Hive's data warehouse infrastructure, Apache Kylin's OLAP cube engine, Apache Phoenix's SQL layer over HBase, and even Elasticsearch's SQL interface. This widespread adoption speaks to its reliability and versatility in production environments.
 
-Calcite provides four core capabilities:
+Calcite provides four core capabilities that make it invaluable for intelligent SQL processing:
 
 #### 1. SQL Parsing
 Converts SQL text into an Abstract Syntax Tree (AST) that represents query structure programmatically.
@@ -120,24 +114,12 @@ SqlSelect {
 ```
 
 #### 2. SQL Validation
-Verifies query semantics, type safety, and schema correctness before execution.
 
-**Validation Checks:**
-- Column names exist in referenced tables
-- Data types are compatible (no `WHERE age = 'abc'`)
-- Aggregate functions used correctly
-- JOIN conditions reference valid columns
-- Function calls have correct argument types
+Verifies query semantics, type safety, and schema correctness before execution. The validation engine checks that column names exist in the referenced tables, ensuring you don't waste time executing queries against non-existent columns. It verifies data type compatibility, catching errors like comparing age to a string value ('abc') before they reach the database. The validator ensures aggregate functions are used correctly, JOIN conditions reference valid columns, and function calls have the correct argument types and counts. These checks happen at the proxy layer, providing immediate feedback without database roundtrips.
 
 #### 3. Query Optimization
-Applies cost-based optimization rules to improve query performance.
 
-**Optimization Examples:**
-- **Predicate Pushdown:** Move filters closer to data source
-- **Projection Elimination:** Remove unused columns early
-- **Constant Folding:** Evaluate `WHERE 1+1 = 2` at parse time
-- **Join Reordering:** Optimize join sequence for smaller intermediates
-- **Subquery Elimination:** Convert correlated subqueries to joins
+Applies cost-based optimization rules to improve query performance automatically. Predicate pushdown moves filters closer to the data source, reducing the amount of data that needs to be processed. Projection elimination removes unused columns early in the query plan, minimizing memory and I/O. Constant folding evaluates expressions like `WHERE 1+1 = 2` at parse time rather than for every row. Join reordering optimizes the join sequence to create smaller intermediate result sets. Subquery elimination converts correlated subqueries into more efficient joins. These optimizations can significantly improve query performance without any manual intervention.
 
 #### 4. Dialect Translation
 Parse SQL in one dialect and generate equivalent SQL in another dialect.
@@ -378,11 +360,7 @@ public class SqlEnhancementResult {
 }
 ```
 
-**Metadata Extraction:**
-- Tables accessed by the query
-- Columns referenced in SELECT, WHERE, JOIN
-- Query type (SELECT, INSERT, UPDATE, DELETE)
-- Potential for optimization suggestions
+The SqlEnhancementResult class provides rich metadata extraction capabilities that unlock powerful use cases. From the parsed AST, it extracts which tables are accessed by the query, enabling intelligent routing decisions and access control. It identifies columns referenced in SELECT clauses, WHERE conditions, and JOIN predicates, giving you fine-grained visibility into data access patterns. The query type (SELECT, INSERT, UPDATE, DELETE) is extracted automatically, allowing you to route reads to replicas and writes to primaries. Perhaps most intriguingly, the parsed structure opens the door for optimization suggestions - the system could potentially recommend indexes, query rewrites, or schema changes based on observed patterns.
 
 ### Request Flow
 
@@ -425,46 +403,15 @@ sequenceDiagram
 
 **Key Flow Steps:**
 
-1. **Request Arrival:** SQL query arrives via gRPC from OJP JDBC Driver
-2. **Enhancement Check:** StatementServiceImpl invokes SQL Enhancer Engine
-3. **Cache Lookup:** Compute XXHash of SQL string, check cache
-4. **Parse (on miss):** Use Calcite parser to build AST
-5. **Validate:** Verify query structure (optional, configurable)
-6. **Extract Metadata:** Pull table names, columns, query type from AST
-7. **Cache Result:** Store enhancement result for future queries
-8. **Execute:** Forward enhanced/validated SQL to database via HikariCP
-9. **Stream Results:** Return results to client via gRPC
+The request flow through the system follows a well-orchestrated sequence. When a request arrives via gRPC from the OJP JDBC Driver, the SQL query is immediately subjected to enhancement checking by the StatementServiceImpl. The system computes an XXHash of the SQL string and checks the cache - this is where the magic of caching pays off for repeated queries. On a cache miss, the Calcite parser builds an Abstract Syntax Tree from the SQL text, transforming the opaque string into a structured representation. The system can optionally validate the query structure at this point, catching errors before they reach the database. Metadata is extracted from the AST, pulling out table names, columns, and query types for observability and routing decisions. The enhancement result is then cached for future queries with the same structure. Finally, the enhanced or validated SQL is forwarded to the database via HikariCP, and results stream back to the client via gRPC. This entire process is transparent to the application - it simply sees a response, faster and more reliable than before.
 
 ### Caching Strategy
 
-The SQL Enhancer Engine uses **XXHash** for fast, collision-resistant cache keys:
+The SQL Enhancer Engine uses **XXHash** for fast, collision-resistant cache keys. XXHash was chosen over traditional cryptographic hashes like MD5 or SHA because it's significantly faster while still providing excellent collision resistance for our use case. The implementation normalizes SQL by trimming whitespace and converting to lowercase, ensuring that `SELECT * FROM users` and `select * from users` are treated as the same query.
 
-```java
-public class SqlStatementXXHash {
-    public static String hash(String sql) {
-        // Normalize SQL: trim, lowercase
-        String normalized = sql.trim().toLowerCase();
-        
-        // Compute XXHash (faster than MD5/SHA)
-        long hash = XXHashFactory.fastestInstance()
-            .hash64()
-            .hash(normalized.getBytes(StandardCharsets.UTF_8), 0);
-        
-        return Long.toHexString(hash);
-    }
-}
-```
+The cache characteristics are tuned for production use. It uses ConcurrentHashMap for thread-safe operations without explicit locking, enabling multiple threads to read and write concurrently. Fast lookup is achieved through O(1) average case complexity with XXHash keys. The cache has no size limit and dynamically expands, which is suitable because applications typically have a finite number of distinct query patterns. Results don't expire automatically since they remain valid as long as your database schema doesn't change - and when schema does change, you typically restart your server anyway.
 
-**Cache Characteristics:**
-- **Thread-Safe:** Uses `ConcurrentHashMap`
-- **Fast Lookup:** O(1) average case with XXHash keys
-- **No Size Limit:** Dynamically expands (suitable for finite query patterns)
-- **No Expiration:** Results are valid as long as schema doesn't change
-
-**Performance Impact:**
-- **First query:** 5-150ms overhead (parsing)
-- **Cached queries:** <1ms overhead (70-90% of queries)
-- **Overall impact:** ~3-5% with warm cache
+The performance impact tells an interesting story. First queries incur 5-150ms of overhead while parsing occurs, but this is a one-time cost per unique query. Cached queries return with less than 1ms overhead - often imperceptible in the overall request latency. Because 70-90% of queries are typically cache hits in production workloads, the overall impact stabilizes at just 3-5% with a warm cache. This modest overhead buys you validation, metadata extraction, and the foundation for future optimizations.
 
 ---
 
@@ -682,11 +629,7 @@ ojp.sql.enhancer.dialect=ORACLE
 
 ### For Java Developers
 
-**Key Takeaways:**
-- Leverages Apache Calcite - same library used by Apache Flink, Drill, Hive
-- Pure Java implementation, no native dependencies
-- Integration point: `StatementServiceImpl` in OJP server
-- Extensible: Can add custom optimization rules
+The SQL Enhancer Engine leverages Apache Calcite, the same battle-tested library used by Apache Flink, Drill, and Hive in production environments worldwide. It's a pure Java implementation with no native dependencies, making deployment straightforward regardless of your platform. The integration point is the `StatementServiceImpl` in the OJP server, which makes it easy to understand and modify if needed. Perhaps most importantly, the architecture is extensible - you can add custom optimization rules tailored to your specific workload patterns and domain requirements.
 
 **Code Integration Example:**
 
@@ -736,28 +679,9 @@ public class RewriteSelectStarRule extends RelOptRule {
 
 ### For DBAs
 
-**Key Takeaways:**
-- Reduces database load by catching invalid SQL at proxy
-- Provides query-level visibility without database instrumentation
-- Works with any JDBC-compatible database
-- Complements database-level optimization
+From a database administration perspective, the SQL Enhancer Engine offers compelling operational advantages. It reduces database load by catching invalid SQL at the proxy before it ever reaches your database servers. Query-level visibility is achieved without requiring database instrumentation or parsing log files. The system works with any JDBC-compatible database, so you're not locked into a single vendor's tooling. Most importantly, it complements rather than replaces database-level optimization - think of it as an additional layer of defense and insight.
 
-**Operational Benefits:**
-
-1. **Reduced Database Parsing Load:**
-   - Invalid SQL caught at proxy (never reaches database)
-   - Cache reduces repeated parsing on database side
-   - Lower CPU utilization on database servers
-
-2. **Better Query Visibility:**
-   - Centralized query logging at proxy layer
-   - Table access patterns visible without database logs
-   - Query complexity metrics for capacity planning
-
-3. **Migration Support:**
-   - Parse queries in source dialect, inventory features used
-   - Identify vendor-specific syntax requiring rewrites
-   - Validate translated queries before migration
+The operational benefits are substantial and immediate. Reduced database parsing load means invalid SQL is caught at the proxy and never reaches your database, cache hits reduce repeated parsing on the database side, and you'll see lower CPU utilization on database servers. Better query visibility comes from centralized query logging at the proxy layer, where table access patterns become visible without parsing database logs, and query complexity metrics support better capacity planning. For database migrations, the system can parse queries in the source dialect to inventory which features are actually used, identify vendor-specific syntax that requires rewrites, and validate translated queries before migrating production traffic. This dramatically reduces the risk and cost of database migrations.
 
 **Monitoring Integration:**
 
@@ -774,33 +698,9 @@ ojp_sql_enhancer_avg_parse_time_ms 12.5
 
 ### For Managers and Technical Leaders
 
-**Key Takeaways:**
-- Addresses SQL quality issues with minimal application changes
-- Configuration-only feature (no code deployment required)
-- Provides foundation for future intelligent routing and optimization
-- Reduces risk during database migrations
+For technical leaders and managers, the SQL Enhancer Engine addresses SQL quality issues with minimal application changes - no code deployment is required, just configuration updates. It's a configuration-only feature that can be enabled or disabled without touching application code. The implementation provides a foundation for future intelligent routing and optimization capabilities. Perhaps most strategically, it significantly reduces risk during database migrations, which are often expensive and risky undertakings.
 
-**Business Impact:**
-
-**Improved Reliability:**
-- Fewer production incidents from SQL errors
-- Earlier detection in development/staging
-- Better visibility into application-database interactions
-
-**Reduced Costs:**
-- Lower database resource consumption
-- Easier database migrations (reduced consulting costs)
-- Better capacity planning with query complexity insights
-
-**Accelerated Development:**
-- Faster feedback on SQL quality
-- Reduced debugging time for SQL issues
-- Better query monitoring without database vendor tools
-
-**Risk Reduction:**
-- Gradual rollout via configuration flag
-- Graceful degradation (falls back on parse errors)
-- No impact when disabled (zero overhead)
+The business impact manifests across multiple dimensions. Improved reliability comes from fewer production incidents caused by SQL errors, earlier detection of issues in development and staging environments, and better visibility into application-database interactions that helps prevent problems before they occur. Cost reduction is realized through lower database resource consumption (less wasted processing on invalid queries), easier database migrations that reduce consulting costs, and better capacity planning enabled by query complexity insights. Development velocity accelerates through faster feedback on SQL quality, reduced debugging time for SQL issues, and better query monitoring without dependence on expensive database vendor tools. Risk reduction is built into the design: gradual rollout via configuration flags lets you validate in staging first, graceful degradation ensures the system falls back safely on parse errors, and when disabled the feature adds zero overhead to your system.
 
 ---
 
