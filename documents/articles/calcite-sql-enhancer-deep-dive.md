@@ -211,31 +211,19 @@ The SQL Enhancer Engine is implemented through several key OJP classes that inte
 
 **Responsibility:** Main orchestrator for SQL enhancement operations
 
-The SqlEnhancerEngine class serves as the central coordinator for all SQL enhancement activities in OJP. When initialized, it determines whether the feature is enabled via configuration and sets up the appropriate SQL dialect for parsing. The dialect configuration tells Apache Calcite which SQL syntax rules to apply - for example, whether to expect PostgreSQL-style LIMIT clauses or Oracle-style ROWNUM predicates.
-
-The enhancement process begins when a SQL query arrives. If the feature is disabled, the query passes through unchanged. When enabled, the engine first checks its cache using the raw SQL string as the key. Cache hits return immediately with the previously parsed result. On cache misses, the engine invokes Apache Calcite's SqlParser to build an Abstract Syntax Tree from the SQL text. This parsed representation is then wrapped in a SqlEnhancementResult object and cached for future queries. If parsing fails for any reason, the engine logs a warning and returns a passthrough result, ensuring that SQL errors don't break application functionality.
-
-The key capabilities include configurable enable/disable via properties, dialect-specific parser configuration through Apache Calcite, thread-safe caching using ConcurrentHashMap with raw SQL strings as keys, and graceful fallback on parsing errors to maintain system reliability.
+This class coordinates all SQL enhancement activities - checking if the feature is enabled, managing the cache using raw SQL strings as keys, invoking Apache Calcite's parser when needed, and handling errors gracefully with fallback to passthrough mode.
 
 #### 2. OjpSqlDialect (OJP Class)
 
 **Responsibility:** Map OJP configuration to Calcite SQL dialects
 
-The OjpSqlDialect enum serves as a bridge between OJP's configuration system and Apache Calcite's dialect implementations. It defines the supported SQL dialects including GENERIC (ANSI SQL standard), POSTGRESQL, MYSQL, ORACLE, SQL_SERVER, and H2. Each enum value holds a reference to the corresponding Apache Calcite SqlDialect implementation.
-
-When OJP starts up, it reads the configured dialect name from properties and uses this class to obtain the appropriate Calcite dialect object. If an unknown dialect name is provided, the system defaults to GENERIC with a warning, ensuring that misconfiguration doesn't prevent startup. This design provides a clean abstraction that makes it easy to add support for additional database dialects as Apache Calcite evolves.
+This enum bridges OJP's configuration with Apache Calcite's dialect implementations, supporting GENERIC, POSTGRESQL, MYSQL, ORACLE, SQL_SERVER, and H2 dialects. It defaults to GENERIC if an unknown dialect is configured.
 
 #### 3. SqlEnhancementResult (OJP Class)
 
 **Responsibility:** Encapsulate enhancement results and metadata
 
-The SqlEnhancementResult class is OJP's wrapper around Apache Calcite's parsing output. It holds both the original SQL string and the parsed SqlNode (Calcite's Abstract Syntax Tree representation). The class includes a boolean flag indicating whether parsing succeeded, along with any error message if parsing failed.
-
-When parsing is successful, the class extracts valuable metadata from Calcite's AST. It identifies which tables are accessed by the query, which columns are referenced in SELECT clauses, WHERE conditions, and JOINs, and what type of operation is being performed (SELECT, INSERT, UPDATE, DELETE). This metadata enables powerful use cases like intelligent query routing, access control enforcement, and query pattern analysis.
-
-The class also provides a static factory method for creating passthrough results when the SQL Enhancer is disabled or when parsing fails. This ensures that the system gracefully handles all scenarios without impacting application functionality.
-
-The SqlEnhancementResult class provides rich metadata extraction capabilities that unlock powerful use cases. From the parsed AST, it extracts which tables are accessed by the query, enabling intelligent routing decisions and access control. It identifies columns referenced in SELECT clauses, WHERE conditions, and JOIN predicates, giving you fine-grained visibility into data access patterns. The query type (SELECT, INSERT, UPDATE, DELETE) is extracted automatically, allowing you to route reads to replicas and writes to primaries. Perhaps most intriguingly, the parsed structure opens the door for optimization suggestions - the system could potentially recommend indexes, query rewrites, or schema changes based on observed patterns.
+This class wraps Apache Calcite's parsing output, holding the original SQL, parsed AST (if successful), and extracted metadata including referenced tables, columns, and query type. It enables use cases like intelligent routing, access control, and query pattern analysis.
 
 ### Request Flow
 
@@ -285,7 +273,13 @@ The SQL Enhancer Engine uses the raw SQL string as the cache key, stored in a Co
 
 The cache characteristics are tuned for production use. It uses ConcurrentHashMap for thread-safe operations without explicit locking, enabling multiple threads to read and write concurrently. The cache has no size limit and dynamically expands, which is suitable because applications typically have a finite number of distinct query patterns - most applications have hundreds or at most thousands of unique SQL statements. Results don't expire automatically since they remain valid as long as your database schema doesn't change - and when schema does change, you typically restart your server anyway.
 
-The performance impact of SQL enhancement is important to understand. These overhead numbers represent only the OJP server-side processing time and don't account for potential performance gains from executing optimized queries at the database level. First queries incur 5-150ms of overhead while Apache Calcite parsing occurs, but this is a one-time cost per unique query (based on OJP internal performance testing). Cached queries return with less than 1ms overhead - often imperceptible in the overall request latency (measured in OJP server benchmarks). Because cache hit rates typically reach 70-90% in production workloads (based on typical application query pattern distributions observed in OJP deployments), the OJP server-side overhead stabilizes at just 3-5% with a warm cache (derived from OJP performance analysis). However, if query optimization is enabled, the end-to-end latency including database execution may actually decrease when optimized queries execute faster at the database layer. This modest server-side overhead buys you validation, metadata extraction, and the foundation for future optimizations.
+The performance impact of SQL enhancement is important to understand. These overhead numbers represent only the OJP server-side processing time and don't account for potential performance gains from executing optimized queries at the database level. 
+
+Based on internal benchmarking of the OJP server component:
+- First queries incur 5-150ms of overhead while Apache Calcite parsing occurs (one-time cost per unique query)
+- Cached queries return with less than 1ms overhead (typically imperceptible in overall request latency)
+
+For cache efficiency, in typical application workloads where query patterns are relatively stable (applications often have hundreds rather than millions of unique SQL statements), cache hit rates can reach 70-90%. With such hit rates, the OJP server-side overhead would stabilize at approximately 3-5% with a warm cache. However, if query optimization were enabled in the future, end-to-end latency including database execution might decrease when optimized queries execute faster at the database layer. This modest server-side overhead provides validation, metadata extraction, and the foundation for future optimizations.
 
 ---
 
@@ -455,8 +449,14 @@ ojp.sql.enhancer.enabled=true
 ojp.sql.enhancer.dialect=POSTGRESQL
 ```
 
-**Results:**
-The deployment showed measurable improvements in query quality and system reliability. Invalid SQL reaching the database was reduced by 30% (based on OJP deployment metrics), as syntax errors were caught at the proxy layer before consuming database resources. Query metadata extraction enabled tenant-level query analytics, providing visibility into per-tenant database usage patterns. From a security perspective, the system detected attempted SQL injection patterns in custom reports during code review, though these were advisory warnings requiring manual investigation. The cache hit rate stabilized at 85% for standard reports (measured via OJP telemetry), demonstrating the effectiveness of caching for repetitive query patterns.
+**Expected Benefits:**
+With SQL enhancement enabled, you can expect:
+- **Syntax validation:** Invalid SQL caught at the proxy layer before reaching the database, reducing wasted database resources
+- **Query visibility:** Metadata extraction enables tenant-level query analytics and per-tenant usage tracking
+- **Security monitoring:** Detection of suspicious SQL patterns in custom reports (advisory warnings for manual review)
+- **Caching efficiency:** For applications with repetitive query patterns, cache hit rates can improve response times for repeated queries
+
+**Note:** Actual results will vary based on your specific workload patterns and SQL quality.
 
 #### Use Case 2: Microservices with Multiple Databases
 
@@ -470,8 +470,14 @@ ojp.sql.enhancer.enabled=true
 ojp.sql.enhancer.dialect=GENERIC
 ```
 
-**Results:**
-The implementation provided valuable benefits across multiple dimensions. SQL syntax errors were detected early in the development cycle before deployment, reducing the time to identify and fix issues (based on developer feedback from OJP adoption). Unified monitoring of query patterns across all databases through centralized OJP logging simplified operations. Improved debugging came from Apache Calcite's parse errors that include precise line and column information, making it easier to locate syntax issues. Overall developer productivity improved through faster feedback loops (qualitative assessment from development teams using OJP).
+**Expected Benefits:**
+With SQL enhancement enabled across multiple services, you can expect:
+- **Early error detection:** SQL syntax errors caught during development/testing before production deployment
+- **Unified monitoring:** Centralized query logging and analysis across all database types
+- **Better debugging:** Apache Calcite provides detailed parse errors with line and column information
+- **Developer productivity:** Faster feedback loops during development through immediate syntax validation
+
+**Note:** These benefits depend on integration into your development and deployment workflows.
 
 #### Use Case 3: Legacy Application Modernization - Query Analysis
 
@@ -862,14 +868,18 @@ Learn more: [https://calcite.apache.org/](https://calcite.apache.org/)
 ## Sources and References
 
 **Performance Metrics:**
-- Parse overhead (5-150ms, <1ms cached): OJP internal performance testing and benchmarks
-- Cache hit rates (70-90%): Based on typical application query pattern distributions observed in OJP deployments
-- Server-side overhead (3-5% steady state): Derived from OJP performance analysis with production-like workloads
+- Parse overhead (5-150ms, <1ms cached): Based on OJP server component internal benchmarking
+- Cache hit rates (70-90%): Theoretical estimates based on assumption that applications have finite query patterns (typically hundreds to low thousands of unique SQL statements)
+- Server-side overhead (3-5% steady state): Calculated projection based on assumed cache hit rates and measured parse times
 
-**Use Case Results:**
-- 30% reduction in invalid SQL (Use Case 1): Based on OJP deployment metrics in multi-tenant SaaS environment
-- 85% cache hit rate (Use Case 1): Measured via OJP telemetry in production deployment
-- Developer productivity improvements (Use Case 2): Qualitative assessment from development teams using OJP
+**Important Note:** The performance numbers presented are based on internal component testing and theoretical projections. Actual production performance will vary significantly based on:
+- Your application's SQL patterns and query diversity
+- Workload characteristics (OLTP vs OLAP)
+- Hardware and network configuration
+- Database response times
+
+**Use Case Scenarios:**
+The use cases presented are illustrative examples showing potential benefits. They are not based on specific production deployments but rather represent expected outcomes when the SQL Enhancer Engine is properly configured for similar scenarios.
 
 **Apache Calcite:**
 - Industry adoption and capabilities: [https://calcite.apache.org/](https://calcite.apache.org/)
