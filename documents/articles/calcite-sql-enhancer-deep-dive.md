@@ -189,7 +189,7 @@ graph TB
     VALIDATOR -->|Validated| OPTIMIZER
     OPTIMIZER -->|Optimized SQL| CACHE
     CACHE -->|Check Cache| CACHE
-    CACHE -->|Cache Miss| POOL
+    CACHE -->|SQL to execute| POOL
     POOL -->|JDBC| DB
     DB -->|Results| POOL
     POOL -->|Stream| STMT
