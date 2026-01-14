@@ -1,6 +1,8 @@
 package openjproxy.jdbc;
 
 import lombok.SneakyThrows;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -14,6 +16,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class OracleResultSetMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
+    private ConnectionResult connectionResult;
+
     private Connection connection;
     private ResultSetMetaData metaData;
 
@@ -23,10 +27,16 @@ public class OracleResultSetMetaDataExtensiveTests {
     }
 
     @SneakyThrows
-    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
+    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
-        connection = DriverManager.getConnection(url, user, password);
+        connectionResult = TestDBUtils.createConnection(url, user, password, isXA);
+        connection = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            connection.setAutoCommit(false);
+        }
         Statement statement = connection.createStatement();
 
         try {
@@ -52,13 +62,15 @@ public class OracleResultSetMetaDataExtensiveTests {
 
     @AfterEach
     public void tearDown() throws Exception {
-        if (connection != null) connection.close();
+        if (connectionResult != null) {
+            connectionResult.close();
+        }
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    public void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         // getColumnCount
         assertEquals(4, metaData.getColumnCount());

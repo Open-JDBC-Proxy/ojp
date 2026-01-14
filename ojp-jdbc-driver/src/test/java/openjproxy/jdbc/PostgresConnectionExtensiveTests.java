@@ -3,6 +3,7 @@ package openjproxy.jdbc;
 import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,6 +40,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class PostgresConnectionExtensiveTests {
 
     private static boolean isTestEnabled;
+    private ConnectionResult connectionResult;
+
     private Connection connection;
 
     @BeforeAll
@@ -47,20 +50,28 @@ public class PostgresConnectionExtensiveTests {
     }
 
     @SneakyThrows
-    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
+    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
-        connection = DriverManager.getConnection(url, user, password);
+        connectionResult = TestDBUtils.createConnection(url, user, password, isXA);
+        connection = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            connection.setAutoCommit(false);
+        }
     }
 
     @AfterEach
     public void tearDown() throws SQLException {
-        TestDBUtils.closeQuietly(connection);
+        if (connectionResult != null) {
+            connectionResult.close();
+        }
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
-        this.setUp(driverClass, url, user, password);
+    public void testConnectionProperties(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        this.setUp(driverClass, url, user, password, isXA);
         assertEquals(false, connection.isClosed());
         assertEquals(true, connection.isValid(5));
         assertNotNull(connection.getSchema()); // PostgreSQL should return current schema
@@ -69,9 +80,15 @@ public class PostgresConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
-        this.setUp(driverClass, url, user, password);
-        assertEquals(true, connection.getAutoCommit());
+    public void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        this.setUp(driverClass, url, user, password, isXA);
+        
+        // XA connections have autocommit set to false by createConnection()
+        // Non-XA connections have autocommit set to false by setUp()
+        // Both should have autocommit=false after setUp()
+        assertEquals(false, connection.getAutoCommit());
+        
+        // Verify we can set it (even though it's already false)
         connection.setAutoCommit(false);
         assertEquals(false, connection.getAutoCommit());
 
@@ -84,38 +101,44 @@ public class PostgresConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testCommitAndRollback(String driverClass, String url, String user, String password) throws SQLException {
-        this.setUp(driverClass, url, user, password);
+    public void testCommitAndRollback(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        this.setUp(driverClass, url, user, password, isXA);
         
         // PostgreSQL DDL statements are transactional, so we need to create and commit the table first
         TestDBUtils.createBasicTestTable(connection, "postgres_connection_test", TestDBUtils.SqlSyntax.POSTGRES, true);
-        connection.commit(); // Ensure table creation is committed
+        connectionResult.commit(); // Ensure table creation is committed using ConnectionResult
         
-        connection.setAutoCommit(false);
+        // Start new transaction for DML
+        connectionResult.startXATransactionIfNeeded();
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
-        connection.rollback();
+        connectionResult.rollback();
 
+        // Start new transaction for query
+        connectionResult.startXATransactionIfNeeded();
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
         assertEquals(false, rs.next());
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
-        connection.commit();
+        connectionResult.commit();
 
+        // Start new transaction for query
+        connectionResult.startXATransactionIfNeeded();
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
         assertEquals(true, rs.next());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testSavepoints(String driverClass, String url, String user, String password) throws SQLException {
-        this.setUp(driverClass, url, user, password);
+    public void testSavepoints(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        this.setUp(driverClass, url, user, password, isXA);
         
         // PostgreSQL DDL statements are transactional, so we need to create and commit the table first
         TestDBUtils.createBasicTestTable(connection, "postgres_connection_test", TestDBUtils.SqlSyntax.POSTGRES, true);
-        connection.commit(); // Ensure table creation is committed
+        connectionResult.commit(); // Ensure table creation is committed using ConnectionResult
         
-        connection.setAutoCommit(false);
+        // Start new transaction for DML
+        connectionResult.startXATransactionIfNeeded();
 
         Savepoint sp1 = connection.setSavepoint("Savepoint1");
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
@@ -128,16 +151,18 @@ public class PostgresConnectionExtensiveTests {
         // sp1 is no longer valid after rollback, so create a new savepoint to demonstrate release functionality  
         Savepoint sp2 = connection.setSavepoint("Savepoint2");
         connection.releaseSavepoint(sp2);
-        connection.commit();
+        connectionResult.commit();
 
+        // Start new transaction for query
+        connectionResult.startXATransactionIfNeeded();
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
         assertEquals(true, rs.next());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testConnectionMetadata(String driverClass, String url, String user, String password) throws SQLException {
-        this.setUp(driverClass, url, user, password);
+    public void testConnectionMetadata(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        this.setUp(driverClass, url, user, password, isXA);
         DatabaseMetaData metaData = connection.getMetaData();
         assertNotNull(metaData);
         assertEquals("PostgreSQL", metaData.getDatabaseProductName());
@@ -146,8 +171,8 @@ public class PostgresConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testClientInfo(String driverClass, String url, String user, String password) throws SQLException {
-        this.setUp(driverClass, url, user, password);
+    public void testClientInfo(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        this.setUp(driverClass, url, user, password, isXA);
         // PostgreSQL supports client info
         try {
             connection.setClientInfo("ApplicationName", "TestApp");
@@ -159,8 +184,8 @@ public class PostgresConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testClose(String driverClass, String url, String user, String password) throws SQLException {
-        this.setUp(driverClass, url, user, password);
+    public void testClose(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        this.setUp(driverClass, url, user, password, isXA);
         assertEquals(false, connection.isClosed());
         connection.close();
         assertEquals(true, connection.isClosed());
@@ -170,8 +195,8 @@ public class PostgresConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testAllConnectionMethods(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void testAllConnectionMethods(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
 
         // createStatement
         Statement st1 = connection.createStatement();

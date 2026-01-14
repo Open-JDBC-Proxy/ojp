@@ -1,6 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -12,6 +13,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class PostgresDatabaseMetaDataExtensiveTests {
 
     private static boolean isTestEnabled;
+    private static ConnectionResult connectionResult;
     private static Connection connection;
 
     @BeforeAll
@@ -19,22 +21,30 @@ public class PostgresDatabaseMetaDataExtensiveTests {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
         
-        connection = DriverManager.getConnection(url, user, password);
+        connectionResult = TestDBUtils.createConnection(url, user, password, isXA);
+        connection = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            connection.setAutoCommit(false);
+        }
         TestDBUtils.createBasicTestTable(connection, "postgres_db_metadata_test", TestDBUtils.SqlSyntax.POSTGRES, true);
     }
 
     @AfterAll
     public static void teardown() throws Exception {
-        TestDBUtils.closeQuietly(connection);
+        if (connectionResult != null) {
+            connectionResult.close();
+        }
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password) throws Exception {
-        this.setUp(driverClass, url, user, password);
+    public void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password, boolean isXA) throws Exception {
+        this.setUp(driverClass, url, user, password, isXA);
         DatabaseMetaData meta = connection.getMetaData();
 
         // 1–5: Basic database information (PostgreSQL-specific values)

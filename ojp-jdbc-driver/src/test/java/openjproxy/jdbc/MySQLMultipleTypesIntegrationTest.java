@@ -1,6 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,6 +24,7 @@ public class MySQLMultipleTypesIntegrationTest {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
+    private ConnectionResult connectionResult;
 
     @BeforeAll
     public static void checkTestConfiguration() {
@@ -32,7 +34,7 @@ public class MySQLMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, ParseException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
@@ -43,11 +45,21 @@ public class MySQLMultipleTypesIntegrationTest {
             assumeFalse(true, "Skipping MariaDB tests");
         }
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
 
         System.out.println("Testing for url -> " + url);
 
+        // Execute DDL with autocommit=true (default)
         TestDBUtils.createMultiTypeTestTable(conn, "mysql_multi_types_test", TestDBUtils.SqlSyntax.MYSQL);
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into mysql_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +
@@ -122,27 +134,37 @@ public class MySQLMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        conn.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    public void mysqlSpecificTypesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    public void mysqlSpecificTypesTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
         
-        // Skip MariaDB tests if not enabled  
+        // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
 
         System.out.println("Testing MySQL-specific types for url -> " + url);
 
+        // Execute DDL with autocommit=true (default)
         TestDBUtils.createMySQLSpecificTestTable(conn, "mysql_specific_types_test");
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into mysql_specific_types_test (enum_col, json_col, text_col, mediumtext_col, " +
@@ -199,6 +221,6 @@ public class MySQLMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        conn.close();
+        connectionResult.close();
     }
 }

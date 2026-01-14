@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class OracleBinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
+    private ConnectionResult connectionResult;
 
     @BeforeAll
     public static void setup() {
@@ -32,10 +35,16 @@ public class OracleBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         System.out.println("Testing Oracle binary stream for url -> " + url);
 
@@ -88,15 +97,21 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    public void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         System.out.println("Testing Oracle large binary stream for url -> " + url);
 
@@ -138,15 +153,21 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    public void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connectionResult.getConnection();
+        
+        // For non-XA connections, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         System.out.println("Testing Oracle-specific binary handling for url -> " + url);
 
@@ -198,6 +219,6 @@ public class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connectionResult.close();
     }
 }

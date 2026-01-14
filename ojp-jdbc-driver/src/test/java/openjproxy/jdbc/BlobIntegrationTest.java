@@ -12,6 +12,8 @@ import java.io.InputStream;
 import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -26,6 +28,7 @@ public class BlobIntegrationTest {
     private static boolean isMariaDBTestEnabled;
     private static boolean isOracleTestEnabled;
     private String tableName;
+    private ConnectionResult connectionResult;
     private Connection conn;
 
     @BeforeAll
@@ -36,7 +39,7 @@ public class BlobIntegrationTest {
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    public void setUp(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
 
         this.tableName = "blob_test_blob";
         if (url.toLowerCase().contains("mysql")) {
@@ -53,13 +56,17 @@ public class BlobIntegrationTest {
             this.tableName += "_h2";
         }
         Class.forName(driverClass);
-        this.conn = DriverManager.getConnection(url, user, pwd);
+        connectionResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        this.conn = connectionResult.getConnection();
+        
+        // Keep autocommit=true initially for DDL operations (CREATE/DROP TABLE)
+        // Will be set to false later for DML operations
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    public void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
-        this.setUp(driverClass, url, user, pwd);
+    public void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
+        this.setUp(driverClass, url, user, pwd, isXA);
         System.out.println("Testing for url -> " + url);
 
         try {
@@ -75,6 +82,14 @@ public class BlobIntegrationTest {
                         " val_blob3 BLOB" +
                         ")"
         );
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
 
         PreparedStatement psInsert = conn.prepareStatement(
                 " insert into " + tableName + " (val_blob, val_blob2, val_blob3) values (?, ?, ?)"
@@ -127,13 +142,13 @@ public class BlobIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connectionResult.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    public void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException, ClassNotFoundException {
-        this.setUp(driverClass, url, user, pwd);
+    public void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException, ClassNotFoundException {
+        this.setUp(driverClass, url, user, pwd, isXA);
         System.out.println("Testing for url -> " + url);
 
         try {
@@ -147,6 +162,14 @@ public class BlobIntegrationTest {
                         " val_blob  BLOB" +
                         ")"
         );
+
+        // After DDL is complete, set autocommit to false for transaction control
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
+
+        // Start XA transaction after DDL is complete (must be called AFTER DDL to avoid MySQL/MariaDB XAER_RMFAIL)
+        connectionResult.startXATransactionIfNeeded();
 
         PreparedStatement psInsert = conn.prepareStatement(
                 "insert into " + tableName + " (val_blob) values (?)"
@@ -179,7 +202,7 @@ public class BlobIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connectionResult.close();
     }
 
 }
