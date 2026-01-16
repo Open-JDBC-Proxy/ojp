@@ -1460,7 +1460,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     @Override
     public void startTransaction(SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
-        new StartTransactionAction(actionContext).execute(sessionInfo, responseObserver);
+        StartTransactionAction.getInstance(actionContext).execute(sessionInfo, responseObserver);
     }
 
     @Override

@@ -21,10 +21,23 @@ import com.zaxxer.hikari.HikariDataSource;
 @Slf4j
 public class StartTransactionAction implements Action<SessionInfo, SessionInfo> {
 
+    private static volatile StartTransactionAction instance;
+
     private final ActionContext context;
 
-    public StartTransactionAction(ActionContext context) {
+    private StartTransactionAction(ActionContext context) {
         this.context = context;
+    }
+
+    public static StartTransactionAction getInstance(ActionContext context) {
+        if (instance == null) {
+            synchronized (StartTransactionAction.class) {
+                if (instance == null) {
+                    instance = new StartTransactionAction(context);
+                }
+            }
+        }
+        return instance;
     }
 
     @Override
