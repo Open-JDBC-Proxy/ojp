@@ -7,6 +7,7 @@ import org.openjproxy.grpc.server.SessionManager;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.Blob;
@@ -115,17 +116,26 @@ public class ParameterHandler {
                     ps.setBlob(idx, sessionManager.<Blob>getLob(session, (String) blobUUID));
                 }
                 break;
-            case CLOB: {
+            case CLOB:
                 Object clobUUID = param.getValues().get(0);
                 if (clobUUID == null) {
-                    ps.setBlob(idx, (Blob) null);
+                    ps.setClob(idx, (Clob) null);
                 } else {
-                    ps.setBlob(idx, sessionManager.<Blob>getLob(session, (String) clobUUID));
+                    Clob clob = sessionManager.<Clob>getLob(session, (String) clobUUID);
+                    if (clob == null) {
+                        ps.setClob(idx, (Clob) null);
+                    } else {
+                        // Use setCharacterStream instead of setClob for better database compatibility
+                        // Some databases (e.g., MySQL/MariaDB) don't accept foreign Clob implementations
+                        Reader reader = clob.getCharacterStream();
+                        if (reader == null) {
+                            ps.setClob(idx, (Clob) null);
+                        } else {
+                            ps.setCharacterStream(idx, reader, clob.length());
+                        }
+                    }
                 }
-                Clob clob = sessionManager.getLob(session, (String) param.getValues().get(0));
-                ps.setClob(idx, clob.getCharacterStream());
                 break;
-            }
             case BINARY_STREAM: {
                 Object inputStreamValue = param.getValues().get(0);
                 if (inputStreamValue == null) {

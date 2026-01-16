@@ -37,13 +37,13 @@ public class Clob extends Lob implements java.sql.Clob {
     @Override
     public Reader getCharacterStream() throws SQLException {
         log.debug("getCharacterStream called");
-        return null;
+        return new InputStreamReader(super.getBinaryStream(1, Integer.MAX_VALUE));
     }
 
     @Override
     public InputStream getAsciiStream() throws SQLException {
         log.debug("getAsciiStream called");
-        return null;
+        return super.getBinaryStream(1, Integer.MAX_VALUE);
     }
 
     @Override
