@@ -100,6 +100,7 @@ import static org.openjproxy.grpc.server.Constants.EMPTY_MAP;
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 import static org.openjproxy.grpc.server.action.transaction.XidHelper.convertXid;
 import static org.openjproxy.grpc.server.action.transaction.XidHelper.convertXidToProto;
+import org.openjproxy.grpc.server.action.transaction.StartTransactionAction;
 
 @Slf4j
 public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceImplBase {
@@ -1459,41 +1460,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     @Override
     public void startTransaction(SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
-        log.info("Starting transaction");
-        
-        // Process cluster health from the request
-        processClusterHealth(sessionInfo);
-        
-        try {
-            SessionInfo activeSessionInfo = sessionInfo;
-
-            //Start a session if none started yet.
-            if (StringUtils.isEmpty(sessionInfo.getSessionUUID())) {
-                Connection conn = this.datasourceMap.get(sessionInfo.getConnHash()).getConnection();
-                activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
-                // Preserve targetServer from incoming request
-                activeSessionInfo = SessionInfoUtils.withTargetServer(activeSessionInfo, getTargetServer(sessionInfo));
-            }
-            Connection sessionConnection = sessionManager.getConnection(activeSessionInfo);
-            //Start a transaction
-            sessionConnection.setAutoCommit(Boolean.FALSE);
-
-            TransactionInfo transactionInfo = TransactionInfo.newBuilder()
-                    .setTransactionStatus(TransactionStatus.TRX_ACTIVE)
-                    .setTransactionUUID(UUID.randomUUID().toString())
-                    .build();
-
-            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(activeSessionInfo);
-            sessionInfoBuilder.setTransactionInfo(transactionInfo);
-            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
-
-            responseObserver.onNext(sessionInfoBuilder.build());
-            responseObserver.onCompleted();
-        } catch (SQLException se) {
-            sendSQLExceptionMetadata(se, responseObserver);
-        } catch (Exception e) {
-            sendSQLExceptionMetadata(new SQLException("Unable to start transaction: " + e.getMessage()), responseObserver);
-        }
+        new StartTransactionAction(actionContext).execute(sessionInfo, responseObserver);
     }
 
     @Override
