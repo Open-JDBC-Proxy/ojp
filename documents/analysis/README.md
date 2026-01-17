@@ -4,6 +4,28 @@ This directory contains technical analysis documents for various OJP features an
 
 ## Latest Analysis (January 2026)
 
+### 🆕 OpenTelemetry Distributed Tracing Integration
+
+**Question:** What is required to export distributed tracing information via OpenTelemetry to integrate with Zipkin or Jaeger?
+
+**Quick Answer:** Straightforward enhancement building on existing OpenTelemetry metrics infrastructure - requires adding 3-4 exporter libraries, minimal code changes, and 12 new configuration properties.
+
+**Document:**
+- **Full Analysis**: [OPENTELEMETRY_TRACING_INTEGRATION_ANALYSIS.md](./OPENTELEMETRY_TRACING_INTEGRATION_ANALYSIS.md) - 45 min read
+  - Current state assessment of existing OpenTelemetry implementation
+  - Required dependencies and versions for OTLP, Zipkin, and Jaeger exporters
+  - Architecture and design for tracing integration
+  - Detailed implementation changes with code examples
+  - Configuration options (12 new properties)
+  - Comprehensive testing strategy
+  - Performance considerations (<1% CPU, <5MB memory overhead)
+  - Deployment guide for Docker, Kubernetes, and cloud providers
+  - Best practices and troubleshooting guide
+
+**Key Takeaway:** OJP already has OpenTelemetry metrics (Prometheus) implemented. Adding distributed tracing requires minimal changes: add exporter dependencies, enhance `OjpServerTelemetry` to configure `SdkTracerProvider`, add configuration properties, and optionally instrument database operations. The implementation is production-ready with proper sampling and batching.
+
+---
+
 ### 🆕 Agroal Connection Pool Evaluation
 
 **Question:** Should OJP replace Apache Commons Pool 2 with Agroal for XA connection pooling?
@@ -94,5 +116,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-01-08  
+**Last Updated:** 2026-01-17  
 **Maintained By:** OJP Core Team

@@ -80,7 +80,7 @@ scrape_configs:
 ## Limitations
 
 **Current Limitations:**
-- Distributed tracing export is not yet implemented
+- Distributed tracing export is not yet implemented (see [Tracing Integration Analysis](../analysis/OPENTELEMETRY_TRACING_INTEGRATION_ANALYSIS.md) for implementation roadmap)
 - Trace exporters for Zipkin, Jaeger, OTLP, and cloud providers are not available
 - SQL-level tracing is not currently supported
 - Only gRPC-level metrics and basic server metrics are collected
@@ -90,3 +90,17 @@ scrape_configs:
 - **Security**: Ensure telemetry endpoints are properly secured in production environments using the IP whitelist feature
 - **Performance**: Monitor the performance impact of telemetry collection on the proxy
 - **Monitoring**: Set up alerts for server errors and unusual traffic patterns
+
+## Future: Distributed Tracing
+
+OJP has plans to add distributed tracing support for Zipkin, Jaeger, and other OpenTelemetry-compatible backends. For a comprehensive analysis of this feature, see:
+
+📖 **[OpenTelemetry Tracing Integration Analysis](../analysis/OPENTELEMETRY_TRACING_INTEGRATION_ANALYSIS.md)** - Complete technical analysis covering:
+- Current state and architecture
+- Required dependencies and implementation approach
+- Configuration options for OTLP, Zipkin, and Jaeger exporters
+- Performance impact (<1% CPU overhead)
+- Deployment strategies and best practices
+- Testing and troubleshooting guides
+
+The analysis shows that tracing integration is a straightforward enhancement building upon the existing OpenTelemetry metrics infrastructure.
