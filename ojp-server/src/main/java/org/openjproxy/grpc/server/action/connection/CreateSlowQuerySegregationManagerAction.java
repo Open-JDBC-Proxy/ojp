@@ -7,32 +7,39 @@ import org.openjproxy.grpc.server.action.ActionContext;
 /**
  * Helper action for creating slow query segregation managers.
  * This is extracted from createSlowQuerySegregationManagerForDatasource method.
+ * 
+ * This action is implemented as a singleton for thread-safety and memory efficiency.
  */
 @Slf4j
 public class CreateSlowQuerySegregationManagerAction {
     
-    private final ActionContext context;
+    private static final CreateSlowQuerySegregationManagerAction INSTANCE = new CreateSlowQuerySegregationManagerAction();
     
-    public CreateSlowQuerySegregationManagerAction(ActionContext context) {
-        this.context = context;
+    private CreateSlowQuerySegregationManagerAction() {
+        // Private constructor prevents external instantiation
+    }
+    
+    public static CreateSlowQuerySegregationManagerAction getInstance() {
+        return INSTANCE;
     }
     
     /**
      * Create slow query segregation manager for non-XA datasource.
      */
-    public void execute(String connHash, int actualPoolSize) {
-        execute(connHash, actualPoolSize, false, 0);
+    public void execute(ActionContext context, String connHash, int actualPoolSize) {
+        execute(context, connHash, actualPoolSize, false, 0);
     }
     
     /**
      * Create slow query segregation manager with XA-specific handling.
      * 
+     * @param context The action context
      * @param connHash The connection hash
      * @param actualPoolSize The actual pool size (max XA transactions for XA, max pool size for non-XA)
      * @param isXA Whether this is an XA connection
      * @param xaStartTimeoutMillis The XA start timeout in milliseconds (only used for XA connections)
      */
-    public void execute(String connHash, int actualPoolSize, boolean isXA, long xaStartTimeoutMillis) {
+    public void execute(ActionContext context, String connHash, int actualPoolSize, boolean isXA, long xaStartTimeoutMillis) {
         boolean slowQueryEnabled = context.getServerConfiguration().isSlowQuerySegregationEnabled();
         
         if (isXA) {

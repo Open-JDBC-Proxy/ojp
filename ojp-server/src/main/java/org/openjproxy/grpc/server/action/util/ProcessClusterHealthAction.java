@@ -13,21 +13,27 @@ import javax.sql.DataSource;
 /**
  * Action for processing cluster health changes and triggering pool rebalancing.
  * This is extracted from processClusterHealth method.
+ * 
+ * This action is implemented as a singleton for thread-safety and memory efficiency.
  */
 @Slf4j
 public class ProcessClusterHealthAction {
     
-    private final ActionContext context;
+    private static final ProcessClusterHealthAction INSTANCE = new ProcessClusterHealthAction();
     
-    public ProcessClusterHealthAction(ActionContext context) {
-        this.context = context;
+    private ProcessClusterHealthAction() {
+        // Private constructor prevents external instantiation
+    }
+    
+    public static ProcessClusterHealthAction getInstance() {
+        return INSTANCE;
     }
     
     /**
      * Processes cluster health from the client request and triggers pool rebalancing if needed.
      * This should be called for every request that includes SessionInfo with cluster health.
      */
-    public void execute(SessionInfo sessionInfo) {
+    public void execute(ActionContext context, SessionInfo sessionInfo) {
         if (sessionInfo == null) {
             log.debug("[XA-REBALANCE-DEBUG] processClusterHealth: sessionInfo is null");
             return;

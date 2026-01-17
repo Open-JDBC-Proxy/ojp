@@ -28,17 +28,23 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 /**
  * Helper action for handling XA connection with pooling.
  * This is extracted from handleXAConnectionWithPooling method.
+ * 
+ * This action is implemented as a singleton for thread-safety and memory efficiency.
  */
 @Slf4j
 public class HandleXAConnectionWithPoolingAction {
     
-    private final ActionContext context;
+    private static final HandleXAConnectionWithPoolingAction INSTANCE = new HandleXAConnectionWithPoolingAction();
     
-    public HandleXAConnectionWithPoolingAction(ActionContext context) {
-        this.context = context;
+    private HandleXAConnectionWithPoolingAction() {
+        // Private constructor prevents external instantiation
     }
     
-    public void execute(ConnectionDetails connectionDetails, String connHash,
+    public static HandleXAConnectionWithPoolingAction getInstance() {
+        return INSTANCE;
+    }
+    
+    public void execute(ActionContext context, ConnectionDetails connectionDetails, String connHash,
                        int actualMaxXaTransactions, long xaStartTimeoutMillis,
                        StreamObserver<SessionInfo> responseObserver) {
         log.info("Using XA Pool Provider SPI for connHash: {}", connHash);
@@ -126,7 +132,7 @@ public class HandleXAConnectionWithPoolingAction {
                 log.info("XA unpooled mode enabled for connHash: {}", connHash);
                 
                 // Handle unpooled XA connection
-                new HandleUnpooledXAConnectionAction(context).execute(connectionDetails, connHash, responseObserver);
+                HandleUnpooledXAConnectionAction.getInstance().execute(context, connectionDetails, connHash, responseObserver);
                 return;
             }
             
@@ -204,7 +210,7 @@ public class HandleXAConnectionWithPoolingAction {
                 registry.resizeBackendPool(maxPoolSize, minIdle);
                 
                 // Create slow query segregation manager for XA
-                new CreateSlowQuerySegregationManagerAction(context).execute(connHash, actualMaxXaTransactions, true, xaStartTimeoutMillis);
+                CreateSlowQuerySegregationManagerAction.getInstance().execute(context, connHash, actualMaxXaTransactions, true, xaStartTimeoutMillis);
                 
                 log.info("[XA-POOL-CREATE] Successfully created XA pool for connHash={} - maxPoolSize={}, minIdle={}, multinode={}, poolObject={}", 
                         connHash, maxPoolSize, minIdle, serverEndpoints != null && !serverEndpoints.isEmpty(), 
@@ -244,7 +250,7 @@ public class HandleXAConnectionWithPoolingAction {
                     connHash, actualClusterHealth);
             
             // Process cluster health to trigger pool rebalancing if needed
-            new ProcessClusterHealthAction(context).execute(tempSessionInfo);
+            ProcessClusterHealthAction.getInstance().execute(context, tempSessionInfo);
         } else {
             log.warn("[XA-CONNECT-REBALANCE] No cluster health provided in ConnectionDetails for connHash={}, pool rebalancing may be delayed", 
                     connHash);

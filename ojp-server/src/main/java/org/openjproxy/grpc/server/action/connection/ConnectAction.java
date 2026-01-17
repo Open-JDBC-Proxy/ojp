@@ -31,18 +31,25 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 /**
  * Action to establish a database connection (regular or XA).
  * Handles connection pooling, multinode coordination, and both pooled/unpooled modes.
+ * 
+ * This action is implemented as a singleton for thread-safety and memory efficiency.
+ * It is stateless and receives all necessary context via parameters.
  */
 @Slf4j
 public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
     
-    private final ActionContext context;
+    private static final ConnectAction INSTANCE = new ConnectAction();
     
-    public ConnectAction(ActionContext context) {
-        this.context = context;
+    private ConnectAction() {
+        // Private constructor prevents external instantiation
+    }
+    
+    public static ConnectAction getInstance() {
+        return INSTANCE;
     }
     
     @Override
-    public void execute(ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
+    public void execute(ActionContext context, ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
         // Handle empty connection details (health check)
         if (StringUtils.isBlank(connectionDetails.getUrl()) &&
             StringUtils.isBlank(connectionDetails.getUser()) &&
@@ -64,18 +71,18 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
 
         // Check if this is an XA connection request
         if (connectionDetails.getIsXA()) {
-            handleXAConnection(connectionDetails, connHash, maxXaTransactions, xaStartTimeoutMillis, responseObserver);
+            handleXAConnection(context, connectionDetails, connHash, maxXaTransactions, xaStartTimeoutMillis, responseObserver);
             return;
         }
         
         // Handle non-XA connection
-        handleRegularConnection(connectionDetails, connHash, responseObserver);
+        handleRegularConnection(context, connectionDetails, connHash, responseObserver);
     }
     
     /**
      * Handle XA connection establishment.
      */
-    private void handleXAConnection(ConnectionDetails connectionDetails, String connHash,
+    private void handleXAConnection(ActionContext context, ConnectionDetails connectionDetails, String connHash,
                                     int maxXaTransactions, long xaStartTimeoutMillis,
                                     StreamObserver<SessionInfo> responseObserver) {
         // Check if multinode configuration is present for XA coordination
@@ -96,8 +103,8 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         // Branch based on XA pooling configuration
         // XA Pool Provider SPI (always enabled)
         if (context.getXaPoolProvider() != null) {
-            new HandleXAConnectionWithPoolingAction(context).execute(
-                connectionDetails, connHash, actualMaxXaTransactions, 
+            HandleXAConnectionWithPoolingAction.getInstance().execute(
+                context, connectionDetails, connHash, actualMaxXaTransactions, 
                 xaStartTimeoutMillis, responseObserver);
         } else {
             log.error("XA Pool Provider not initialized");
@@ -110,7 +117,7 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
     /**
      * Handle regular (non-XA) connection establishment.
      */
-    private void handleRegularConnection(ConnectionDetails connectionDetails, String connHash,
+    private void handleRegularConnection(ActionContext context, ConnectionDetails connectionDetails, String connHash,
                                         StreamObserver<SessionInfo> responseObserver) {
         // Handle non-XA connection - check if pooling is enabled
         DataSource ds = context.getDatasourceMap().get(connHash);
@@ -191,7 +198,7 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                     context.getDatasourceMap().put(connHash, ds);
                     
                     // Create a slow query segregation manager for this datasource
-                    new CreateSlowQuerySegregationManagerAction(context).execute(connHash, maxPoolSize);
+                    CreateSlowQuerySegregationManagerAction.getInstance().execute(context, connHash, maxPoolSize);
                     
                     log.info("Created new DataSource for dataSource '{}' with connHash: {} using provider: {}, maxPoolSize={}, minIdle={}", 
                             dsConfig.getDataSourceName(), connHash, 

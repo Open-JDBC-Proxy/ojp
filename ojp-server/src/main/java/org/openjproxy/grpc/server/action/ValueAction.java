@@ -6,6 +6,30 @@ package org.openjproxy.grpc.server.action;
  * 
  * <p>This is NOT for gRPC endpoints, but for internal action composition.
  * 
+ * <p><b>Implementation Requirements:</b>
+ * <ul>
+ *   <li>All implementations MUST be singletons (private constructor, static INSTANCE field, getInstance() method)</li>
+ *   <li>All implementations MUST be stateless - no instance fields except INSTANCE</li>
+ *   <li>All necessary state must be passed via the request parameter</li>
+ * </ul>
+ * 
+ * <p><b>Example Implementation:</b>
+ * <pre>{@code
+ * public class ExecuteUpdateInternalAction implements ValueAction<StatementRequest, OpResult> {
+ *     private static final ExecuteUpdateInternalAction INSTANCE = new ExecuteUpdateInternalAction();
+ *     
+ *     private ExecuteUpdateInternalAction() {}
+ *     
+ *     public static ExecuteUpdateInternalAction getInstance() {
+ *         return INSTANCE;
+ *     }
+ *     
+ *     public OpResult execute(StatementRequest request) throws Exception {
+ *         // Internal action logic that returns a value
+ *     }
+ * }
+ * }</pre>
+ * 
  * <p>Examples:
  * <ul>
  *   <li>ExecuteUpdateInternalAction - returns OpResult</li>

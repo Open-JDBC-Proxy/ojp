@@ -82,7 +82,7 @@ public class OracleUCPUnifiedProvider implements
     
     @Override
     public boolean supports(String databaseUrl) {
-        return databaseUrl != null && databaseUrl.contains(":oracle:");
+        return databaseUrl != null && databaseUrl.contains("oracle:");
     }
     
     /**

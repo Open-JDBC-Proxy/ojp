@@ -20,17 +20,23 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 /**
  * Helper action for handling unpooled XA connections.
  * This is extracted from handleUnpooledXAConnection method.
+ * 
+ * This action is implemented as a singleton for thread-safety and memory efficiency.
  */
 @Slf4j
 public class HandleUnpooledXAConnectionAction {
     
-    private final ActionContext context;
+    private static final HandleUnpooledXAConnectionAction INSTANCE = new HandleUnpooledXAConnectionAction();
     
-    public HandleUnpooledXAConnectionAction(ActionContext context) {
-        this.context = context;
+    private HandleUnpooledXAConnectionAction() {
+        // Private constructor prevents external instantiation
     }
     
-    public void execute(ConnectionDetails connectionDetails, String connHash,
+    public static HandleUnpooledXAConnectionAction getInstance() {
+        return INSTANCE;
+    }
+    
+    public void execute(ActionContext context, ConnectionDetails connectionDetails, String connHash,
                        StreamObserver<SessionInfo> responseObserver) {
         try {
             // Parse URL to remove OJP-specific prefix
