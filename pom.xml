@@ -20,6 +20,7 @@
         <module>ojp-datasource-hikari</module>
         <module>ojp-datasource-dbcp</module>
         <module>ojp-xa-pool-commons</module>
+        <module>ojp-testcontainers</module>
     </modules>
 
     <properties>

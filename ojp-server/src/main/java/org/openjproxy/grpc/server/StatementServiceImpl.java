@@ -51,7 +51,7 @@ import org.openjproxy.xa.pool.XABackendSession;
 import org.openjproxy.xa.pool.XATransactionRegistry;
 import org.openjproxy.xa.pool.XidKey;
 import org.openjproxy.xa.pool.spi.XAConnectionPoolProvider;
-
+import org.openjproxy.grpc.server.action.transaction.RollbackTransactionAction;
 import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
@@ -94,6 +94,9 @@ import static org.openjproxy.grpc.server.Constants.EMPTY_MAP;
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 import static org.openjproxy.grpc.server.action.transaction.XidHelper.convertXid;
 import static org.openjproxy.grpc.server.action.transaction.XidHelper.convertXidToProto;
+import org.openjproxy.grpc.server.action.transaction.CommitTransactionAction;
+import org.openjproxy.grpc.server.action.session.TerminateSessionAction;
+import org.openjproxy.grpc.server.action.resource.CallResourceAction;
 import org.openjproxy.grpc.server.action.transaction.StartTransactionAction;
 
 @Slf4j
@@ -1202,39 +1205,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     @Override
     public void terminateSession(SessionInfo sessionInfo, StreamObserver<SessionTerminationStatus> responseObserver) {
-        try {
-            log.info("Terminating session");
-
-            // Before terminating, return any completed XA backend sessions to pool
-            // This implements the dual-condition lifecycle: sessions are returned when
-            // both transaction is complete AND XAConnection is closed
-            log.info("[XA-TERMINATE] terminateSession called for sessionUUID={}, isXA={}, connHash={}",
-                    sessionInfo.getSessionUUID(), sessionInfo.getIsXA(), sessionInfo.getConnHash());
-            if (sessionInfo.getIsXA()) {
-                String connHash = sessionInfo.getConnHash();
-                XATransactionRegistry registry = xaRegistries.get(connHash);
-                log.info("[XA-TERMINATE] Looking up XA registry for connHash={}, found={}", connHash, registry != null);
-                if (registry != null) {
-                    log.info("[XA-TERMINATE] Calling returnCompletedSessions for ojpSessionId={}", sessionInfo.getSessionUUID());
-                    int returnedCount = registry.returnCompletedSessions(sessionInfo.getSessionUUID());
-                    log.info("[XA-TERMINATE] returnCompletedSessions returned count={}", returnedCount);
-                    if (returnedCount > 0) {
-                        log.info("Returned {} completed XA backend sessions to pool on session termination", returnedCount);
-                    }
-                } else {
-                    log.warn("[XA-TERMINATE] No XA registry found for connHash={}", connHash);
-                }
-            }
-
-            log.info("[XA-TERMINATE] Calling sessionManager.terminateSession for sessionUUID={}", sessionInfo.getSessionUUID());
-            this.sessionManager.terminateSession(sessionInfo);
-            responseObserver.onNext(SessionTerminationStatus.newBuilder().setTerminated(true).build());
-            responseObserver.onCompleted();
-        } catch (SQLException se) {
-            sendSQLExceptionMetadata(se, responseObserver);
-        } catch (Exception e) {
-            sendSQLExceptionMetadata(new SQLException("Unable to terminate session: " + e.getMessage()), responseObserver);
-        }
+        TerminateSessionAction.getInstance()
+                .execute(actionContext, sessionInfo, responseObserver);
     }
 
     @Override
@@ -1244,219 +1216,18 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     @Override
     public void commitTransaction(SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
-        log.info("Commiting transaction");
-
-        // Process cluster health from the request
-        processClusterHealth(sessionInfo);
-
-        try {
-            Connection conn = sessionManager.getConnection(sessionInfo);
-            conn.commit();
-
-            TransactionInfo transactionInfo = TransactionInfo.newBuilder()
-                    .setTransactionStatus(TransactionStatus.TRX_COMMITED)
-                    .setTransactionUUID(sessionInfo.getTransactionInfo().getTransactionUUID())
-                    .build();
-
-            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
-            sessionInfoBuilder.setTransactionInfo(transactionInfo);
-            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
-
-            responseObserver.onNext(sessionInfoBuilder.build());
-            responseObserver.onCompleted();
-        } catch (SQLException se) {
-            sendSQLExceptionMetadata(se, responseObserver);
-        } catch (Exception e) {
-            sendSQLExceptionMetadata(new SQLException("Unable to commit transaction: " + e.getMessage()), responseObserver);
-        }
+        CommitTransactionAction.getInstance().execute(actionContext, sessionInfo, responseObserver);
     }
 
     @Override
     public void rollbackTransaction(SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
-        log.info("Rollback transaction");
-
-        // Process cluster health from the request
-        processClusterHealth(sessionInfo);
-
-        try {
-            Connection conn = sessionManager.getConnection(sessionInfo);
-            conn.rollback();
-
-            TransactionInfo transactionInfo = TransactionInfo.newBuilder()
-                    .setTransactionStatus(TransactionStatus.TRX_ROLLBACK)
-                    .setTransactionUUID(sessionInfo.getTransactionInfo().getTransactionUUID())
-                    .build();
-
-            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
-            sessionInfoBuilder.setTransactionInfo(transactionInfo);
-            // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
-
-            responseObserver.onNext(sessionInfoBuilder.build());
-            responseObserver.onCompleted();
-        } catch (SQLException se) {
-            sendSQLExceptionMetadata(se, responseObserver);
-        } catch (Exception e) {
-            sendSQLExceptionMetadata(new SQLException("Unable to rollback transaction: " + e.getMessage()), responseObserver);
-        }
+        RollbackTransactionAction.getInstance()
+                .execute(actionContext, sessionInfo, responseObserver);
     }
 
     @Override
     public void callResource(CallResourceRequest request, StreamObserver<CallResourceResponse> responseObserver) {
-        // Process cluster health from the request
-        processClusterHealth(request.getSession());
-
-        try {
-            if (!request.hasSession()) {
-                throw new SQLException("No active session.");
-            }
-
-            CallResourceResponse.Builder responseBuilder = CallResourceResponse.newBuilder();
-
-            if (this.db2SpecialResultSetMetadata(request, responseObserver)) {
-                return;
-            }
-
-            Object resource;
-            switch (request.getResourceType()) {
-                case RES_RESULT_SET:
-                    resource = sessionManager.getResultSet(request.getSession(), request.getResourceUUID());
-                    break;
-                case RES_LOB:
-                    resource = sessionManager.getLob(request.getSession(), request.getResourceUUID());
-                    break;
-                case RES_STATEMENT: {
-                    ConnectionSessionDTO csDto = sessionConnection(request.getSession(), true);
-                    responseBuilder.setSession(csDto.getSession());
-                    Statement statement = null;
-                    if (!request.getResourceUUID().isBlank()) {
-                        statement = sessionManager.getStatement(csDto.getSession(), request.getResourceUUID());
-                    } else {
-                        statement = csDto.getConnection().createStatement();
-                        String uuid = sessionManager.registerStatement(csDto.getSession(), statement);
-                        responseBuilder.setResourceUUID(uuid);
-                    }
-                    resource = statement;
-                    break;
-                }
-                case RES_PREPARED_STATEMENT: {
-                    ConnectionSessionDTO csDto = sessionConnection(request.getSession(), true);
-                    responseBuilder.setSession(csDto.getSession());
-                    PreparedStatement ps = null;
-                    if (!request.getResourceUUID().isBlank()) {
-                        ps = sessionManager.getPreparedStatement(request.getSession(), request.getResourceUUID());
-                    } else {
-                        Map<String, Object> mapProperties = EMPTY_MAP;
-                        if (!request.getPropertiesList().isEmpty()) {
-                            mapProperties = ProtoConverter.propertiesFromProto(request.getPropertiesList());
-                        }
-                        ps = csDto.getConnection().prepareStatement((String) mapProperties.get(CommonConstants.PREPARED_STATEMENT_SQL_KEY));
-                        String uuid = sessionManager.registerPreparedStatement(csDto.getSession(), ps);
-                        responseBuilder.setResourceUUID(uuid);
-                    }
-                    resource = ps;
-                    break;
-                }
-                case RES_CALLABLE_STATEMENT:
-                    resource = sessionManager.getCallableStatement(request.getSession(), request.getResourceUUID());
-                    break;
-                case RES_CONNECTION: {
-                    ConnectionSessionDTO csDto = sessionConnection(request.getSession(), true);
-                    responseBuilder.setSession(csDto.getSession());
-                    resource = csDto.getConnection();
-                    break;
-                }
-                case RES_SAVEPOINT:
-                    resource = sessionManager.getAttr(request.getSession(), request.getResourceUUID());
-                    break;
-                default:
-                    throw new RuntimeException("Resource type invalid");
-            }
-
-            if (responseBuilder.getSession() == null || StringUtils.isBlank(responseBuilder.getSession().getSessionUUID())) {
-                responseBuilder.setSession(request.getSession());
-            }
-
-            List<Object> paramsReceived = (request.getTarget().getParamsCount() > 0) ?
-                    ProtoConverter.parameterValuesToObjectList(request.getTarget().getParamsList()) : EMPTY_LIST;
-            Class<?> clazz = resource.getClass();
-            if ((paramsReceived != null && paramsReceived.size() > 0) &&
-                    ((CallType.CALL_RELEASE.equals(request.getTarget().getCallType()) &&
-                            "Savepoint".equalsIgnoreCase(request.getTarget().getResourceName())) ||
-                            (CallType.CALL_ROLLBACK.equals(request.getTarget().getCallType()))
-                    )
-            ) {
-                Savepoint savepoint = (Savepoint) this.sessionManager.getAttr(request.getSession(),
-                        (String) paramsReceived.get(0));
-                paramsReceived.set(0, savepoint);
-            }
-            Method method = MethodReflectionUtils.findMethodByName(JavaSqlInterfacesConverter.interfaceClass(clazz),
-                    MethodNameGenerator.methodName(request.getTarget()), paramsReceived);
-            java.lang.reflect.Parameter[] params = method.getParameters();
-            Object resultFirstLevel = null;
-            if (params != null && params.length > 0) {
-                resultFirstLevel = method.invoke(resource, paramsReceived.toArray());
-                if (resultFirstLevel instanceof CallableStatement) {
-                    CallableStatement cs = (CallableStatement) resultFirstLevel;
-                    resultFirstLevel = this.sessionManager.registerCallableStatement(responseBuilder.getSession(), cs);
-                }
-            } else {
-                resultFirstLevel = method.invoke(resource);
-                if (resultFirstLevel instanceof ResultSet) {
-                    ResultSet rs = (ResultSet) resultFirstLevel;
-                    resultFirstLevel = this.sessionManager.registerResultSet(responseBuilder.getSession(), rs);
-                } else if (resultFirstLevel instanceof Array) {
-                    Array array = (Array) resultFirstLevel;
-                    String arrayUUID = UUID.randomUUID().toString();
-                    this.sessionManager.registerAttr(responseBuilder.getSession(), arrayUUID, array);
-                    resultFirstLevel = arrayUUID;
-                }
-            }
-            if (resultFirstLevel instanceof Savepoint) {
-                Savepoint sp = (Savepoint) resultFirstLevel;
-                String uuid = UUID.randomUUID().toString();
-                resultFirstLevel = uuid;
-                this.sessionManager.registerAttr(responseBuilder.getSession(), uuid, sp);
-            }
-            if (request.getTarget().hasNextCall()) {
-                //Second level calls, for cases like getMetadata().isAutoIncrement(int column)
-                Class<?> clazzNext = resultFirstLevel.getClass();
-                List<Object> paramsReceived2 = (request.getTarget().getNextCall().getParamsCount() > 0) ?
-                        ProtoConverter.parameterValuesToObjectList(request.getTarget().getNextCall().getParamsList()) :
-                        EMPTY_LIST;
-                Method methodNext = MethodReflectionUtils.findMethodByName(JavaSqlInterfacesConverter.interfaceClass(clazzNext),
-                        MethodNameGenerator.methodName(request.getTarget().getNextCall()),
-                        paramsReceived2);
-                params = methodNext.getParameters();
-                Object resultSecondLevel = null;
-                if (params != null && params.length > 0) {
-                    resultSecondLevel = methodNext.invoke(resultFirstLevel, paramsReceived2.toArray());
-                } else {
-                    resultSecondLevel = methodNext.invoke(resultFirstLevel);
-                }
-                if (resultSecondLevel instanceof ResultSet) {
-                    ResultSet rs = (ResultSet) resultSecondLevel;
-                    resultSecondLevel = this.sessionManager.registerResultSet(responseBuilder.getSession(), rs);
-                }
-                responseBuilder.addValues(ProtoConverter.toParameterValue(resultSecondLevel));
-            } else {
-                responseBuilder.addValues(ProtoConverter.toParameterValue(resultFirstLevel));
-            }
-
-            responseObserver.onNext(responseBuilder.build());
-            responseObserver.onCompleted();
-        } catch (SQLException se) {
-            sendSQLExceptionMetadata(se, responseObserver);
-        } catch (InvocationTargetException e) {
-            if (e.getTargetException() instanceof SQLException) {
-                SQLException sqlException = (SQLException) e.getTargetException();
-                sendSQLExceptionMetadata(sqlException, responseObserver);
-            } else {
-                sendSQLExceptionMetadata(new SQLException("Unable to call resource: " + e.getTargetException().getMessage()),
-                        responseObserver);
-            }
-        } catch (Exception e) {
-            sendSQLExceptionMetadata(new SQLException("Unable to call resource: " + e.getMessage(), e), responseObserver);
-        }
+        CallResourceAction.getInstance().execute(actionContext, request, responseObserver);
     }
 
     /**

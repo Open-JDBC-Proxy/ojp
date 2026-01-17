@@ -107,7 +107,7 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.8</version>
+            <version>42.7.9</version>
             <scope>test</scope>
         </dependency>
 
@@ -126,6 +126,14 @@
             <groupId>org.testcontainers</groupId>
             <artifactId>mssqlserver</artifactId>
             <version>1.21.4</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- OJP TestContainers - Added for OJP Server integration tests -->
+        <dependency>
+            <groupId>org.openjproxy</groupId>
+            <artifactId>ojp-testcontainers</artifactId>
+            <version>0.3.2-snapshot</version>
             <scope>test</scope>
         </dependency>
 
