@@ -47,6 +47,7 @@ import org.openjproxy.grpc.server.utils.SessionInfoUtils;
 import org.openjproxy.grpc.server.utils.StatementRequestValidator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 import org.openjproxy.grpc.server.xa.XADataSourceFactory;
+import org.openjproxy.grpc.server.action.xa.XaStartAction;
 import org.openjproxy.xa.pool.XABackendSession;
 import org.openjproxy.xa.pool.XATransactionRegistry;
 import org.openjproxy.xa.pool.XidKey;
@@ -94,9 +95,14 @@ import static org.openjproxy.grpc.server.Constants.EMPTY_MAP;
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 import static org.openjproxy.grpc.server.action.transaction.XidHelper.convertXid;
 import static org.openjproxy.grpc.server.action.transaction.XidHelper.convertXidToProto;
+import org.openjproxy.grpc.server.action.xa.XaEndAction;
 import org.openjproxy.grpc.server.action.transaction.CommitTransactionAction;
 import org.openjproxy.grpc.server.action.session.TerminateSessionAction;
 import org.openjproxy.grpc.server.action.resource.CallResourceAction;
+import org.openjproxy.grpc.server.action.xa.XaPrepareAction;
+import org.openjproxy.grpc.server.action.xa.XaCommitAction;
+import org.openjproxy.grpc.server.action.xa.XaRollbackAction;
+import org.openjproxy.grpc.server.action.xa.XaRecoverAction;
 import org.openjproxy.grpc.server.action.transaction.StartTransactionAction;
 
 @Slf4j
@@ -107,7 +113,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private final Map<String, XADataSource> xaDataSourceMap = new ConcurrentHashMap<>();
     // XA Pool Provider for pooling XAConnections (loaded via SPI)
     private XAConnectionPoolProvider xaPoolProvider;
-    // XA Transaction Registries (one per connection hash for isolated transaction management)
+    // XA Transaction Registries (one per connection hash for isolated transaction
+    // management)
     private final Map<String, XATransactionRegistry> xaRegistries = new ConcurrentHashMap<>();
     private final SessionManager sessionManager;
     private final CircuitBreaker circuitBreaker;
@@ -127,7 +134,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // Cluster health tracker for monitoring health changes
     private final ClusterHealthTracker clusterHealthTracker = new ClusterHealthTracker();
 
-    // Unpooled connection details map (for passthrough mode when pooling is disabled)
+    // Unpooled connection details map (for passthrough mode when pooling is
+    // disabled)
     private final Map<String, UnpooledConnectionDetails> unpooledConnectionDetailsMap = new ConcurrentHashMap<>();
 
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
@@ -138,11 +146,13 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // ActionContext for refactored actions
     private final org.openjproxy.grpc.server.action.ActionContext actionContext;
 
-    public StatementServiceImpl(SessionManager sessionManager, CircuitBreaker circuitBreaker, ServerConfiguration serverConfiguration) {
+    public StatementServiceImpl(SessionManager sessionManager, CircuitBreaker circuitBreaker,
+            ServerConfiguration serverConfiguration) {
         this.sessionManager = sessionManager;
         this.circuitBreaker = circuitBreaker;
         this.serverConfiguration = serverConfiguration;
-        this.sqlEnhancerEngine = new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(serverConfiguration.isSqlEnhancerEnabled());
+        this.sqlEnhancerEngine = new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(
+                serverConfiguration.isSqlEnhancerEnabled());
         initializeXAPoolProvider();
 
         // Initialize ActionContext with all shared state
@@ -158,8 +168,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 clusterHealthTracker,
                 sessionManager,
                 circuitBreaker,
-                serverConfiguration
-        );
+                serverConfiguration);
     }
 
     /**
@@ -192,7 +201,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 log.info("Selected XA Pool Provider: {} (priority: {})",
                         selectedProvider.getClass().getName(), selectedProvider.getPriority());
 
-                // Update ActionContext with initialized provider (if actionContext is already created)
+                // Update ActionContext with initialized provider (if actionContext is already
+                // created)
                 if (this.actionContext != null) {
                     this.actionContext.setXaPoolProvider(selectedProvider);
                 }
@@ -209,7 +219,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
      * Simply echoes back what the client sent without any override.
      */
     private String getTargetServer(SessionInfo incomingSessionInfo) {
-        // Echo back the targetServer from incoming request, or return empty string if not present
+        // Echo back the targetServer from incoming request, or return empty string if
+        // not present
         if (incomingSessionInfo != null &&
                 incomingSessionInfo.getTargetServer() != null &&
                 !incomingSessionInfo.getTargetServer().isEmpty()) {
@@ -221,8 +232,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
 
     /**
-     * Processes cluster health from the client request and triggers pool rebalancing if needed.
-     * This should be called for every request that includes SessionInfo with cluster health.
+     * Processes cluster health from the client request and triggers pool
+     * rebalancing if needed.
+     * This should be called for every request that includes SessionInfo with
+     * cluster health.
      */
     private void processClusterHealth(SessionInfo sessionInfo) {
         if (sessionInfo == null) {
@@ -233,7 +246,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         String clusterHealth = sessionInfo.getClusterHealth();
         String connHash = sessionInfo.getConnHash();
 
-        log.debug("[XA-REBALANCE] processClusterHealth called: connHash={}, clusterHealth='{}', isXA={}, hasXARegistry={}",
+        log.debug(
+                "[XA-REBALANCE] processClusterHealth called: connHash={}, clusterHealth='{}', isXA={}, hasXARegistry={}",
                 connHash, clusterHealth, sessionInfo.getIsXA(), xaRegistries.containsKey(connHash));
 
         if (clusterHealth != null && !clusterHealth.isEmpty() &&
@@ -247,7 +261,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             if (healthChanged) {
                 int healthyServerCount = clusterHealthTracker.countHealthyServers(clusterHealth);
-                log.info("[XA-REBALANCE] Cluster health changed for {}, healthy servers: {}, triggering pool rebalancing, isXA={}",
+                log.info(
+                        "[XA-REBALANCE] Cluster health changed for {}, healthy servers: {}, triggering pool rebalancing, isXA={}",
                         connHash, healthyServerCount, sessionInfo.getIsXA());
 
                 // Update the pool coordinator with new healthy server count
@@ -266,8 +281,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 XATransactionRegistry xaRegistry = xaRegistries.get(connHash);
                 if (xaRegistry != null) {
                     log.info("[XA-REBALANCE-DEBUG] Found XA registry for {}, resizing", connHash);
-                    MultinodePoolCoordinator.PoolAllocation allocation =
-                            ConnectionPoolConfigurer.getPoolCoordinator().getPoolAllocation(connHash);
+                    MultinodePoolCoordinator.PoolAllocation allocation = ConnectionPoolConfigurer.getPoolCoordinator()
+                            .getPoolAllocation(connHash);
 
                     if (allocation != null) {
                         int newMaxPoolSize = allocation.getCurrentMaxPoolSize();
@@ -301,16 +316,20 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
 
     /**
-     * Handle XA connection using XA Pool Provider SPI (NEW PATH - enabled by default).
-     * Creates pooled XA DataSource and allocates a XABackendSession immediately for the client.
+     * Handle XA connection using XA Pool Provider SPI (NEW PATH - enabled by
+     * default).
+     * Creates pooled XA DataSource and allocates a XABackendSession immediately for
+     * the client.
      * <p>
-     * Note: We allocate eagerly (not deferred) because XA applications expect getConnection()
-     * to work immediately after creating an XAConnection, before xaStart() is called.
+     * Note: We allocate eagerly (not deferred) because XA applications expect
+     * getConnection()
+     * to work immediately after creating an XAConnection, before xaStart() is
+     * called.
      * </p>
      */
     private void handleXAConnectionWithPooling(ConnectionDetails connectionDetails, String connHash,
-                                               int actualMaxXaTransactions, long xaStartTimeoutMillis,
-                                               StreamObserver<SessionInfo> responseObserver) {
+            int actualMaxXaTransactions, long xaStartTimeoutMillis,
+            StreamObserver<SessionInfo> responseObserver) {
         log.info("Using XA Pool Provider SPI for connHash: {}", connHash);
 
         // Get current serverEndpoints configuration
@@ -330,16 +349,16 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         boolean poolEnabled;
         try {
             Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-            DataSourceConfigurationManager.XADataSourceConfiguration xaConfig =
-                    DataSourceConfigurationManager.getXAConfiguration(clientProperties);
+            DataSourceConfigurationManager.XADataSourceConfiguration xaConfig = DataSourceConfigurationManager
+                    .getXAConfiguration(clientProperties);
             expectedMaxPoolSize = xaConfig.getMaximumPoolSize();
             expectedMinIdle = xaConfig.getMinimumIdle();
             poolEnabled = xaConfig.isPoolEnabled();
 
             // Apply multinode coordination to get expected divided sizes
             if (currentServerEndpoints != null && !currentServerEndpoints.isEmpty()) {
-                MultinodePoolCoordinator.PoolAllocation allocation =
-                        ConnectionPoolConfigurer.getPoolCoordinator().calculatePoolSizes(
+                MultinodePoolCoordinator.PoolAllocation allocation = ConnectionPoolConfigurer.getPoolCoordinator()
+                        .calculatePoolSizes(
                                 connHash, expectedMaxPoolSize, expectedMinIdle, currentServerEndpoints);
                 expectedMaxPoolSize = allocation.getCurrentMaxPoolSize();
                 expectedMinIdle = allocation.getCurrentMinIdle();
@@ -360,18 +379,21 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             // Check if serverEndpoints changed
             if (registryEndpointsHash == null || !registryEndpointsHash.equals(currentEndpointsHash)) {
-                log.warn("XA registry for {} has serverEndpoints mismatch: registry='{}' vs current='{}'. Will recreate.",
+                log.warn(
+                        "XA registry for {} has serverEndpoints mismatch: registry='{}' vs current='{}'. Will recreate.",
                         connHash, registryEndpointsHash, currentEndpointsHash);
                 needsRecreation = true;
             }
-            // Check if pool sizes don't match expected values (indicates wrong coordination on first creation)
+            // Check if pool sizes don't match expected values (indicates wrong coordination
+            // on first creation)
             else if (expectedMaxPoolSize > 0 && registryMaxPool != expectedMaxPoolSize) {
-                log.warn("XA registry for {} has maxPoolSize mismatch: registry={} vs expected={}. Will recreate with correct multinode coordination.",
+                log.warn(
+                        "XA registry for {} has maxPoolSize mismatch: registry={} vs expected={}. Will recreate with correct multinode coordination.",
                         connHash, registryMaxPool, expectedMaxPoolSize);
                 needsRecreation = true;
-            }
-            else if (expectedMinIdle > 0 && registryMinIdle != expectedMinIdle) {
-                log.warn("XA registry for {} has minIdle mismatch: registry={} vs expected={}. Will recreate with correct multinode coordination.",
+            } else if (expectedMinIdle > 0 && registryMinIdle != expectedMinIdle) {
+                log.warn(
+                        "XA registry for {} has minIdle mismatch: registry={} vs expected={}. Will recreate with correct multinode coordination.",
                         connHash, registryMinIdle, expectedMinIdle);
                 needsRecreation = true;
             }
@@ -389,7 +411,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         }
 
         if (registry == null) {
-            log.info("Creating NEW XA registry for connHash: {} with serverEndpoints: {}", connHash, currentEndpointsHash);
+            log.info("Creating NEW XA registry for connHash: {} with serverEndpoints: {}", connHash,
+                    currentEndpointsHash);
 
             // Check if XA pooling is enabled
             if (!poolEnabled) {
@@ -404,10 +427,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 // Parse URL to remove OJP-specific prefix (same as non-XA path)
                 String parsedUrl = UrlParser.parseUrl(connectionDetails.getUrl());
 
-                // Get XA datasource configuration from client properties (uses XA-specific properties)
+                // Get XA datasource configuration from client properties (uses XA-specific
+                // properties)
                 Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-                DataSourceConfigurationManager.XADataSourceConfiguration xaConfig =
-                        DataSourceConfigurationManager.getXAConfiguration(clientProperties);
+                DataSourceConfigurationManager.XADataSourceConfiguration xaConfig = DataSourceConfigurationManager
+                        .getXAConfiguration(clientProperties);
 
                 // Get default pool sizes from XA configuration
                 int maxPoolSize = xaConfig.getMaximumPoolSize();
@@ -425,8 +449,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
                 if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
                     // Multinode: divide pool sizes among servers
-                    MultinodePoolCoordinator.PoolAllocation allocation =
-                            ConnectionPoolConfigurer.getPoolCoordinator().calculatePoolSizes(
+                    MultinodePoolCoordinator.PoolAllocation allocation = ConnectionPoolConfigurer.getPoolCoordinator()
+                            .calculatePoolSizes(
                                     connHash, maxPoolSize, minIdle, serverEndpoints);
 
                     maxPoolSize = allocation.getCurrentMaxPoolSize();
@@ -440,7 +464,6 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
                 log.info("XA pool AFTER multinode coordination for {}: final max={}, min={}",
                         connHash, maxPoolSize, minIdle);
-
 
                 // Build configuration map for XA Pool Provider
                 Map<String, String> xaPoolConfig = new HashMap<>();
@@ -457,9 +480,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 // Evictor configuration
                 xaPoolConfig.put("xa.timeBetweenEvictionRunsMs", String.valueOf(xaConfig.getTimeBetweenEvictionRuns()));
                 xaPoolConfig.put("xa.numTestsPerEvictionRun", String.valueOf(xaConfig.getNumTestsPerEvictionRun()));
-                xaPoolConfig.put("xa.softMinEvictableIdleTimeMs", String.valueOf(xaConfig.getSoftMinEvictableIdleTime()));
+                xaPoolConfig.put("xa.softMinEvictableIdleTimeMs",
+                        String.valueOf(xaConfig.getSoftMinEvictableIdleTime()));
 
-                // Transaction isolation configuration - use configured or default to READ_COMMITTED
+                // Transaction isolation configuration - use configured or default to
+                // READ_COMMITTED
                 Integer configuredTransactionIsolation = xaConfig.getDefaultTransactionIsolation();
                 Integer defaultTransactionIsolation = configuredTransactionIsolation != null
                         ? configuredTransactionIsolation
@@ -467,69 +492,84 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
                 xaPoolConfig.put("xa.defaultTransactionIsolation", String.valueOf(defaultTransactionIsolation));
                 if (configuredTransactionIsolation == null) {
-                    log.info("No transaction isolation configured for XA pool {}, using default READ_COMMITTED", connHash);
+                    log.info("No transaction isolation configured for XA pool {}, using default READ_COMMITTED",
+                            connHash);
                 } else {
-                    log.info("Using configured transaction isolation for XA pool {}: {}", connHash, configuredTransactionIsolation);
+                    log.info("Using configured transaction isolation for XA pool {}: {}", connHash,
+                            configuredTransactionIsolation);
                 }
 
                 // Create pooled XA DataSource via provider
-                log.info("[XA-POOL-CREATE] Creating XA pool for connHash={}, serverEndpointsHash={}, config=(max={}, min={})",
+                log.info(
+                        "[XA-POOL-CREATE] Creating XA pool for connHash={}, serverEndpointsHash={}, config=(max={}, min={})",
                         connHash, currentEndpointsHash, maxPoolSize, minIdle);
                 Object pooledXADataSource = xaPoolProvider.createXADataSource(xaPoolConfig);
 
-                // Create XA Transaction Registry with serverEndpoints hash and pool sizes for validation
-                registry = new XATransactionRegistry(xaPoolProvider, pooledXADataSource, currentEndpointsHash, maxPoolSize, minIdle);
+                // Create XA Transaction Registry with serverEndpoints hash and pool sizes for
+                // validation
+                registry = new XATransactionRegistry(xaPoolProvider, pooledXADataSource, currentEndpointsHash,
+                        maxPoolSize, minIdle);
                 xaRegistries.put(connHash, registry);
 
                 // Initialize pool with minIdle connections immediately after creation
                 // Without this, the pool starts empty and only creates connections on demand
-                log.info("[XA-POOL-INIT] Initializing XA pool with minIdle={} connections for connHash={}", minIdle, connHash);
+                log.info("[XA-POOL-INIT] Initializing XA pool with minIdle={} connections for connHash={}", minIdle,
+                        connHash);
                 registry.resizeBackendPool(maxPoolSize, minIdle);
 
                 // Create slow query segregation manager for XA
-                createSlowQuerySegregationManagerForDatasource(connHash, actualMaxXaTransactions, true, xaStartTimeoutMillis);
+                createSlowQuerySegregationManagerForDatasource(connHash, actualMaxXaTransactions, true,
+                        xaStartTimeoutMillis);
 
-                log.info("[XA-POOL-CREATE] Successfully created XA pool for connHash={} - maxPoolSize={}, minIdle={}, multinode={}, poolObject={}",
+                log.info(
+                        "[XA-POOL-CREATE] Successfully created XA pool for connHash={} - maxPoolSize={}, minIdle={}, multinode={}, poolObject={}",
                         connHash, maxPoolSize, minIdle, serverEndpoints != null && !serverEndpoints.isEmpty(),
                         pooledXADataSource.getClass().getSimpleName());
 
             } catch (Exception e) {
-                log.error("[XA-POOL-CREATE] FAILED to create XA Pool Provider registry for connHash={}, serverEndpointsHash={}: {}",
+                log.error(
+                        "[XA-POOL-CREATE] FAILED to create XA Pool Provider registry for connHash={}, serverEndpointsHash={}: {}",
                         connHash, currentEndpointsHash, e.getMessage(), e);
                 SQLException sqlException = new SQLException("Failed to create XA pool: " + e.getMessage(), e);
                 sendSQLExceptionMetadata(sqlException, responseObserver);
                 return;
             }
         } else {
-            log.info("[XA-POOL-REUSE] Reusing EXISTING XA registry for connHash={} (pool already created, cached sizes: max={}, min={})",
+            log.info(
+                    "[XA-POOL-REUSE] Reusing EXISTING XA registry for connHash={} (pool already created, cached sizes: max={}, min={})",
                     connHash, registry.getMaxPoolSize(), registry.getMinIdle());
         }
 
         this.sessionManager.registerClientUUID(connHash, connectionDetails.getClientUUID());
 
         // CRITICAL FIX: Call processClusterHealth() BEFORE borrowing session
-        // This ensures pool rebalancing happens even when server 1 fails before any XA operations execute
-        // Without this, pool exhaustion prevents cluster health propagation and pool never expands
+        // This ensures pool rebalancing happens even when server 1 fails before any XA
+        // operations execute
+        // Without this, pool exhaustion prevents cluster health propagation and pool
+        // never expands
         if (connectionDetails.getClusterHealth() != null && !connectionDetails.getClusterHealth().isEmpty()) {
             // Use the ACTUAL cluster health from the client (not synthetic)
             // The client sends the current health status of all servers
             String actualClusterHealth = connectionDetails.getClusterHealth();
 
             // Create a temporary SessionInfo with cluster health for processing
-            // We don't have the actual sessionInfo yet since we haven't borrowed from the pool
+            // We don't have the actual sessionInfo yet since we haven't borrowed from the
+            // pool
             SessionInfo tempSessionInfo = SessionInfo.newBuilder()
                     .setSessionUUID("temp-for-health-check")
                     .setConnHash(connHash)
                     .setClusterHealth(actualClusterHealth)
                     .build();
 
-            log.info("[XA-CONNECT-REBALANCE] Calling processClusterHealth BEFORE borrow for connHash={}, clusterHealth={}",
+            log.info(
+                    "[XA-CONNECT-REBALANCE] Calling processClusterHealth BEFORE borrow for connHash={}, clusterHealth={}",
                     connHash, actualClusterHealth);
 
             // Process cluster health to trigger pool rebalancing if needed
             processClusterHealth(tempSessionInfo);
         } else {
-            log.warn("[XA-CONNECT-REBALANCE] No cluster health provided in ConnectionDetails for connHash={}, pool rebalancing may be delayed",
+            log.warn(
+                    "[XA-CONNECT-REBALANCE] No cluster health provided in ConnectionDetails for connHash={}, pool rebalancing may be delayed",
                     connHash);
         }
 
@@ -538,8 +578,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         // XA applications expect getConnection() to work immediately, before xaStart()
         org.openjproxy.xa.pool.XABackendSession backendSession = null;
         try {
-            backendSession =
-                    (org.openjproxy.xa.pool.XABackendSession) xaPoolProvider.borrowSession(registry.getPooledXADataSource());
+            backendSession = (org.openjproxy.xa.pool.XABackendSession) xaPoolProvider
+                    .borrowSession(registry.getPooledXADataSource());
 
             XAConnection xaConnection = backendSession.getXAConnection();
             Connection connection = backendSession.getConnection();
@@ -548,7 +588,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             SessionInfo sessionInfo = this.sessionManager.createXASession(
                     connectionDetails.getClientUUID(), connection, xaConnection);
 
-            // Store the XABackendSession reference in the session for later lifecycle management
+            // Store the XABackendSession reference in the session for later lifecycle
+            // management
             Session session = this.sessionManager.getSession(sessionInfo);
             if (session != null) {
                 session.setBackendSession(backendSession);
@@ -557,7 +598,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             log.info("Created XA session (pooled, eager allocation) with client UUID: {} for connHash: {}",
                     connectionDetails.getClientUUID(), connHash);
 
-            // Note: processClusterHealth() already called BEFORE borrowing session (see above)
+            // Note: processClusterHealth() already called BEFORE borrowing session (see
+            // above)
             // This ensures pool is resized before we try to borrow, preventing exhaustion
 
             responseObserver.onNext(sessionInfo);
@@ -568,8 +610,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             log.error("Failed to borrow XABackendSession from pool for connection hash {}: {}",
                     connHash, e.getMessage(), e);
 
-            // CRITICAL FIX: Return the borrowed session back to pool on failure to prevent session leaks
-            // This was causing PostgreSQL "too many clients" errors as leaked sessions bypassed pool limits
+            // CRITICAL FIX: Return the borrowed session back to pool on failure to prevent
+            // session leaks
+            // This was causing PostgreSQL "too many clients" errors as leaked sessions
+            // bypassed pool limits
             if (backendSession != null) {
                 try {
                     xaPoolProvider.returnSession(registry.getPooledXADataSource(), backendSession);
@@ -581,32 +625,35 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         xaPoolProvider.invalidateSession(registry.getPooledXADataSource(), backendSession);
                         log.warn("Invalidated session after failed return for connHash: {}", connHash);
                     } catch (Exception e3) {
-                        log.error("Failed to invalidate session after connect() failure for connHash: {}", connHash, e3);
+                        log.error("Failed to invalidate session after connect() failure for connHash: {}", connHash,
+                                e3);
                     }
                 }
             }
 
-            SQLException sqlException = new SQLException("Failed to allocate XA session from pool: " + e.getMessage(), e);
+            SQLException sqlException = new SQLException("Failed to allocate XA session from pool: " + e.getMessage(),
+                    e);
             sendSQLExceptionMetadata(sqlException, responseObserver);
             return;
         }
     }
 
     /**
-     * Handle unpooled XA connection by creating a direct XADataSource without pooling.
+     * Handle unpooled XA connection by creating a direct XADataSource without
+     * pooling.
      * This mode creates XAConnections on demand without any connection pooling.
      * Used when ojp.xa.connection.pool.enabled=false.
      */
     private void handleUnpooledXAConnection(ConnectionDetails connectionDetails, String connHash,
-                                            StreamObserver<SessionInfo> responseObserver) {
+            StreamObserver<SessionInfo> responseObserver) {
         try {
             // Parse URL to remove OJP-specific prefix
             String parsedUrl = UrlParser.parseUrl(connectionDetails.getUrl());
 
             // Get XA datasource configuration from client properties
             Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-            DataSourceConfigurationManager.XADataSourceConfiguration xaConfig =
-                    DataSourceConfigurationManager.getXAConfiguration(clientProperties);
+            DataSourceConfigurationManager.XADataSourceConfiguration xaConfig = DataSourceConfigurationManager
+                    .getXAConfiguration(clientProperties);
 
             // Create XADataSource directly using XADataSourceFactory
             XADataSource xaDataSource = XADataSourceFactory.createXADataSource(
@@ -636,13 +683,15 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         } catch (Exception e) {
             log.error("Failed to create unpooled XADataSource for connection hash {}: {}",
                     connHash, e.getMessage(), e);
-            SQLException sqlException = new SQLException("Failed to create unpooled XADataSource: " + e.getMessage(), e);
+            SQLException sqlException = new SQLException("Failed to create unpooled XADataSource: " + e.getMessage(),
+                    e);
             sendSQLExceptionMetadata(sqlException, responseObserver);
         }
     }
 
     /**
-     * Handle XA connection using pass-through approach (OLD PATH - disabled by default, kept for rollback).
+     * Handle XA connection using pass-through approach (OLD PATH - disabled by
+     * default, kept for rollback).
      * Creates native XADataSource and eager XAConnection allocation.
      */
 
@@ -668,27 +717,33 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     /**
      * Creates a slow query segregation manager for a specific datasource.
-     * Each datasource gets its own manager with pool size based on actual HikariCP configuration.
+     * Each datasource gets its own manager with pool size based on actual HikariCP
+     * configuration.
      */
     private void createSlowQuerySegregationManagerForDatasource(String connHash, int actualPoolSize) {
         createSlowQuerySegregationManagerForDatasource(connHash, actualPoolSize, false, 0);
     }
 
     /**
-     * Creates a SlowQuerySegregationManager for a datasource with XA-specific handling.
+     * Creates a SlowQuerySegregationManager for a datasource with XA-specific
+     * handling.
      *
-     * @param connHash The connection hash
-     * @param actualPoolSize The actual pool size (max XA transactions for XA, max pool size for non-XA)
-     * @param isXA Whether this is an XA connection
-     * @param xaStartTimeoutMillis The XA start timeout in milliseconds (only used for XA connections)
+     * @param connHash             The connection hash
+     * @param actualPoolSize       The actual pool size (max XA transactions for XA,
+     *                             max pool size for non-XA)
+     * @param isXA                 Whether this is an XA connection
+     * @param xaStartTimeoutMillis The XA start timeout in milliseconds (only used
+     *                             for XA connections)
      */
-    private void createSlowQuerySegregationManagerForDatasource(String connHash, int actualPoolSize, boolean isXA, long xaStartTimeoutMillis) {
+    private void createSlowQuerySegregationManagerForDatasource(String connHash, int actualPoolSize, boolean isXA,
+            long xaStartTimeoutMillis) {
         boolean slowQueryEnabled = serverConfiguration.isSlowQuerySegregationEnabled();
 
         if (isXA) {
             // XA-specific handling
             if (slowQueryEnabled) {
-                // XA with slow query segregation enabled: use configured slow/fast slot allocation
+                // XA with slow query segregation enabled: use configured slow/fast slot
+                // allocation
                 SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
                         actualPoolSize,
                         serverConfiguration.getSlowQuerySlotPercentage(),
@@ -696,13 +751,14 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         serverConfiguration.getSlowQuerySlowSlotTimeout(),
                         serverConfiguration.getSlowQueryFastSlotTimeout(),
                         serverConfiguration.getSlowQueryUpdateGlobalAvgInterval(),
-                        true
-                );
+                        true);
                 slowQuerySegregationManagers.put(connHash, manager);
-                log.info("Created SlowQuerySegregationManager for XA datasource {} with pool size {} (slow query segregation enabled)",
+                log.info(
+                        "Created SlowQuerySegregationManager for XA datasource {} with pool size {} (slow query segregation enabled)",
                         connHash, actualPoolSize);
             } else {
-                // XA with slow query segregation disabled: use SlotManager only (no QueryPerformanceMonitor)
+                // XA with slow query segregation disabled: use SlotManager only (no
+                // QueryPerformanceMonitor)
                 // Set totalSlots=actualPoolSize, fastSlots=actualPoolSize, slowSlots=0
                 // Use xaStartTimeoutMillis as the fast slot timeout
                 SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
@@ -715,7 +771,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         true // enabled = true to use SlotManager
                 );
                 slowQuerySegregationManagers.put(connHash, manager);
-                log.info("Created SlowQuerySegregationManager for XA datasource {} with {} slots (all fast, timeout={}ms, no performance monitoring)",
+                log.info(
+                        "Created SlowQuerySegregationManager for XA datasource {} with {} slots (all fast, timeout={}ms, no performance monitoring)",
                         connHash, actualPoolSize, xaStartTimeoutMillis);
             }
         } else {
@@ -728,16 +785,14 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         serverConfiguration.getSlowQuerySlowSlotTimeout(),
                         serverConfiguration.getSlowQueryFastSlotTimeout(),
                         serverConfiguration.getSlowQueryUpdateGlobalAvgInterval(),
-                        true
-                );
+                        true);
                 slowQuerySegregationManagers.put(connHash, manager);
                 log.info("Created SlowQuerySegregationManager for datasource {} with pool size {}",
                         connHash, actualPoolSize);
             } else {
                 // Create disabled manager for consistency
                 SlowQuerySegregationManager manager = new SlowQuerySegregationManager(
-                        1, 0, 0, 0, 0, 0, false
-                );
+                        1, 0, 0, 0, 0, 0, false);
                 slowQuerySegregationManagers.put(connHash, manager);
                 log.info("Created disabled SlowQuerySegregationManager for datasource {}", connHash);
             }
@@ -751,7 +806,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private SlowQuerySegregationManager getSlowQuerySegregationManagerForConnection(String connHash) {
         SlowQuerySegregationManager manager = slowQuerySegregationManagers.get(connHash);
         if (manager == null) {
-            log.warn("No SlowQuerySegregationManager found for connection hash {}, creating disabled fallback", connHash);
+            log.warn("No SlowQuerySegregationManager found for connection hash {}, creating disabled fallback",
+                    connHash);
             // Create a disabled manager as fallback
             manager = new SlowQuerySegregationManager(1, 0, 0, 0, 0, 0, false);
             slowQuerySegregationManagers.put(connHash, manager);
@@ -818,30 +874,36 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         OpResult.Builder opResultBuilder = OpResult.newBuilder();
 
         try {
-            dto = sessionConnection(request.getSession(), StatementRequestValidator.isAddBatchOperation(request) || StatementRequestValidator.hasAutoGeneratedKeysFlag(request));
+            dto = sessionConnection(request.getSession(), StatementRequestValidator.isAddBatchOperation(request)
+                    || StatementRequestValidator.hasAutoGeneratedKeysFlag(request));
             returnSessionInfo = dto.getSession();
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
             PreparedStatement ps = dto.getSession() != null && StringUtils.isNotBlank(dto.getSession().getSessionUUID())
-                    && StringUtils.isNoneBlank(request.getStatementUUID()) ?
-                    sessionManager.getPreparedStatement(dto.getSession(), request.getStatementUUID()) : null;
+                    && StringUtils.isNoneBlank(request.getStatementUUID())
+                            ? sessionManager.getPreparedStatement(dto.getSession(), request.getStatementUUID())
+                            : null;
             if (CollectionUtils.isNotEmpty(params) || ps != null) {
                 if (StringUtils.isNotEmpty(request.getStatementUUID())) {
                     Collection<Object> lobs = sessionManager.getLobs(dto.getSession());
                     for (Object o : lobs) {
                         LobDataBlocksInputStream lobIS = (LobDataBlocksInputStream) o;
-                        Map<String, Object> metadata = (Map<String, Object>) sessionManager.getAttr(dto.getSession(), lobIS.getUuid());
-                        Integer parameterIndex = (Integer) metadata.get(CommonConstants.PREPARED_STATEMENT_BINARY_STREAM_INDEX);
+                        Map<String, Object> metadata = (Map<String, Object>) sessionManager.getAttr(dto.getSession(),
+                                lobIS.getUuid());
+                        Integer parameterIndex = (Integer) metadata
+                                .get(CommonConstants.PREPARED_STATEMENT_BINARY_STREAM_INDEX);
                         ps.setBinaryStream(parameterIndex, lobIS);
                     }
-                    if (DbName.POSTGRES.equals(dto.getDbName())) {//Postgres requires check if the lob streams are fully consumed.
+                    if (DbName.POSTGRES.equals(dto.getDbName())) {// Postgres requires check if the lob streams are
+                                                                  // fully consumed.
                         sessionManager.waitLobStreamsConsumption(dto.getSession());
                     }
                     if (ps != null) {
                         ParameterHandler.addParametersPreparedStatement(sessionManager, dto.getSession(), ps, params);
                     }
                 } else {
-                    ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params, request);
+                    ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
+                            request);
                     if (StatementRequestValidator.hasAutoGeneratedKeysFlag(request)) {
                         String psNewUUID = sessionManager.registerPreparedStatement(dto.getSession(), ps);
                         opResultBuilder.setUuid(psNewUUID);
@@ -875,7 +937,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         .setIntValue(updated).build();
             }
         } finally {
-            //If there is no session, close statement and connection
+            // If there is no session, close statement and connection
             if (dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) {
                 if (stmt != null) {
                     try {
@@ -935,7 +997,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     /**
      * Internal method for executing queries without segregation logic.
      */
-    private void executeQueryInternal(StatementRequest request, StreamObserver<OpResult> responseObserver) throws SQLException {
+    private void executeQueryInternal(StatementRequest request, StreamObserver<OpResult> responseObserver)
+            throws SQLException {
         ConnectionSessionDTO dto = this.sessionConnection(request.getSession(), true);
 
         // Phase 2: SQL Enhancement with timing
@@ -1062,7 +1125,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         case LT_BLOB: {
                             Blob blob = sessionManager.getLob(dto.getSession(), this.lobUUID);
                             if (blob == null) {
-                                throw new SQLException("Unable to write LOB of type " + this.lobType + ": Blob object is null for UUID " + this.lobUUID +
+                                throw new SQLException("Unable to write LOB of type " + this.lobType
+                                        + ": Blob object is null for UUID " + this.lobUUID +
                                         ". This may indicate a race condition or session management issue.");
                             }
                             byte[] byteArrayData = lobDataBlock.getData().toByteArray();
@@ -1072,7 +1136,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         case LT_CLOB: {
                             Clob clob = sessionManager.getLob(dto.getSession(), this.lobUUID);
                             if (clob == null) {
-                                throw new SQLException("Unable to write LOB of type " + this.lobType + ": Clob object is null for UUID " + this.lobUUID +
+                                throw new SQLException("Unable to write LOB of type " + this.lobType
+                                        + ": Clob object is null for UUID " + this.lobUUID +
                                         ". This may indicate a race condition or session management issue.");
                             }
                             byte[] byteArrayData = lobDataBlock.getData().toByteArray();
@@ -1086,7 +1151,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                                 if (lobDataBlock.getMetadataCount() < 1) {
                                     throw new SQLException("Metadata empty for binary stream type.");
                                 }
-                                Map<String, Object> metadataStringKey = ProtoConverter.propertiesFromProto(lobDataBlock.getMetadataList());
+                                Map<String, Object> metadataStringKey = ProtoConverter
+                                        .propertiesFromProto(lobDataBlock.getMetadataList());
 
                                 // Convert string keys back to integer keys for backward compatibility
                                 Map<Integer, Object> metadata = new java.util.HashMap<>();
@@ -1099,9 +1165,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                                     }
                                 }
 
-                                String sql = (String) metadata.get(CommonConstants.PREPARED_STATEMENT_BINARY_STREAM_SQL);
+                                String sql = (String) metadata
+                                        .get(CommonConstants.PREPARED_STATEMENT_BINARY_STREAM_SQL);
                                 PreparedStatement ps;
-                                String preparedStatementUUID = (String) metadata.get(CommonConstants.PREPARED_STATEMENT_UUID_BINARY_STREAM);
+                                String preparedStatementUUID = (String) metadata
+                                        .get(CommonConstants.PREPARED_STATEMENT_UUID_BINARY_STREAM);
                                 if (StringUtils.isNotEmpty(preparedStatementUUID)) {
                                     stmtUUID = preparedStatementUUID;
                                 } else {
@@ -1109,13 +1177,17 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                                     stmtUUID = sessionManager.registerPreparedStatement(dto.getSession(), ps);
                                 }
 
-                                //Add bite stream as parameter to the prepared statement
+                                // Add bite stream as parameter to the prepared statement
                                 lobDataBlocksInputStream = new LobDataBlocksInputStream(lobDataBlock);
                                 this.lobUUID = lobDataBlocksInputStream.getUuid();
-                                //Only needs to be registered so we can wait it to receive all bytes before performing the update.
-                                sessionManager.registerLob(dto.getSession(), lobDataBlocksInputStream, lobDataBlocksInputStream.getUuid());
-                                sessionManager.registerAttr(dto.getSession(), lobDataBlocksInputStream.getUuid(), metadata);
-                                //Need to first send the ref to the client before adding the stream as a parameter
+                                // Only needs to be registered so we can wait it to receive all bytes before
+                                // performing the update.
+                                sessionManager.registerLob(dto.getSession(), lobDataBlocksInputStream,
+                                        lobDataBlocksInputStream.getUuid());
+                                sessionManager.registerAttr(dto.getSession(), lobDataBlocksInputStream.getUuid(),
+                                        metadata);
+                                // Need to first send the ref to the client before adding the stream as a
+                                // parameter
                                 sendLobRef(dto, lobDataBlock.getData().toByteArray().length);
                             } else {
                                 lobDataBlocksInputStream.addBlock(lobDataBlock);
@@ -1133,13 +1205,15 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 } catch (SQLException e) {
                     sendSQLExceptionMetadata(e, responseObserver);
                 } catch (Exception e) {
-                    sendSQLExceptionMetadata(new SQLException("Unable to write data: " + e.getMessage(), e), responseObserver);
+                    sendSQLExceptionMetadata(new SQLException("Unable to write data: " + e.getMessage(), e),
+                            responseObserver);
                 }
             }
 
             private void sendLobRef(ConnectionSessionDTO dto, int bytesWritten) {
                 log.info("Returning lob ref {}", this.lobUUID);
-                //Send one flag response to indicate that the Blob has been created successfully and the first
+                // Send one flag response to indicate that the Blob has been created
+                // successfully and the first
                 // block fo data has been written successfully.
                 LobReference.Builder lobRefBuilder = LobReference.newBuilder()
                         .setSession(dto.getSession())
@@ -1180,7 +1254,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     lobRefBuilder.setStmtUUID(this.stmtUUID);
                 }
 
-                //Send the final Lob reference with total count of written bytes.
+                // Send the final Lob reference with total count of written bytes.
                 responseObserver.onNext(lobRefBuilder.build());
                 responseObserver.onCompleted();
             }
@@ -1231,7 +1305,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
 
     /**
-     * As DB2 eagerly closes result sets in multiple situations the result set metadata is saved a priori in a session
+     * As DB2 eagerly closes result sets in multiple situations the result set
+     * metadata is saved a priori in a session
      * attribute and has to be read in a special manner treated in this method.
      *
      * @param request
@@ -1240,16 +1315,17 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
      * @throws SQLException
      */
     @SneakyThrows
-    private boolean db2SpecialResultSetMetadata(CallResourceRequest request, StreamObserver<CallResourceResponse> responseObserver) throws SQLException {
+    private boolean db2SpecialResultSetMetadata(CallResourceRequest request,
+            StreamObserver<CallResourceResponse> responseObserver) throws SQLException {
         if (DbName.DB2.equals(this.dbNameMap.get(request.getSession().getConnHash())) &&
                 ResourceType.RES_RESULT_SET.equals(request.getResourceType()) &&
                 CallType.CALL_GET.equals(request.getTarget().getCallType()) &&
                 "Metadata".equalsIgnoreCase(request.getTarget().getResourceName())) {
             ResultSetMetaData resultSetMetaData = (ResultSetMetaData) this.sessionManager.getAttr(request.getSession(),
                     RESULT_SET_METADATA_ATTR_PREFIX + request.getResourceUUID());
-            List<Object> paramsReceived = (request.getTarget().getNextCall().getParamsCount() > 0) ?
-                    ProtoConverter.parameterValuesToObjectList(request.getTarget().getNextCall().getParamsList()) :
-                    EMPTY_LIST;
+            List<Object> paramsReceived = (request.getTarget().getNextCall().getParamsCount() > 0)
+                    ? ProtoConverter.parameterValuesToObjectList(request.getTarget().getNextCall().getParamsList())
+                    : EMPTY_LIST;
             Method methodNext = MethodReflectionUtils.findMethodByName(ResultSetMetaData.class,
                     MethodNameGenerator.methodName(request.getTarget().getNextCall()),
                     paramsReceived);
@@ -1266,15 +1342,20 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     /**
      * Finds a suitable connection for the current sessionInfo.
-     * If there is a connection already in the sessionInfo reuse it, if not get a fresh one from the data source.
-     * This method implements lazy connection allocation for both Hikari and Atomikos XA datasources.
+     * If there is a connection already in the sessionInfo reuse it, if not get a
+     * fresh one from the data source.
+     * This method implements lazy connection allocation for both Hikari and
+     * Atomikos XA datasources.
      *
      * @param sessionInfo        - current sessionInfo object.
-     * @param startSessionIfNone - if true will start a new sessionInfo if none exists.
+     * @param startSessionIfNone - if true will start a new sessionInfo if none
+     *                           exists.
      * @return ConnectionSessionDTO
-     * @throws SQLException if connection not found or closed (by timeout or other reason)
+     * @throws SQLException if connection not found or closed (by timeout or other
+     *                      reason)
      */
-    private ConnectionSessionDTO sessionConnection(SessionInfo sessionInfo, boolean startSessionIfNone) throws SQLException {
+    private ConnectionSessionDTO sessionConnection(SessionInfo sessionInfo, boolean startSessionIfNone)
+            throws SQLException {
         ConnectionSessionDTO.ConnectionSessionDTOBuilder dtoBuilder = ConnectionSessionDTO.builder();
         dtoBuilder.session(sessionInfo);
         Connection conn;
@@ -1307,7 +1388,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
                         // Store the XAConnection in session for XA operations
                         if (startSessionIfNone) {
-                            SessionInfo updatedSession = this.sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                            SessionInfo updatedSession = this.sessionManager.createSession(sessionInfo.getClientUUID(),
+                                    conn);
                             // Store XAConnection as an attribute for XA operations
                             this.sessionManager.registerAttr(updatedSession, "xaConnection", xaConnection);
                             dtoBuilder.session(updatedSession);
@@ -1387,13 +1469,13 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         int row = 0;
         boolean justSent = false;
         DbName dbName = DatabaseUtils.resolveDbName(rs.getStatement().getConnection().getMetaData().getURL());
-        //Only used if result set contains LOBs in SQL Server and DB2 (if LOB's present), so cursor is not read in advance,
+        // Only used if result set contains LOBs in SQL Server and DB2 (if LOB's
+        // present), so cursor is not read in advance,
         // every row has to be requested by the jdbc client.
         String resultSetMode = "";
         boolean resultSetMetadataCollected = false;
 
-        forEachRow:
-        while (rs.next()) {
+        forEachRow: while (rs.next()) {
             if (DbName.DB2.equals(dbName) && !resultSetMetadataCollected) {
                 this.collectResultSetMetadata(session, resultSetUUID, rs);
             }
@@ -1404,7 +1486,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 int colType = rs.getMetaData().getColumnType(i + 1);
                 String colTypeName = rs.getMetaData().getColumnTypeName(i + 1);
                 Object currentValue = null;
-                //Postgres uses type BYTEA which translates to type VARBINARY
+                // Postgres uses type BYTEA which translates to type VARBINARY
                 switch (colType) {
                     case Types.VARBINARY: {
                         if (DbName.SQL_SERVER.equals(dbName) || DbName.DB2.equals(dbName)) {
@@ -1413,7 +1495,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         if ("BLOB".equalsIgnoreCase(colTypeName)) {
                             currentValue = LobProcessor.treatAsBlob(sessionManager, session, rs, i, dbNameMap);
                         } else {
-                            currentValue = LobProcessor.treatAsBinary(sessionManager, session, dbName, rs, i, INPUT_STREAM_TYPES);
+                            currentValue = LobProcessor.treatAsBinary(sessionManager, session, dbName, rs, i,
+                                    INPUT_STREAM_TYPES);
                         }
                         break;
                     }
@@ -1433,7 +1516,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                             currentValue = null;
                         } else {
                             String clobUUID = UUID.randomUUID().toString();
-                            //CLOB needs to be prefixed as per it can be read in the JDBC driver by getString method and it would be valid to return just a UUID as string
+                            // CLOB needs to be prefixed as per it can be read in the JDBC driver by
+                            // getString method and it would be valid to return just a UUID as string
                             currentValue = CommonConstants.OJP_CLOB_PREFIX + clobUUID;
                             this.sessionManager.registerLob(session, clob, clobUUID);
                         }
@@ -1443,7 +1527,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         if (DbName.SQL_SERVER.equals(dbName) || DbName.DB2.equals(dbName)) {
                             resultSetMode = CommonConstants.RESULT_SET_ROW_BY_ROW_MODE;
                         }
-                        currentValue = LobProcessor.treatAsBinary(sessionManager, session, dbName, rs, i, INPUT_STREAM_TYPES);
+                        currentValue = LobProcessor.treatAsBinary(sessionManager, session, dbName, rs, i,
+                                INPUT_STREAM_TYPES);
                         break;
                     }
                     case Types.DATE: {
@@ -1461,7 +1546,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     }
                     default: {
                         currentValue = rs.getObject(i + 1);
-                        //com.microsoft.sqlserver.jdbc.DateTimeOffset special case as per it does not implement any standar java.sql interface.
+                        // com.microsoft.sqlserver.jdbc.DateTimeOffset special case as per it does not
+                        // implement any standar java.sql interface.
                         if ("datetimeoffset".equalsIgnoreCase(colTypeName) && colType == -155) {
                             currentValue = DateTimeUtils.extractOffsetDateTime(currentValue);
                         }
@@ -1480,16 +1566,18 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
             if (row % CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK == 0) {
                 justSent = true;
-                //Send a block of records
-                responseObserver.onNext(ResultSetWrapper.wrapResults(session, results, queryResultBuilder, resultSetUUID, resultSetMode));
+                // Send a block of records
+                responseObserver.onNext(ResultSetWrapper.wrapResults(session, results, queryResultBuilder,
+                        resultSetUUID, resultSetMode));
                 queryResultBuilder = OpQueryResult.builder();// Recreate the builder to not send labels in every block.
                 results = new ArrayList<>();
             }
         }
 
         if (!justSent) {
-            //Send a block of remaining records
-            responseObserver.onNext(ResultSetWrapper.wrapResults(session, results, queryResultBuilder, resultSetUUID, resultSetMode));
+            // Send a block of remaining records
+            responseObserver.onNext(
+                    ResultSetWrapper.wrapResults(session, results, queryResultBuilder, resultSetUUID, resultSetMode));
         }
 
         responseObserver.onCompleted();
@@ -1505,357 +1593,59 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // ===== XA Transaction Operations =====
 
     @Override
-    public void xaStart(com.openjproxy.grpc.XaStartRequest request, StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
-        log.debug("xaStart: session={}, xid={}, flags={}",
-                request.getSession().getSessionUUID(), request.getXid(), request.getFlags());
-
-        // Process cluster health changes before XA operation
-        processClusterHealth(request.getSession());
-
-        Session session = null;
-
-        try {
-            session = sessionManager.getSession(request.getSession());
-            if (session == null || !session.isXA()) {
-                throw new SQLException("Session is not an XA session");
-            }
-
-            // Branch based on XA pooling configuration
-            if (xaPoolProvider != null) {
-                // **NEW PATH: Use XATransactionRegistry**
-                handleXAStartWithPooling(request, session, responseObserver);
-            } else {
-                // **OLD PATH: Pass-through (legacy)**
-                handleXAStartPassThrough(request, session, responseObserver);
-            }
-
-        } catch (Exception e) {
-            log.error("Error in xaStart", e);
-
-            // Provide additional context for Oracle XA errors
-            String errorMsg = e.getMessage();
-            if (errorMsg != null && errorMsg.contains("ORA-")) {
-                if (errorMsg.contains("ORA-6550") || errorMsg.contains("ORA-24756") || errorMsg.contains("ORA-24757")) {
-                    log.error("Oracle XA Error: The database user may not have required XA privileges. " +
-                            "All of the following must be granted: " +
-                            "GRANT SELECT ON sys.dba_pending_transactions TO user; " +
-                            "GRANT SELECT ON sys.pending_trans$ TO user; " +
-                            "GRANT SELECT ON sys.dba_2pc_pending TO user; " +
-                            "GRANT EXECUTE ON sys.dbms_system TO user; " +
-                            "GRANT FORCE ANY TRANSACTION TO user; " +
-                            "Or for Oracle 12c+: GRANT XA_RECOVER_ADMIN TO user; " +
-                            "See ojp-server/ORACLE_XA_SETUP.md for details.");
-                }
-            }
-
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
-            sendSQLExceptionMetadata(sqlException, responseObserver);
-        }
-    }
-
-    private void handleXAStartWithPooling(com.openjproxy.grpc.XaStartRequest request, Session session,
-                                          StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) throws Exception {
-        String connHash = session.getSessionInfo().getConnHash();
-        XATransactionRegistry registry = xaRegistries.get(connHash);
-        if (registry == null) {
-            throw new SQLException("No XA registry found for connection hash: " + connHash);
-        }
-
-        // Convert proto Xid to XidKey
-        XidKey xidKey = XidKey.from(convertXid(request.getXid()));
-        int flags = request.getFlags();
-        String ojpSessionId = session.getSessionInfo().getSessionUUID();
-
-        // Route based on XA flags
-        if (flags == javax.transaction.xa.XAResource.TMNOFLAGS) {
-            // New transaction: use existing session from OJP Session
-            XABackendSession backendSession = (XABackendSession) session.getBackendSession();
-            if (backendSession == null) {
-                throw new SQLException("No XABackendSession found in session");
-            }
-            registry.registerExistingSession(xidKey, backendSession, flags, ojpSessionId);
-
-        } else if (flags == javax.transaction.xa.XAResource.TMJOIN ||
-                flags == javax.transaction.xa.XAResource.TMRESUME) {
-            // Join or resume existing transaction: delegate to xaStart
-            // This requires the context to exist (from previous TMNOFLAGS start)
-            // Note: ojpSessionId is only used for TMNOFLAGS, but we pass it anyway for consistency
-            registry.xaStart(xidKey, flags, ojpSessionId);
-
-        } else {
-            throw new SQLException("Unsupported XA flags: " + flags);
-        }
-
-        com.openjproxy.grpc.XaResponse response = com.openjproxy.grpc.XaResponse.newBuilder()
-                .setSession(session.getSessionInfo())
-                .setSuccess(true)
-                .setMessage("XA start successful (pooled)")
-                .build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
-
-    private void handleXAStartPassThrough(com.openjproxy.grpc.XaStartRequest request, Session session,
-                                          StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) throws Exception {
-        if (session.getXaResource() == null) {
-            throw new SQLException("Session does not have XAResource");
-        }
-
-        javax.transaction.xa.Xid xid = convertXid(request.getXid());
-        session.getXaResource().start(xid, request.getFlags());
-
-        com.openjproxy.grpc.XaResponse response = com.openjproxy.grpc.XaResponse.newBuilder()
-                .setSession(session.getSessionInfo())
-                .setSuccess(true)
-                .setMessage("XA start successful")
-                .build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+    public void xaStart(com.openjproxy.grpc.XaStartRequest request,
+            StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
+        XaStartAction.getInstance().execute(actionContext, request, responseObserver);
     }
 
     @Override
-    public void xaEnd(com.openjproxy.grpc.XaEndRequest request, StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
-        log.debug("xaEnd: session={}, xid={}, flags={}",
-                request.getSession().getSessionUUID(), request.getXid(), request.getFlags());
-
-        try {
-            Session session = sessionManager.getSession(request.getSession());
-            if (session == null || !session.isXA()) {
-                throw new SQLException("Session is not an XA session");
-            }
-
-            // Branch based on XA pooling configuration
-            if (xaPoolProvider != null) {
-                // **NEW PATH: Use XATransactionRegistry**
-                String connHash = session.getSessionInfo().getConnHash();
-                XATransactionRegistry registry = xaRegistries.get(connHash);
-                if (registry == null) {
-                    throw new SQLException("No XA registry found for connection hash: " + connHash);
-                }
-
-                XidKey xidKey = XidKey.from(convertXid(request.getXid()));
-                registry.xaEnd(xidKey, request.getFlags());
-            } else {
-                // **OLD PATH: Pass-through (legacy)**
-                if (session.getXaResource() == null) {
-                    throw new SQLException("Session does not have XAResource");
-                }
-                javax.transaction.xa.Xid xid = convertXid(request.getXid());
-                session.getXaResource().end(xid, request.getFlags());
-            }
-
-            com.openjproxy.grpc.XaResponse response = com.openjproxy.grpc.XaResponse.newBuilder()
-                    .setSession(session.getSessionInfo())
-                    .setSuccess(true)
-                    .setMessage("XA end successful")
-                    .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-
-        } catch (Exception e) {
-            log.error("Error in xaEnd", e);
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
-            sendSQLExceptionMetadata(sqlException, responseObserver);
-        }
+    public void xaEnd(com.openjproxy.grpc.XaEndRequest request,
+            StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
+        XaEndAction.getInstance().execute(actionContext, request, responseObserver);
     }
 
     @Override
-    public void xaPrepare(com.openjproxy.grpc.XaPrepareRequest request, StreamObserver<com.openjproxy.grpc.XaPrepareResponse> responseObserver) {
-        log.debug("xaPrepare: session={}, xid={}",
-                request.getSession().getSessionUUID(), request.getXid());
-
-        // Process cluster health changes before XA operation
-        processClusterHealth(request.getSession());
-
-        try {
-            Session session = sessionManager.getSession(request.getSession());
-            if (session == null || !session.isXA()) {
-                throw new SQLException("Session is not an XA session");
-            }
-
-            int result;
-
-            // Branch based on XA pooling configuration
-            if (xaPoolProvider != null) {
-                // **NEW PATH: Use XATransactionRegistry**
-                String connHash = session.getSessionInfo().getConnHash();
-                XATransactionRegistry registry = xaRegistries.get(connHash);
-                if (registry == null) {
-                    throw new SQLException("No XA registry found for connection hash: " + connHash);
-                }
-
-                XidKey xidKey = XidKey.from(convertXid(request.getXid()));
-                result = registry.xaPrepare(xidKey);
-            } else {
-                // **OLD PATH: Pass-through (legacy)**
-                if (session.getXaResource() == null) {
-                    throw new SQLException("Session does not have XAResource");
-                }
-                javax.transaction.xa.Xid xid = convertXid(request.getXid());
-                result = session.getXaResource().prepare(xid);
-            }
-
-            com.openjproxy.grpc.XaPrepareResponse response = com.openjproxy.grpc.XaPrepareResponse.newBuilder()
-                    .setSession(session.getSessionInfo())
-                    .setResult(result)
-                    .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-
-        } catch (Exception e) {
-            log.error("Error in xaPrepare", e);
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
-            sendSQLExceptionMetadata(sqlException, responseObserver);
-        }
+    public void xaPrepare(com.openjproxy.grpc.XaPrepareRequest request,
+            StreamObserver<com.openjproxy.grpc.XaPrepareResponse> responseObserver) {
+        XaPrepareAction.getInstance().execute(actionContext, request, responseObserver);
     }
 
     @Override
-    public void xaCommit(com.openjproxy.grpc.XaCommitRequest request, StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
-        log.debug("xaCommit: session={}, xid={}, onePhase={}",
-                request.getSession().getSessionUUID(), request.getXid(), request.getOnePhase());
-
-        // Process cluster health changes before XA operation
-        processClusterHealth(request.getSession());
-
-        try {
-            Session session = sessionManager.getSession(request.getSession());
-            if (session == null || !session.isXA()) {
-                throw new SQLException("Session is not an XA session");
-            }
-
-            // Branch based on XA pooling configuration
-            if (xaPoolProvider != null) {
-                // **NEW PATH: Use XATransactionRegistry**
-                String connHash = session.getSessionInfo().getConnHash();
-                XATransactionRegistry registry = xaRegistries.get(connHash);
-                if (registry == null) {
-                    throw new SQLException("No XA registry found for connection hash: " + connHash);
-                }
-
-                XidKey xidKey = XidKey.from(convertXid(request.getXid()));
-                registry.xaCommit(xidKey, request.getOnePhase());
-
-                // NOTE: Do NOT unbind XAConnection here - it stays bound for session lifetime
-                // XABackendSession will be returned to pool when OJP Session terminates
-            } else {
-                // **OLD PATH: Pass-through (legacy)**
-                if (session.getXaResource() == null) {
-                    throw new SQLException("Session does not have XAResource");
-                }
-                javax.transaction.xa.Xid xid = convertXid(request.getXid());
-                session.getXaResource().commit(xid, request.getOnePhase());
-            }
-
-            com.openjproxy.grpc.XaResponse response = com.openjproxy.grpc.XaResponse.newBuilder()
-                    .setSession(session.getSessionInfo())
-                    .setSuccess(true)
-                    .setMessage("XA commit successful")
-                    .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-
-        } catch (Exception e) {
-            log.error("Error in xaCommit", e);
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
-            sendSQLExceptionMetadata(sqlException, responseObserver);
-        }
+    public void xaCommit(com.openjproxy.grpc.XaCommitRequest request,
+            StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
+        XaCommitAction.getInstance().execute(actionContext, request, responseObserver);
     }
 
     @Override
-    public void xaRollback(com.openjproxy.grpc.XaRollbackRequest request, StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
-        log.debug("xaRollback: session={}, xid={}",
-                request.getSession().getSessionUUID(), request.getXid());
-
-        try {
-            Session session = sessionManager.getSession(request.getSession());
-            if (session == null || !session.isXA()) {
-                throw new SQLException("Session is not an XA session");
-            }
-
-            // Branch based on XA pooling configuration
-            if (xaPoolProvider != null) {
-                // **NEW PATH: Use XATransactionRegistry**
-                String connHash = session.getSessionInfo().getConnHash();
-                XATransactionRegistry registry = xaRegistries.get(connHash);
-                if (registry == null) {
-                    throw new SQLException("No XA registry found for connection hash: " + connHash);
-                }
-
-                XidKey xidKey = XidKey.from(convertXid(request.getXid()));
-                registry.xaRollback(xidKey);
-
-                // NOTE: Do NOT unbind XAConnection here - it stays bound for session lifetime
-                // XABackendSession will be returned to pool when OJP Session terminates
-            } else {
-                // **OLD PATH: Pass-through (legacy)**
-                if (session.getXaResource() == null) {
-                    throw new SQLException("Session does not have XAResource");
-                }
-                javax.transaction.xa.Xid xid = convertXid(request.getXid());
-                session.getXaResource().rollback(xid);
-            }
-
-            com.openjproxy.grpc.XaResponse response = com.openjproxy.grpc.XaResponse.newBuilder()
-                    .setSession(session.getSessionInfo())
-                    .setSuccess(true)
-                    .setMessage("XA rollback successful")
-                    .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-
-        } catch (Exception e) {
-            log.error("Error in xaRollback", e);
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
-            sendSQLExceptionMetadata(sqlException, responseObserver);
-        }
+    public void xaRollback(com.openjproxy.grpc.XaRollbackRequest request,
+            StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
+        XaRollbackAction.getInstance()
+                .execute(actionContext, request, responseObserver);
     }
 
     @Override
-    public void xaRecover(com.openjproxy.grpc.XaRecoverRequest request, StreamObserver<com.openjproxy.grpc.XaRecoverResponse> responseObserver) {
-        log.debug("xaRecover: session={}, flag={}",
-                request.getSession().getSessionUUID(), request.getFlag());
-
-        try {
-            Session session = sessionManager.getSession(request.getSession());
-            if (session == null || !session.isXA() || session.getXaResource() == null) {
-                throw new SQLException("Session is not an XA session");
-            }
-
-            javax.transaction.xa.Xid[] xids = session.getXaResource().recover(request.getFlag());
-
-            com.openjproxy.grpc.XaRecoverResponse.Builder responseBuilder = com.openjproxy.grpc.XaRecoverResponse.newBuilder()
-                    .setSession(session.getSessionInfo());
-
-            for (javax.transaction.xa.Xid xid : xids) {
-                responseBuilder.addXids(convertXidToProto(xid));
-            }
-
-            responseObserver.onNext(responseBuilder.build());
-            responseObserver.onCompleted();
-
-        } catch (Exception e) {
-            log.error("Error in xaRecover", e);
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
-            sendSQLExceptionMetadata(sqlException, responseObserver);
-        }
+    public void xaRecover(com.openjproxy.grpc.XaRecoverRequest request,
+            StreamObserver<com.openjproxy.grpc.XaRecoverResponse> responseObserver) {
+        XaRecoverAction.getInstance().execute(actionContext, request, responseObserver);
     }
 
     @Override
-    public void xaForget(com.openjproxy.grpc.XaForgetRequest request, StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
+    public void xaForget(com.openjproxy.grpc.XaForgetRequest request,
+            StreamObserver<com.openjproxy.grpc.XaResponse> responseObserver) {
         org.openjproxy.grpc.server.action.transaction.XaForgetAction.getInstance()
                 .execute(actionContext, request, responseObserver);
     }
 
     @Override
     public void xaSetTransactionTimeout(com.openjproxy.grpc.XaSetTransactionTimeoutRequest request,
-                                        StreamObserver<com.openjproxy.grpc.XaSetTransactionTimeoutResponse> responseObserver) {
+            StreamObserver<com.openjproxy.grpc.XaSetTransactionTimeoutResponse> responseObserver) {
         org.openjproxy.grpc.server.action.transaction.XaSetTransactionTimeoutAction.getInstance()
                 .execute(actionContext, request, responseObserver);
     }
 
     @Override
     public void xaGetTransactionTimeout(com.openjproxy.grpc.XaGetTransactionTimeoutRequest request,
-                                        StreamObserver<com.openjproxy.grpc.XaGetTransactionTimeoutResponse> responseObserver) {
+            StreamObserver<com.openjproxy.grpc.XaGetTransactionTimeoutResponse> responseObserver) {
         org.openjproxy.grpc.server.action.transaction.XaGetTransactionTimeoutAction.getInstance()
                 .execute(actionContext, request, responseObserver);
 
@@ -1863,7 +1653,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     @Override
     public void xaIsSameRM(com.openjproxy.grpc.XaIsSameRMRequest request,
-                           StreamObserver<com.openjproxy.grpc.XaIsSameRMResponse> responseObserver) {
+            StreamObserver<com.openjproxy.grpc.XaIsSameRMResponse> responseObserver) {
         org.openjproxy.grpc.server.action.transaction.XaIsSameRMAction.getInstance()
                 .execute(actionContext, request, responseObserver);
     }
