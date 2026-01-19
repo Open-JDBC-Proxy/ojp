@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Docker image tag'
-        required: true
+        description: 'Additional Docker image tag'
+        required: false
         default: 'latest'
       repository:
         description: 'Repository name'
@@ -30,6 +30,13 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Get project version
+        id: get_version
+        run: |
+           VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+           echo "Project version: $VERSION"
+
       - name: Build and push Docker image
         env:
           DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
@@ -41,6 +48,7 @@ jobs:
             mvn compile jib:build -pl ojp-server \
             -Djib.to.auth.username="${DOCKERHUB_USER}" \
             -Djib.to.auth.password="${DOCKERHUB_TOKEN}" \
-            -Djib.to.image="${DOCKERHUB_REPO}/ojp:${{ github.event.inputs.tag }}" \
+            -Djib.to.image="${DOCKERHUB_REPO}/ojp:${{ steps.get_version.outputs.VERSION }}" \
+            -Djib.to.tags="${{ steps.get_version.outputs.VERSION }}" \
             -Djib.container.mainClass="org.openjproxy.grpc.server.GrpcServer" \
             -Djib.container.ports=1059
