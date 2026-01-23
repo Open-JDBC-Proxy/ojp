@@ -61,6 +61,9 @@ Return BackendSession to pool ← Pool Provider
 - **[Migration Guide](./MIGRATION_GUIDE.md)** - Migrating from pass-through to pooled XA
 - **[Troubleshooting](./TROUBLESHOOTING.md)** - Common issues and solutions
 
+### Transaction Manager Research
+- **[Atomikos Transaction Logging Research](./ATOMIKOS_TRANSACTION_LOGGING_RESEARCH.md)** - In-depth analysis of Atomikos tmlog file, transaction states, and recovery mechanisms including failure scenarios
+
 ### Housekeeping Features
 - **[Housekeeping User Guide](./XA_POOL_HOUSEKEEPING_README.md)** - User-facing guide for leak detection, max lifetime, and diagnostics
 - **[Housekeeping Technical Guide](./XA_POOL_HOUSEKEEPING_GUIDE.md)** - Complete technical documentation with architecture diagrams
@@ -184,7 +187,9 @@ For issues, questions, or contributions:
 
 ## Related Documentation
 
+- [XA Transaction Flow Diagrams](./XA_TRANSACTION_FLOW_DIAGRAMS.md) - Visual diagrams of XA transaction flows
+- [Database XA Pool Libraries Comparison](./DATABASE_XA_POOL_LIBRARIES_COMPARISON.md) - Analysis of XA pooling options
+- [Atomikos Transaction Logging Research](./ATOMIKOS_TRANSACTION_LOGGING_RESEARCH.md) - Deep dive into transaction manager logging
 - [XA Transaction Flow](../xa-deprecated/XA_TRANSACTION_FLOW.md)
 - [Atomikos Integration](../xa-deprecated/ATOMIKOS_XA_INTEGRATION.md)
 - [Multinode Failover](../xa-deprecated/XA_MULTINODE_FAILOVER.md)
-- [Database Comparison](../analysis/DATABASE_XA_POOL_LIBRARIES_COMPARISON.md)
