@@ -190,4 +190,40 @@ public class ServerConfigurationTest {
         System.clearProperty("ojp.server.sessionCleanup.timeoutMinutes");
         System.clearProperty("ojp.server.sessionCleanup.intervalMinutes");
     }
+    
+    @Test
+    public void testDefaultAuditConfiguration() {
+        ServerConfiguration config = new ServerConfiguration();
+        
+        assertEquals(ServerConfiguration.DEFAULT_AUDIT_ENABLED, config.isAuditEnabled());
+        assertEquals(ServerConfiguration.DEFAULT_AUDIT_LOG_PATH, config.getAuditLogPath());
+        assertEquals(ServerConfiguration.DEFAULT_AUDIT_LOG_CONNECTIONS, config.isAuditLogConnections());
+        assertEquals(ServerConfiguration.DEFAULT_AUDIT_LOG_QUERIES, config.isAuditLogQueries());
+        assertEquals(ServerConfiguration.DEFAULT_AUDIT_LOG_AUTH, config.isAuditLogAuth());
+    }
+    
+    @Test
+    public void testCustomAuditConfiguration() {
+        // Set custom properties
+        System.setProperty("ojp.server.audit.enabled", "true");
+        System.setProperty("ojp.server.audit.log.path", "/var/log/ojp/audit.log");
+        System.setProperty("ojp.server.audit.log.connections", "false");
+        System.setProperty("ojp.server.audit.log.queries", "true");
+        System.setProperty("ojp.server.audit.log.auth", "false");
+        
+        ServerConfiguration config = new ServerConfiguration();
+        
+        assertTrue(config.isAuditEnabled());
+        assertEquals("/var/log/ojp/audit.log", config.getAuditLogPath());
+        assertFalse(config.isAuditLogConnections());
+        assertTrue(config.isAuditLogQueries());
+        assertFalse(config.isAuditLogAuth());
+        
+        // Cleanup
+        System.clearProperty("ojp.server.audit.enabled");
+        System.clearProperty("ojp.server.audit.log.path");
+        System.clearProperty("ojp.server.audit.log.connections");
+        System.clearProperty("ojp.server.audit.log.queries");
+        System.clearProperty("ojp.server.audit.log.auth");
+    }
 }
