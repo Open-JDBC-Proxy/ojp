@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.server.audit.AuditLogger;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 
 import java.lang.reflect.Field;
@@ -31,8 +32,9 @@ public class PerDatasourceSlowQuerySegregationTest {
         serverConfiguration = new ServerConfiguration();
         SessionManager sessionManager = Mockito.mock(SessionManager.class);
         CircuitBreaker circuitBreaker = Mockito.mock(CircuitBreaker.class);
+        AuditLogger auditLogger = Mockito.mock(AuditLogger.class);
         
-        statementService = new StatementServiceImpl(sessionManager, circuitBreaker, serverConfiguration);
+        statementService = new StatementServiceImpl(sessionManager, circuitBreaker, serverConfiguration, auditLogger);
     }
 
     @Test

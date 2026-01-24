@@ -540,10 +540,12 @@ public class CommonsPool2XADataSource implements XADataSource {
         boolean needsExecutor = housekeepingConfig.isLeakDetectionEnabled() || housekeepingConfig.isDiagnosticsEnabled();
         
         if (needsExecutor) {
-            // Create virtual thread executor for housekeeping tasks (Java 21+)
-            housekeepingExecutor = Executors.newSingleThreadScheduledExecutor(
-                Thread.ofVirtual().name("ojp-xa-housekeeping-", 0).factory()
-            );
+            // Create thread executor for housekeeping tasks
+            housekeepingExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "ojp-xa-housekeeping");
+                t.setDaemon(true);
+                return t;
+            });
         }
         
         // Initialize leak detection if enabled
