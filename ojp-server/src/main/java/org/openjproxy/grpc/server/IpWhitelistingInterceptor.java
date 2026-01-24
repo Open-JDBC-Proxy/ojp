@@ -21,9 +21,14 @@ public class IpWhitelistingInterceptor implements ServerInterceptor {
     private static final Logger logger = LoggerFactory.getLogger(IpWhitelistingInterceptor.class);
     
     private final List<String> allowedIps;
+    private org.openjproxy.grpc.server.audit.AuditLogger auditLogger;
     
     public IpWhitelistingInterceptor(List<String> allowedIps) {
         this.allowedIps = allowedIps;
+    }
+    
+    public void setAuditLogger(org.openjproxy.grpc.server.audit.AuditLogger auditLogger) {
+        this.auditLogger = auditLogger;
     }
     
     @Override
@@ -42,6 +47,29 @@ public class IpWhitelistingInterceptor implements ServerInterceptor {
             logger.warn("IP whitelisting access denied: clientIp={}, method={}", 
                     clientIp, methodName);
             
+            // Audit log authentication failure
+            if (auditLogger != null && auditLogger.getConfiguration().isLogAuth()) {
+                try {
+                    java.util.Map<String, Object> metadata = new java.util.HashMap<>();
+                    metadata.put("reason", "ip_not_whitelisted");
+                    metadata.put("method", methodName);
+                    
+                    org.openjproxy.grpc.server.audit.AuditEvent event = 
+                        new org.openjproxy.grpc.server.audit.AuditEvent.Builder()
+                            .eventType(org.openjproxy.grpc.server.audit.AuditEvent.EventType.AUTH)
+                            .level(org.openjproxy.grpc.server.audit.AuditEvent.Level.WARN)
+                            .sessionId(null)
+                            .clientIp(clientIp)
+                            .user("unknown")
+                            .message("Authentication failed")
+                            .metadata(metadata)
+                            .build();
+                    auditLogger.log(event);
+                } catch (Exception e) {
+                    logger.warn("Failed to audit log authentication failure", e);
+                }
+            }
+            
             // Close the call with PERMISSION_DENIED status
             call.close(
                 Status.PERMISSION_DENIED
@@ -51,6 +79,28 @@ public class IpWhitelistingInterceptor implements ServerInterceptor {
             
             // Return empty listener since we're rejecting the call
             return new ServerCall.Listener<ReqT>() {};
+        }
+        
+        // IP is allowed - audit log successful authentication
+        if (auditLogger != null && auditLogger.getConfiguration().isLogAuth()) {
+            try {
+                java.util.Map<String, Object> metadata = new java.util.HashMap<>();
+                metadata.put("method", methodName);
+                
+                org.openjproxy.grpc.server.audit.AuditEvent event = 
+                    new org.openjproxy.grpc.server.audit.AuditEvent.Builder()
+                        .eventType(org.openjproxy.grpc.server.audit.AuditEvent.EventType.AUTH)
+                        .level(org.openjproxy.grpc.server.audit.AuditEvent.Level.INFO)
+                        .sessionId(null)
+                        .clientIp(clientIp)
+                        .user("unknown")
+                        .message("Authentication successful")
+                        .metadata(metadata)
+                        .build();
+                auditLogger.log(event);
+            } catch (Exception e) {
+                logger.warn("Failed to audit log authentication success", e);
+            }
         }
         
         // IP is allowed, proceed with the call

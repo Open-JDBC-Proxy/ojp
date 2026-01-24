@@ -76,6 +76,9 @@ public class GrpcServer {
         SessionManagerImpl sessionManager = new SessionManagerImpl();
         sessionManager.setAuditLogger(auditLogger);
         
+        IpWhitelistingInterceptor ipInterceptor = new IpWhitelistingInterceptor(config.getAllowedIps());
+        ipInterceptor.setAuditLogger(auditLogger);
+        
         NettyServerBuilder serverBuilder = NettyServerBuilder
                 .forPort(config.getServerPort())
                 .executor(Executors.newFixedThreadPool(config.getThreadPoolSize()))
@@ -88,7 +91,7 @@ public class GrpcServer {
                         auditLogger
                 ))
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
-                .intercept(new IpWhitelistingInterceptor(config.getAllowedIps()))
+                .intercept(ipInterceptor)
                 .intercept(grpcTelemetry.newServerInterceptor());
         
         // Configure TLS if enabled
