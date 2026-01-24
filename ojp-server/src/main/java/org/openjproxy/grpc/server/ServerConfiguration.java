@@ -66,6 +66,13 @@ public class ServerConfiguration {
     private static final String TLS_KEYSTORE_TYPE_KEY = "ojp.server.tls.keystore.type";
     private static final String TLS_TRUSTSTORE_TYPE_KEY = "ojp.server.tls.truststore.type";
     private static final String TLS_CLIENT_AUTH_REQUIRED_KEY = "ojp.server.tls.clientAuthRequired";
+    
+    // Audit logging configuration keys
+    private static final String AUDIT_ENABLED_KEY = "ojp.server.audit.enabled";
+    private static final String AUDIT_LOG_PATH_KEY = "ojp.server.audit.log.path";
+    private static final String AUDIT_LOG_CONNECTIONS_KEY = "ojp.server.audit.log.connections";
+    private static final String AUDIT_LOG_QUERIES_KEY = "ojp.server.audit.log.queries";
+    private static final String AUDIT_LOG_AUTH_KEY = "ojp.server.audit.log.auth";
 
 
     // Default values
@@ -116,6 +123,13 @@ public class ServerConfiguration {
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
     public static final boolean DEFAULT_TLS_CLIENT_AUTH_REQUIRED = false; // mTLS disabled by default
+    
+    // Audit logging default values
+    public static final boolean DEFAULT_AUDIT_ENABLED = false; // Opt-in feature
+    public static final String DEFAULT_AUDIT_LOG_PATH = "logs/ojp-audit.log";
+    public static final boolean DEFAULT_AUDIT_LOG_CONNECTIONS = true; // When enabled, log connections
+    public static final boolean DEFAULT_AUDIT_LOG_QUERIES = false; // High impact, default off
+    public static final boolean DEFAULT_AUDIT_LOG_AUTH = true; // When enabled, log auth events
     
     // XA pooling default values
     public static final boolean DEFAULT_XA_POOLING_ENABLED = true; // Enable XA pooling by default
@@ -176,6 +190,13 @@ public class ServerConfiguration {
     private final String tlsKeystoreType;
     private final String tlsTruststoreType;
     private final boolean tlsClientAuthRequired;
+    
+    // Audit logging configuration
+    private final boolean auditEnabled;
+    private final String auditLogPath;
+    private final boolean auditLogConnections;
+    private final boolean auditLogQueries;
+    private final boolean auditLogAuth;
 
 
     public ServerConfiguration() {
@@ -229,6 +250,13 @@ public class ServerConfiguration {
         this.tlsKeystoreType = getStringProperty(TLS_KEYSTORE_TYPE_KEY, "JKS");
         this.tlsTruststoreType = getStringProperty(TLS_TRUSTSTORE_TYPE_KEY, "JKS");
         this.tlsClientAuthRequired = getBooleanProperty(TLS_CLIENT_AUTH_REQUIRED_KEY, DEFAULT_TLS_CLIENT_AUTH_REQUIRED);
+        
+        // Audit logging configuration
+        this.auditEnabled = getBooleanProperty(AUDIT_ENABLED_KEY, DEFAULT_AUDIT_ENABLED);
+        this.auditLogPath = getStringProperty(AUDIT_LOG_PATH_KEY, DEFAULT_AUDIT_LOG_PATH);
+        this.auditLogConnections = getBooleanProperty(AUDIT_LOG_CONNECTIONS_KEY, DEFAULT_AUDIT_LOG_CONNECTIONS);
+        this.auditLogQueries = getBooleanProperty(AUDIT_LOG_QUERIES_KEY, DEFAULT_AUDIT_LOG_QUERIES);
+        this.auditLogAuth = getBooleanProperty(AUDIT_LOG_AUTH_KEY, DEFAULT_AUDIT_LOG_AUTH);
 
         logConfigurationSummary();
     }
@@ -350,6 +378,14 @@ public class ServerConfiguration {
             logger.info("  TLS Client Auth Required (mTLS): {}", tlsClientAuthRequired);
             logger.info("  TLS Keystore Type: {}", tlsKeystoreType);
             logger.info("  TLS Truststore Type: {}", tlsTruststoreType);
+        }
+        logger.info("Audit Logging Configuration:");
+        logger.info("  Audit Enabled: {}", auditEnabled);
+        if (auditEnabled) {
+            logger.info("  Audit Log Path: {}", auditLogPath);
+            logger.info("  Log Connections: {}", auditLogConnections);
+            logger.info("  Log Queries: {}", auditLogQueries);
+            logger.info("  Log Auth: {}", auditLogAuth);
         }
     }
     
@@ -547,6 +583,26 @@ public class ServerConfiguration {
     
     public boolean isTlsClientAuthRequired() {
         return tlsClientAuthRequired;
+    }
+    
+    public boolean isAuditEnabled() {
+        return auditEnabled;
+    }
+    
+    public String getAuditLogPath() {
+        return auditLogPath;
+    }
+    
+    public boolean isAuditLogConnections() {
+        return auditLogConnections;
+    }
+    
+    public boolean isAuditLogQueries() {
+        return auditLogQueries;
+    }
+    
+    public boolean isAuditLogAuth() {
+        return auditLogAuth;
     }
     
 }
