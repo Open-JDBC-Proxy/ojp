@@ -7,6 +7,8 @@ import io.grpc.netty.NettyServerBuilder;
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 import org.openjproxy.config.TlsConfigurationException;
 import org.openjproxy.constants.CommonConstants;
+import org.openjproxy.grpc.server.audit.AuditConfiguration;
+import org.openjproxy.grpc.server.audit.AuditLogger;
 import org.openjproxy.grpc.server.utils.DriverLoader;
 import org.openjproxy.grpc.server.utils.DriverUtils;
 import org.slf4j.Logger;
@@ -26,6 +28,16 @@ public class GrpcServer {
 
         // Load configuration
         ServerConfiguration config = new ServerConfiguration();
+        
+        // Initialize audit logging
+        AuditConfiguration auditConfig = new AuditConfiguration(
+            config.isAuditEnabled(),
+            config.getAuditLogPath(),
+            config.isAuditLogConnections(),
+            config.isAuditLogQueries(),
+            config.isAuditLogAuth()
+        );
+        AuditLogger auditLogger = new AuditLogger(auditConfig);
         
         // Load external JDBC drivers from configured directory
         logger.info("Loading external JDBC drivers...");
@@ -62,6 +74,7 @@ public class GrpcServer {
 
         // Build server with configuration
         SessionManagerImpl sessionManager = new SessionManagerImpl();
+        sessionManager.setAuditLogger(auditLogger);
         
         NettyServerBuilder serverBuilder = NettyServerBuilder
                 .forPort(config.getServerPort())
@@ -71,7 +84,8 @@ public class GrpcServer {
                 .addService(new StatementServiceImpl(
                         sessionManager,
                         new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
-                        config
+                        config,
+                        auditLogger
                 ))
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
                 .intercept(new IpWhitelistingInterceptor(config.getAllowedIps()))
@@ -148,6 +162,9 @@ public class GrpcServer {
                     Thread.currentThread().interrupt();
                 }
             }
+            
+            // Shutdown audit logger
+            auditLogger.shutdown();
             
             server.shutdown();
 

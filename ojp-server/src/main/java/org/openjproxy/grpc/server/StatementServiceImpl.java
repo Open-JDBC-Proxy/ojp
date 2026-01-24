@@ -121,11 +121,15 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     // ActionContext for refactored actions
     private final org.openjproxy.grpc.server.action.ActionContext actionContext;
+    
+    // Audit logger for logging security events
+    private final org.openjproxy.grpc.server.audit.AuditLogger auditLogger;
 
     public StatementServiceImpl(SessionManager sessionManager, CircuitBreaker circuitBreaker,
-            ServerConfiguration serverConfiguration) {
+            ServerConfiguration serverConfiguration, org.openjproxy.grpc.server.audit.AuditLogger auditLogger) {
         this.sessionManager = sessionManager;
         this.circuitBreaker = circuitBreaker;
+        this.auditLogger = auditLogger;
         // Server configuration for creating segregation managers
         this.sqlEnhancerEngine = new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(
                 serverConfiguration.isSqlEnhancerEnabled());
