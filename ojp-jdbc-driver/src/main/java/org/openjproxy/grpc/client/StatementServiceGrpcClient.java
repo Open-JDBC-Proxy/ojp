@@ -82,10 +82,14 @@ public class StatementServiceGrpcClient implements StatementService {
 
             //Once channel is open it remains open and is shared among all requests.
             String target = DNS_PREFIX + host + COLON + port;
+            log.info("Creating new gRPC channel for single-node connection to: {}", target);
             ManagedChannel channel = GrpcChannelFactory.createChannel(target);
 
             this.statemetServiceBlockingStub = StatementServiceGrpc.newBlockingStub(channel);
             this.statemetServiceStub = StatementServiceGrpc.newStub(channel);
+            log.info("gRPC channel established and stubs initialized for: {}. This channel will be reused by all future JDBC connections to this endpoint.", target);
+        } else {
+            log.debug("Reusing existing gRPC channel for URL: {}", url);
         }
     }
 

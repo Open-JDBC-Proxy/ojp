@@ -137,21 +137,24 @@ public class MultinodeConnectionManager {
     }
     
     private void initializeConnections() {
+        log.info("Initializing gRPC channels for {} server endpoints in multinode configuration...", serverEndpoints.size());
         for (ServerEndpoint endpoint : serverEndpoints) {
             try {
                 createChannelAndStub(endpoint);
                 endpoint.markHealthy();
-                log.debug("Successfully initialized connection to {}", endpoint.getAddress());
+                log.info("Successfully created and initialized gRPC channel to: {}", endpoint.getAddress());
             } catch (Exception e) {
                 log.warn("Failed to initialize connection to {}: {}", endpoint.getAddress(), e.getMessage());
                 endpoint.markUnhealthy();
                 endpoint.setLastFailureTime(System.currentTimeMillis());
             }
         }
+        log.info("gRPC channel initialization complete. All {} channels will be reused by future JDBC connections.", channelMap.size());
     }
     
     private ChannelAndStub createChannelAndStub(ServerEndpoint endpoint) {
         String target = DNS_PREFIX + endpoint.getHost() + ":" + endpoint.getPort();
+        log.debug("Creating new gRPC channel for multinode endpoint: {}", target);
         ManagedChannel channel = GrpcChannelFactory.createChannel(target);
         
         StatementServiceGrpc.StatementServiceBlockingStub blockingStub = 

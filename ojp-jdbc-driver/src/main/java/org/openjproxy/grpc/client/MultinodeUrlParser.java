@@ -69,8 +69,11 @@ public class MultinodeUrlParser {
 
             // Create a cache key based on all endpoints to ensure same config reuses same service
             String cacheKey = "multinode:" + MultinodeUrlParser.formatServerList(endpoints);
+            
+            boolean[] isNewService = {false};
             StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
-                log.debug("Creating MultinodeStatementService for endpoints: {}",
+                isNewService[0] = true;
+                log.info("Creating new MultinodeStatementService for endpoints: {} (gRPC channels will be initialized)",
                         MultinodeUrlParser.formatServerList(endpoints));
                 MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(endpoints);
 
@@ -84,6 +87,11 @@ public class MultinodeUrlParser {
 
                 return new MultinodeStatementService(connectionManager, url);
             });
+            
+            if (!isNewService[0]) {
+                log.info("Reusing cached MultinodeStatementService for endpoints: {} (gRPC channels already established)", 
+                        MultinodeUrlParser.formatServerList(endpoints));
+            }
 
             // For multinode, we need to pass a URL that can be parsed by the server
             // Use the original URL with the first endpoint for connection metadata
@@ -98,10 +106,19 @@ public class MultinodeUrlParser {
         } else {
             // Single-node configuration - use traditional client
             String cacheKey = "single:" + endpoints.get(0).getAddress();
+            
+            boolean[] isNewService = {false};
             StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
-                log.debug("Creating StatementServiceGrpcClient for single-node");
+                isNewService[0] = true;
+                log.info("Creating new StatementServiceGrpcClient for single-node endpoint: {} (gRPC channel will be created on first connect())",
+                        endpoints.get(0).getAddress());
                 return new StatementServiceGrpcClient();
             });
+            
+            if (!isNewService[0]) {
+                log.info("Reusing cached StatementServiceGrpcClient for single-node endpoint: {} (gRPC channel already established)",
+                        endpoints.get(0).getAddress());
+            }
 
             return new ServiceAndUrl(service, url, null, endpoints);
         }
