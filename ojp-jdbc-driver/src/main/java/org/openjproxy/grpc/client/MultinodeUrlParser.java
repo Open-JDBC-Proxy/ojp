@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -70,9 +71,9 @@ public class MultinodeUrlParser {
             // Create a cache key based on all endpoints to ensure same config reuses same service
             String cacheKey = "multinode:" + MultinodeUrlParser.formatServerList(endpoints);
             
-            boolean[] isNewService = {false};
+            AtomicBoolean isNewService = new AtomicBoolean(false);
             StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
-                isNewService[0] = true;
+                isNewService.set(true);
                 log.info("Creating new MultinodeStatementService for endpoints: {} (gRPC channels will be initialized)",
                         MultinodeUrlParser.formatServerList(endpoints));
                 MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(endpoints);
@@ -88,7 +89,7 @@ public class MultinodeUrlParser {
                 return new MultinodeStatementService(connectionManager, url);
             });
             
-            if (!isNewService[0]) {
+            if (!isNewService.get()) {
                 log.info("Reusing cached MultinodeStatementService for endpoints: {} (gRPC channels already established)", 
                         MultinodeUrlParser.formatServerList(endpoints));
             }
@@ -107,15 +108,15 @@ public class MultinodeUrlParser {
             // Single-node configuration - use traditional client
             String cacheKey = "single:" + endpoints.get(0).getAddress();
             
-            boolean[] isNewService = {false};
+            AtomicBoolean isNewService = new AtomicBoolean(false);
             StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
-                isNewService[0] = true;
+                isNewService.set(true);
                 log.info("Creating new StatementServiceGrpcClient for single-node endpoint: {} (gRPC channel will be created on first connect())",
                         endpoints.get(0).getAddress());
                 return new StatementServiceGrpcClient();
             });
             
-            if (!isNewService[0]) {
+            if (!isNewService.get()) {
                 log.info("Reusing cached StatementServiceGrpcClient for single-node endpoint: {} (gRPC channel already established)",
                         endpoints.get(0).getAddress());
             }

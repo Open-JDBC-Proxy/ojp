@@ -87,9 +87,9 @@ public class StatementServiceGrpcClient implements StatementService {
 
             this.statemetServiceBlockingStub = StatementServiceGrpc.newBlockingStub(channel);
             this.statemetServiceStub = StatementServiceGrpc.newStub(channel);
-            log.info("gRPC channel established and stubs initialized for: {}. This channel will be reused by all future JDBC connections to this endpoint.", target);
+            log.info("gRPC channel established and stubs initialized for: {}. Future JDBC connections to this endpoint will reuse this channel.", target);
         } else {
-            log.debug("Reusing existing gRPC channel for URL: {}", url);
+            log.debug("Reusing existing gRPC channel (target: {})", url.replaceAll(".*ojp\\[([^\\]]+)\\].*", "$1"));
         }
     }
 

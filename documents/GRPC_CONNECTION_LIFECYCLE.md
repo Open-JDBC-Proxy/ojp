@@ -61,7 +61,7 @@ This document explains exactly when gRPC connections are established between the
 
 3. **First `connect()` Call:**
    - Triggers `grpcChannelOpenAndStubsInitialized(url)`
-   - Checks: `if (statemetServiceStub == null && statemetServiceBlockingStub == null)`
+   - Checks: `if (statementServiceStub == null && statementServiceBlockingStub == null)`
    - Creates gRPC channel: `ManagedChannel channel = GrpcChannelFactory.createChannel(target)`
    - Creates stubs: 
      - `StatementServiceGrpc.newBlockingStub(channel)`
@@ -246,16 +246,35 @@ When using connection pools (HikariCP, DBCP2, etc.):
 
 The driver logs channel creation at INFO level:
 
-**Single-node:**
+**Single-node (creating new):**
 ```
-Creating StatementServiceGrpcClient for single-node
+Creating new StatementServiceGrpcClient for single-node endpoint: localhost:1059 (gRPC channel will be created on first connect())
+Creating new gRPC channel for single-node connection to: dns:///localhost:1059
+gRPC channel established and stubs initialized for: dns:///localhost:1059. Future JDBC connections to this endpoint will reuse this channel.
 ```
 
-**Multinode:**
+**Single-node (reusing existing):**
+```
+Reusing cached StatementServiceGrpcClient for single-node endpoint: localhost:1059 (gRPC channel already established)
+Reusing existing gRPC channel for URL: jdbc:ojp[localhost:1059]_postgresql://...
+```
+
+**Multinode (creating new):**
 ```
 Multinode URL detected with 3 endpoints: server1:1059,server2:1059,server3:1059
-Creating MultinodeStatementService for endpoints: server1:1059,server2:1059,server3:1059
+Creating new MultinodeStatementService for endpoints: server1:1059,server2:1059,server3:1059 (gRPC channels will be initialized)
+Initializing gRPC channels for 3 server endpoints in multinode configuration...
+Successfully created and initialized gRPC channel to: server1:1059
+Successfully created and initialized gRPC channel to: server2:1059
+Successfully created and initialized gRPC channel to: server3:1059
+gRPC channel initialization complete. All 3 channels will be reused by future JDBC connections.
 MultinodeConnectionManager initialized with 3 servers
+```
+
+**Multinode (reusing existing):**
+```
+Multinode URL detected with 3 endpoints: server1:1059,server2:1059,server3:1059
+Reusing cached MultinodeStatementService for endpoints: server1:1059,server2:1059,server3:1059 (gRPC channels already established)
 ```
 
 ### Verification
