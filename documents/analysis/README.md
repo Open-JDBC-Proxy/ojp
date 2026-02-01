@@ -2,7 +2,38 @@
 
 This directory contains technical analysis documents for various OJP features and decisions.
 
-## Latest Analysis (January 2026)
+## Latest Analysis (February 2026)
+
+### 🆕 Request Lifecycle Interceptor Pattern
+
+**Question:** How can OJP standardize integration patterns for libraries like Circuit Breaker, Slow Query Segregation, and Apache Calcite, while enabling third-party extensibility?
+
+**Quick Answer:** YES - Adopt Request Lifecycle Interceptor Pattern using Chain of Responsibility and ServiceLoader.
+
+**Documents:**
+- **Executive Summary**: [REQUEST_LIFECYCLE_INTERCEPTOR_SUMMARY.md](./REQUEST_LIFECYCLE_INTERCEPTOR_SUMMARY.md) - 10 min read
+  - Quick overview of the pattern
+  - Key benefits and use cases
+  - Example implementations
+  
+- **Full Design**: [../designs/REQUEST_LIFECYCLE_INTERCEPTOR_PATTERN.md](../designs/REQUEST_LIFECYCLE_INTERCEPTOR_PATTERN.md) - 60 min read
+  - Complete technical specification
+  - Eight lifecycle phases defined
+  - Interface designs with full Javadoc
+  - Migration strategy (5 phases)
+  - Performance analysis and benchmarks
+  
+- **Architectural Decision**: [../ADRs/adr-008-request-lifecycle-interceptor-pattern.md](../ADRs/adr-008-request-lifecycle-interceptor-pattern.md) - 20 min read
+  - Decision rationale
+  - Alternatives considered (Event-Driven, AOP, Decorator, OSGi)
+  - Trade-offs and consequences
+  - Implementation plan (12-week timeline)
+
+**Key Takeaway:** Inspired by Servlet Filters, this pattern enables powerful extensibility through a standardized Chain of Responsibility approach. External providers can create interceptors that hook into request lifecycle phases (PRE_REQUEST, PRE_EXECUTION, RESOURCE_ACQUISITION, EXECUTION, POST_EXECUTION, RESOURCE_RELEASE, POST_REQUEST, EXCEPTION_HANDLING) without modifying OJP core code. Interceptors are discovered via ServiceLoader and can be deployed by dropping JARs in `ojp-libs/` directory.
+
+---
+
+## Previous Analysis (January 2026)
 
 ### 🆕 Agroal Connection Pool Evaluation
 
@@ -53,6 +84,21 @@ This directory contains technical analysis documents for various OJP features an
 
 - [DRIVER_EXTERNALIZATION_IMPLEMENTATION_SUMMARY.md](./DRIVER_EXTERNALIZATION_IMPLEMENTATION_SUMMARY.md) - Driver externalization implementation
 
+### Session Affinity
+
+- [SESSION_AFFINITY_ANALYSIS.md](./SESSION_AFFINITY_ANALYSIS.md) - Detailed session affinity analysis
+
+### SQL Enhancement
+
+- [CALCITE_QUERY_COMPLEXITY_FOR_SLOW_QUERY_SEGREGATION_ANALYSIS.md](./CALCITE_QUERY_COMPLEXITY_FOR_SLOW_QUERY_SEGREGATION_ANALYSIS.md) - Calcite query complexity analysis
+- [sql_enhancer/](./sql_enhancer/) - SQL enhancer design documents
+
+### Extensibility & Integration Patterns
+
+- [REQUEST_LIFECYCLE_INTERCEPTOR_SUMMARY.md](./REQUEST_LIFECYCLE_INTERCEPTOR_SUMMARY.md) - Request lifecycle interceptor pattern summary
+- [../designs/REQUEST_LIFECYCLE_INTERCEPTOR_PATTERN.md](../designs/REQUEST_LIFECYCLE_INTERCEPTOR_PATTERN.md) - Full interceptor pattern design
+- [../ADRs/adr-008-request-lifecycle-interceptor-pattern.md](../ADRs/adr-008-request-lifecycle-interceptor-pattern.md) - ADR for interceptor pattern
+
 ---
 
 ## How to Use These Documents
@@ -94,5 +140,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-01-08  
+**Last Updated:** 2026-02-01  
 **Maintained By:** OJP Core Team
