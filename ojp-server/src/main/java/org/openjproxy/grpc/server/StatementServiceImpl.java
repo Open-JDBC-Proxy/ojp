@@ -121,11 +121,15 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     // ActionContext for refactored actions
     private final org.openjproxy.grpc.server.action.ActionContext actionContext;
+    
+    // Audit logger for logging security events
+    private final org.openjproxy.grpc.server.audit.AuditLogger auditLogger;
 
     public StatementServiceImpl(SessionManager sessionManager, CircuitBreaker circuitBreaker,
-            ServerConfiguration serverConfiguration) {
+            ServerConfiguration serverConfiguration, org.openjproxy.grpc.server.audit.AuditLogger auditLogger) {
         this.sessionManager = sessionManager;
         this.circuitBreaker = circuitBreaker;
+        this.auditLogger = auditLogger;
         // Server configuration for creating segregation managers
         this.sqlEnhancerEngine = new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(
                 serverConfiguration.isSqlEnhancerEnabled());
@@ -378,6 +382,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         Statement stmt = null;
         String psUUID = "";
         OpResult.Builder opResultBuilder = OpResult.newBuilder();
+        long startTime = System.currentTimeMillis();
 
         try {
             // Check if SQL requires session affinity (temporary tables, session variables, etc.)
@@ -441,6 +446,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                         .setSession(returnSessionInfo)
                         .setUuidValue(psUUID).build();
             } else {
+                // Audit log query execution
+                long executionTime = System.currentTimeMillis() - startTime;
+                auditLogQuery(returnSessionInfo, request.getSql(), executionTime, updated, 
+                    ProtoConverter.fromProtoList(request.getParametersList()));
+                
                 return opResultBuilder
                         .setType(ResultType.INTEGER)
                         .setSession(returnSessionInfo)
@@ -513,6 +523,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
      */
     private void executeQueryInternal(StatementRequest request, StreamObserver<OpResult> responseObserver)
             throws SQLException {
+        long startTime = System.currentTimeMillis();
+        
         // Check if SQL requires session affinity (temporary tables, session variables, etc.)
         // Note: All queries already create sessions (for result set handling), but this
         // ensures session affinity is properly enforced even for queries that don't return results
@@ -543,11 +555,21 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         if (CollectionUtils.isNotEmpty(params)) {
             PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
             String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
+            
+            // Audit log query execution
+            long executionTime = System.currentTimeMillis() - startTime;
+            auditLogQuery(dto.getSession(), sql, executionTime, -1, params); // -1 for unknown row count
+            
             this.handleResultSet(dto.getSession(), resultSetUUID, responseObserver);
         } else {
             Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
             String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(),
                     stmt.executeQuery(sql));
+            
+            // Audit log query execution
+            long executionTime = System.currentTimeMillis() - startTime;
+            auditLogQuery(dto.getSession(), sql, executionTime, -1, null); // -1 for unknown row count
+            
             this.handleResultSet(dto.getSession(), resultSetUUID, responseObserver);
         }
     }
@@ -1006,5 +1028,61 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             StreamObserver<com.openjproxy.grpc.XaIsSameRMResponse> responseObserver) {
         org.openjproxy.grpc.server.action.transaction.XaIsSameRMAction.getInstance()
                 .execute(actionContext, request, responseObserver);
+    }
+    
+    /**
+     * Helper method to audit log query execution.
+     * 
+     * @param sessionInfo Session information
+     * @param sql SQL statement executed
+     * @param executionTimeMs Execution time in milliseconds
+     * @param rowCount Number of rows affected/returned
+     * @param params Query parameters (optional, can be null)
+     */
+    private void auditLogQuery(SessionInfo sessionInfo, String sql, long executionTimeMs, int rowCount, List<Parameter> params) {
+        if (auditLogger == null || !auditLogger.getConfiguration().isLogQueries()) {
+            return;
+        }
+        
+        try {
+            java.util.Map<String, Object> metadata = new java.util.HashMap<>();
+            metadata.put("sql", sanitizeSql(sql));
+            metadata.put("executionTimeMs", executionTimeMs);
+            metadata.put("rowCount", rowCount);
+            
+            // Optionally include parameter count (but not values for security)
+            if (params != null && !params.isEmpty()) {
+                metadata.put("paramCount", params.size());
+            }
+            
+            org.openjproxy.grpc.server.audit.AuditEvent event = 
+                new org.openjproxy.grpc.server.audit.AuditEvent.Builder()
+                    .eventType(org.openjproxy.grpc.server.audit.AuditEvent.EventType.QUERY)
+                    .level(org.openjproxy.grpc.server.audit.AuditEvent.Level.INFO)
+                    .sessionId(sessionInfo != null ? sessionInfo.getSessionUUID() : null)
+                    .clientIp("unknown") // TODO: Extract from gRPC context
+                    .user("unknown") // TODO: Extract from session or context
+                    .message("Query executed")
+                    .metadata(metadata)
+                    .build();
+            auditLogger.log(event);
+        } catch (Exception e) {
+            log.warn("Failed to audit log query execution", e);
+        }
+    }
+    
+    /**
+     * Sanitizes SQL for logging by limiting length.
+     */
+    private String sanitizeSql(String sql) {
+        if (sql == null) {
+            return "";
+        }
+        // Limit SQL length to avoid huge log entries
+        int maxLength = 500;
+        if (sql.length() > maxLength) {
+            return sql.substring(0, maxLength) + "... (truncated)";
+        }
+        return sql;
     }
 }

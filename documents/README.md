@@ -43,6 +43,15 @@ Located in [multinode/](multinode/):
 Located in [configuration/](configuration/):
 - [OJP JDBC Configuration](configuration/ojp-jdbc-configuration.md) - JDBC driver configuration
 - [OJP Server Configuration](configuration/ojp-server-configuration.md) - Server configuration
+- [Session Cleanup](configuration/SESSION_CLEANUP.md) - Automatic session cleanup configuration
+- [mTLS Configuration Guide](configuration/mtls-configuration-guide.md) - Mutual TLS setup
+
+## Features
+
+Located in [features/](features/):
+- [Audit Logging Guide](features/AUDIT_LOGGING_GUIDE.md) - **NEW** Comprehensive audit logging for security and compliance
+- [SQL Enhancer Configuration](features/SQL_ENHANCER_CONFIGURATION_EXAMPLES.md) - SQL enhancement and optimization examples
+- [SQL Enhancer Quick Start](features/SQL_ENHANCER_ENGINE_QUICKSTART.md) - Quick start guide for SQL enhancement
 
 ### Connection Pool
 

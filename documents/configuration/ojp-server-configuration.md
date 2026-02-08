@@ -62,6 +62,53 @@ java -Dojp.server.logLevel=INFO \
 | `ojp.server.allowedIps`       | `OJP_SERVER_ALLOWEDIPS`       | string  | 0.0.0.0/0 | IP whitelist for gRPC server (comma-separated)          | 0.2.0-beta |
 | `ojp.prometheus.allowedIps`   | `OJP_PROMETHEUS_ALLOWEDIPS`   | string  | 0.0.0.0/0 | IP whitelist for Prometheus endpoint (comma-separated)  | 0.2.0-beta |
 
+### Audit Logging Settings
+
+OJP Server provides comprehensive audit logging for security monitoring and compliance. Audit logs are written to a separate file with structured format including JSON metadata.
+
+| Property                          | Environment Variable              | Type    | Default              | Description                                           |
+|-----------------------------------|-----------------------------------|---------|----------------------|-------------------------------------------------------|
+| `ojp.server.audit.enabled`        | `OJP_SERVER_AUDIT_ENABLED`        | boolean | false                | Enable/disable audit logging globally (opt-in)       |
+| `ojp.server.audit.log.path`       | `OJP_SERVER_AUDIT_LOG_PATH`       | string  | logs/ojp-audit.log   | Path to audit log file (absolute or relative)        |
+| `ojp.server.audit.log.connections`| `OJP_SERVER_AUDIT_LOG_CONNECTIONS`| boolean | true                 | Log connection events (establish, close, errors)     |
+| `ojp.server.audit.log.queries`    | `OJP_SERVER_AUDIT_LOG_QUERIES`    | boolean | false                | Log query execution (⚠️ High performance impact!)     |
+| `ojp.server.audit.log.auth`       | `OJP_SERVER_AUDIT_LOG_AUTH`       | boolean | true                 | Log authentication events (success, failures)        |
+
+#### Audit Logging Examples
+
+**Enable audit logging with default settings:**
+```bash
+java -jar ojp-server.jar -Dojp.server.audit.enabled=true
+```
+
+**Production configuration (connections and auth only):**
+```bash
+java -jar ojp-server.jar \
+  -Dojp.server.audit.enabled=true \
+  -Dojp.server.audit.log.path=/var/log/ojp/audit.log \
+  -Dojp.server.audit.log.connections=true \
+  -Dojp.server.audit.log.queries=false \
+  -Dojp.server.audit.log.auth=true
+```
+
+**Development configuration (all events):**
+```bash
+java -jar ojp-server.jar \
+  -Dojp.server.audit.enabled=true \
+  -Dojp.server.audit.log.queries=true
+```
+
+**⚠️ Performance Warning**: Query logging has significant performance impact. Only enable for debugging or non-production environments.
+
+**Example audit log output:**
+```
+[2026-01-24T21:25:22.587Z] [INFO] [CONNECTION] [sess-12345] [192.168.1.100] [app-user-1] - Connection established - {"database":"postgresql","port":5432}
+[2026-01-24T21:25:24.567Z] [INFO] [QUERY] [sess-12345] [192.168.1.100] [app-user-1] - Query executed - {"sql":"SELECT * FROM users WHERE id = ?","executionTimeMs":45,"rowCount":1}
+[2026-01-24T21:25:30.890Z] [WARN] [AUTH] [sess-67890] [10.0.0.50] [unknown] - Authentication failed - {"reason":"ip_not_whitelisted"}
+```
+
+For detailed audit logging configuration and compliance mapping, see [Audit Logging Guide](../features/AUDIT_LOGGING_GUIDE.md).
+
 #### SSL/TLS Certificate Path Placeholders
 
 OJP Server supports property placeholders in JDBC URLs to enable server-side SSL/TLS certificate configuration. This allows certificate paths to be configured on the server rather than hardcoded in client connection URLs.

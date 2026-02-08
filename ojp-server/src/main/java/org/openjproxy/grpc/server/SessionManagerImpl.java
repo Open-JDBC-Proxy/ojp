@@ -23,6 +23,15 @@ public class SessionManagerImpl implements SessionManager {
 
     private Map<String, String> connectionHashMap = new ConcurrentHashMap<>();
     private Map<String, Session> sessionMap = new ConcurrentHashMap<>();
+    private org.openjproxy.grpc.server.audit.AuditLogger auditLogger;
+    
+    public SessionManagerImpl() {
+        // Default constructor for backward compatibility
+    }
+    
+    public void setAuditLogger(org.openjproxy.grpc.server.audit.AuditLogger auditLogger) {
+        this.auditLogger = auditLogger;
+    }
 
     @Override
     public void registerClientUUID(String connectionHash, String clientUUID) {
@@ -36,6 +45,30 @@ public class SessionManagerImpl implements SessionManager {
         Session session = new Session(connection, connectionHashMap.get(clientUUID), clientUUID);
         log.info("Session " + session.getSessionUUID() + " created for client uuid " + clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
+        
+        // Audit log connection establishment
+        if (auditLogger != null && auditLogger.getConfiguration().isLogConnections()) {
+            try {
+                java.util.Map<String, Object> metadata = new java.util.HashMap<>();
+                metadata.put("database", connection.getMetaData().getDatabaseProductName());
+                metadata.put("connectionHash", connectionHashMap.get(clientUUID));
+                
+                org.openjproxy.grpc.server.audit.AuditEvent event = 
+                    new org.openjproxy.grpc.server.audit.AuditEvent.Builder()
+                        .eventType(org.openjproxy.grpc.server.audit.AuditEvent.EventType.CONNECTION)
+                        .level(org.openjproxy.grpc.server.audit.AuditEvent.Level.INFO)
+                        .sessionId(session.getSessionUUID())
+                        .clientIp("unknown") // TODO: Extract from gRPC context
+                        .user(clientUUID)
+                        .message("Connection established")
+                        .metadata(metadata)
+                        .build();
+                auditLogger.log(event);
+            } catch (Exception e) {
+                log.warn("Failed to audit log connection establishment", e);
+            }
+        }
+        
         return session.getSessionInfo();
     }
 
@@ -166,6 +199,31 @@ public class SessionManagerImpl implements SessionManager {
                 targetSession.getConnection().rollback();
             }
         }
+        
+        // Audit log connection closure before terminating
+        if (auditLogger != null && auditLogger.getConfiguration().isLogConnections()) {
+            try {
+                java.util.Map<String, Object> metadata = new java.util.HashMap<>();
+                long durationSeconds = (System.currentTimeMillis() - targetSession.getCreationTime()) / 1000;
+                metadata.put("durationSeconds", durationSeconds);
+                // Note: query count would need to be tracked in Session object
+                
+                org.openjproxy.grpc.server.audit.AuditEvent event = 
+                    new org.openjproxy.grpc.server.audit.AuditEvent.Builder()
+                        .eventType(org.openjproxy.grpc.server.audit.AuditEvent.EventType.CONNECTION)
+                        .level(org.openjproxy.grpc.server.audit.AuditEvent.Level.INFO)
+                        .sessionId(sessionInfo.getSessionUUID())
+                        .clientIp("unknown") // TODO: Extract from gRPC context
+                        .user(targetSession.getClientUUID())
+                        .message("Connection closed")
+                        .metadata(metadata)
+                        .build();
+                auditLogger.log(event);
+            } catch (Exception e) {
+                log.warn("Failed to audit log connection closure", e);
+            }
+        }
+        
         targetSession.terminate();
     }
 

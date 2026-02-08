@@ -8,6 +8,7 @@
     - ojp.server.log.maxHistory: Number of days to keep logs (default: 30)
     - ojp.server.log.totalSizeCap: Total size cap for all logs (default: 1GB)
     - ojp.server.log.pattern: Log message pattern (default: %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n)
+    - ojp.server.audit.log.path: Audit log file location (default: logs/ojp-audit.log)
     -->
     
     <!-- Console appender for logging to stdout -->
@@ -33,6 +34,30 @@
         </encoder>
     </appender>
 
+    <!-- Audit log appender - separate file for audit events -->
+    <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${ojp.server.audit.log.path:-logs/ojp-audit.log}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- Daily rollover -->
+            <fileNamePattern>${ojp.server.audit.log.path:-logs/ojp-audit}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <!-- Keep 90 days of audit history -->
+            <maxHistory>90</maxHistory>
+            <!-- Cap total size at 5GB for audit logs -->
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <!-- Audit logs use their own formatting, so just output the message -->
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+    
+    <!-- Async appender for audit logs to minimize performance impact -->
+    <appender name="ASYNC_AUDIT" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>10000</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <appender-ref ref="AUDIT_FILE" />
+    </appender>
+
     <!-- Root logger configuration - level is configurable via ojp.server.logLevel -->
     <root level="${ojp.server.logLevel:-INFO}">
         <appender-ref ref="CONSOLE" />
@@ -51,4 +76,9 @@
     
     <!-- OJP specific logging - can be adjusted as needed -->
     <logger name="org.openjproxy" level="INFO"/>
+    
+    <!-- Audit logger - writes to separate audit file -->
+    <logger name="AUDIT" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC_AUDIT" />
+    </logger>
 </configuration>
