@@ -83,11 +83,12 @@ sequenceDiagram
     participant Primary as Primary<br/>Pool
 
     App->>Driver: setAutoCommit(false)
-    Driver->>Server: Begin transaction
-    Note over Server: session.beginTransaction()
+    Driver->>Server: setAutoCommit(false)
+    Note over Server: Auto-commit disabled<br/>Transaction will start<br/>on first SQL execution
 
     App->>Driver: executeQuery("SELECT * FROM accounts WHERE id=1")
     Driver->>Server: gRPC StatementRequest
+    Note over Server: First SQL after setAutoCommit(false)<br/>→ session.beginTransaction()
     Server->>Router: selectDataSource(session, "SELECT...", primary, replicas)
     
     Note over Router: 1. Check transaction<br/>→ IN TRANSACTION!<br/>Always primary
@@ -123,7 +124,7 @@ sequenceDiagram
     Router-->>Server: replica
 ```
 
-## Scenario 4: Replica Failover to Primary
+## Scenario 4: Replica Failover with Multiple Replicas
 
 ```mermaid
 sequenceDiagram
@@ -131,7 +132,8 @@ sequenceDiagram
     participant Driver as OJP Driver
     participant Server as OJP Server<br/>StatementSvc
     participant Router as ReadWrite<br/>Router
-    participant Replica as Replica<br/>Pool
+    participant Replica1 as Replica 1<br/>Pool
+    participant Replica2 as Replica 2<br/>Pool
     participant Primary as Primary<br/>Pool
 
     App->>Driver: executeQuery("SELECT * FROM users")
@@ -141,21 +143,21 @@ sequenceDiagram
     Note over Router: 1. Classify SQL<br/>→ READ
     Note over Router: 2. Select replica<br/>(round robin)
     
-    Server->>Replica: getConnection()
-    Replica-->>Server: SQLException (replica down)
+    Server->>Replica1: getConnection()
+    Replica1-->>Server: SQLException (replica 1 down)
     
-    Note over Router: 3. Catch exception<br/>Log warning<br/>Fallback to primary
+    Note over Router: 3. Catch exception<br/>Log warning<br/>Try next replica
     
-    Server->>Primary: getConnection()
-    Primary-->>Server: connection
+    Server->>Replica2: getConnection()
+    Replica2-->>Server: connection
     
-    Note over Server,Primary: Execute on PRIMARY (failover)
-    Server->>Primary: Execute
-    Primary-->>Server: ResultSet
+    Note over Server,Replica2: Execute on REPLICA 2 (successful)
+    Server->>Replica2: Execute
+    Replica2-->>Server: ResultSet
     Server-->>Driver: gRPC Response
     Driver-->>App: ResultSet
     
-    Note over Replica,Primary: Circuit breaker opens for replica<br/>Future reads continue on primary<br/>until replica recovers
+    Note over Replica1,Primary: If all replicas fail,<br/>then fallback to primary<br/>Circuit breaker tracks failed replicas
 ```
 
 ## Scenario 5: SELECT FOR UPDATE - Detected as Write
@@ -219,12 +221,13 @@ These sequence diagrams illustrate the key behaviors of the read/write splitting
 
 1. **Read Routing**: Normal SELECT queries go to replicas using round-robin selection
 2. **Write Routing**: All writes go to primary and trigger sticky session
-3. **Transaction Handling**: All queries within a transaction use the primary datasource
-4. **Failover**: Replica failures automatically fall back to primary
+3. **Transaction Handling**: Transactions start lazily on first SQL execution after `setAutoCommit(false)`. All queries within a transaction use the primary datasource
+4. **Failover**: Replica failures trigger attempts to use other replicas before falling back to primary as last resort
 5. **Lock Detection**: SELECT FOR UPDATE and similar locking queries route to primary
 
 The routing logic ensures:
 - **Consistency**: Writes always go to primary
-- **Performance**: Reads distributed across replicas
+- **Performance**: Reads distributed across replicas with intelligent failover
 - **Safety**: Unknown queries and failures default to primary
 - **Transaction Integrity**: All transaction operations use single datasource
+- **Standard JDBC Behavior**: Transactions start lazily, not immediately on `setAutoCommit(false)`

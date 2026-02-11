@@ -235,9 +235,11 @@ stmt.executeUpdate("UPDATE users SET ...");
 ## 🎓 Key Behaviors
 
 ### Transaction Handling
-- `setAutoCommit(false)` → all queries use primary
+- `setAutoCommit(false)` → marks auto-commit disabled
+- First SQL after `setAutoCommit(false)` → starts transaction, all queries use primary
 - `BEGIN` / `START TRANSACTION` → pin to primary
 - `COMMIT` / `ROLLBACK` → release pin
+- **Important**: Transactions start **lazily** on first SQL execution (standard JDBC behavior)
 
 ### Sticky Session (Read-Your-Writes)
 - Write occurs → mark timestamp
@@ -246,7 +248,8 @@ stmt.executeUpdate("UPDATE users SET ...");
 - Configurable: `primary.ojp.readwrite.stickySessionSeconds=5`
 
 ### Failover
-- Replica unavailable → automatic fallback to primary
+- Replica unavailable → try next replica in rotation
+- All replicas unavailable → fallback to primary as last resort
 - Circuit breaker prevents repeated failures
 - Health checks via HikariCP
 

@@ -282,7 +282,8 @@ flowchart TB
    - Prepared statement caching → per datasource
 
 4. **Failover Strategy**:
-   - If replica unavailable → automatic fallback to primary
+   - If replica unavailable → try next replica in rotation
+   - If all replicas unavailable → fallback to primary as last resort
    - Circuit breaker pattern for unhealthy replicas
    - Health checks on replica pools
 
@@ -391,13 +392,13 @@ public class DefaultReadWriteRouter implements ReadWriteRouter {
         
         // 4. Route based on SQL type
         if (sqlType == SqlType.READ) {
-            // Select a replica
-            DataSource replica = replicaSelector.selectReplica(replicaDataSources);
+            // Try to get a healthy replica (attempts all replicas in rotation)
+            DataSource replica = replicaSelector.selectHealthyReplica(replicaDataSources);
             if (replica != null) {
                 return replica;
             }
-            // Fallback to primary if no replicas available
-            log.warn("No replicas available, falling back to primary");
+            // Fallback to primary only if all replicas are unavailable
+            log.warn("All replicas unavailable, falling back to primary");
         }
         
         // 5. For writes or unknown, mark sticky session and use primary
@@ -476,7 +477,12 @@ public enum ReplicaSelectionStrategy {
 }
 
 public interface ReplicaSelector {
-    DataSource selectReplica(List<DataSource> replicas);
+    /**
+     * Select a healthy replica from the available replicas.
+     * Attempts to find a working replica by trying multiple candidates.
+     * Returns null only if all replicas are unavailable.
+     */
+    DataSource selectHealthyReplica(List<DataSource> replicas);
 }
 
 public class RoundRobinReplicaSelector implements ReplicaSelector {
@@ -484,13 +490,27 @@ public class RoundRobinReplicaSelector implements ReplicaSelector {
     private final AtomicLong counter = new AtomicLong(0);
     
     @Override
-    public DataSource selectReplica(List<DataSource> replicas) {
+    public DataSource selectHealthyReplica(List<DataSource> replicas) {
         if (replicas == null || replicas.isEmpty()) {
             return null;
         }
         
-        int index = (int) (counter.getAndIncrement() % replicas.size());
-        return replicas.get(index);
+        int attempts = replicas.size(); // Try all replicas once
+        for (int i = 0; i < attempts; i++) {
+            int index = (int) (counter.getAndIncrement() % replicas.size());
+            DataSource candidate = replicas.get(index);
+            
+            // Test connection health (simplified)
+            try {
+                // Could add connection validation logic here
+                return candidate;
+            } catch (Exception e) {
+                // Try next replica
+                log.warn("Replica {} unavailable, trying next", index);
+            }
+        }
+        
+        return null; // All replicas failed
     }
 }
 ```
@@ -610,11 +630,14 @@ public class ReadWriteDataSourceRegistry {
 #### Transaction Management
 
 **Track transaction boundaries:**
-- `BEGIN` / `START TRANSACTION` → `session.beginTransaction()`
+- `BEGIN` / `START TRANSACTION` → Mark session as "will start transaction on next SQL"
+- First SQL execution after `setAutoCommit(false)` → `session.beginTransaction()`
 - `COMMIT` → `session.endTransaction()`
 - `ROLLBACK` → `session.endTransaction()`
-- `setAutoCommit(false)` → `session.beginTransaction()`
-- `setAutoCommit(true)` → `session.endTransaction()`
+- `setAutoCommit(false)` → Mark auto-commit disabled (transaction starts lazily on first SQL)
+- `setAutoCommit(true)` → `session.endTransaction()` if transaction active
+
+**Important**: Transaction start is **lazy** - `setAutoCommit(false)` does not immediately start a transaction. The transaction begins when the first SQL statement is executed after setting auto-commit to false. This matches standard JDBC and database behavior.
 
 **Implementation**: Intercept in `StatementServiceImpl` before routing.
 
