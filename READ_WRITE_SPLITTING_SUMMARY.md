@@ -80,34 +80,33 @@ OJP's existing architecture is **well-suited** for this feature:
 
 ## 🏗️ Architecture Overview
 
-```
-┌─────────────────┐
-│  JDBC Driver    │ (No changes needed)
-└────────┬────────┘
-         │ gRPC
-         ▼
-┌──────────────────────────────┐
-│    OJP Server (Enhanced)     │
-│                              │
-│  ┌────────────────────────┐ │
-│  │  ReadWriteRouter       │ │  (NEW)
-│  │  - SQL Classification  │ │
-│  │  - Datasource Selection│ │
-│  └──────────┬─────────────┘ │
-│             │                │
-│       ┌─────┴─────┐         │
-│       ▼           ▼         │
-│  ┌────────┐  ┌─────────┐   │
-│  │Primary │  │Replicas │   │
-│  │  Pool  │  │ Pool(s) │   │
-│  └───┬────┘  └────┬────┘   │
-└──────┼────────────┼─────────┘
-       │            │
-       ▼            ▼
-  ┌────────┐    ┌─────────┐
-  │Primary │    │Replica 1│
-  │   DB   │    │Replica 2│
-  └────────┘    └─────────┘
+```mermaid
+flowchart TB
+    subgraph Client["Client Side"]
+        Driver[JDBC Driver<br/>No changes needed]
+    end
+    
+    Driver -->|gRPC| Server
+    
+    subgraph Server["OJP Server (Enhanced)"]
+        Router[ReadWriteRouter<br/>NEW<br/>- SQL Classification<br/>- Datasource Selection]
+        PrimaryPool[(Primary<br/>Pool)]
+        ReplicaPool[(Replicas<br/>Pool)]
+        
+        Router --> PrimaryPool
+        Router --> ReplicaPool
+    end
+    
+    PrimaryPool --> PrimaryDB[(Primary<br/>DB)]
+    ReplicaPool --> Replica1[(Replica 1)]
+    ReplicaPool --> Replica2[(Replica 2)]
+    
+    style Driver fill:#e1f5ff
+    style Server fill:#fff4e1
+    style Router fill:#ffe1f5
+    style PrimaryDB fill:#ff9999
+    style Replica1 fill:#99ccff
+    style Replica2 fill:#99ccff
 ```
 
 ## 📊 Implementation Breakdown

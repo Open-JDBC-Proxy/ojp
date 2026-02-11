@@ -233,42 +233,35 @@ conn.setReadOnly(true); // Routes to replica
 
 ### Architecture Overview
 
-```
-┌─────────────────┐
-│  JDBC Driver    │
-│  (Client Side)  │
-└────────┬────────┘
-         │ gRPC
-         ▼
-┌─────────────────────────────────────┐
-│       OJP Server                     │
-│                                      │
-│  ┌─────────────────────────────┐   │
-│  │  StatementServiceImpl        │   │
-│  │  - executeStatement()        │   │
-│  └──────────┬───────────────────┘   │
-│             │                        │
-│             ▼                        │
-│  ┌─────────────────────────────┐   │
-│  │  Read/Write Router           │   │
-│  │  - SQL Classification        │   │
-│  │  - Transaction Tracking      │   │
-│  │  - DataSource Selection      │   │
-│  └──────────┬───────────────────┘   │
-│             │                        │
-│       ┌─────┴─────┐                 │
-│       ▼           ▼                 │
-│  ┌────────┐  ┌──────────┐          │
-│  │Primary │  │ Replicas │          │
-│  │  Pool  │  │  Pool(s) │          │
-│  └───┬────┘  └────┬─────┘          │
-└──────┼────────────┼─────────────────┘
-       │            │
-       ▼            ▼
-  ┌────────┐    ┌─────────┐
-  │Primary │    │Replica 1│
-  │   DB   │    │Replica 2│
-  └────────┘    └─────────┘
+```mermaid
+flowchart TB
+    subgraph Client["Client Side"]
+        Driver[JDBC Driver]
+    end
+    
+    Driver -->|gRPC| Server
+    
+    subgraph Server["OJP Server"]
+        StatementSvc[StatementServiceImpl<br/>executeStatement]
+        Router[Read/Write Router<br/>- SQL Classification<br/>- Transaction Tracking<br/>- DataSource Selection]
+        PrimaryPool[(Primary<br/>Pool)]
+        ReplicaPool[(Replicas<br/>Pool)]
+        
+        StatementSvc --> Router
+        Router --> PrimaryPool
+        Router --> ReplicaPool
+    end
+    
+    PrimaryPool --> PrimaryDB[(Primary<br/>DB)]
+    ReplicaPool --> Replica1[(Replica 1)]
+    ReplicaPool --> Replica2[(Replica 2)]
+    
+    style Driver fill:#e1f5ff
+    style Server fill:#fff4e1
+    style Router fill:#ffe1f5
+    style PrimaryDB fill:#ff9999
+    style Replica1 fill:#99ccff
+    style Replica2 fill:#99ccff
 ```
 
 ### Key Design Decisions
