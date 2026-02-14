@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -18,21 +17,21 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
-
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.*;
 
-public class H2MultipleTypesIntegrationTest {
+class H2MultipleTypesIntegrationTest {
 
     private static boolean isH2TestEnabled;
 
     @BeforeAll
-    public static void setupClass() {
+    static void setupClass() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException {
         Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -50,7 +49,7 @@ public class H2MultipleTypesIntegrationTest {
         psInsert.setInt(1, 1);
         psInsert.setString(2, "TITLE_1");
         psInsert.setDouble(3, 2.2222d);
-        psInsert.setLong(4, 33333333333333l);
+        psInsert.setLong(4, 33333333333333L);
         psInsert.setInt(5, 127);
         psInsert.setInt(6, 32767);
         psInsert.setBoolean(7, true);
@@ -70,40 +69,40 @@ public class H2MultipleTypesIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(127, resultSet.getInt(5));
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(true, resultSet.getBoolean(7));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
-        Assert.assertEquals((byte) 1, resultSet.getByte(10));
-        Assert.assertEquals("AAAA", new String(resultSet.getBytes(11)));
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", ""+resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(127, resultSet.getInt(5));
+        assertEquals(32767, resultSet.getInt(6));
+        assertTrue(resultSet.getBoolean(7));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
+        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals((byte) 1, resultSet.getByte(10));
+        assertEquals("AAAA", new String(resultSet.getBytes(11)));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
 
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
-        Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
-        Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
-        Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        Assert.assertEquals(true, resultSet.getBoolean("val_boolean"));
-        Assert.assertEquals((byte) 1, resultSet.getByte("val_byte"));
-        Assert.assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("TITLE_1", resultSet.getString("val_varchar"));
+        assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
+        assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
+        assertEquals(127, resultSet.getInt("val_tinyint"));
+        assertEquals(32767, resultSet.getInt("val_smallint"));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
+        assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
+        assertTrue(resultSet.getBoolean("val_boolean"));
+        assertEquals((byte) 1, resultSet.getByte("val_byte"));
+        assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
 
         executeUpdate(conn, "delete from h2_multi_types_test where val_int=1");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();

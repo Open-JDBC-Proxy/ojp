@@ -33,7 +33,7 @@ public class OracleResultSetTest {
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
@@ -78,7 +78,7 @@ public class OracleResultSetTest {
     }
 
     @AfterEach
-    public void tearDown() throws SQLException {
+    void tearDown() throws SQLException {
         // Clean up resources
         if (resultSet != null) resultSet.close();
         if (statement != null) statement.close();
@@ -87,7 +87,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleNavigationMethods(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleNavigationMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         assertTrue(resultSet.next()); // Row 1
         assertTrue(resultSet.next()); // Row 2
@@ -102,7 +102,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleDataRetrievalMethods(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleDataRetrievalMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.next();
         assertEquals(1, resultSet.getInt("id"));
@@ -116,7 +116,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleGetMethodsByColumnIndex(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleGetMethodsByColumnIndex(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.next();
         assertEquals(1, resultSet.getInt(1)); // id
@@ -129,7 +129,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         statement.execute("INSERT INTO oracle_resultset_test_table (id, name, age, salary, active, created_at) " +
                 "VALUES (5, NULL, NULL, NULL, NULL, NULL)");
@@ -143,7 +143,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleCursorPositionMethods(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleCursorPositionMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         assertTrue(resultSet.first());
         assertFalse(resultSet.isBeforeFirst());
@@ -157,7 +157,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         SQLWarning warning = resultSet.getWarnings();
         // Oracle may or may not have warnings, just check it doesn't throw
@@ -166,7 +166,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleAdvancedNavigation(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleAdvancedNavigation(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.absolute(2); // Move to the second row
         assertEquals("Bob", resultSet.getString("name"));
@@ -180,7 +180,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleSpecificDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleSpecificDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         // Create table with Oracle-specific data types
@@ -221,7 +221,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleResultSetMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleResultSetMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         java.sql.ResultSetMetaData metadata = resultSet.getMetaData();
@@ -246,7 +246,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleRowCounting(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleRowCounting(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         // Count rows by iterating

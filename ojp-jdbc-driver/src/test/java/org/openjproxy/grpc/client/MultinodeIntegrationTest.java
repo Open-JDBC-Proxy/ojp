@@ -4,7 +4,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.codehaus.plexus.util.ExceptionUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -23,21 +22,38 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @Slf4j
 public class MultinodeIntegrationTest {
     private static final int THREADS = 30; // Number of worker threads
     private static final int RAMPUP_MS = 120 * 1000; // 120 seconds Ramp-up window in milliseconds
+    
+    // Retry configuration for connection-level failures
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 100; // Initial delay between retries
+    
+    // Test failure thresholds
+    // Total failures can be higher due to session invalidation when servers restart
+    // Session invalidation is a consequence of server failure and is expected during testing
+    // With 30 threads (6x more than XA test's 5 threads), allowing proportionally more failures
+    private static final int MAX_TOTAL_FAILURES = 30;
+    // Non-connectivity failures should be zero - all failures should be connectivity-related
+    // (including session invalidation, which is caused by server unavailability)
+    private static final int MAX_NON_CONNECTIVITY_FAILURES = 0;
 
     protected static boolean isTestDisabled;
     private static Queue<Long> queryDurations = new ConcurrentLinkedQueue<>();
     private static AtomicInteger totalQueries = new AtomicInteger(0);
-    private static AtomicInteger failedQueries = new AtomicInteger(0);
+    private static AtomicInteger totalFailedQueries = new AtomicInteger(0);
+    private static final AtomicInteger nonConnectivityFailedQueries = new AtomicInteger(0);
     private static HikariDataSource ds;
+    private static MultinodeTestHelper testHelper;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         // Check both system property and environment variable
         boolean sysPropEnabled = Boolean.parseBoolean(System.getProperty("multinodeTestsEnabled", "false"));
         boolean envVarEnabled = Boolean.parseBoolean(System.getenv("MULTINODE_TESTS_ENABLED"));
@@ -48,13 +64,15 @@ public class MultinodeIntegrationTest {
     public void setUp() throws SQLException {
         queryDurations = new ConcurrentLinkedQueue<>();
         totalQueries = new AtomicInteger(0);
-        failedQueries = new AtomicInteger(0);
+        totalFailedQueries = new AtomicInteger(0);
+        nonConnectivityFailedQueries.set(0);
+        testHelper = new MultinodeTestHelper(totalFailedQueries, nonConnectivityFailedQueries);
     }
 
     @SneakyThrows
     @ParameterizedTest
     @CsvFileSource(resources = "/multinode_connection.csv")
-    public void runTests(String driverClass, String url, String user, String password) throws SQLException {
+    void runTests(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "Multinode tests are disabled");
         
         this.setUp();
@@ -150,7 +168,8 @@ public class MultinodeIntegrationTest {
 
         // 3. Reporting
         int numQueries = totalQueries.get();
-        int numFailures = failedQueries.get();
+        int numTotalFailures = totalFailedQueries.get();
+        int numNonConnectivityFailures = nonConnectivityFailedQueries.get();
         long totalTimeMs = (globalEnd - globalStart) / 1_000_000;
         double avgQueryMs = numQueries > 0
                 ? queryDurations.stream().mapToLong(Long::longValue).average().orElse(0) / 1_000_000.0
@@ -159,21 +178,57 @@ public class MultinodeIntegrationTest {
         System.out.println("Total queries executed: " + numQueries);
         System.out.println("Total test duration: " + totalTimeMs + " ms");
         System.out.printf("Average query duration: %.3f ms\n", avgQueryMs);
-        System.out.println("Total query failures: " + numFailures);
-        Assertions.assertEquals(2160, numQueries);
-        Assertions.assertTrue(numFailures < 5, "Expected fewer than 5 failures, but got: " + numFailures);
-        Assertions.assertTrue(totalTimeMs < 180000);
-        Assertions.assertTrue(avgQueryMs < 40);
+        System.out.println("Total query failures: " + numTotalFailures);
+        System.out.println("Total non-connectivity-related failures: " + numNonConnectivityFailures);
+        assertEquals(2160, numQueries);
+        assertTrue(numTotalFailures < MAX_TOTAL_FAILURES,
+            "Expected fewer than " + MAX_TOTAL_FAILURES + " total failures, but got: " + numTotalFailures);
+        assertEquals(MAX_NON_CONNECTIVITY_FAILURES, numNonConnectivityFailures,
+            "Expected " + MAX_NON_CONNECTIVITY_FAILURES + " non-connectivity failures (session invalidation is connectivity-related), but got: " + numNonConnectivityFailures);
+        assertTrue(totalTimeMs < 180000);
+        assertTrue(avgQueryMs < 40);
     }
 
     private static void timeAndRun(Callable<Void> query) {
         long start = System.nanoTime();
-        try {
-            query.call();
-        } catch (Exception e) {
-            failedQueries.incrementAndGet();
-            System.err.println("Query failed: " + e.getMessage() + " \n " + ExceptionUtils.getStackTrace(e));
+        Exception lastException = null;
+        boolean succeeded = false;
+        
+        // Retry logic for connection-level errors
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                query.call();
+                succeeded = true;
+                break; // Success - exit retry loop
+            } catch (Exception e) {
+                lastException = e;
+                
+                // Check if this is a connection-level error that should be retried
+                if (GrpcExceptionHandler.isConnectionLevelError(e) && attempt < MAX_RETRIES) {
+                    // Connection-level error - retry after delay with exponential backoff
+                    long delayMs = (long) (RETRY_DELAY_MS * Math.pow(2, attempt));
+                    log.debug("Connection-level error on attempt {}, retrying after {}ms: {}", 
+                        attempt + 1, delayMs, e.getMessage());
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break; // Exit retry loop if interrupted
+                    }
+                } else {
+                    // Either not a connection-level error, or we've exhausted retries
+                    break;
+                }
+            }
         }
+        
+        // If we didn't succeed after retries, count it as a failure
+        if (!succeeded && lastException != null) {
+            testHelper.incrementFailures(lastException);
+            System.err.println("Query failed after " + (MAX_RETRIES + 1) + " attempts: " + 
+                lastException.getMessage() + " \n " + ExceptionUtils.getStackTrace(lastException));
+        }
+        
         long end = System.nanoTime();
         queryDurations.add(end - start);
         totalQueries.incrementAndGet();
@@ -241,7 +296,7 @@ public class MultinodeIntegrationTest {
                     conn.setAutoCommit(true);
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage() + " \n " + ExceptionUtils.getStackTrace(e));
             }
             return null;
@@ -271,7 +326,7 @@ public class MultinodeIntegrationTest {
                     conn.setAutoCommit(true);
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage() + " \n " + ExceptionUtils.getStackTrace(e));
             }
             return null;
@@ -304,7 +359,7 @@ public class MultinodeIntegrationTest {
                     conn.setAutoCommit(true);
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage() + " \n " + ExceptionUtils.getStackTrace(e));
             }
             return null;
@@ -319,7 +374,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -332,7 +387,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -345,7 +400,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -358,7 +413,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -371,7 +426,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -384,7 +439,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -397,7 +452,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -410,7 +465,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -423,7 +478,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -436,7 +491,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -451,7 +506,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -464,7 +519,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -477,7 +532,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -490,7 +545,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -503,7 +558,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -516,7 +571,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -529,7 +584,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -542,7 +597,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -555,7 +610,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -568,7 +623,7 @@ public class MultinodeIntegrationTest {
                     pst.execute();
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -585,7 +640,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -602,7 +657,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -618,7 +673,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -635,7 +690,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -651,7 +706,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -668,7 +723,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -685,7 +740,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -701,7 +756,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -720,7 +775,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -744,7 +799,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -760,7 +815,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -777,7 +832,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -794,7 +849,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -810,7 +865,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -827,7 +882,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -844,7 +899,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -861,7 +916,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -878,7 +933,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -895,7 +950,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -911,7 +966,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -930,7 +985,7 @@ public class MultinodeIntegrationTest {
                         }
                     }
                 } catch (Exception e) {
-                    failedQueries.incrementAndGet();
+                    testHelper.incrementFailures(e);
                     System.err.println("Query failed: " + e.getMessage());
                 }
                 return null;
@@ -946,7 +1001,7 @@ public class MultinodeIntegrationTest {
                         }
                     }
                 } catch (Exception e) {
-                    failedQueries.incrementAndGet();
+                    testHelper.incrementFailures(e);
                     System.err.println("Query failed: " + e.getMessage());
                 }
                 return null;
@@ -962,7 +1017,7 @@ public class MultinodeIntegrationTest {
                         }
                     }
                 } catch (Exception e) {
-                    failedQueries.incrementAndGet();
+                    testHelper.incrementFailures(e);
                     System.err.println("Query failed: " + e.getMessage());
                 }
                 return null;
@@ -979,7 +1034,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -994,7 +1049,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -1009,7 +1064,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -1035,7 +1090,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -1059,7 +1114,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -1083,7 +1138,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -1107,7 +1162,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;
@@ -1131,7 +1186,7 @@ public class MultinodeIntegrationTest {
                     }
                 }
             } catch (Exception e) {
-                failedQueries.incrementAndGet();
+                testHelper.incrementFailures(e);
                 System.err.println("Query failed: " + e.getMessage());
             }
             return null;

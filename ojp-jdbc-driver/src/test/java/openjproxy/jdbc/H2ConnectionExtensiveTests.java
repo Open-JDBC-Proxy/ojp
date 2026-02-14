@@ -4,6 +4,7 @@ import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -42,7 +44,7 @@ public class H2ConnectionExtensiveTests {
     private Connection connection;
 
     @BeforeAll
-    public static void setupClass() {
+    static void setupClass() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
 
@@ -53,27 +55,27 @@ public class H2ConnectionExtensiveTests {
     }
 
     @AfterEach
-    public void tearDown() throws SQLException {
+    void tearDown() throws SQLException {
         TestDBUtils.closeQuietly(connection);
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
+    void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertEquals(false, connection.isClosed());
-        assertEquals(true, connection.isValid(5));
+        Assertions.assertFalse(connection.isClosed());
+        assertTrue( connection.isValid(5));
         assertEquals("PUBLIC", connection.getSchema());
         assertNull(connection.getClientInfo("nonexistent"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
+    void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertEquals(true, connection.getAutoCommit());
+        assertTrue( connection.getAutoCommit());
         connection.setAutoCommit(false);
-        assertEquals(false, connection.getAutoCommit());
+        Assertions.assertFalse(connection.getAutoCommit());
 
         int isolation = connection.getTransactionIsolation();
         assertEquals(Connection.TRANSACTION_READ_COMMITTED, isolation);
@@ -84,7 +86,7 @@ public class H2ConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testCommitAndRollback(String driverClass, String url, String user, String password) throws SQLException {
+    void testCommitAndRollback(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         connection.setAutoCommit(false);
 
@@ -93,18 +95,18 @@ public class H2ConnectionExtensiveTests {
         connection.rollback();
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test WHERE id = 3");
-        assertEquals(false, rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO h2_connection_test (id, name) VALUES (3, 'Charlie')");
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test");
-        assertEquals(true, rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testSavepoints(String driverClass, String url, String user, String password) throws SQLException {
+    void testSavepoints(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         connection.setAutoCommit(false);
         TestDBUtils.createBasicTestTable(connection, "h2_connection_test", TestDBUtils.SqlSyntax.H2, true);
@@ -115,29 +117,29 @@ public class H2ConnectionExtensiveTests {
         connection.rollback(sp1);
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test WHERE id = 3");
-        assertEquals(false, rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO h2_connection_test (id, name) VALUES (3, 'Charlie')");
         connection.releaseSavepoint(sp1);
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test WHERE id = 3");
-        assertEquals(true, rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testConnectionMetadata(String driverClass, String url, String user, String password) throws SQLException {
+    void testConnectionMetadata(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData metaData = connection.getMetaData();
         assertNotNull(metaData);
         assertEquals("H2", metaData.getDatabaseProductName());
-        assertEquals(true, metaData.supportsTransactions());
+        assertTrue( metaData.supportsTransactions());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testClientInfo(String driverClass, String url, String user, String password) throws SQLException {
+    void testClientInfo(String driverClass, String url, String user, String password) throws SQLException {
         if (url.contains("h2")) {//Not supported in H2
             return;
         }
@@ -148,18 +150,18 @@ public class H2ConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testClose(String driverClass, String url, String user, String password) throws SQLException {
+    void testClose(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertEquals(false, connection.isClosed());
+        assertFalse( connection.isClosed());
         connection.close();
-        assertEquals(true, connection.isClosed());
+        assertTrue( connection.isClosed());
     }
 
     // ---------- Additional tests for every Connection interface method ----------
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testAllConnectionMethods(String driverClass, String url, String user, String password) throws Exception {
+    void testAllConnectionMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         // createStatement
@@ -187,9 +189,9 @@ public class H2ConnectionExtensiveTests {
 
         // setReadOnly / isReadOnly
         connection.setReadOnly(false);
-        assertEquals(false, connection.isReadOnly());
+        assertFalse( connection.isReadOnly());
         connection.setReadOnly(true);
-        assertEquals(false, connection.isReadOnly());
+        assertFalse( connection.isReadOnly());
 
         // setCatalog / getCatalog
         String oldCatalog = connection.getCatalog();
@@ -273,7 +275,7 @@ public class H2ConnectionExtensiveTests {
         assertNotNull(sqlxml);
 
         // isValid
-        assertEquals(true, connection.isValid(5));
+        assertTrue( connection.isValid(5));
 
         // setClientInfo (Properties)
         Properties props = new Properties();

@@ -57,6 +57,16 @@ public class ServerConfiguration {
     private static final String SESSION_TIMEOUT_MINUTES_KEY = "ojp.server.sessionCleanup.timeoutMinutes";
     private static final String SESSION_CLEANUP_INTERVAL_MINUTES_KEY = "ojp.server.sessionCleanup.intervalMinutes";
     
+    // TLS configuration keys
+    private static final String TLS_ENABLED_KEY = "ojp.server.tls.enabled";
+    private static final String TLS_KEYSTORE_PATH_KEY = "ojp.server.tls.keystore.path";
+    private static final String TLS_KEYSTORE_PASSWORD_KEY = "ojp.server.tls.keystore.password";
+    private static final String TLS_TRUSTSTORE_PATH_KEY = "ojp.server.tls.truststore.path";
+    private static final String TLS_TRUSTSTORE_PASSWORD_KEY = "ojp.server.tls.truststore.password";
+    private static final String TLS_KEYSTORE_TYPE_KEY = "ojp.server.tls.keystore.type";
+    private static final String TLS_TRUSTSTORE_TYPE_KEY = "ojp.server.tls.truststore.type";
+    private static final String TLS_CLIENT_AUTH_REQUIRED_KEY = "ojp.server.tls.clientAuthRequired";
+
 
     // Default values
     public static final int DEFAULT_SERVER_PORT = CommonConstants.DEFAULT_PORT_NUMBER;
@@ -102,6 +112,10 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_SESSION_CLEANUP_ENABLED = true; // Enable session cleanup by default
     public static final long DEFAULT_SESSION_TIMEOUT_MINUTES = 30; // 30 minutes session timeout
     public static final long DEFAULT_SESSION_CLEANUP_INTERVAL_MINUTES = 5; // Run cleanup every 5 minutes
+    
+    // TLS default values
+    public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
+    public static final boolean DEFAULT_TLS_CLIENT_AUTH_REQUIRED = false; // mTLS disabled by default
     
     // XA pooling default values
     public static final boolean DEFAULT_XA_POOLING_ENABLED = true; // Enable XA pooling by default
@@ -153,6 +167,16 @@ public class ServerConfiguration {
     private final long sessionTimeoutMinutes;
     private final long sessionCleanupIntervalMinutes;
     
+    // TLS configuration
+    private final boolean tlsEnabled;
+    private final String tlsKeystorePath;
+    private final String tlsKeystorePassword;
+    private final String tlsTruststorePath;
+    private final String tlsTruststorePassword;
+    private final String tlsKeystoreType;
+    private final String tlsTruststoreType;
+    private final boolean tlsClientAuthRequired;
+
 
     public ServerConfiguration() {
         this.serverPort = getIntProperty(SERVER_PORT_KEY, DEFAULT_SERVER_PORT);
@@ -196,6 +220,15 @@ public class ServerConfiguration {
         this.sessionTimeoutMinutes = getLongProperty(SESSION_TIMEOUT_MINUTES_KEY, DEFAULT_SESSION_TIMEOUT_MINUTES);
         this.sessionCleanupIntervalMinutes = getLongProperty(SESSION_CLEANUP_INTERVAL_MINUTES_KEY, DEFAULT_SESSION_CLEANUP_INTERVAL_MINUTES);
         
+        // TLS configuration
+        this.tlsEnabled = getBooleanProperty(TLS_ENABLED_KEY, DEFAULT_TLS_ENABLED);
+        this.tlsKeystorePath = getStringProperty(TLS_KEYSTORE_PATH_KEY, null);
+        this.tlsKeystorePassword = getStringProperty(TLS_KEYSTORE_PASSWORD_KEY, null);
+        this.tlsTruststorePath = getStringProperty(TLS_TRUSTSTORE_PATH_KEY, null);
+        this.tlsTruststorePassword = getStringProperty(TLS_TRUSTSTORE_PASSWORD_KEY, null);
+        this.tlsKeystoreType = getStringProperty(TLS_KEYSTORE_TYPE_KEY, "JKS");
+        this.tlsTruststoreType = getStringProperty(TLS_TRUSTSTORE_TYPE_KEY, "JKS");
+        this.tlsClientAuthRequired = getBooleanProperty(TLS_CLIENT_AUTH_REQUIRED_KEY, DEFAULT_TLS_CLIENT_AUTH_REQUIRED);
 
         logConfigurationSummary();
     }
@@ -309,6 +342,34 @@ public class ServerConfiguration {
         logger.info("  Session Cleanup Enabled: {}", sessionCleanupEnabled);
         logger.info("  Session Timeout: {} minutes", sessionTimeoutMinutes);
         logger.info("  Cleanup Interval: {} minutes", sessionCleanupIntervalMinutes);
+        logger.info("TLS Configuration:");
+        logger.info("  TLS Enabled: {}", tlsEnabled);
+        if (tlsEnabled) {
+            logger.info("  TLS Keystore Path: {}", maskPath(tlsKeystorePath));
+            logger.info("  TLS Truststore Path: {}", maskPath(tlsTruststorePath));
+            logger.info("  TLS Client Auth Required (mTLS): {}", tlsClientAuthRequired);
+            logger.info("  TLS Keystore Type: {}", tlsKeystoreType);
+            logger.info("  TLS Truststore Type: {}", tlsTruststoreType);
+        }
+    }
+    
+    /**
+     * Masks sensitive path information for logging.
+     * Shows whether path is configured without revealing full path.
+     * 
+     * @param path The file path to mask
+     * @return Masked path representation
+     */
+    private String maskPath(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return "not configured (using JVM default)";
+        }
+        // Show only the filename, not the full path
+        int lastSeparator = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        if (lastSeparator >= 0 && lastSeparator < path.length() - 1) {
+            return "***/" + path.substring(lastSeparator + 1);
+        }
+        return "configured";
     }
 
     // Getters
@@ -454,6 +515,38 @@ public class ServerConfiguration {
     
     public long getSessionCleanupIntervalMinutes() {
         return sessionCleanupIntervalMinutes;
+    }
+    
+    public boolean isTlsEnabled() {
+        return tlsEnabled;
+    }
+    
+    public String getTlsKeystorePath() {
+        return tlsKeystorePath;
+    }
+    
+    public String getTlsKeystorePassword() {
+        return tlsKeystorePassword;
+    }
+    
+    public String getTlsTruststorePath() {
+        return tlsTruststorePath;
+    }
+    
+    public String getTlsTruststorePassword() {
+        return tlsTruststorePassword;
+    }
+    
+    public String getTlsKeystoreType() {
+        return tlsKeystoreType;
+    }
+    
+    public String getTlsTruststoreType() {
+        return tlsTruststoreType;
+    }
+    
+    public boolean isTlsClientAuthRequired() {
+        return tlsClientAuthRequired;
     }
     
 }

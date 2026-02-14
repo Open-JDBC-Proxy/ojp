@@ -1,10 +1,10 @@
 package openjproxy.jdbc;
 
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -12,6 +12,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -19,13 +22,14 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Tests that temporary tables work correctly across multiple requests
  * by ensuring session affinity.
  */
-@Slf4j
-public class H2SessionAffinityIntegrationTest {
+
+class H2SessionAffinityIntegrationTest {
+    private static final Logger logger = LoggerFactory.getLogger(H2SessionAffinityIntegrationTest.class);
 
     private static boolean isH2TestEnabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
 
@@ -36,15 +40,12 @@ public class H2SessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd) 
-            throws SQLException, ClassNotFoundException {
+    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        logger.info("Testing temporay table with Driver: {}", driverClass);
+        logger.info("Testing temporary table session affinity for H2: {}", url);
 
-        log.info("Testing temporary table session affinity for H2: {}", url);
-
-        Connection conn = DriverManager.getConnection(url, user, pwd);
-
-        try (Statement stmt = conn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection(url, user, pwd); Statement stmt = conn.createStatement()) {
             // Drop temp table if it exists (cleanup from previous run)
             try {
                 stmt.execute("DROP TABLE IF EXISTS temp_session_test");
@@ -53,31 +54,29 @@ public class H2SessionAffinityIntegrationTest {
             }
 
             // Create temporary table (this should trigger session affinity)
-            log.debug("Creating H2 local temporary table");
+            logger.debug("Creating H2 local temporary table");
             stmt.execute("CREATE LOCAL TEMPORARY TABLE temp_session_test (id INT, \"value\" VARCHAR(100))");
 
             // Insert data into temporary table (should use same session)
-            log.debug("Inserting data into temporary table");
+            logger.debug("Inserting data into temporary table");
             stmt.execute("INSERT INTO temp_session_test VALUES (1, 'test_value')");
 
             // Query temporary table (should use same session)
-            log.debug("Querying temporary table");
-            ResultSet rs = stmt.executeQuery("SELECT id, \"value\" FROM temp_session_test");
-            
-            // Verify data was inserted and retrieved successfully
-            Assert.assertTrue("Should have at least one row in temporary table", rs.next());
-            Assert.assertEquals("Session data should match", 1, rs.getInt("id"));
-            Assert.assertEquals("Session data should match", "test_value", rs.getString("value"));
-            
-            // Verify no more rows
-            Assert.assertFalse("Should have only one row", rs.next());
-            
-            rs.close();
-            
-            log.info("H2 temporary table session affinity test passed");
+            logger.debug("Querying temporary table");
+            ResultSet resultSet = stmt.executeQuery("SELECT id, \"value\" FROM temp_session_test");
 
-        } finally {
-            conn.close();
+            // Verify data was inserted and retrieved successfully
+            assertTrue(resultSet.next(), "Should have at least one row in temporary table");
+            assertEquals(1, resultSet.getInt("id"), "Session data should match");
+            assertEquals("test_value", resultSet.getString("value"), "Session data should match");
+
+            // Verify no more rows
+            assertFalse(resultSet.next(), "Should have only one row");
+
+            resultSet.close();
+
+            logger.info("H2 temporary table session affinity test passed");
+
         }
     }
 
@@ -87,15 +86,12 @@ public class H2SessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd) 
-            throws SQLException, ClassNotFoundException {
+    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        logger.info("Testing temporay table with Driver: {}", driverClass);
+        logger.info("Testing complex temporary table operations for H2: {}", url);
 
-        log.info("Testing complex temporary table operations for H2: {}", url);
-
-        Connection conn = DriverManager.getConnection(url, user, pwd);
-
-        try (Statement stmt = conn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection(url, user, pwd); Statement stmt = conn.createStatement()) {
             // Cleanup
             try {
                 stmt.execute("DROP TABLE IF EXISTS temp_complex");
@@ -104,49 +100,47 @@ public class H2SessionAffinityIntegrationTest {
             }
 
             // Create temporary table
-            log.debug("Creating complex temp table");
+            logger.debug("Creating complex temp table");
             stmt.execute("CREATE LOCAL TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR(100), amount DECIMAL(10,2))");
 
             // Insert multiple rows
-            log.debug("Inserting multiple rows");
+            logger.debug("Inserting multiple rows");
             stmt.execute("INSERT INTO temp_complex VALUES (1, 'Alice', 100.50)");
             stmt.execute("INSERT INTO temp_complex VALUES (2, 'Bob', 200.75)");
             stmt.execute("INSERT INTO temp_complex VALUES (3, 'Charlie', 150.25)");
 
             // Update a row
-            log.debug("Updating a row");
+            logger.debug("Updating a row");
             stmt.executeUpdate("UPDATE temp_complex SET amount = amount + 50.00 WHERE id = 2");
 
             // Query and verify
-            log.debug("Querying temp table");
+            logger.debug("Querying temp table");
             ResultSet rs = stmt.executeQuery("SELECT id, name, amount FROM temp_complex ORDER BY id");
-            
+
             int rowCount = 0;
             while (rs.next()) {
                 rowCount++;
                 int id = rs.getInt("id");
                 String name = rs.getString("name");
                 double amount = rs.getDouble("amount");
-                
+
                 if (id == 1) {
-                    Assert.assertEquals("Alice", name);
-                    Assert.assertEquals(100.50, amount, 0.01);
+                    assertEquals("Alice", name);
+                    assertEquals(100.50, amount, 0.01);
                 } else if (id == 2) {
-                    Assert.assertEquals("Bob", name);
-                    Assert.assertEquals(250.75, amount, 0.01); // Updated from 200.75 to 250.75
+                    assertEquals("Bob", name);
+                    assertEquals(250.75, amount, 0.01); // Updated from 200.75 to 250.75
                 } else if (id == 3) {
-                    Assert.assertEquals("Charlie", name);
-                    Assert.assertEquals(150.25, amount, 0.01);
+                    assertEquals("Charlie", name);
+                    assertEquals(150.25, amount, 0.01);
                 }
             }
-            
-            Assert.assertEquals("Should have 3 rows", 3, rowCount);
-            rs.close();
-            
-            log.info("H2 complex temporary table operations test passed");
 
-        } finally {
-            conn.close();
+            assertEquals(3, rowCount, "Should have 3 rows");
+            rs.close();
+
+            logger.info("H2 complex temporary table operations test passed");
+
         }
     }
 
@@ -155,15 +149,12 @@ public class H2SessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd) 
-            throws SQLException, ClassNotFoundException {
+    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        logger.info("Testing temporay table with Driver: {}", driverClass);
+        logger.info("Testing temporary table persistence across transactions for H2: {}", url);
 
-        log.info("Testing temporary table persistence across transactions for H2: {}", url);
-
-        Connection conn = DriverManager.getConnection(url, user, pwd);
-
-        try (Statement stmt = conn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection(url, user, pwd); Statement stmt = conn.createStatement()) {
             // Cleanup
             try {
                 stmt.execute("DROP TABLE IF EXISTS temp_persist");
@@ -182,15 +173,13 @@ public class H2SessionAffinityIntegrationTest {
             // Start another transaction and query (should still see the temp table)
             conn.setAutoCommit(false);
             ResultSet rs = stmt.executeQuery("SELECT * FROM temp_persist WHERE id = 1");
-            Assert.assertTrue("Should find row inserted in previous transaction", rs.next());
-            Assert.assertEquals("Data should match", "in_transaction", rs.getString("data"));
+            assertTrue(rs.next(), "Should find row inserted in previous transaction");
+            assertEquals("in_transaction", rs.getString("data"), "Data should match");
             rs.close();
             conn.commit();
 
-            log.info("H2 temporary table persistence across transactions test passed");
+            logger.info("H2 temporary table persistence across transactions test passed");
 
-        } finally {
-            conn.close();
         }
     }
 }

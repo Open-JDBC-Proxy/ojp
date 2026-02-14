@@ -1,7 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -12,11 +12,11 @@ import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class OracleMultipleTypesIntegrationTest {
@@ -24,13 +24,13 @@ public class OracleMultipleTypesIntegrationTest {
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -49,7 +49,7 @@ public class OracleMultipleTypesIntegrationTest {
         psInsert.setInt(1, 1);
         psInsert.setString(2, "TITLE_1");
         psInsert.setDouble(3, 2.2222d);
-        psInsert.setLong(4, 33333333333333l);
+        psInsert.setLong(4, 33333333333333L);
         psInsert.setInt(5, 127); // Oracle NUMBER(3) can handle this
         psInsert.setInt(6, 32767);
         psInsert.setInt(7, 1); // Oracle uses NUMBER(1) for boolean (1=true, 0=false)
@@ -69,66 +69,66 @@ public class OracleMultipleTypesIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(127, resultSet.getInt(5)); // NUMBER(3) in Oracle
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(1, resultSet.getInt(7)); // Oracle NUMBER(1) for boolean
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", ""+resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(127, resultSet.getInt(5)); // NUMBER(3) in Oracle
+        assertEquals(32767, resultSet.getInt(6));
+        assertEquals(1, resultSet.getInt(7)); // Oracle NUMBER(1) for boolean
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
+        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // Oracle RAW column may be returned as String by OJP driver
         // For now, just verify we get a non-null value
         Object byteValue = resultSet.getObject(10);
-        Assert.assertNotNull("RAW column should not be null", byteValue);
+        Assertions.assertNotNull(byteValue, "RAW column should not be null");
         // Oracle RAW column may be returned as String by OJP driver  
         Object binaryValue = resultSet.getObject(11);
         if (binaryValue instanceof String) {
             // If returned as string, check the content
             String stringValue = (String) binaryValue;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            Assertions.assertTrue(
+                stringValue.contains("AAAA") || stringValue.length() > 0, "Binary column should contain expected data");
         } else {
             // Handle as byte array
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes(11)));
+            assertEquals("AAAA", new String(resultSet.getBytes(11)));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
         // Oracle time stored as TIMESTAMP, format as time
         SimpleDateFormat sdfTimeOnly = new SimpleDateFormat("HH:mm:ss");
-        Assert.assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
 
         // Test column name access
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
-        Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
-        Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
-        Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        Assert.assertEquals(1, resultSet.getInt("val_boolean")); // Oracle boolean as NUMBER(1)
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("TITLE_1", resultSet.getString("val_varchar"));
+        assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
+        assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
+        assertEquals(127, resultSet.getInt("val_tinyint"));
+        assertEquals(32767, resultSet.getInt("val_smallint"));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
+        assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
+        assertEquals(1, resultSet.getInt("val_boolean")); // Oracle boolean as NUMBER(1)
         // Oracle RAW column may be returned as String by OJP driver
         Object byteValueByName = resultSet.getObject("val_byte");
-        Assert.assertNotNull("RAW column val_byte should not be null", byteValueByName);
+        Assertions.assertNotNull( byteValueByName,"RAW column val_byte should not be null");
         // Oracle RAW column may be returned as String by OJP driver
         Object binaryValueByName = resultSet.getObject("val_binary");
         if (binaryValueByName instanceof String) {
             String stringValue = (String) binaryValueByName;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            Assertions.assertTrue(
+                stringValue.contains("AAAA") || stringValue.length() > 0, "Binary column should contain expected data");
         } else {
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
+            assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
-        Assert.assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp("val_time")));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
+        assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp("val_time")));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
 
         TestDBUtils.executeUpdate(conn, "delete from oracle_multi_types_test where val_int=1");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
@@ -137,7 +137,7 @@ public class OracleMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testOracleSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -181,8 +181,8 @@ public class OracleMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT nvarchar_col FROM test_oracle_types WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
-        Assert.assertEquals("Oracle NVARCHAR2 type", resultSet.getString("nvarchar_col"));
+        assertTrue(resultSet.next());
+        assertEquals("Oracle NVARCHAR2 type", resultSet.getString("nvarchar_col"));
 
         resultSet.close();
         psSelect.close();
@@ -192,7 +192,7 @@ public class OracleMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleNumberTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testOracleNumberTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -233,10 +233,10 @@ public class OracleMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM test_oracle_numbers WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
-        Assert.assertNotNull(resultSet.getBigDecimal("number_col"));
-        Assert.assertEquals(new BigDecimal("12345.67"), resultSet.getBigDecimal("number_10_2"));
-        Assert.assertEquals(12345, resultSet.getInt("number_5_0"));
+        assertTrue(resultSet.next());
+        assertNotNull(resultSet.getBigDecimal("number_col"));
+        assertEquals(new BigDecimal("12345.67"), resultSet.getBigDecimal("number_10_2"));
+        assertEquals(12345, resultSet.getInt("number_5_0"));
 
         resultSet.close();
         psSelect.close();

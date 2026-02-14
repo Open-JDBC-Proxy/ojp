@@ -32,4 +32,88 @@ public class GrpcExceptionHandler {
                     errorResponse.getVendorCode());
         }
     }
+    
+    /**
+     * Determines if an exception represents a session invalidation error.
+     * Session invalidation occurs when the health checker removes session bindings
+     * after detecting server failure. These sessions are permanently lost.
+     * 
+     * @param exception The exception to check
+     * @return true if this is a session invalidation error
+     */
+    public static boolean isSessionInvalidationError(Exception exception) {
+        if (exception instanceof SQLException) {
+            String message = exception.getMessage();
+            if (message != null) {
+                String lowerMessage = message.toLowerCase();
+                return lowerMessage.contains("session") &&
+                       (lowerMessage.contains("has no associated server") || 
+                        lowerMessage.contains("binding was lost") ||
+                        lowerMessage.contains("may have expired") ||
+                        lowerMessage.contains("were invalidated"));
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Determines if an exception represents a connection-level error that indicates server unavailability.
+     * Connection-level errors include:
+     * - UNAVAILABLE: Server not reachable
+     * - DEADLINE_EXCEEDED: Request timeout
+     * - CANCELLED: Connection cancelled
+     * - UNKNOWN: Connection-related unknown errors
+     * 
+     * Database-level errors (e.g., table not found, syntax errors) do not indicate server unavailability.
+     * Pool exhaustion errors do NOT indicate server unavailability - they indicate resource limits, not connectivity issues.
+     * Session invalidation errors do NOT indicate server unavailability - they indicate the session was lost/expired.
+     * 
+     * @param exception The exception to check
+     * @return true if this is a connection-level error indicating server unavailability
+     */
+    public static boolean isConnectionLevelError(Exception exception) {
+        if (exception instanceof StatusRuntimeException) {
+            StatusRuntimeException statusException = (StatusRuntimeException) exception;
+            Status.Code code = statusException.getStatus().getCode();
+            
+            // Only these status codes indicate connection-level failures
+            return code == Status.Code.UNAVAILABLE ||
+                   code == Status.Code.DEADLINE_EXCEEDED ||
+                   code == Status.Code.CANCELLED ||
+                   (code == Status.Code.UNKNOWN && 
+                    statusException.getMessage() != null && 
+                    (statusException.getMessage().contains("connection") || 
+                     statusException.getMessage().contains("Connection")));
+        }
+        
+        // For non-gRPC exceptions, check for connection-related keywords
+        String message = exception.getMessage();
+        if (message != null) {
+            String lowerMessage = message.toLowerCase();
+            
+            // CRITICAL: Pool exhaustion is NOT a server connectivity issue
+            // Don't mark server unhealthy when pool is exhausted - it's a resource limit, not a connection failure
+            if (lowerMessage.contains("pool exhausted") || lowerMessage.contains("pool is exhausted")) {
+                return false;
+            }
+            
+            // CRITICAL: Session invalidation/loss is NOT a connection-level error
+            // Sessions are explicitly invalidated when servers fail. The session is permanently lost.
+            // Retrying with the same session will always fail. This needs proper XA transaction handling, not retry.
+            if (isSessionInvalidationError(exception)) {
+                return false;
+            }
+            
+            // Check for connectivity-related keywords
+            // Using substring matching intentionally - these patterns appear in various error messages
+            // from our multinode connection management and should all be treated as connectivity issues
+            return lowerMessage.contains("connection") || 
+                   lowerMessage.contains("timeout") ||
+                   lowerMessage.contains("unavailable") ||
+                   lowerMessage.contains("failed to connect") ||
+                   lowerMessage.contains("no healthy servers");
+        }
+        
+        return false; // Default to not marking unhealthy for unknown errors
+    }
 }

@@ -1,5 +1,19 @@
 # ADR 007: Use Apache Commons Pool 2 with Custom XA Session Pooling Instead of Agroal
 
+## Understanding OJP's Role in XA Architecture
+
+**Critical Context**: Before diving into the pooling decision, it's essential to understand OJP's architectural role:
+
+- **OJP is NOT a Transaction Manager (TM)**: The TM sits on the application side (e.g., Spring Boot + Atomikos/Narayana). The TM coordinates distributed transactions, maintains durable transaction logs, and drives recovery procedures.
+
+- **OJP is NOT a Resource Manager (RM)**: The databases (PostgreSQL, Oracle, MySQL, SQL Server) are the RMs. They execute prepare/commit/rollback operations and persist transaction state durably in their write-ahead logs (WAL). OJP simply delegates RM operations to the databases.
+
+- **OJP is a Connection Proxy**: OJP provides connection pooling, high availability, load balancing, and transparent proxying of JDBC/XA calls from the application TM to database RMs.
+
+**XA Session Stickiness**: XA sessions are sticky to a single OJP node for the duration of the XA session to guarantee XA integrity. This is distinct from connection stickiness—OJP client connections can load balance sessions across multiple OJP servers for different transactions, but once an XA transaction starts, all operations for that specific transaction must route through the same OJP instance.
+
+## Decision Context
+
 In the context of the OJP proxy server,  
 facing the need to pool XA-enabled database connections for distributed transactions with leak detection and validation monitoring capabilities,  
 

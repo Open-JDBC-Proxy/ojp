@@ -18,7 +18,7 @@ import static org.openjproxy.constants.CommonConstants.OJP_REGEX_PATTERN;
 public class DriverMultinodeUrlTest {
 
     @Test
-    public void testMultinodeUrlParsing() {
+    void testMultinodeUrlParsing() {
         String url = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
         
         // Parse the multinode URL
@@ -31,7 +31,7 @@ public class DriverMultinodeUrlTest {
     }
 
     @Test
-    public void testSingleEndpointUrlConversion() {
+    void testSingleEndpointUrlConversion() {
         String url = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
         
         // Parse endpoints
@@ -45,7 +45,7 @@ public class DriverMultinodeUrlTest {
     }
 
     @Test
-    public void testSingleEndpointUrlMatchesPattern() {
+    void testSingleEndpointUrlMatchesPattern() {
         String url = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
         
         // Parse and convert to single endpoint
@@ -67,7 +67,7 @@ public class DriverMultinodeUrlTest {
     }
 
     @Test
-    public void testMultipleEndpointsConversion() {
+    void testMultipleEndpointsConversion() {
         String url = "jdbc:ojp[server1:1059,server2:1060,server3:1061]_postgresql://localhost:5432/mydb";
         
         List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(url);
@@ -86,7 +86,7 @@ public class DriverMultinodeUrlTest {
     }
 
     @Test
-    public void testSingleNodeUrlUnchanged() {
+    void testSingleNodeUrlUnchanged() {
         String url = "jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb";
         
         List<ServerEndpoint> endpoints = MultinodeUrlParser.parseServerEndpoints(url);
@@ -99,7 +99,7 @@ public class DriverMultinodeUrlTest {
     }
 
     @Test
-    public void testUrlParserDoesNotThrowOnValidMultinodeUrl() {
+    void testUrlParserDoesNotThrowOnValidMultinodeUrl() {
         String url = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
         
         // This should not throw any exception
@@ -126,7 +126,7 @@ public class DriverMultinodeUrlTest {
     }
 
     @Test
-    public void testDriverUrlParsingFlow() {
+    void testDriverUrlParsingFlow() {
         // Simulate what Driver.connect() does
         String url = "jdbc:ojp[localhost:10591,localhost:10592]_postgresql://localhost:5432/defaultdb";
         

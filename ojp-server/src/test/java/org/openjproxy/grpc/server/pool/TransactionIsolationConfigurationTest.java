@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 import java.sql.Connection;
 import java.util.Properties;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Unit tests for transaction isolation configuration parsing in DataSourceConfigurationManager.

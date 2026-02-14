@@ -5,6 +5,7 @@ import io.grpc.ServerBuilder;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.netty.NettyServerBuilder;
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
+import org.openjproxy.config.TlsConfigurationException;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.server.utils.DriverLoader;
 import org.openjproxy.grpc.server.utils.DriverUtils;
@@ -61,19 +62,35 @@ public class GrpcServer {
 
         // Build server with configuration
         SessionManagerImpl sessionManager = new SessionManagerImpl();
+        final StatementServiceImpl statementService = new StatementServiceImpl(
+                sessionManager,
+                new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
+                config
+        );
         
-        ServerBuilder<?> serverBuilder = NettyServerBuilder
+        NettyServerBuilder serverBuilder = NettyServerBuilder
                 .forPort(config.getServerPort())
                 .executor(Executors.newFixedThreadPool(config.getThreadPoolSize()))
                 .maxInboundMessageSize(config.getMaxRequestSize())
                 .keepAliveTime(config.getConnectionIdleTimeout(), TimeUnit.MILLISECONDS)
-                .addService(new StatementServiceImpl(
-                        sessionManager,
-                        new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
-                        config
-                ))
+                .addService(statementService)
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
+                .intercept(new IpWhitelistingInterceptor(config.getAllowedIps()))
                 .intercept(grpcTelemetry.newServerInterceptor());
+        
+        // Configure TLS if enabled
+        if (config.isTlsEnabled()) {
+            try {
+                configureTls(serverBuilder, config);
+                logger.info("TLS/mTLS enabled for gRPC server");
+            } catch (Exception e) {
+                logger.error("Failed to configure TLS for gRPC server: {}", e.getMessage(), e);
+                throw new RuntimeException("Failed to configure TLS for gRPC server. " +
+                        "Please check your TLS configuration properties and certificate files.", e);
+            }
+        } else {
+            logger.info("TLS not enabled - using plaintext communication");
+        }
 
         Server server = serverBuilder.build();
 
@@ -117,7 +134,11 @@ public class GrpcServer {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutting down OJP gRPC Server...");
             
-            // Shutdown session cleanup task first
+            // Shutdown SQL enhancer engine first
+            logger.info("Shutting down SQL enhancer engine...");
+            statementService.shutdown();
+            
+            // Shutdown session cleanup task
             if (finalSessionCleanupExecutor != null) {
                 logger.info("Shutting down session cleanup executor...");
                 finalSessionCleanupExecutor.shutdown();
@@ -151,5 +172,133 @@ public class GrpcServer {
 
         logger.info("OJP gRPC Server started successfully and awaiting termination");
         server.awaitTermination();
+    }
+    
+    /**
+     * Configures TLS/mTLS for the gRPC server.
+     * 
+     * @param serverBuilder The NettyServerBuilder to configure
+     * @param config Server configuration containing TLS settings
+     * @throws TlsConfigurationException if TLS configuration fails
+     */
+    private static void configureTls(NettyServerBuilder serverBuilder, ServerConfiguration config) 
+            throws TlsConfigurationException {
+        try {
+            // Load keystore and extract certificate and key
+            java.security.KeyStore keyStore = loadKeyStore(config);
+            
+            // Build SSL context using Netty's builder
+            io.netty.handler.ssl.SslContextBuilder sslContextBuilder = 
+                io.netty.handler.ssl.SslContextBuilder.forServer(
+                    extractKeyManagerFactory(keyStore, config.getTlsKeystorePassword())
+                );
+            
+            // Apply gRPC-specific SSL settings
+            sslContextBuilder = io.grpc.netty.GrpcSslContexts.configure(sslContextBuilder);
+            
+            // Configure client authentication (mTLS) if required
+            if (config.isTlsClientAuthRequired()) {
+                logger.info("mTLS (mutual TLS) enabled - client certificates required");
+                javax.net.ssl.TrustManagerFactory trustManagerFactory = loadTrustManager(config);
+                sslContextBuilder.trustManager(trustManagerFactory);
+                sslContextBuilder.clientAuth(io.netty.handler.ssl.ClientAuth.REQUIRE);
+            } else {
+                logger.info("Server TLS enabled - client certificates not required");
+                // Optionally configure truststore for client certificate verification
+                if (config.getTlsTruststorePath() != null && !config.getTlsTruststorePath().trim().isEmpty()) {
+                    logger.info("Truststore configured for optional client certificate verification");
+                    javax.net.ssl.TrustManagerFactory trustManagerFactory = loadTrustManager(config);
+                    sslContextBuilder.trustManager(trustManagerFactory);
+                    sslContextBuilder.clientAuth(io.netty.handler.ssl.ClientAuth.OPTIONAL);
+                }
+            }
+            
+            io.netty.handler.ssl.SslContext sslContext = sslContextBuilder.build();
+            serverBuilder.sslContext(sslContext);
+        } catch (TlsConfigurationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new TlsConfigurationException("Failed to configure TLS for gRPC server", e);
+        }
+    }
+    
+    /**
+     * Loads the keystore containing server certificate and private key.
+     * 
+     * @param config Server configuration
+     * @return KeyStore instance
+     * @throws TlsConfigurationException if keystore cannot be loaded
+     */
+    private static java.security.KeyStore loadKeyStore(ServerConfiguration config) throws TlsConfigurationException {
+        if (config.getTlsKeystorePath() == null || config.getTlsKeystorePath().trim().isEmpty()) {
+            throw new TlsConfigurationException("TLS is enabled but keystore path is not configured. " +
+                    "Set ojp.server.tls.keystore.path property.");
+        }
+        
+        try {
+            java.security.KeyStore keyStore = java.security.KeyStore.getInstance(config.getTlsKeystoreType());
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(new java.io.File(config.getTlsKeystorePath()))) {
+                keyStore.load(fis, config.getTlsKeystorePassword() != null ? 
+                    config.getTlsKeystorePassword().toCharArray() : null);
+            }
+            return keyStore;
+        } catch (Exception e) {
+            throw new TlsConfigurationException("Failed to load keystore from: " + config.getTlsKeystorePath(), e);
+        }
+    }
+    
+    /**
+     * Creates a KeyManagerFactory from the keystore.
+     * 
+     * @param keyStore The loaded keystore
+     * @param password The keystore password
+     * @return KeyManagerFactory for server certificate
+     * @throws TlsConfigurationException if KeyManagerFactory cannot be created
+     */
+    private static javax.net.ssl.KeyManagerFactory extractKeyManagerFactory(
+            java.security.KeyStore keyStore, String password) throws TlsConfigurationException {
+        try {
+            javax.net.ssl.KeyManagerFactory keyManagerFactory = 
+                javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, password != null ? password.toCharArray() : null);
+            return keyManagerFactory;
+        } catch (Exception e) {
+            throw new TlsConfigurationException("Failed to create KeyManagerFactory from keystore", e);
+        }
+    }
+    
+    /**
+     * Loads the trust manager for client certificate verification.
+     * 
+     * @param config Server configuration
+     * @return TrustManagerFactory for client certificate verification
+     * @throws TlsConfigurationException if truststore cannot be loaded
+     */
+    private static javax.net.ssl.TrustManagerFactory loadTrustManager(ServerConfiguration config) 
+            throws TlsConfigurationException {
+        try {
+            if (config.getTlsTruststorePath() == null || config.getTlsTruststorePath().trim().isEmpty()) {
+                logger.info("No truststore path configured, using JVM default truststore");
+                // Return default trust manager factory
+                javax.net.ssl.TrustManagerFactory trustManagerFactory = 
+                    javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+                trustManagerFactory.init((java.security.KeyStore) null);
+                return trustManagerFactory;
+            }
+            
+            java.security.KeyStore trustStore = java.security.KeyStore.getInstance(config.getTlsTruststoreType());
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(new java.io.File(config.getTlsTruststorePath()))) {
+                trustStore.load(fis, config.getTlsTruststorePassword() != null ? 
+                    config.getTlsTruststorePassword().toCharArray() : null);
+            }
+            
+            javax.net.ssl.TrustManagerFactory trustManagerFactory = 
+                javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(trustStore);
+            
+            return trustManagerFactory;
+        } catch (Exception e) {
+            throw new TlsConfigurationException("Failed to load trust manager from: " + config.getTlsTruststorePath(), e);
+        }
     }
 }

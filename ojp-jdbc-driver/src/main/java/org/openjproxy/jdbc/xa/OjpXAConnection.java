@@ -116,11 +116,15 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
                 connBuilder.addAllProperties(ProtoConverter.propertiesToProto(propertiesMap));
             }
 
-            this.sessionInfo = statementService.connect(connBuilder.build());
+            SessionInfo newSessionInfo = statementService.connect(connBuilder.build());
             
-            // Phase 2: Track the bound server from session info
-            if (sessionInfo.getTargetServer() != null && !sessionInfo.getTargetServer().isEmpty()) {
-                this.boundServerAddress = sessionInfo.getTargetServer();
+            // Session validation is now handled inside MultinodeConnectionManager.connectToAllServers()
+            // which checks if the primary session was invalidated and returns a valid session instead
+            this.sessionInfo = newSessionInfo;
+            String newBoundServer = newSessionInfo.getTargetServer();
+            this.boundServerAddress = newBoundServer;
+            
+            if (boundServerAddress != null && !boundServerAddress.isEmpty()) {
                 log.debug("XA connection bound to server: {}", boundServerAddress);
             }
             
@@ -316,22 +320,43 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
     
     /**
      * Phase 2: Called when a server becomes unhealthy.
-     * If this connection is bound to that server, close it proactively
-     * so Atomikos will create a new connection.
+     * If this connection is bound to that server, invalidate the session and close the connection.
+     * 
+     * CRITICAL FIX: Also invalidate sessionInfo if the health checker removed the session binding
+     * during a race condition (mid-connect). This prevents using stale session UUIDs.
      */
     @Override
     public void onServerUnhealthy(ServerEndpoint endpoint, Exception exception) {
         String serverAddr = endpoint.getHost() + ":" + endpoint.getPort();
         
-        // Check if this connection is bound to the failed server
-        if (boundServerAddress != null && boundServerAddress.equals(serverAddr)) {
-            log.warn("XA connection bound to unhealthy server {}, closing connection proactively", serverAddr);
-            try {
+        sessionLock.lock();
+        try {
+            // Check if this connection is bound to the failed server
+            if (boundServerAddress != null && boundServerAddress.equals(serverAddr)) {
+                log.warn("XA connection bound to unhealthy server {}, invalidating session and closing connection", serverAddr);
+                
+                // CRITICAL FIX: Invalidate the session info immediately
+                // This handles the race condition where the health checker invalidates the session
+                // during connect(), but before the sessionInfo field is fully initialized in the caller
+                if (sessionInfo != null) {
+                    String invalidatedSessionUUID = sessionInfo.getSessionUUID();
+                    log.info("[RACE-FIX] Invalidating session {} due to server {} failure", invalidatedSessionUUID, serverAddr);
+                    sessionInfo = null;
+                    boundServerAddress = null;
+                    xaResource = null; // Force recreation of XAResource with new session
+                }
+                
                 // Close this connection - Atomikos will remove it from pool and create a new one
-                close();
-            } catch (SQLException e) {
-                log.error("Error closing XA connection after server failure: {}", e.getMessage(), e);
+                if (!closed) {
+                    try {
+                        close();
+                    } catch (SQLException e) {
+                        log.error("Error closing XA connection after server failure: {}", e.getMessage(), e);
+                    }
+                }
             }
+        } finally {
+            sessionLock.unlock();
         }
     }
     

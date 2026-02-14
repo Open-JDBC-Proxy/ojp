@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class OjpXADataSourceTest {
 
     @Test
-    public void testXADataSourceCreation() {
+    void testXADataSourceCreation() {
         OjpXADataSource xaDataSource = new OjpXADataSource();
         assertNotNull(xaDataSource);
         
@@ -29,7 +29,7 @@ public class OjpXADataSourceTest {
     }
 
     @Test
-    public void testXADataSourceWithConstructor() {
+    void testXADataSourceWithConstructor() {
         OjpXADataSource xaDataSource = new OjpXADataSource(
             "jdbc:ojp[localhost:1059]_postgresql://localhost/testdb",
             "testuser",
@@ -43,7 +43,7 @@ public class OjpXADataSourceTest {
     }
 
     @Test
-    public void testSetProperty() {
+    void testSetProperty() {
         OjpXADataSource xaDataSource = new OjpXADataSource();
         xaDataSource.setProperty("testKey", "testValue");
         
@@ -54,7 +54,7 @@ public class OjpXADataSourceTest {
     }
 
     @Test
-    public void testLoginTimeout() throws Exception {
+    void testLoginTimeout() throws Exception {
         OjpXADataSource xaDataSource = new OjpXADataSource();
         
         assertEquals(0, xaDataSource.getLoginTimeout());
@@ -64,7 +64,7 @@ public class OjpXADataSourceTest {
     }
 
     @Test
-    public void testGetXAConnectionWithoutUrl() {
+    void testGetXAConnectionWithoutUrl() {
         OjpXADataSource xaDataSource = new OjpXADataSource();
         xaDataSource.setUser("testuser");
         xaDataSource.setPassword("testpass");
@@ -78,7 +78,7 @@ public class OjpXADataSourceTest {
      * Test Xid implementation used by OjpXAResource.
      */
     @Test
-    public void testXidImplementation() {
+    void testXidImplementation() {
         // Create a test Xid
         int formatId = 1;
         byte[] globalTxId = "global-tx-id".getBytes();

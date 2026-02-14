@@ -41,8 +41,8 @@ class MultinodeStatementServiceTest {
     @Test
     void testConstructionWithSingleEndpoint() {
         // Test with single endpoint
-        List<ServerEndpoint> singleEndpoint = Arrays.asList(
-            new ServerEndpoint("localhost", 1059)
+        List<ServerEndpoint> singleEndpoint = List.of(
+                new ServerEndpoint("localhost", 1059)
         );
         MultinodeConnectionManager singleManager = new MultinodeConnectionManager(singleEndpoint);
         service = new MultinodeStatementService(singleManager, "jdbc:ojp[localhost:1059]_h2:mem:test");

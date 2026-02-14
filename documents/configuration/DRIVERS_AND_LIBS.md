@@ -1,18 +1,24 @@
 # OJP External Libraries Support
 
-OJP Server supports loading JDBC drivers from an external directory. While open-source drivers (H2, PostgreSQL, MySQL, MariaDB) are included in Docker images by default, you can also provide your own versions or add proprietary database drivers without recompiling OJP.
+> **🚨 Important for Version 0.4.0-beta and Later:**  
+> Starting from version **0.4.0-beta**, JDBC drivers are **NO LONGER included** in the OJP Server JAR or pre-built Docker images. You **MUST** download the JDBC driver(s) you want to use and place them in the `ojp-libs` folder before running ojp-server.
+>
+> - **Runnable JAR** deployments require you to download drivers using the `download-drivers.sh` script (for open-source databases) or manually (for proprietary databases)
+> - **Docker** deployments require you to download drivers and mount the `ojp-libs` directory as a volume
+
+OJP Server supports loading JDBC drivers from an external directory. You must provide the JDBC drivers you want to use by downloading them and placing them in the `ojp-libs` folder.
 
 ## Overview
 
 OJP provides a flexible "drop-in" mechanism for JDBC drivers and related libraries:
 
-- **Docker Images**: Include open-source drivers by default ("batteries included")
-- **Runnable JAR**: Download drivers separately using the provided script
-- **Custom Drivers**: Replace default drivers with specific versions or add proprietary drivers
+- **Runnable JAR**: Download drivers separately using the provided script before running
+- **Docker**: Download drivers and mount them as a volume when running the container
+- **Custom Drivers**: Use specific driver versions or add proprietary drivers
 
 ### Supported Databases
 
-**Open Source (included in Docker images)**:
+**Open Source (download using provided script)**:
 - **H2** - Embedded/file-based database
 - **PostgreSQL** - Popular open-source relational database
 - **MySQL** - Widely-used open-source database
@@ -32,22 +38,38 @@ OJP provides a flexible "drop-in" mechanism for JDBC drivers and related librari
 1. **External Libraries Directory**: OJP loads all JAR files from a configurable directory at startup
 2. **Automatic Detection**: Drivers and libraries are automatically loaded into the classpath
 3. **Helpful Messages**: OJP provides clear instructions when a driver is missing
-4. **Docker Images**: Open-source drivers (H2, PostgreSQL, MySQL, MariaDB) are pre-installed in Docker images
+4. **Required Setup**: You must download and provide drivers before running OJP Server (version 0.4.0-beta and later)
 
 ## Setup Instructions
 
-### Option 1: Docker (Recommended - Batteries Included)
+### Option 1: Docker with Volume Mount (Recommended)
 
-**Quick Start** - Open source drivers are pre-installed:
+> **⚠️ Required for v0.4.0-beta and later:** Docker images no longer include drivers pre-installed. You must download drivers and mount them.
+
+**Step 1: Download Open Source Drivers**
 
 ```bash
-# Run OJP with open source drivers included
-docker run -d -p 1059:1059 --name ojp rrobetti/ojp:0.3.2-snapshot
+# Create external libraries directory
+mkdir -p ./ojp-libs
+
+# Download open source drivers (H2, PostgreSQL, MySQL, MariaDB)
+cd ojp-server
+bash download-drivers.sh ../ojp-libs
+cd ..
 ```
 
-The Docker image includes H2, PostgreSQL, MySQL, and MariaDB drivers by default. No additional setup needed!
+**Step 2: Run Docker with Volume Mount**
 
-**Adding Proprietary Drivers** - Mount external directory:
+```bash
+# Run OJP with downloaded drivers mounted
+docker run -d \
+  -p 1059:1059 \
+  -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
+  --name ojp \
+  rrobetti/ojp:0.3.2-snapshot
+```
+
+**Adding Proprietary Drivers**:
 
 ```bash
 # Create external libraries directory on host
@@ -65,6 +87,8 @@ docker run -d \
 ```
 
 ### Option 2: Runnable JAR (Local/VM Deployment)
+
+> **⚠️ Required for v0.4.0-beta and later:** You must download JDBC drivers before running the OJP Server JAR.
 
 For complete instructions on building and running OJP as a runnable JAR, see the [OJP Server Runnable JAR Guide](../runnable-jar/README.md).
 

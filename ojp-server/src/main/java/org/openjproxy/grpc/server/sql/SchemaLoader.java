@@ -119,7 +119,12 @@ public class SchemaLoader {
         }
         
         long duration = System.currentTimeMillis() - startTime;
-        log.info("Loaded {} tables in {}ms", tables.size(), duration);
+        
+        if (tables.isEmpty()) {
+            log.warn("No tables found in catalog: {}, schema: {}. Schema may be empty or inaccessible.", catalogName, schemaName);
+        } else {
+            log.info("Loaded {} tables in {}ms: {}", tables.size(), duration, tables.keySet());
+        }
         
         return new SchemaMetadata(tables, System.currentTimeMillis(), catalogName, schemaName);
     }

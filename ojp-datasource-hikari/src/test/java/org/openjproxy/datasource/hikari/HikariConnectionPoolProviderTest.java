@@ -358,7 +358,7 @@ class HikariConnectionPoolProviderTest {
         
         // Small delay to ensure connection processing
         try {
-            Thread.sleep(50);
+            Thread.sleep(50); //NOSONAR
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

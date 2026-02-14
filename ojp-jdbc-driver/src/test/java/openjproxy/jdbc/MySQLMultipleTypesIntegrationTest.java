@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -17,22 +16,24 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class MySQLMultipleTypesIntegrationTest {
+ class MySQLMultipleTypesIntegrationTest {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isMySQLTestEnabled = Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
@@ -59,7 +60,7 @@ public class MySQLMultipleTypesIntegrationTest {
         psInsert.setInt(1, 1);
         psInsert.setString(2, "TITLE_1");
         psInsert.setDouble(3, 2.2222d);
-        psInsert.setLong(4, 33333333333333l);
+        psInsert.setLong(4, 33333333333333L);
         psInsert.setInt(5, 127);
         psInsert.setInt(6, 32767);
         psInsert.setBoolean(7, true);
@@ -104,20 +105,20 @@ public class MySQLMultipleTypesIntegrationTest {
         Timestamp valTimestampRet = resultSet.getTimestamp(14);
 
         // Assertions
-        Assert.assertEquals(1, valInt);
-        Assert.assertEquals("TITLE_1", valVarchar);
-        Assert.assertEquals(2.2222d, valDoublePrecision, 0.00001);
-        Assert.assertEquals(33333333333333l, valBigint);
-        Assert.assertEquals(127, valTinyint);
-        Assert.assertEquals(32767, valSmallint);
-        Assert.assertEquals(true, valBoolean);
-        Assert.assertEquals(new BigDecimal(10), valDecimal);
-        Assert.assertEquals(20.20f, valFloat, 0.001);
-        Assert.assertEquals((byte) 49, valByte);//Mysql return the byte as a character somehow and the byte value of character 1 is 49 (tested with direct connection)
-        Assert.assertEquals("AAAA", new String(valBinary));
-        Assert.assertEquals(valDate, valDateRet);
-        Assert.assertEquals(valTime, valTimeRet);
-        Assert.assertEquals(valTimestamp, valTimestampRet);
+        assertEquals(1, valInt);
+        assertEquals("TITLE_1", valVarchar);
+        assertEquals(2.2222d, valDoublePrecision, 0.00001);
+        assertEquals(33333333333333L, valBigint);
+        assertEquals(127, valTinyint);
+        assertEquals(32767, valSmallint);
+        assertTrue( valBoolean);
+        assertEquals(new BigDecimal(10), valDecimal);
+        assertEquals(20.20f, valFloat, 0.001);
+        assertEquals((byte) 49, valByte);//Mysql return the byte as a character somehow and the byte value of character 1 is 49 (tested with direct connection)
+        assertEquals("AAAA", new String(valBinary));
+        assertEquals(valDate, valDateRet);
+        assertEquals(valTime, valTimeRet);
+        assertEquals(valTimestamp, valTimestampRet);
 
         resultSet.close();
         psSelect.close();
@@ -127,7 +128,7 @@ public class MySQLMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    public void mysqlSpecificTypesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void mysqlSpecificTypesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
@@ -183,18 +184,18 @@ public class MySQLMultipleTypesIntegrationTest {
         byte bitCol = resultSet.getByte(12);
 
         // Assertions
-        Assert.assertTrue(id > 0);
-        Assert.assertEquals("medium", enumCol);
-        Assert.assertEquals("{\"key\": \"value\", \"number\": 42}", jsonCol);
-        Assert.assertEquals("This is a TEXT column", textCol);
-        Assert.assertEquals("This is a MEDIUMTEXT column with more content", mediumtextCol);
-        Assert.assertEquals("This is a LONGTEXT column with even more content", longtextCol);
-        Assert.assertEquals("BLOB data", new String(blobCol));
-        Assert.assertEquals("MEDIUMBLOB data", new String(mediumblobCol));
-        Assert.assertEquals("LONGBLOB data", new String(longblobCol));
-        Assert.assertEquals("option1,option3", setCol);
-        Assert.assertEquals(2024, yearCol);
-        Assert.assertEquals((byte) 0b101010, bitCol);
+        assertTrue(id > 0);
+        assertEquals("medium", enumCol);
+        assertEquals("{\"key\": \"value\", \"number\": 42}", jsonCol);
+        assertEquals("This is a TEXT column", textCol);
+        assertEquals("This is a MEDIUMTEXT column with more content", mediumtextCol);
+        assertEquals("This is a LONGTEXT column with even more content", longtextCol);
+        assertEquals("BLOB data", new String(blobCol));
+        assertEquals("MEDIUMBLOB data", new String(mediumblobCol));
+        assertEquals("LONGBLOB data", new String(longblobCol));
+        assertEquals("option1,option3", setCol);
+        assertEquals(2024, yearCol);
+        assertEquals((byte) 0b101010, bitCol);
 
         resultSet.close();
         psSelect.close();

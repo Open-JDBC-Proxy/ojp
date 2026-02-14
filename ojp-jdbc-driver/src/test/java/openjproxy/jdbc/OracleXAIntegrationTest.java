@@ -35,7 +35,7 @@ public class OracleXAIntegrationTest {
     private Connection connection;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         // Disabled by default
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
@@ -55,7 +55,7 @@ public class OracleXAIntegrationTest {
     }
 
     @AfterEach
-    public void tearDown() {
+    void tearDown() {
         TestDBUtils.closeQuietly(connection);
         if (xaConnection != null) {
             try {
@@ -71,7 +71,7 @@ public class OracleXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_xa_connection.csv")
-    public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
+    void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         assertNotNull(xaConnection, "XA connection should be created");
@@ -93,7 +93,7 @@ public class OracleXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_xa_connection.csv")
-    public void testXATransactionWithCRUD(String driverClass, String url, String user, String password)
+    void testXATransactionWithCRUD(String driverClass, String url, String user, String password)
             throws Exception {
         setUp(driverClass, url, user, password);
 
@@ -173,7 +173,7 @@ public class OracleXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_xa_connection.csv")
-    public void testXATransactionRollback(String driverClass, String url, String user, String password)
+    void testXATransactionRollback(String driverClass, String url, String user, String password)
             throws Exception {
         setUp(driverClass, url, user, password);
 
@@ -236,7 +236,7 @@ public class OracleXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_xa_connection.csv")
-    public void testXATransactionTimeout(String driverClass, String url, String user, String password)
+    void testXATransactionTimeout(String driverClass, String url, String user, String password)
             throws Exception {
         setUp(driverClass, url, user, password);
 
@@ -252,7 +252,7 @@ public class OracleXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_xa_connection.csv")
-    public void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
+    void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         XAResource xaResource = xaConnection.getXAResource();

@@ -16,6 +16,8 @@ import org.apache.calcite.schema.impl.AbstractSchema;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.fun.SqlLibrary;
+import org.apache.calcite.sql.fun.SqlLibraryOperatorTableFactory;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.Frameworks;
@@ -36,6 +38,7 @@ public class RelationalAlgebraConverter {
     
     private final SqlParser.Config parserConfig;
     private final SqlDialect sqlDialect;
+    private final SqlLibrary sqlLibrary;
     private final SchemaCache schemaCache;
     private final CalciteSchemaFactory schemaFactory;
     
@@ -102,11 +105,14 @@ public class RelationalAlgebraConverter {
      * 
      * @param parserConfig The parser configuration
      * @param sqlDialect The SQL dialect for generating SQL
+     * @param sqlLibrary The SQL library for dialect-specific operators and functions
      * @param schemaCache Optional schema cache for real schema metadata (can be null)
      */
-    public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect, SchemaCache schemaCache) {
+    public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect, 
+                                      SqlLibrary sqlLibrary, SchemaCache schemaCache) {
         this.parserConfig = parserConfig;
         this.sqlDialect = sqlDialect;
+        this.sqlLibrary = sqlLibrary;
         this.schemaCache = schemaCache;
         this.schemaFactory = new CalciteSchemaFactory();
     }
@@ -117,9 +123,33 @@ public class RelationalAlgebraConverter {
      * 
      * @param parserConfig The parser configuration
      * @param sqlDialect The SQL dialect for generating SQL
+     * @param sqlLibrary The SQL library for dialect-specific operators and functions
+     */
+    public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect, SqlLibrary sqlLibrary) {
+        this(parserConfig, sqlDialect, sqlLibrary, null);
+    }
+    
+    /**
+     * Creates a new converter with the specified parser configuration and SQL dialect.
+     * Uses STANDARD library and no real schema (for backward compatibility).
+     * 
+     * @param parserConfig The parser configuration
+     * @param sqlDialect The SQL dialect for generating SQL
+     * @param schemaCache Optional schema cache for real schema metadata (can be null)
+     */
+    public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect, SchemaCache schemaCache) {
+        this(parserConfig, sqlDialect, SqlLibrary.STANDARD, schemaCache);
+    }
+    
+    /**
+     * Creates a new converter with the specified parser configuration and SQL dialect.
+     * Uses STANDARD library and generic schema only (for backward compatibility).
+     * 
+     * @param parserConfig The parser configuration
+     * @param sqlDialect The SQL dialect for generating SQL
      */
     public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect) {
-        this(parserConfig, sqlDialect, null);
+        this(parserConfig, sqlDialect, SqlLibrary.STANDARD, null);
     }
     
     /**
@@ -144,7 +174,12 @@ public class RelationalAlgebraConverter {
                 if (metadata != null && !metadata.getTables().isEmpty()) {
                     log.debug("Using real schema with {} tables", metadata.getTables().size());
                     org.apache.calcite.schema.Schema realSchema = schemaFactory.createSchema(metadata);
-                    defaultSchema = rootSchema.add("default", realSchema);
+                    // Use the actual schema name from metadata (e.g., "public" for PostgreSQL)
+                    // Fall back to "default" if schema name is not available
+                    String schemaName = (metadata.getSchemaName() != null && !metadata.getSchemaName().isEmpty()) 
+                                        ? metadata.getSchemaName() : "default";
+                    defaultSchema = rootSchema.add(schemaName, realSchema);
+                    log.debug("Added schema '{}' to Calcite root schema", schemaName);
                 } else {
                     log.debug("Real schema not available, using dynamic schema");
                     defaultSchema = rootSchema.add("default", new DynamicSchema());
@@ -158,6 +193,7 @@ public class RelationalAlgebraConverter {
             FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(parserConfig)
                 .defaultSchema(defaultSchema)
+                .operatorTable(SqlLibraryOperatorTableFactory.INSTANCE.getOperatorTable(sqlLibrary))
                 .build();
             
             // Use planner for conversion

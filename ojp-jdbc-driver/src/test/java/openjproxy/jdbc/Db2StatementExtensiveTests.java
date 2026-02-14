@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -13,17 +12,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class Db2StatementExtensiveTests {
+class Db2StatementExtensiveTests {
 
     private static boolean isTestDisabled;
 
@@ -31,33 +23,33 @@ public class Db2StatementExtensiveTests {
     private Statement statement;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+     void setUp(String driverClass, String url, String user, String password) throws Exception {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
-        
+
         // Set schema explicitly to avoid "object not found" errors
         try (java.sql.Statement schemaStmt = connection.createStatement()) {
             schemaStmt.execute("SET SCHEMA DB2INST1");
         }
-        
+
         statement = connection.createStatement();
 
         TestDBUtils.createBasicTestTable(connection, "DB2INST1.db2_statement_test", TestDBUtils.SqlSyntax.DB2, true);
     }
 
     @AfterEach
-    public void tearDown() throws Exception {
+    void tearDown() throws Exception {
         TestDBUtils.closeQuietly(statement, connection);
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         ResultSet rs = statement.executeQuery("SELECT * FROM DB2INST1.db2_statement_test");
         assertNotNull(rs);
@@ -67,7 +59,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testExecuteUpdate(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteUpdate(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int rows = statement.executeUpdate("UPDATE DB2INST1.db2_statement_test SET name = 'Updated Alice' WHERE id = 1");
         assertEquals(1, rows);
@@ -80,7 +72,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testClose(String driverClass, String url, String user, String password) throws Exception {
+    void testClose(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertFalse(statement.isClosed());
         statement.close();
@@ -89,7 +81,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testMaxFieldSize(String driverClass, String url, String user, String password) throws Exception {
+    void testMaxFieldSize(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getMaxFieldSize();
         statement.setMaxFieldSize(orig + 1);
@@ -100,7 +92,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testExecuteAfterCloseThrows(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteAfterCloseThrows(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.close();
         assertThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM DB2INST1.db2_statement_test"));
@@ -110,7 +102,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testMaxRows(String driverClass, String url, String user, String password) throws Exception {
+    void testMaxRows(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setMaxRows(1);
         assertEquals(1, statement.getMaxRows());
@@ -122,7 +114,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testEscapeProcessing(String driverClass, String url, String user, String password) throws Exception {
+    void testEscapeProcessing(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // Should not throw
         statement.setEscapeProcessing(true);
@@ -131,7 +123,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testQueryTimeout(String driverClass, String url, String user, String password) throws Exception {
+    void testQueryTimeout(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setQueryTimeout(5);
         assertEquals(5, statement.getQueryTimeout());
@@ -139,7 +131,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testCancel(String driverClass, String url, String user, String password) throws Exception {
+    void testCancel(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // Should not throw
         statement.cancel();
@@ -147,7 +139,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testWarnings(String driverClass, String url, String user, String password) throws Exception {
+    void testWarnings(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.clearWarnings();
         assertNull(statement.getWarnings());
@@ -155,7 +147,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testSetCursorName(String driverClass, String url, String user, String password) throws Exception {
+    void testSetCursorName(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // DB2 supports named cursors
         assertDoesNotThrow(() -> statement.setCursorName("CURSOR_A"));
@@ -163,7 +155,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testExecute(String driverClass, String url, String user, String password) throws Exception {
+    void testExecute(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         boolean isResultSet = statement.execute("SELECT * FROM DB2INST1.db2_statement_test");
         assertTrue(isResultSet);
@@ -179,7 +171,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testGetMoreResults(String driverClass, String url, String user, String password) throws Exception {
+    void testGetMoreResults(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.execute("SELECT * FROM DB2INST1.db2_statement_test");
         assertFalse(statement.getMoreResults());
@@ -188,7 +180,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testFetchDirection(String driverClass, String url, String user, String password) throws Exception {
+    void testFetchDirection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getFetchDirection();
         statement.setFetchDirection(ResultSet.FETCH_FORWARD);
@@ -198,7 +190,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testFetchSize(String driverClass, String url, String user, String password) throws Exception {
+    void testFetchSize(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getFetchSize();
         statement.setFetchSize(orig + 1);
@@ -208,7 +200,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password) throws Exception {
+    void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int concurrency = statement.getResultSetConcurrency();
         int type = statement.getResultSetType();
@@ -218,7 +210,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testBatchExecution(String driverClass, String url, String user, String password) throws Exception {
+    void testBatchExecution(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.addBatch("INSERT INTO DB2INST1.db2_statement_test (id, name) VALUES (3, 'Charlie')");
         statement.addBatch("INSERT INTO DB2INST1.db2_statement_test (id, name) VALUES (4, 'David')");
@@ -233,7 +225,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testClearBatch(String driverClass, String url, String user, String password) throws Exception {
+    void testClearBatch(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.addBatch("INSERT INTO DB2INST1.db2_statement_test (id, name) VALUES (5, 'Eve')");
         statement.clearBatch();
@@ -243,14 +235,14 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testGetConnection(String driverClass, String url, String user, String password) throws Exception {
+    void testGetConnection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertSame(connection, statement.getConnection());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testGetMoreResultsWithCurrent(String driverClass, String url, String user, String password) throws Exception {
+    void testGetMoreResultsWithCurrent(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.execute("SELECT * FROM DB2INST1.db2_statement_test");
         assertFalse(statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT));
@@ -258,12 +250,12 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
+    void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_auto_keys", TestDBUtils.SqlSyntax.DB2);
-        
+
         int affected = statement.executeUpdate("INSERT INTO test_auto_keys (name) VALUES ('foo')",
-                new String[] { "id" });
+                new String[]{"id"});
         assertEquals(1, affected);
         ResultSet keys = statement.getGeneratedKeys();
         assertTrue(keys.next());
@@ -273,11 +265,11 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testExecuteUpdateVariants(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteUpdateVariants(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         TestDBUtils.createAutoIncrementTestTable(connection, "test_cols", TestDBUtils.SqlSyntax.DB2);
-        
+
         int a = statement.executeUpdate("INSERT INTO test_cols (name) VALUES ('bar')", Statement.RETURN_GENERATED_KEYS);
         assertEquals(1, a);
 
@@ -293,10 +285,10 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testExecuteVariants(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteVariants(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_exec", TestDBUtils.SqlSyntax.DB2);
-        
+
         boolean b = statement.execute("INSERT INTO test_exec (name) VALUES ('v1')", Statement.RETURN_GENERATED_KEYS);
         assertFalse(b);
 
@@ -312,7 +304,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testGetResultSetHoldability(String driverClass, String url, String user, String password) throws Exception {
+    void testGetResultSetHoldability(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int holdability = statement.getResultSetHoldability();
         assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
@@ -320,12 +312,12 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testPoolable(String driverClass, String url, String user, String password) throws Exception {
+    void testPoolable(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setPoolable(true);
         // DB2 behavior: supports statement pooling
         boolean isPoolable = statement.isPoolable();
-        assertTrue(isPoolable == true || isPoolable == false, "isPoolable should return a boolean");
+        assertTrue(isPoolable || !isPoolable, "isPoolable should return a boolean");
         statement.setPoolable(false);
         // Just verify the method works, don't enforce specific behavior
         statement.isPoolable(); // Should not throw
@@ -333,7 +325,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testCloseOnCompletion(String driverClass, String url, String user, String password) throws Exception {
+    void testCloseOnCompletion(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.closeOnCompletion();
         assertTrue(statement.isCloseOnCompletion());
@@ -341,7 +333,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testLargeMethodsDefault(String driverClass, String url, String user, String password) throws Exception {
+    void testLargeMethodsDefault(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.getFetchDirection();
         statement.execute("INSERT INTO DB2INST1.db2_statement_test (id, name) VALUES (3, 'Juca Bala')");
@@ -360,7 +352,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testEnquoteLiteral(String driverClass, String url, String user, String password) throws Exception {
+    void testEnquoteLiteral(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         String quoted = statement.enquoteLiteral("foo'bar");
         assertEquals("'foo''bar'", quoted);
@@ -368,7 +360,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testEnquoteIdentifier(String driverClass, String url, String user, String password) throws Exception {
+    void testEnquoteIdentifier(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // DB2 quotes identifiers to preserve case sensitivity
         String quoted = statement.enquoteIdentifier("abc", true);
@@ -379,13 +371,13 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testIsSimpleIdentifier(String driverClass, String url, String user, String password) throws Exception {
+    void testIsSimpleIdentifier(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // DB2 has specific rules for simple identifiers
         boolean result1 = statement.isSimpleIdentifier("abc123");
         boolean result2 = statement.isSimpleIdentifier("ab-c");  // Contains hyphen - not simple
         boolean result3 = statement.isSimpleIdentifier("");      // Empty - not simple
-        
+
         assertTrue(result1);      // Should be true for simple identifier
         assertFalse(result2);     // Should be false - contains special character
         assertFalse(result3);     // Should be false - empty string
@@ -393,7 +385,7 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testEnquoteNCharLiteral(String driverClass, String url, String user, String password) throws Exception {
+    void testEnquoteNCharLiteral(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         String quoted = statement.enquoteNCharLiteral("foo'bar");
         assertEquals("N'foo''bar'", quoted);
@@ -401,29 +393,29 @@ public class Db2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2SpecificFeatures(String driverClass, String url, String user, String password) throws Exception {
+    void testDb2SpecificFeatures(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
-        
+
         // Test DB2-specific SQL features
         statement.execute("CREATE VIEW db2_test_view AS SELECT * FROM DB2INST1.db2_statement_test");
-        
+
         ResultSet rs = statement.executeQuery("SELECT * FROM db2_test_view");
         assertTrue(rs.next());
         rs.close();
-        
+
         // Test DB2 system tables
         rs = statement.executeQuery("SELECT CURRENT_TIMESTAMP FROM SYSIBM.SYSDUMMY1");
         assertTrue(rs.next());
         assertNotNull(rs.getTimestamp(1));
         rs.close();
-        
+
         // Test DB2 VALUES clause
         rs = statement.executeQuery("VALUES (1, 'test')");
         assertTrue(rs.next());
         assertEquals(1, rs.getInt(1));
         assertEquals("test", rs.getString(2));
         rs.close();
-        
+
         // Clean up
         statement.execute("DROP VIEW db2_test_view");
     }

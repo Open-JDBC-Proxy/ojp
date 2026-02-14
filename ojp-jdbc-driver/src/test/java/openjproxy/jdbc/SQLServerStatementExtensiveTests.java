@@ -1,15 +1,20 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
-import java.sql.*;
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -22,13 +27,13 @@ public class SQLServerStatementExtensiveTests {
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerBasicStatementOperations(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerBasicStatementOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -42,35 +47,35 @@ public class SQLServerStatementExtensiveTests {
         int insertCount = stmt.executeUpdate(
                 "INSERT INTO sqlserver_stmt_basic_test (id, name) VALUES (100, N'Statement Test')"
         );
-        Assert.assertEquals(1, insertCount);
+        assertEquals(1, insertCount);
 
         // Test SELECT
         ResultSet rs = stmt.executeQuery("SELECT * FROM sqlserver_stmt_basic_test WHERE id = 100");
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(100, rs.getInt("id"));
-        Assert.assertEquals("Statement Test", rs.getString("name"));
+        assertTrue(rs.next());
+        assertEquals(100, rs.getInt("id"));
+        assertEquals("Statement Test", rs.getString("name"));
         rs.close();
 
         // Test UPDATE
         int updateCount = stmt.executeUpdate(
                 "UPDATE sqlserver_stmt_basic_test SET name = N'Updated Test' WHERE id = 100"
         );
-        Assert.assertEquals(1, updateCount);
+        assertEquals(1, updateCount);
 
         // Verify update
         rs = stmt.executeQuery("SELECT name FROM sqlserver_stmt_basic_test WHERE id = 100");
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals("Updated Test", rs.getString("name"));
+        assertTrue(rs.next());
+        assertEquals("Updated Test", rs.getString("name"));
         rs.close();
 
         // Test DELETE
         int deleteCount = stmt.executeUpdate("DELETE FROM sqlserver_stmt_basic_test WHERE id = 100");
-        Assert.assertEquals(1, deleteCount);
+        assertEquals(1, deleteCount);
 
         // Verify delete
         rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_stmt_basic_test");
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(2, rs.getInt(1));
+        assertTrue(rs.next());
+        assertEquals(2, rs.getInt(1));
         rs.close();
 
         stmt.close();
@@ -80,7 +85,7 @@ public class SQLServerStatementExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerSpecificSyntax(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerSpecificSyntax(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -107,27 +112,27 @@ public class SQLServerStatementExtensiveTests {
         int count = 0;
         while (rs.next()) {
             count++;
-            Assert.assertEquals(count, rs.getInt("id"));
-            Assert.assertEquals("Test " + count, rs.getString("name"));
+            assertEquals(count, rs.getInt("id"));
+            assertEquals("Test " + count, rs.getString("name"));
         }
-        Assert.assertEquals(2, count);
+        assertEquals(2, count);
         rs.close();
 
         // Test SQL Server-specific OFFSET/FETCH
         rs = stmt.executeQuery(
                 "SELECT id, name FROM sqlserver_syntax_test ORDER BY id OFFSET 1 ROWS FETCH NEXT 1 ROWS ONLY"
         );
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(2, rs.getInt("id"));
-        Assert.assertEquals("Test 2", rs.getString("name"));
-        Assert.assertFalse(rs.next());
+        assertTrue(rs.next());
+        assertEquals(2, rs.getInt("id"));
+        assertEquals("Test 2", rs.getString("name"));
+        assertFalse(rs.next());
         rs.close();
 
         // Test SQL Server-specific OUTPUT clause
         ResultSet outputRs = stmt.executeQuery(
                 "INSERT INTO sqlserver_syntax_test (name) OUTPUT INSERTED.id VALUES (N'Test with OUTPUT')"
         );
-        Assert.assertTrue(outputRs.next());
+        assertTrue(outputRs.next());
         int insertedId = outputRs.getInt(1);
         System.out.println("Inserted ID: " + insertedId);
         outputRs.close();
@@ -139,7 +144,7 @@ public class SQLServerStatementExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerBatchStatements(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerBatchStatements(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -157,22 +162,22 @@ public class SQLServerStatementExtensiveTests {
 
         // Execute batch
         int[] results = stmt.executeBatch();
-        Assert.assertEquals(4, results.length);
+        assertEquals(4, results.length);
         for (int i = 0; i < 3; i++) {
-            Assert.assertEquals(1, results[i]); // Each INSERT affects 1 row
+            assertEquals(1, results[i]); // Each INSERT affects 1 row
         }
-        Assert.assertEquals(1, results[3]); // UPDATE affects 1 row
+        assertEquals(1, results[3]); // UPDATE affects 1 row
 
         // Verify batch results
         ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_batch_stmt_test");
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(3, rs.getInt(1));
+        assertTrue(rs.next());
+        assertEquals(3, rs.getInt(1));
         rs.close();
 
         rs = stmt.executeQuery("SELECT name FROM sqlserver_batch_stmt_test WHERE id = 10");
 
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals("Updated Batch 1", rs.getString(1));
+        assertTrue(rs.next());
+        assertEquals("Updated Batch 1", rs.getString(1));
         rs.close();
 
         stmt.close();
@@ -182,7 +187,7 @@ public class SQLServerStatementExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerStoredProcedures(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerStoredProcedures(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -212,9 +217,9 @@ public class SQLServerStatementExtensiveTests {
         cs.setInt(1, 11);
         ResultSet rs = cs.executeQuery();
 
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(11, rs.getInt("id"));
-        Assert.assertEquals("Procedure Test", rs.getString("name"));
+        assertTrue(rs.next());
+        assertEquals(11, rs.getInt("id"));
+        assertEquals("Procedure Test", rs.getString("name"));
         rs.close();
         cs.close();
 
@@ -227,7 +232,7 @@ public class SQLServerStatementExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerTransactionStatements(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerTransactionStatements(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -245,8 +250,8 @@ public class SQLServerStatementExtensiveTests {
 
             // Verify data exists in transaction
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_txn_stmt_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(1, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt(1));
             rs.close();
 
             // Test explicit transaction commands
@@ -256,8 +261,8 @@ public class SQLServerStatementExtensiveTests {
             
             // Verify both records
             rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_txn_stmt_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(2, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
             rs.close();
 
             // Rollback to savepoint
@@ -265,8 +270,8 @@ public class SQLServerStatementExtensiveTests {
 
             // Should only have first record
             rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_txn_stmt_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(1, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt(1));
             rs.close();
 
             conn.commit();
@@ -281,7 +286,7 @@ public class SQLServerStatementExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerLargeQueries(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerLargeQueries(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -302,10 +307,10 @@ public class SQLServerStatementExtensiveTests {
         int count = 0;
         while (rs.next()) {
             count++;
-            Assert.assertEquals(count, rs.getInt("id"));
-            Assert.assertEquals("Record " + count, rs.getString("name"));
+            assertEquals(count, rs.getInt("id"));
+            assertEquals("Record " + count, rs.getString("name"));
         }
-        Assert.assertEquals(100, count);
+        assertEquals(100, count);
         rs.close();
 
         stmt.close();
@@ -315,7 +320,7 @@ public class SQLServerStatementExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerStatementProperties(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerStatementProperties(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -324,20 +329,20 @@ public class SQLServerStatementExtensiveTests {
         Statement stmt = conn.createStatement();
 
         // Test default properties
-        Assert.assertEquals(ResultSet.TYPE_FORWARD_ONLY, stmt.getResultSetType());
-        Assert.assertEquals(ResultSet.CONCUR_READ_ONLY, stmt.getResultSetConcurrency());
+        assertEquals(ResultSet.TYPE_FORWARD_ONLY, stmt.getResultSetType());
+        assertEquals(ResultSet.CONCUR_READ_ONLY, stmt.getResultSetConcurrency());
 
         // Test fetch size
         stmt.setFetchSize(50);
-        Assert.assertEquals(50, stmt.getFetchSize());
+        assertEquals(50, stmt.getFetchSize());
 
         // Test max rows
         stmt.setMaxRows(100);
-        Assert.assertEquals(100, stmt.getMaxRows());
+        assertEquals(100, stmt.getMaxRows());
 
         // Test query timeout
         stmt.setQueryTimeout(30);
-        Assert.assertEquals(30, stmt.getQueryTimeout());
+        assertEquals(30, stmt.getQueryTimeout());
 
         // Test escape processing
         stmt.setEscapeProcessing(false);
@@ -350,7 +355,7 @@ public class SQLServerStatementExtensiveTests {
                 ResultSet.TYPE_SCROLL_INSENSITIVE,
                 ResultSet.CONCUR_READ_ONLY
         );
-        Assert.assertEquals(ResultSet.TYPE_FORWARD_ONLY, scrollableStmt.getResultSetType());
+        assertEquals(ResultSet.TYPE_FORWARD_ONLY, scrollableStmt.getResultSetType());
         scrollableStmt.close();
 
         conn.close();

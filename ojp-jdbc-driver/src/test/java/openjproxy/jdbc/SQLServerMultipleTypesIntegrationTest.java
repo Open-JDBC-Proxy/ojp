@@ -1,12 +1,12 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -19,6 +19,7 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
@@ -27,13 +28,13 @@ public class SQLServerMultipleTypesIntegrationTest {
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -52,7 +53,7 @@ public class SQLServerMultipleTypesIntegrationTest {
         psInsert.setInt(1, 1);
         psInsert.setString(2, "TITLE_1");
         psInsert.setDouble(3, 2.2222d);
-        psInsert.setLong(4, 33333333333333l);
+        psInsert.setLong(4, 33333333333333L);
         psInsert.setInt(5, 255); // SQL Server TINYINT is 0-255
         psInsert.setInt(6, 32767);
         psInsert.setBoolean(7, true); // SQL Server BIT type
@@ -72,31 +73,31 @@ public class SQLServerMultipleTypesIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(255, resultSet.getInt(5)); // SQL Server TINYINT max value
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(true, resultSet.getBoolean(7)); // SQL Server BIT
-        Assert.assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", ""+resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(255, resultSet.getInt(5)); // SQL Server TINYINT max value
+        assertEquals(32767, resultSet.getInt(6));
+        assertTrue( resultSet.getBoolean(7)); // SQL Server BIT
+        assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal(8));
+        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         
         // SQL Server VARBINARY columns 
         byte[] byteValue = resultSet.getBytes(10);
-        Assert.assertNotNull("VARBINARY column should not be null", byteValue);
-        Assert.assertEquals(1, byteValue.length);
-        Assert.assertEquals((byte) 1, byteValue[0]);
+        Assertions.assertNotNull( byteValue,"VARBINARY column should not be null");
+        assertEquals(1, byteValue.length);
+        assertEquals((byte) 1, byteValue[0]);
         
         byte[] binaryValue = resultSet.getBytes(11);
-        Assert.assertNotNull("VARBINARY column should not be null", binaryValue);
-        Assert.assertEquals("AAAA", new String(binaryValue));
+        Assertions.assertNotNull(binaryValue,"VARBINARY column should not be null");
+        assertEquals("AAAA", new String(binaryValue));
         
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
         // SQL Server TIME type
         SimpleDateFormat sdfTimeOnly = new SimpleDateFormat("HH:mm:ss");
-        Assert.assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTime(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTime(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
 
         resultSet.close();
         psSelect.close();
@@ -109,7 +110,7 @@ public class SQLServerMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testSqlServerSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -139,33 +140,33 @@ public class SQLServerMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from sqlserver_specific_types_test");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
+        assertTrue(resultSet.next());
         
         // Verify NTEXT with Unicode
         String ntextValue = resultSet.getString("ntext_col");
-        Assert.assertEquals("NTEXT content with Unicode: 中文 🚀", ntextValue);
+        assertEquals("NTEXT content with Unicode: 中文 🚀", ntextValue);
         
         // Verify TEXT
         String textValue = resultSet.getString("text_col");
-        Assert.assertEquals("TEXT content", textValue);
+        assertEquals("TEXT content", textValue);
         
         // Verify MONEY
         BigDecimal moneyValue = resultSet.getBigDecimal("money_col");
-        Assert.assertEquals(new BigDecimal("123.4500"), moneyValue);
+        assertEquals(new BigDecimal("123.4500"), moneyValue);
         
         // Verify SMALLMONEY
         BigDecimal smallmoneyValue = resultSet.getBigDecimal("smallmoney_col");
-        Assert.assertEquals(new BigDecimal("67.8900"), smallmoneyValue);
+        assertEquals(new BigDecimal("67.8900"), smallmoneyValue);
         
         // Verify UNIQUEIDENTIFIER was generated
         String guidValue = resultSet.getString("uniqueidentifier_col");
-        Assert.assertNotNull(guidValue);
-        Assert.assertTrue(guidValue.length() > 30); // GUID format
+        assertNotNull(guidValue);
+        assertTrue(guidValue.length() > 30); // GUID format
         
         // Verify date/time types are not null
-        Assert.assertNotNull(resultSet.getObject("datetimeoffset_col", java.time.OffsetDateTime.class));
-        Assert.assertNotNull(resultSet.getTimestamp("datetime2_col"));
-        Assert.assertNotNull(resultSet.getTimestamp("smalldatetime_col"));
+        assertNotNull(resultSet.getObject("datetimeoffset_col", java.time.OffsetDateTime.class));
+        assertNotNull(resultSet.getTimestamp("datetime2_col"));
+        assertNotNull(resultSet.getTimestamp("smalldatetime_col"));
 
         resultSet.close();
         psSelect.close();
@@ -178,7 +179,7 @@ public class SQLServerMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerNullValues(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testSqlServerNullValues(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -201,20 +202,20 @@ public class SQLServerMultipleTypesIntegrationTest {
         resultSet.next();
         
         // Verify non-null values
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("Test", resultSet.getString("val_varchar"));
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("Test", resultSet.getString("val_varchar"));
         
         // Verify null values for columns not inserted
-        Assert.assertEquals(0.0, resultSet.getDouble("val_double_precision"), 0.0);
-        Assert.assertTrue(resultSet.wasNull());
+        assertEquals(0.0, resultSet.getDouble("val_double_precision"), 0.0);
+        assertTrue(resultSet.wasNull());
         
-        Assert.assertEquals(0L, resultSet.getLong("val_bigint"));
-        Assert.assertTrue(resultSet.wasNull());
+        assertEquals(0L, resultSet.getLong("val_bigint"));
+        assertTrue(resultSet.wasNull());
         
-        Assert.assertNull(resultSet.getBytes("val_byte"));
-        Assert.assertNull(resultSet.getDate("val_date"));
-        Assert.assertNull(resultSet.getTime("val_time"));
-        Assert.assertNull(resultSet.getTimestamp("val_timestamp"));
+        assertNull(resultSet.getBytes("val_byte"));
+        assertNull(resultSet.getDate("val_date"));
+        assertNull(resultSet.getTime("val_time"));
+        assertNull(resultSet.getTimestamp("val_timestamp"));
 
         resultSet.close();
         psSelect.close();
@@ -227,7 +228,7 @@ public class SQLServerMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerLargeTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testSqlServerLargeTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -273,25 +274,25 @@ public class SQLServerMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from sqlserver_large_types_test");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
+        assertTrue(resultSet.next());
         
         // Verify large NVARCHAR(MAX)
         String nvarcharValue = resultSet.getString("nvarchar_max");
-        Assert.assertTrue(nvarcharValue.length() > 40000);
-        Assert.assertTrue(nvarcharValue.contains("Unicode: 中文 🚀"));
+        assertTrue(nvarcharValue.length() > 40000);
+        assertTrue(nvarcharValue.contains("Unicode: 中文 🚀"));
         
         // Verify large VARCHAR(MAX)
         String varcharValue = resultSet.getString("varchar_max");
-        Assert.assertTrue(varcharValue.length() > 40000);
+        assertTrue(varcharValue.length() > 40000);
         
         // Verify large VARBINARY(MAX)
         byte[] varbinaryValue = resultSet.getBytes("varbinary_max");
-        Assert.assertNotNull(varbinaryValue);
-        Assert.assertEquals(10000, varbinaryValue.length);
+        assertNotNull(varbinaryValue);
+        assertEquals(10000, varbinaryValue.length);
         
         // Verify binary data integrity
         for (int i = 0; i < 100; i++) { // Check first 100 bytes
-            Assert.assertEquals((byte) (i % 256), varbinaryValue[i]);
+            assertEquals((byte) (i % 256), varbinaryValue[i]);
         }
 
         resultSet.close();

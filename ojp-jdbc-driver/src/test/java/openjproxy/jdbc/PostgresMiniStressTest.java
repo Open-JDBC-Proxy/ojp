@@ -38,7 +38,7 @@ public class PostgresMiniStressTest {
     private static AtomicInteger failedQueries = new AtomicInteger(0);
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
@@ -52,7 +52,7 @@ public class PostgresMiniStressTest {
     @SneakyThrows
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void runTests(String driverClass, String url, String user, String password) throws SQLException {
+    void runTests(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
         
         this.setUp();
@@ -164,7 +164,7 @@ public class PostgresMiniStressTest {
         // Display JVM metrics
         System.out.println("=== OJP SERVER JVM METRICS ===");
         PerformanceMetrics.JvmStatistics jvmStats = PerformanceMetrics.collectJvmStatistics();
-        System.out.println(jvmStats.toString());
+        System.out.println(jvmStats);
         
         // Original assertions
         assertEquals(680, numQueries);

@@ -48,7 +48,8 @@ public class IpWhitelistValidator {
                 }
             }
             
-            logger.debug("IP {} not found in whitelist: {}", clientIp, allowedIps);
+            // Log warning when denying access for audit purposes
+            logger.warn("Access denied - IP {} not found in whitelist. Configured whitelist: {}", clientIp, allowedIps);
             return false;
             
         } catch (UnknownHostException e) {

@@ -30,7 +30,7 @@ public class ResultSetTest {
     private static boolean isPostgresTestEnabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
         isPostgresTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
@@ -73,7 +73,7 @@ public class ResultSetTest {
     }
 
     @AfterEach
-    public void tearDown() throws SQLException {
+    void tearDown() throws SQLException {
         // Clean up resources
         if (resultSet != null) resultSet.close();
         if (statement != null) statement.close();
@@ -82,7 +82,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testNavigationMethods(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testNavigationMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         assertTrue(resultSet.next()); // Row 1
         assertTrue(resultSet.next()); // Row 2
@@ -97,7 +97,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testDataRetrievalMethods(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDataRetrievalMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.next();
         assertEquals(1, resultSet.getInt("id"));
@@ -111,7 +111,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testGetMethodsByColumnIndex(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testGetMethodsByColumnIndex(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.next();
         assertEquals(1, resultSet.getInt(1)); // id
@@ -124,7 +124,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         statement.execute("INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (5, NULL, NULL, NULL, NULL, NULL)");
         resultSet = statement.executeQuery("SELECT * FROM resultset_test_table WHERE id = 5");
@@ -135,7 +135,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testUpdateMethods(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testUpdateMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.moveToInsertRow();
         resultSet.updateInt("id", 4);
@@ -152,7 +152,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testCursorPositionMethods(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testCursorPositionMethods(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         assertTrue(resultSet.first());
         assertFalse(resultSet.isBeforeFirst());
@@ -166,7 +166,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         SQLWarning warning = resultSet.getWarnings();
         assertNull(warning); // No warnings for this ResultSet
@@ -174,7 +174,7 @@ public class ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    public void testAdvancedNavigation(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testAdvancedNavigation(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.absolute(2); // Move to the second row
         assertEquals("Bob", resultSet.getString("name"));

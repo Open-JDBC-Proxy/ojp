@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -14,26 +13,29 @@ import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class Db2MultipleTypesIntegrationTest {
+ class Db2MultipleTypesIntegrationTest {
 
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException, UnsupportedEncodingException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException, UnsupportedEncodingException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -59,7 +61,7 @@ public class Db2MultipleTypesIntegrationTest {
         psInsert.setInt(1, 1);
         psInsert.setString(2, new String("TITLE_1".getBytes(), dbEncoding));
         psInsert.setDouble(3, 2.2222d);
-        psInsert.setLong(4, 33333333333333l);
+        psInsert.setLong(4, 33333333333333L);
         psInsert.setInt(5, 127); // DB2 SMALLINT can handle this
         psInsert.setInt(6, 32767);
         psInsert.setBoolean(7, true); // DB2 has native boolean support
@@ -79,50 +81,50 @@ public class Db2MultipleTypesIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(127, resultSet.getInt(5)); // SMALLINT in DB2
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(true, resultSet.getBoolean(7)); // DB2 native boolean
-        Assert.assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", ""+resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(127, resultSet.getInt(5)); // SMALLINT in DB2
+        assertEquals(32767, resultSet.getInt(6));
+        assertTrue(resultSet.getBoolean(7)); // DB2 native boolean
+        assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal(8));
+        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // DB2 VARBINARY column
         byte[] byteValue = resultSet.getBytes(10);
-        Assert.assertNotNull("VARBINARY column should not be null", byteValue);
-        Assert.assertEquals(1, byteValue.length);
-        Assert.assertEquals(1, byteValue[0]);
+        assertNotNull(byteValue, "VARBINARY column should not be null");
+        assertEquals(1, byteValue.length);
+        assertEquals(1, byteValue[0]);
         // DB2 VARBINARY column
-        Assert.assertEquals("AAAA", new String(resultSet.getBytes(11), StandardCharsets.UTF_8));
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals("AAAA", new String(resultSet.getBytes(11), StandardCharsets.UTF_8));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
 
         // Test column name access
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
-        Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
-        Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
-        Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal("val_decimal"));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        Assert.assertEquals(true, resultSet.getBoolean("val_boolean")); // DB2 native boolean
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("TITLE_1", resultSet.getString("val_varchar"));
+        assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
+        assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
+        assertEquals(127, resultSet.getInt("val_tinyint"));
+        assertEquals(32767, resultSet.getInt("val_smallint"));
+        assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal("val_decimal"));
+        assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
+        assertTrue(resultSet.getBoolean("val_boolean")); // DB2 native boolean
         // DB2 VARBINARY column
         byte[] byteValueByName = resultSet.getBytes("val_byte");
-        Assert.assertNotNull("VARBINARY column val_byte should not be null", byteValueByName);
-        Assert.assertEquals(1, byteValueByName.length);
-        Assert.assertEquals(1, byteValueByName[0]);
-        Assert.assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+        assertNotNull(byteValueByName, "VARBINARY column val_byte should not be null");
+        assertEquals(1, byteValueByName.length);
+        assertEquals(1, byteValueByName[0]);
+        assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
 
         TestDBUtils.executeUpdate(conn, "delete from db2_multi_types_test where val_int=1");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
@@ -131,7 +133,7 @@ public class Db2MultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2SpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testDb2SpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -172,10 +174,10 @@ public class Db2MultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT graphic_col FROM test_db2_types WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
+        assertTrue(resultSet.next());
         String graphicValue = resultSet.getString("graphic_col");
-        Assert.assertNotNull(graphicValue);
-        Assert.assertTrue(graphicValue.contains("DB2 GRAPHIC type"));
+        assertNotNull(graphicValue);
+        assertTrue(graphicValue.contains("DB2 GRAPHIC type"));
 
         resultSet.close();
         psSelect.close();
@@ -185,7 +187,7 @@ public class Db2MultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2NumericTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testDb2NumericTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -235,14 +237,14 @@ public class Db2MultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM DB2INST1.test_db2_numbers WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
-        Assert.assertEquals(32767, resultSet.getInt("smallint_col")); // Use getInt instead of getShort to avoid ClassCast
-        Assert.assertEquals(2147483647, resultSet.getInt("integer_col"));
-        Assert.assertEquals(9223372036854775807L, resultSet.getLong("bigint_col"));
-        Assert.assertEquals(new BigDecimal("12345.67"), resultSet.getBigDecimal("decimal_col"));
-        Assert.assertNotNull(resultSet.getBigDecimal("numeric_col"));
-        Assert.assertEquals(123.45f, resultSet.getFloat("real_col"), 0.001);
-        Assert.assertEquals(123456.789012, resultSet.getDouble("double_col"), 0.0001);
+        assertTrue(resultSet.next());
+        assertEquals(32767, resultSet.getInt("smallint_col")); // Use getInt instead of getShort to avoid ClassCast
+        assertEquals(2147483647, resultSet.getInt("integer_col"));
+        assertEquals(9223372036854775807L, resultSet.getLong("bigint_col"));
+        assertEquals(new BigDecimal("12345.67"), resultSet.getBigDecimal("decimal_col"));
+        assertNotNull(resultSet.getBigDecimal("numeric_col"));
+        assertEquals(123.45f, resultSet.getFloat("real_col"), 0.001);
+        assertEquals(123456.789012, resultSet.getDouble("double_col"), 0.0001);
 
         resultSet.close();
         psSelect.close();
@@ -252,7 +254,7 @@ public class Db2MultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2DateTimeTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testDb2DateTimeTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -291,10 +293,10 @@ public class Db2MultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM test_db2_datetime WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
-        Assert.assertEquals(testDate.toString(), resultSet.getDate("date_col").toString());
-        Assert.assertEquals(testTime.toString(), resultSet.getTime("time_col").toString());
-        Assert.assertEquals(testTimestamp.toString(), resultSet.getTimestamp("timestamp_col").toString());
+        assertTrue(resultSet.next());
+        assertEquals(testDate.toString(), resultSet.getDate("date_col").toString());
+        assertEquals(testTime.toString(), resultSet.getTime("time_col").toString());
+        assertEquals(testTimestamp.toString(), resultSet.getTimestamp("timestamp_col").toString());
 
         resultSet.close();
         psSelect.close();
@@ -302,16 +304,4 @@ public class Db2MultipleTypesIntegrationTest {
         conn.close();
     }
 
-    /**
-     * Helper method to convert hex string to byte array
-     */
-    private static byte[] hexStringToByteArray(String hex) {
-        int len = hex.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
-                    + Character.digit(hex.charAt(i + 1), 16));
-        }
-        return data;
-    }
 }

@@ -1,15 +1,24 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Savepoint;
+import java.sql.Statement;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -17,18 +26,18 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * Tests SQL Server-specific savepoint functionality and nested transactions.
  */
 @EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
-public class SQLServerSavepointTests {
+class SQLServerSavepointTests {
 
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerBasicSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerBasicSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -74,8 +83,8 @@ public class SQLServerSavepointTests {
             // Verify both records exist
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_savepoint_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(2, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
             rs.close();
 
             // Rollback to savepoint
@@ -83,13 +92,13 @@ public class SQLServerSavepointTests {
 
             // Verify only initial data remains
             rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_savepoint_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(1, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt(1));
             rs.close();
 
             rs = stmt.executeQuery("SELECT name FROM sqlserver_savepoint_test WHERE id = 1");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals("Initial Data", rs.getString(1));
+            assertTrue(rs.next());
+            assertEquals("Initial Data", rs.getString(1));
             rs.close();
 
             stmt.close();
@@ -106,7 +115,7 @@ public class SQLServerSavepointTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerNestedSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerNestedSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -149,8 +158,8 @@ public class SQLServerSavepointTests {
             // Verify all three records exist
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_nested_savepoint_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(3, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(3, rs.getInt(1));
             rs.close();
 
             // Rollback to level 2 savepoint
@@ -158,8 +167,8 @@ public class SQLServerSavepointTests {
 
             // Should have 2 records
             rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_nested_savepoint_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(2, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
             rs.close();
 
             // Rollback to level 1 savepoint
@@ -167,13 +176,13 @@ public class SQLServerSavepointTests {
 
             // Should have 1 record
             rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_nested_savepoint_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(1, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt(1));
             rs.close();
 
             rs = stmt.executeQuery("SELECT name FROM sqlserver_nested_savepoint_test WHERE id = 1");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals("Level 0", rs.getString(1));
+            assertTrue(rs.next());
+            assertEquals("Level 0", rs.getString(1));
             rs.close();
 
             stmt.close();
@@ -188,7 +197,7 @@ public class SQLServerSavepointTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerSavepointRelease(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerSavepointRelease(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -235,8 +244,8 @@ public class SQLServerSavepointTests {
             // Verify data is still there
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_savepoint_release_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(2, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
             rs.close();
             stmt.close();
 
@@ -251,7 +260,7 @@ public class SQLServerSavepointTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerSavepointWithBatch(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerSavepointWithBatch(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -292,8 +301,8 @@ public class SQLServerSavepointTests {
             // Verify all data exists
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_savepoint_batch_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(5, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(5, rs.getInt(1));
             rs.close();
 
             // Rollback the batch operations
@@ -301,13 +310,13 @@ public class SQLServerSavepointTests {
 
             // Should only have initial data
             rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_savepoint_batch_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(1, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt(1));
             rs.close();
 
             rs = stmt.executeQuery("SELECT name FROM sqlserver_savepoint_batch_test WHERE id = 1");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals("Initial", rs.getString(1));
+            assertTrue(rs.next());
+            assertEquals("Initial", rs.getString(1));
             rs.close();
 
             stmt.close();
@@ -322,7 +331,7 @@ public class SQLServerSavepointTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerSavepointException(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerSavepointException(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -379,15 +388,15 @@ public class SQLServerSavepointTests {
             // Verify final state
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_savepoint_exception_test");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(2, rs.getInt(1));
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
             rs.close();
 
             rs = stmt.executeQuery("SELECT name FROM sqlserver_savepoint_exception_test ORDER BY id");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals("Valid Data", rs.getString(1));
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals("Recovery Data", rs.getString(1));
+            assertTrue(rs.next());
+            assertEquals("Valid Data", rs.getString(1));
+            assertTrue(rs.next());
+            assertEquals("Recovery Data", rs.getString(1));
             rs.close();
 
             stmt.close();

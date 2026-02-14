@@ -1,10 +1,10 @@
 package openjproxy.jdbc;
 
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -19,13 +20,13 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * Tests that global temporary tables work correctly across multiple requests
  * by ensuring session affinity.
  */
-@Slf4j
-public class OracleSessionAffinityIntegrationTest {
 
+ class OracleSessionAffinityIntegrationTest {
+    private static final Logger logger = LoggerFactory.getLogger(OracleSessionAffinityIntegrationTest.class);
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+     static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
@@ -36,11 +37,10 @@ public class OracleSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd) 
-            throws SQLException, ClassNotFoundException {
+     void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
-
-        log.info("Testing temporary table session affinity for Oracle: {}", url);
+        logger.info("Testing temporay table with Driver: {}", driverClass);
+        logger.info("Testing temporary table session affinity for Oracle: {}", url);
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -51,7 +51,7 @@ public class OracleSessionAffinityIntegrationTest {
             } catch (SQLException e) {
                 // Table doesn't exist, will create it
                 try {
-                    log.debug("Creating Oracle global temporary table");
+                    logger.debug("Creating Oracle global temporary table");
                     stmt.execute("CREATE GLOBAL TEMPORARY TABLE temp_session_test (id INT, value VARCHAR2(100)) ON COMMIT PRESERVE ROWS");
                 } catch (SQLException ex) {
                     // Might already exist from another session, just truncate
@@ -60,31 +60,31 @@ public class OracleSessionAffinityIntegrationTest {
             }
 
             // Insert data into temporary table (should use same session)
-            log.debug("Inserting data into temporary table");
+            logger.debug("Inserting data into temporary table");
             stmt.execute("INSERT INTO temp_session_test VALUES (1, 'test_value')");
 
             // Query temporary table (should use same session)
-            log.debug("Querying temporary table");
+            logger.debug("Querying temporary table");
             ResultSet rs = stmt.executeQuery("SELECT id, value FROM temp_session_test");
             
             // Verify data was inserted and retrieved successfully
-            Assert.assertTrue("Should have at least one row in temporary table", rs.next());
-            Assert.assertEquals("Session data should match", 1, rs.getInt("id"));
-            Assert.assertEquals("Session data should match", "test_value", rs.getString("value"));
+            assertTrue(rs.next(), "Should have at least one row in temporary table");
+            assertEquals(1, rs.getInt("id"), "Session data should match");
+            assertEquals("test_value", rs.getString("value"), "Session data should match");
             
             // Verify no more rows
-            Assert.assertFalse("Should have only one row", rs.next());
+            assertFalse(rs.next(), "Should have only one row");
             
             rs.close();
             
-            log.info("Oracle temporary table session affinity test passed");
+            logger.info("Oracle temporary table session affinity test passed");
 
         } finally {
             // Cleanup
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("TRUNCATE TABLE temp_session_test");
             } catch (SQLException e) {
-                log.warn("Error during cleanup: {}", e.getMessage());
+                logger.warn("Error during cleanup: {}", e.getMessage());
             }
             conn.close();
         }
@@ -95,11 +95,10 @@ public class OracleSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd) 
-            throws SQLException, ClassNotFoundException {
+     void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
-
-        log.info("Testing complex temporary table operations for Oracle: {}", url);
+        logger.info("Testing temporay table with Driver: {}", driverClass);
+        logger.info("Testing complex temporary table operations for Oracle: {}", url);
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -110,7 +109,7 @@ public class OracleSessionAffinityIntegrationTest {
             } catch (SQLException e) {
                 // Table doesn't exist, create it
                 try {
-                    log.debug("Creating complex temp table");
+                    logger.debug("Creating complex temp table");
                     stmt.execute("CREATE GLOBAL TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR2(100), amount DECIMAL(10,2)) ON COMMIT PRESERVE ROWS");
                 } catch (SQLException ex) {
                     // Might already exist, just truncate
@@ -119,17 +118,17 @@ public class OracleSessionAffinityIntegrationTest {
             }
 
             // Insert multiple rows
-            log.debug("Inserting multiple rows");
+            logger.debug("Inserting multiple rows");
             stmt.execute("INSERT INTO temp_complex VALUES (1, 'Alice', 100.50)");
             stmt.execute("INSERT INTO temp_complex VALUES (2, 'Bob', 200.75)");
             stmt.execute("INSERT INTO temp_complex VALUES (3, 'Charlie', 150.25)");
 
             // Update a row
-            log.debug("Updating a row");
+            logger.debug("Updating a row");
             stmt.executeUpdate("UPDATE temp_complex SET amount = amount + 50.00 WHERE id = 2");
 
             // Query and verify
-            log.debug("Querying temp table");
+            logger.debug("Querying temp table");
             ResultSet rs = stmt.executeQuery("SELECT id, name, amount FROM temp_complex ORDER BY id");
             
             int rowCount = 0;
@@ -140,28 +139,28 @@ public class OracleSessionAffinityIntegrationTest {
                 double amount = rs.getDouble("amount");
                 
                 if (id == 1) {
-                    Assert.assertEquals("Alice", name);
-                    Assert.assertEquals(100.50, amount, 0.01);
+                    assertEquals("Alice", name);
+                    assertEquals(100.50, amount, 0.01);
                 } else if (id == 2) {
-                    Assert.assertEquals("Bob", name);
-                    Assert.assertEquals(250.75, amount, 0.01); // Updated
+                    assertEquals("Bob", name);
+                    assertEquals(250.75, amount, 0.01); // Updated
                 } else if (id == 3) {
-                    Assert.assertEquals("Charlie", name);
-                    Assert.assertEquals(150.25, amount, 0.01);
+                    assertEquals("Charlie", name);
+                    assertEquals(150.25, amount, 0.01);
                 }
             }
             
-            Assert.assertEquals("Should have 3 rows", 3, rowCount);
+            assertEquals(3, rowCount, "Should have 3 rows");
             rs.close();
             
-            log.info("Oracle complex temporary table operations test passed");
+            logger.info("Oracle complex temporary table operations test passed");
 
         } finally {
             // Cleanup
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("TRUNCATE TABLE temp_complex");
             } catch (SQLException e) {
-                log.warn("Error during cleanup: {}", e.getMessage());
+                logger.warn("Error during cleanup: {}", e.getMessage());
             }
             conn.close();
         }
@@ -172,11 +171,10 @@ public class OracleSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd) 
-            throws SQLException, ClassNotFoundException {
+    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
-
-        log.info("Testing temporary table persistence across transactions for Oracle: {}", url);
+        logger.info("Testing temporay table with Driver: {}", driverClass);
+        logger.info("Testing temporary table persistence across transactions for Oracle: {}", url);
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
@@ -202,19 +200,19 @@ public class OracleSessionAffinityIntegrationTest {
             // Start another transaction and query (should still see the temp table)
             conn.setAutoCommit(false);
             ResultSet rs = stmt.executeQuery("SELECT * FROM temp_persist WHERE id = 1");
-            Assert.assertTrue("Should find row inserted in previous transaction", rs.next());
-            Assert.assertEquals("Data should match", "in_transaction", rs.getString("data"));
+            assertTrue(rs.next(), "Should find row inserted in previous transaction");
+            assertEquals("in_transaction", rs.getString("data"), "Data should match");
             rs.close();
             conn.commit();
 
-            log.info("Oracle temporary table persistence across transactions test passed");
+            logger.info("Oracle temporary table persistence across transactions test passed");
 
         } finally {
             // Cleanup
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("TRUNCATE TABLE temp_persist");
             } catch (SQLException e) {
-                log.warn("Error during cleanup: {}", e.getMessage());
+                logger.warn("Error during cleanup: {}", e.getMessage());
             }
             conn.close();
         }

@@ -93,7 +93,7 @@ public class SlowQuerySegregationManualTest {
         // Test operation execution
         String operationHash = "test-operation";
         String result = manager.executeWithSegregation(operationHash, () -> {
-            Thread.sleep(50);
+            Thread.sleep(50); //NOSONAR
             return "success";
         });
         

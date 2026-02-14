@@ -6,8 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openjproxy.jdbc.Driver;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -25,39 +23,22 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * Integration tests for multi-datasource functionality using H2 database.
  * Tests the complete flow from client to server with different datasource configurations.
- * 
+ * <p>
  * Note: These tests require the OJP server to be running on localhost:1059.
  * These tests are skipped when running database-specific tests (Oracle, DB2, SQL Server, etc.)
  * to avoid failures when H2 drivers are not available or to keep test runs focused.
  */
-public class MultiDataSourceIntegrationTest {
+class MultiDataSourceIntegrationTest {
 
-    private static final String H2_URL_BASE = "jdbc:h2:mem:test_";
     private static final String OJP_URL_BASE = "jdbc:ojp[localhost:1059]_h2:mem:test_";
-    
-    private static boolean shouldRunH2Tests;
-    
+
+    private static boolean isH2TestEnabled;
+
     @BeforeAll
-    public static void checkTestConfiguration() {
-        // Only run these H2-based multi-datasource tests when:
-        // 1. H2 tests are explicitly enabled, OR
-        // 2. No database-specific tests are enabled (default test run)
-        boolean isH2Enabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
-        boolean isOracleEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
-        boolean isDb2Enabled = Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
-        boolean isSqlServerEnabled = Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
-        boolean isPostgresEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
-        boolean isMySqlEnabled = Boolean.parseBoolean(System.getProperty("enableMySqlTests", "false"));
-        boolean isMariaDbEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDbTests", "false"));
-        boolean isCockroachEnabled = Boolean.parseBoolean(System.getProperty("enableCockroachTests", "false"));
-        
-        // Run H2 tests if explicitly enabled OR if no other database tests are enabled
-        boolean anyOtherDbEnabled = isOracleEnabled || isDb2Enabled || isSqlServerEnabled || 
-                                     isPostgresEnabled || isMySqlEnabled || isMariaDbEnabled || isCockroachEnabled;
-        
-        shouldRunH2Tests = isH2Enabled || !anyOtherDbEnabled;
+    static void checkTestConfiguration() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
-    
+
     /**
      * Helper method to build OJP URLs with optional datasource name
      */
@@ -68,44 +49,30 @@ public class MultiDataSourceIntegrationTest {
             return "jdbc:ojp[localhost:1059(" + dataSourceName + ")]_h2:mem:test_" + databaseName;
         }
     }
-    
+
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         // Ensure we start with clean state
         System.clearProperty("ojp.test.properties");
     }
-    
+
     @AfterEach
-    public void tearDown() {
+    void tearDown() {
         System.clearProperty("ojp.test.properties");
     }
 
     @Test
-    public void testMultipleDataSourcesForSingleDatabaseSingleUser() throws Exception {
-        assumeTrue(shouldRunH2Tests, "H2 multi-datasource tests are disabled when running database-specific tests");
-        
-        // Create test properties with multiple datasources for same database
-        String testPropertiesContent = 
-            "# Default datasource\n" +
-            "ojp.connection.pool.maximumPoolSize=10\n" +
-            "ojp.connection.pool.minimumIdle=2\n" +
-            "\n" +
-            "# MainApp datasource - larger pool for main application\n" +
-            "mainApp.ojp.connection.pool.maximumPoolSize=20\n" +
-            "mainApp.ojp.connection.pool.minimumIdle=5\n" +
-            "\n" +
-            "# BatchJob datasource - smaller pool for batch processing\n" +
-            "batchJob.ojp.connection.pool.maximumPoolSize=5\n" +
-            "batchJob.ojp.connection.pool.minimumIdle=1\n";
-        
+    void testMultipleDataSourcesForSingleDatabaseSingleUser() throws Exception {
+        assumeTrue(isH2TestEnabled, "H2 multi-datasource tests are disabled when running database-specific tests");
+
         // Set up a custom driver that uses our test properties
-        Driver testDriver = createTestDriver(testPropertiesContent);
-        
+        Driver testDriver = createTestDriver();
+
         // Test connection with default datasource
         try (Connection defaultConn = testDriver.connect(buildOjpUrl("singledb", "default"), new Properties())) {
             createAndTestTable(defaultConn, "shared_table");
         }
-        
+
         // Test connection with mainApp datasource - should access same database
         try (Connection mainAppConn = testDriver.connect(buildOjpUrl("singledb", "mainApp"), new Properties())) {
             // Should be able to access the table created by default datasource
@@ -113,7 +80,7 @@ public class MultiDataSourceIntegrationTest {
             // Create additional data to verify connection works
             createAndTestTable(mainAppConn, "mainapp_additional_table");
         }
-        
+
         // Test connection with batchJob datasource - should access same database
         try (Connection batchJobConn = testDriver.connect(buildOjpUrl("singledb", "batchJob"), new Properties())) {
             // Should be able to access tables created by other datasources (same database)
@@ -122,7 +89,7 @@ public class MultiDataSourceIntegrationTest {
             // Create additional data to verify connection works
             createAndTestTable(batchJobConn, "batchjob_additional_table");
         }
-        
+
         // Verify that all datasources can access all tables in the same database
         try (Connection defaultConn = testDriver.connect(buildOjpUrl("singledb", "default"), new Properties())) {
             assertTrue(tableExists(defaultConn, "shared_table"));
@@ -132,53 +99,38 @@ public class MultiDataSourceIntegrationTest {
     }
 
     @Test
-    public void testMultipleDataSourcesForDifferentDatabases() throws Exception {
-        assumeTrue(shouldRunH2Tests, "H2 multi-datasource tests are disabled when running database-specific tests");
-        
-        String testPropertiesContent = 
-            "# Database A datasources\n" +
-            "dbA_primary.ojp.connection.pool.maximumPoolSize=20\n" +
-            "dbA_primary.ojp.connection.pool.minimumIdle=5\n" +
-            "\n" +
-            "dbA_readonly.ojp.connection.pool.maximumPoolSize=8\n" +
-            "dbA_readonly.ojp.connection.pool.minimumIdle=2\n" +
-            "\n" +
-            "# Database B datasources\n" +
-            "dbB_primary.ojp.connection.pool.maximumPoolSize=15\n" +
-            "dbB_primary.ojp.connection.pool.minimumIdle=4\n" +
-            "\n" +
-            "dbB_analytics.ojp.connection.pool.maximumPoolSize=5\n" +
-            "dbB_analytics.ojp.connection.pool.minimumIdle=1\n";
-        
-        Driver testDriver = createTestDriver(testPropertiesContent);
-        
+    void testMultipleDataSourcesForDifferentDatabases() throws Exception {
+        assumeTrue(isH2TestEnabled, "H2 multi-datasource tests are disabled when running database-specific tests");
+
+        Driver testDriver = createTestDriver();
+
         // Test Database A - Primary datasource
         try (Connection dbAPrimaryConn = testDriver.connect(buildOjpUrl("databaseA", "dbA_primary"), new Properties())) {
             createAndTestTable(dbAPrimaryConn, "dba_primary_table");
         }
-        
+
         // Test Database A - Readonly datasource
         try (Connection dbAReadonlyConn = testDriver.connect(buildOjpUrl("databaseA", "dbA_readonly"), new Properties())) {
             createAndTestTable(dbAReadonlyConn, "dba_readonly_table");
         }
-        
+
         // Test Database B - Primary datasource 
         try (Connection dbBPrimaryConn = testDriver.connect(buildOjpUrl("databaseB", "dbB_primary"), new Properties())) {
             createAndTestTable(dbBPrimaryConn, "dbb_primary_table");
         }
-        
+
         // Test Database B - Analytics datasource
         try (Connection dbBAnalyticsConn = testDriver.connect(buildOjpUrl("databaseB", "dbB_analytics"), new Properties())) {
             createAndTestTable(dbBAnalyticsConn, "dbb_analytics_table");
         }
-        
+
         // Verify isolation between databases - try to access wrong database tables
         try (Connection dbAConn = testDriver.connect(buildOjpUrl("databaseA", "dbA_primary"), new Properties())) {
             // Database A should not have Database B tables
             assertTrue(tableExists(dbAConn, "dba_primary_table"));
             assertFalse(tableExists(dbAConn, "dbb_primary_table"));
         }
-        
+
         try (Connection dbBConn = testDriver.connect(buildOjpUrl("databaseB", "dbB_primary"), new Properties())) {
             // Database B should not have Database A tables
             assertTrue(tableExists(dbBConn, "dbb_primary_table"));
@@ -187,21 +139,17 @@ public class MultiDataSourceIntegrationTest {
     }
 
     @Test
-    public void testFailFastForMissingDataSource() throws Exception {
-        assumeTrue(shouldRunH2Tests, "H2 multi-datasource tests are disabled when running database-specific tests");
-        
-        String testPropertiesContent = 
-            "# Only configure one datasource\n" +
-            "configuredDS.ojp.connection.pool.maximumPoolSize=10\n";
-        
-        Driver testDriver = createTestDriver(testPropertiesContent);
-        
+    void testFailFastForMissingDataSource() throws Exception {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
+        Driver testDriver = createTestDriver();
+
         // Connection with configured datasource should work
         try (Connection configuredConn = testDriver.connect(buildOjpUrl("testdb", "configuredDS"), new Properties())) {
             assertNotNull(configuredConn);
             createAndTestTable(configuredConn, "configured_table");
         }
-        
+
         // Connection with unconfigured datasource should return properties with no pool settings
         // (The server will use defaults, but the client won't send any specific properties)
         try (Connection unconfiguredConn = testDriver.connect(buildOjpUrl("testdb", "unconfiguredDS"), new Properties())) {
@@ -212,22 +160,17 @@ public class MultiDataSourceIntegrationTest {
     }
 
     @Test
-    public void testBackwardCompatibilityWithDefaultDataSource() throws Exception {
-        assumeTrue(shouldRunH2Tests, "H2 multi-datasource tests are disabled when running database-specific tests");
-        
-        String testPropertiesContent = 
-            "# Traditional configuration without datasource prefix\n" +
-            "ojp.connection.pool.maximumPoolSize=25\n" +
-            "ojp.connection.pool.minimumIdle=8\n";
-        
-        Driver testDriver = createTestDriver(testPropertiesContent);
-        
+    void testBackwardCompatibilityWithDefaultDataSource() throws Exception {
+        assumeTrue(isH2TestEnabled, "H2 multi-datasource tests are disabled when running database-specific tests");
+
+        Driver testDriver = createTestDriver();
+
         // Connection without dataSource parameter should use default configuration
         try (Connection defaultConn = testDriver.connect(buildOjpUrl("backcompat", "default"), new Properties())) {
             assertNotNull(defaultConn);
             createAndTestTable(defaultConn, "backcompat_table");
         }
-        
+
         // Connection with explicit default dataSource should also work
         try (Connection explicitDefaultConn = testDriver.connect(buildOjpUrl("backcompat", "default"), new Properties())) {
             assertNotNull(explicitDefaultConn);
@@ -237,22 +180,11 @@ public class MultiDataSourceIntegrationTest {
     }
 
     @Test
-    public void testCrossDatabaseTableAccessThrowsException() throws Exception {
-        assumeTrue(shouldRunH2Tests, "H2 multi-datasource tests are disabled when running database-specific tests");
-        
-        // Test that trying to access a table from one database using a datasource 
-        // configured for a different database throws appropriate exception
-        String testPropertiesContent = 
-            "# DataSource for database A\n" +
-            "dbA.ojp.connection.pool.maximumPoolSize=10\n" +
-            "dbA.ojp.connection.pool.minimumIdle=2\n" +
-            "\n" +
-            "# DataSource for database B\n" +
-            "dbB.ojp.connection.pool.maximumPoolSize=10\n" +
-            "dbB.ojp.connection.pool.minimumIdle=2\n";
-        
-        Driver testDriver = createTestDriver(testPropertiesContent);
-        
+    void testCrossDatabaseTableAccessThrowsException() throws Exception {
+        assumeTrue(isH2TestEnabled, "H2 multi-datasource tests are disabled when running database-specific tests");
+
+        Driver testDriver = createTestDriver();
+
         // Create a table in database A using datasource A
         String tableInDbA = "table_in_database_a";
         try (Connection dbAConn = testDriver.connect(buildOjpUrl("database_a", "dbA"), new Properties())) {
@@ -260,7 +192,7 @@ public class MultiDataSourceIntegrationTest {
             // Verify the table exists in database A
             assertTrue(tableExists(dbAConn, tableInDbA));
         }
-        
+
         // Create a different table in database B using datasource B to verify it works
         String tableInDbB = "table_in_database_b";
         try (Connection dbBConn = testDriver.connect(buildOjpUrl("database_b", "dbB"), new Properties())) {
@@ -268,17 +200,15 @@ public class MultiDataSourceIntegrationTest {
             // Verify the table exists in database B
             assertTrue(tableExists(dbBConn, tableInDbB));
         }
-        
+
         // Now try to access the table from database A using datasource B (which points to database B)
         // This should throw an exception because the table doesn't exist in database B
         try (Connection dbBConn = testDriver.connect(buildOjpUrl("database_b", "dbB"), new Properties())) {
             Statement stmt = dbBConn.createStatement();
-            
+
             // This should throw SQLException because table_in_database_a doesn't exist in database B
-            assertThrows(SQLException.class, () -> {
-                stmt.executeQuery("SELECT * FROM " + tableInDbA);
-            }, "Expected SQLException when trying to access table from different database");
-            
+            assertThrows(SQLException.class, () -> stmt.executeQuery("SELECT * FROM " + tableInDbA), "Expected SQLException when trying to access table from different database");
+
             // Verify the specific error message indicates table doesn't exist
             try {
                 stmt.executeQuery("SELECT * FROM " + tableInDbA);
@@ -286,25 +216,23 @@ public class MultiDataSourceIntegrationTest {
             } catch (SQLException e) {
                 String errorMessage = e.getMessage().toLowerCase();
                 assertTrue(
-                    errorMessage.contains("table") && (
-                        errorMessage.contains("not found") ||
-                        errorMessage.contains("does not exist") ||
-                        errorMessage.contains("doesn't exist") ||
-                        errorMessage.contains("not exist")
-                    ),
-                    "Expected error message about table not existing, but got: " + e.getMessage()
+                        errorMessage.contains("table") && (
+                                errorMessage.contains("not found") ||
+                                        errorMessage.contains("does not exist") ||
+                                        errorMessage.contains("doesn't exist") ||
+                                        errorMessage.contains("not exist")
+                        ),
+                        "Expected error message about table not existing, but got: " + e.getMessage()
                 );
             }
         }
-        
+
         // Verify the reverse scenario - trying to access table from database B using datasource A
         try (Connection dbAConn = testDriver.connect(buildOjpUrl("database_a", "dbA"), new Properties())) {
             Statement stmt = dbAConn.createStatement();
-            
+
             // This should also throw SQLException because table_in_database_b doesn't exist in database A
-            assertThrows(SQLException.class, () -> {
-                stmt.executeQuery("SELECT * FROM " + tableInDbB);
-            }, "Expected SQLException when trying to access table from different database");
+            assertThrows(SQLException.class, () -> stmt.executeQuery("SELECT * FROM " + tableInDbB), "Expected SQLException when trying to access table from different database");
         }
     }
 
@@ -312,12 +240,12 @@ public class MultiDataSourceIntegrationTest {
      * Creates a test driver that uses the provided properties content instead of loading from classpath.
      * Note: Since property loading moved to DatasourcePropertiesLoader, this is now a no-op wrapper.
      */
-    private Driver createTestDriver(String propertiesContent) {
+    private Driver createTestDriver() {
         // Property loading is now handled by DatasourcePropertiesLoader utility class
         // This method is kept for test compatibility
         return new Driver();
     }
-    
+
     /**
      * Creates a test table with unique name and inserts/verifies test data.
      * Cleans up existing data first to avoid primary key violations.
@@ -326,19 +254,19 @@ public class MultiDataSourceIntegrationTest {
         try (Statement stmt = conn.createStatement()) {
             // Create unique table for this datasource
             stmt.execute("CREATE TABLE IF NOT EXISTS " + tableName + " (id INT PRIMARY KEY, name VARCHAR(50))");
-            
+
             // Clean up any existing data first (in case table already exists from previous run)
             stmt.execute("DELETE FROM " + tableName + " WHERE id = 1");
-            
+
             // Insert test data
             stmt.execute("INSERT INTO " + tableName + " VALUES (1, 'test_data_" + tableName + "')");
-            
+
             // Verify data
             try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + tableName)) {
                 assertTrue(rs.next());
                 assertEquals(1, rs.getInt(1));
             }
-            
+
             // Verify specific data
             try (ResultSet rs = stmt.executeQuery("SELECT name FROM " + tableName + " WHERE id = 1")) {
                 assertTrue(rs.next());
@@ -346,7 +274,7 @@ public class MultiDataSourceIntegrationTest {
             }
         }
     }
-    
+
     /**
      * Checks if a table exists in the database.
      */

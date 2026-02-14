@@ -22,7 +22,7 @@ public class OracleSavepointTests {
     private Connection connection;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
@@ -48,13 +48,13 @@ public class OracleSavepointTests {
     }
 
     @AfterEach
-    public void tearDown() throws Exception {
+    void tearDown() throws Exception {
         if (connection != null) connection.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testUnnamedSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testUnnamedSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (1, 'Alice')");
@@ -73,7 +73,7 @@ public class OracleSavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testNamedSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testNamedSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (1, 'Alice')");
@@ -94,7 +94,7 @@ public class OracleSavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testMultipleSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testMultipleSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (1, 'Alice')");
@@ -124,7 +124,7 @@ public class OracleSavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testReleaseSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testReleaseSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (1, 'Alice')");
@@ -147,7 +147,7 @@ public class OracleSavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testSavepointAfterCommit(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSavepointAfterCommit(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (1, 'Alice')");
@@ -170,7 +170,7 @@ public class OracleSavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testSavepointMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSavepointMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         
         // Test that Oracle supports savepoints

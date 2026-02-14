@@ -4,6 +4,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.Table;
+import org.apache.calcite.schema.lookup.LikePattern;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for CalciteSchemaFactory.
@@ -36,7 +39,7 @@ class CalciteSchemaFactoryTest {
         Schema schema = schemaFactory.createEmptySchema();
         
         assertNotNull(schema, "Schema should not be null");
-        Set<String> tableNames = schema.getTableNames();
+        Set<String> tableNames = schema.tables().getNames(LikePattern.any());
         assertNotNull(tableNames, "Table names should not be null");
         assertEquals(0, tableNames.size(), "Empty schema should have no tables");
     }
@@ -46,7 +49,7 @@ class CalciteSchemaFactoryTest {
         Schema schema = schemaFactory.createSchema(null);
         
         assertNotNull(schema, "Schema should not be null even with null metadata");
-        Set<String> tableNames = schema.getTableNames();
+        Set<String> tableNames = schema.tables().getNames(LikePattern.any());
         assertNotNull(tableNames, "Table names should not be null");
         assertEquals(0, tableNames.size(), "Schema from null metadata should have no tables");
     }
@@ -61,7 +64,7 @@ class CalciteSchemaFactoryTest {
         userColumns.add(new ColumnMetadata("id", java.sql.Types.INTEGER, "INTEGER", false, 10, 0));
         userColumns.add(new ColumnMetadata("name", java.sql.Types.VARCHAR, "VARCHAR", false, 255, 0));
         
-        RelDataType userType = buildTableType("users", userColumns);
+        RelDataType userType = buildTableType( userColumns);
         TableMetadata usersTable = new TableMetadata("users", userColumns, userType);
         tables.put("users", usersTable);
         
@@ -70,7 +73,7 @@ class CalciteSchemaFactoryTest {
         orderColumns.add(new ColumnMetadata("order_id", java.sql.Types.INTEGER, "INTEGER", false, 10, 0));
         orderColumns.add(new ColumnMetadata("amount", java.sql.Types.DECIMAL, "DECIMAL", false, 10, 2));
         
-        RelDataType orderType = buildTableType("orders", orderColumns);
+        RelDataType orderType = buildTableType( orderColumns);
         TableMetadata ordersTable = new TableMetadata("orders", orderColumns, orderType);
         tables.put("orders", ordersTable);
         
@@ -80,7 +83,7 @@ class CalciteSchemaFactoryTest {
         Schema schema = schemaFactory.createSchema(metadata);
         
         assertNotNull(schema, "Schema should not be null");
-        Set<String> tableNamesSet = schema.getTableNames();
+        Set<String> tableNamesSet = schema.tables().getNames(LikePattern.any());
         assertEquals(2, tableNamesSet.size(), "Schema should have 2 tables");
         assertTrue(tableNamesSet.contains("users"), "Schema should contain users table");
         assertTrue(tableNamesSet.contains("orders"), "Schema should contain orders table");
@@ -93,7 +96,7 @@ class CalciteSchemaFactoryTest {
         columns.add(new ColumnMetadata("id", java.sql.Types.INTEGER, "INTEGER", false, 10, 0));
         columns.add(new ColumnMetadata("name", java.sql.Types.VARCHAR, "VARCHAR", false, 255, 0));
         
-        RelDataType tableType = buildTableType("test_table", columns);
+        RelDataType tableType = buildTableType( columns);
         TableMetadata tableMetadata = new TableMetadata("test_table", columns, tableType);
         
         Map<String, TableMetadata> tables = new HashMap<>();
@@ -103,7 +106,7 @@ class CalciteSchemaFactoryTest {
         Schema schema = schemaFactory.createSchema(metadata);
         
         // Get table from schema
-        Table table = schema.getTable("test_table");
+        Table table = schema.tables().get("test_table");
         assertNotNull(table, "Table should not be null");
         
         // Check table row type
@@ -120,7 +123,7 @@ class CalciteSchemaFactoryTest {
         columns.add(new ColumnMetadata("name", java.sql.Types.VARCHAR, "VARCHAR", false, 255, 0));
         columns.add(new ColumnMetadata("balance", java.sql.Types.DECIMAL, "DECIMAL", true, 10, 2));
         
-        RelDataType originalType = buildTableType("test_table", columns);
+        RelDataType originalType = buildTableType( columns);
         TableMetadata tableMetadata = new TableMetadata("test_table", columns, originalType);
         
         Map<String, TableMetadata> tables = new HashMap<>();
@@ -129,7 +132,8 @@ class CalciteSchemaFactoryTest {
         SchemaMetadata metadata = new SchemaMetadata(tables, System.currentTimeMillis(), null, null);
         Schema schema = schemaFactory.createSchema(metadata);
         
-        Table table = schema.getTable("test_table");
+        Table table = schema.tables().get("test_table");
+        assertNotNull(table, "Table should not be null");
         RelDataType retrievedType = table.getRowType(typeFactory);
         
         // Verify the row type has the expected structure
@@ -142,7 +146,7 @@ class CalciteSchemaFactoryTest {
     /**
      * Helper method to build a table type from columns (similar to SchemaLoader).
      */
-    private RelDataType buildTableType(String tableName, List<ColumnMetadata> columns) {
+    private RelDataType buildTableType(List<ColumnMetadata> columns) {
         RelDataTypeFactory.Builder builder = typeFactory.builder();
         
         for (ColumnMetadata column : columns) {
@@ -168,17 +172,12 @@ class CalciteSchemaFactoryTest {
      * Simplified JDBC to SqlTypeName conversion for testing.
      */
     private SqlTypeName jdbcTypeToSqlTypeName(int jdbcType) {
-        switch (jdbcType) {
-            case java.sql.Types.INTEGER:
-                return SqlTypeName.INTEGER;
-            case java.sql.Types.VARCHAR:
-                return SqlTypeName.VARCHAR;
-            case java.sql.Types.DECIMAL:
-                return SqlTypeName.DECIMAL;
-            case java.sql.Types.TIMESTAMP:
-                return SqlTypeName.TIMESTAMP;
-            default:
-                return SqlTypeName.VARCHAR;
-        }
+        return switch (jdbcType) {
+            case java.sql.Types.INTEGER -> SqlTypeName.INTEGER;
+            case java.sql.Types.DECIMAL -> SqlTypeName.DECIMAL;
+            case java.sql.Types.TIMESTAMP -> SqlTypeName.TIMESTAMP;
+            case java.sql.Types.VARCHAR -> SqlTypeName.VARCHAR;
+            default -> SqlTypeName.VARCHAR;
+        };
     }
 }

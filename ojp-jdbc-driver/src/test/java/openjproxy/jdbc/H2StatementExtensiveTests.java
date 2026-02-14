@@ -30,7 +30,7 @@ public class H2StatementExtensiveTests {
     private Statement statement;
 
     @BeforeAll
-    public static void setupClass() {
+    static void setupClass() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
 
@@ -42,13 +42,13 @@ public class H2StatementExtensiveTests {
     }
 
     @AfterEach
-    public void tearDown() throws Exception {
+    void tearDown() throws Exception {
         TestDBUtils.closeQuietly(statement, connection);
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         ResultSet rs = statement.executeQuery("SELECT * FROM h2_statement_test");
         assertNotNull(rs);
@@ -58,7 +58,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testExecuteUpdate(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteUpdate(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int rows = statement.executeUpdate("UPDATE h2_statement_test SET name = 'Updated Alice' WHERE id = 1");
         assertEquals(1, rows);
@@ -71,7 +71,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testClose(String driverClass, String url, String user, String password) throws Exception {
+    void testClose(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertFalse(statement.isClosed());
         statement.close();
@@ -80,7 +80,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testMaxFieldSize(String driverClass, String url, String user, String password) throws Exception {
+    void testMaxFieldSize(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getMaxFieldSize();
         statement.setMaxFieldSize(orig + 1);
@@ -89,7 +89,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testExecuteAfterCloseThrows(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteAfterCloseThrows(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.close();
         assertThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM h2_statement_test"));
@@ -99,7 +99,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testMaxRows(String driverClass, String url, String user, String password) throws Exception {
+    void testMaxRows(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setMaxRows(1);
         assertEquals(1, statement.getMaxRows());
@@ -111,7 +111,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testEscapeProcessing(String driverClass, String url, String user, String password) throws Exception {
+    void testEscapeProcessing(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // Should not throw
         statement.setEscapeProcessing(true);
@@ -120,7 +120,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testQueryTimeout(String driverClass, String url, String user, String password) throws Exception {
+    void testQueryTimeout(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setQueryTimeout(5);
         assertEquals(5, statement.getQueryTimeout());
@@ -128,7 +128,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testCancel(String driverClass, String url, String user, String password) throws Exception {
+    void testCancel(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // Should not throw
         statement.cancel();
@@ -136,7 +136,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testWarnings(String driverClass, String url, String user, String password) throws Exception {
+    void testWarnings(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.clearWarnings();
         assertNull(statement.getWarnings());
@@ -144,7 +144,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testSetCursorName(String driverClass, String url, String user, String password) throws Exception {
+    void testSetCursorName(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         // No-op in most drivers; should not throw
         statement.setCursorName("CURSOR_A");
@@ -152,7 +152,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testExecute(String driverClass, String url, String user, String password) throws Exception {
+    void testExecute(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         boolean isResultSet = statement.execute("SELECT * FROM h2_statement_test");
         assertTrue(isResultSet);
@@ -168,7 +168,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testGetMoreResults(String driverClass, String url, String user, String password) throws Exception {
+    void testGetMoreResults(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.execute("SELECT * FROM h2_statement_test");
         assertFalse(statement.getMoreResults());
@@ -177,7 +177,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testFetchDirection(String driverClass, String url, String user, String password) throws Exception {
+    void testFetchDirection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getFetchDirection();
         statement.setFetchDirection(ResultSet.FETCH_FORWARD);
@@ -187,7 +187,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testFetchSize(String driverClass, String url, String user, String password) throws Exception {
+    void testFetchSize(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int orig = statement.getFetchSize();
         statement.setFetchSize(orig + 1);
@@ -197,7 +197,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password) throws Exception {
+    void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int concurrency = statement.getResultSetConcurrency();
         int type = statement.getResultSetType();
@@ -207,7 +207,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testBatchExecution(String driverClass, String url, String user, String password) throws Exception {
+    void testBatchExecution(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.addBatch("INSERT INTO h2_statement_test (id, name) VALUES (3, 'Charlie')");
         statement.addBatch("INSERT INTO h2_statement_test (id, name) VALUES (4, 'David')");
@@ -222,7 +222,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testClearBatch(String driverClass, String url, String user, String password) throws Exception {
+    void testClearBatch(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.addBatch("INSERT INTO h2_statement_test (id, name) VALUES (5, 'Eve')");
         statement.clearBatch();
@@ -232,14 +232,14 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testGetConnection(String driverClass, String url, String user, String password) throws Exception {
+    void testGetConnection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertSame(connection, statement.getConnection());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testGetMoreResultsWithCurrent(String driverClass, String url, String user, String password) throws Exception {
+    void testGetMoreResultsWithCurrent(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.execute("SELECT * FROM h2_statement_test");
         assertFalse(statement.getMoreResults(Statement.CLOSE_CURRENT_RESULT));
@@ -247,7 +247,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
+    void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_auto_keys", TestDBUtils.SqlSyntax.H2);
         int affected = statement.executeUpdate("INSERT INTO test_auto_keys (name) VALUES ('foo')", Statement.RETURN_GENERATED_KEYS);
@@ -260,7 +260,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testExecuteUpdateVariants(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteUpdateVariants(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_cols", TestDBUtils.SqlSyntax.H2);
         int a = statement.executeUpdate("INSERT INTO test_cols (name) VALUES ('bar')", Statement.RETURN_GENERATED_KEYS);
@@ -277,7 +277,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testExecuteVariants(String driverClass, String url, String user, String password) throws Exception {
+    void testExecuteVariants(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_exec", TestDBUtils.SqlSyntax.H2);
         boolean b = statement.execute("INSERT INTO test_exec (name) VALUES ('v1')", Statement.RETURN_GENERATED_KEYS);
@@ -294,7 +294,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testGetResultSetHoldability(String driverClass, String url, String user, String password) throws Exception {
+    void testGetResultSetHoldability(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int holdability = statement.getResultSetHoldability();
         assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
@@ -302,7 +302,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testPoolable(String driverClass, String url, String user, String password) throws Exception {
+    void testPoolable(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.setPoolable(true);
         assertFalse(statement.isPoolable());
@@ -312,7 +312,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testCloseOnCompletion(String driverClass, String url, String user, String password) throws Exception {
+    void testCloseOnCompletion(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         statement.closeOnCompletion();
         assertTrue(statement.isCloseOnCompletion());
@@ -320,7 +320,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testLargeMethodsDefault(String driverClass, String url, String user, String password) throws Exception {
+    void testLargeMethodsDefault(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         this.statement.getFetchDirection();
         statement.execute("INSERT INTO h2_statement_test (id, name) VALUES (3, 'Juca Bala')");
@@ -337,7 +337,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testEnquoteLiteral(String driverClass, String url, String user, String password) throws Exception {
+    void testEnquoteLiteral(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         String quoted = statement.enquoteLiteral("foo'bar");
         assertEquals("'foo''bar'", quoted);
@@ -345,7 +345,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testEnquoteIdentifier(String driverClass, String url, String user, String password) throws Exception {
+    void testEnquoteIdentifier(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertEquals("\"abc\"", statement.enquoteIdentifier("abc", false));
         assertEquals("\"abc\"", statement.enquoteIdentifier("abc", true));
@@ -355,7 +355,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testIsSimpleIdentifier(String driverClass, String url, String user, String password) throws Exception {
+    void testIsSimpleIdentifier(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         assertFalse(statement.isSimpleIdentifier("abc123"));
         assertFalse(statement.isSimpleIdentifier("ab-c"));
@@ -364,7 +364,7 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testEnquoteNCharLiteral(String driverClass, String url, String user, String password) throws Exception {
+    void testEnquoteNCharLiteral(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         String quoted = statement.enquoteNCharLiteral("foo'bar");
         assertEquals("N'foo''bar'", quoted);

@@ -5,7 +5,6 @@ import io.grpc.StatusRuntimeException;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -141,7 +140,7 @@ class MultinodeConnectionManagerErrorHandlingTest {
      * Helper method to invoke the private isConnectionLevelError method via reflection.
      */
     private boolean invokeIsConnectionLevelError(Exception exception) throws Exception {
-        List<ServerEndpoint> endpoints = Arrays.asList(new ServerEndpoint("localhost", 10591));
+        List<ServerEndpoint> endpoints = List.of(new ServerEndpoint("localhost", 10591));
         MultinodeConnectionManager manager = new MultinodeConnectionManager(endpoints);
         
         Method method = MultinodeConnectionManager.class.getDeclaredMethod("isConnectionLevelError", Exception.class);

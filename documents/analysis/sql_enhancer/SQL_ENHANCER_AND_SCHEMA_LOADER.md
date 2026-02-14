@@ -1,8 +1,23 @@
 # SQL Enhancer and Database Schema Loader
 
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> The SQL Enhancer with Apache Calcite is **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use.
+>
+> - **Status**: Experimental / Not Production Ready
+> - **Default**: Disabled by default (opt-in only)
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases
+> - **Recommendation**: **Do NOT enable in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases.
+>
+> **We strongly discourage using this feature in its current state.**
+
 ## Overview
 
 The OJP SQL Enhancer provides advanced query optimization capabilities using Apache Calcite with real database schema metadata. By loading actual table and column information from your databases, the SQL enhancer can perform more accurate query analysis, optimization, and dialect translation.
+
+**Note:** Due to type system incompatibilities, many optimization features do not work reliably with traditional JDBC databases.
 
 ## Features
 

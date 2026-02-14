@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class MultiDataSourceConfigurationTest {
 
     @Test
-    public void testUrlParsingWithDataSourceParameter() throws Exception {
+    void testUrlParsingWithDataSourceParameter() throws Exception {
         // Test URL without dataSource parameter - should default to "default"
         UrlParser.UrlParseResult result1 = UrlParser.parseUrlWithDataSource("jdbc:ojp[localhost:1059]_h2:~/test");
         
@@ -41,7 +41,7 @@ public class MultiDataSourceConfigurationTest {
     }
 
     @Test
-    public void testMultinodeUrlParsingWithDataSourceParameter() throws Exception {
+    void testMultinodeUrlParsingWithDataSourceParameter() throws Exception {
         // Test multinode URL with different datasource names per endpoint
         // The first datasource name should be used as the primary datasource name
         UrlParser.UrlParseResult result1 = UrlParser.parseUrlWithDataSource("jdbc:ojp[localhost:10591(default),localhost:10592(multinode)]_h2:~/test");
@@ -53,7 +53,7 @@ public class MultiDataSourceConfigurationTest {
 
     
     @Test
-    public void testLoadOjpPropertiesForDataSource() throws Exception {
+    void testLoadOjpPropertiesForDataSource() throws Exception {
         // Create test properties with multiple datasources
         String testProperties = 
             "# Default datasource\n" +
@@ -106,7 +106,7 @@ public class MultiDataSourceConfigurationTest {
     }
     
     @Test
-    public void testDataSourceConfigurationWithNoProperties() throws Exception {
+    void testDataSourceConfigurationWithNoProperties() throws Exception {
         // Create a loader that returns null for ojp.properties (simulating no file found)
         TestDatasourcePropertiesLoader loader = new TestDatasourcePropertiesLoader(null);
         

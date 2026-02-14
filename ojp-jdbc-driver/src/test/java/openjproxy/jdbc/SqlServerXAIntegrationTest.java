@@ -38,7 +38,7 @@ public class SqlServerXAIntegrationTest {
     private Connection connection;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         // Align with other SQL Server tests: enabled when -DenableSqlServerTests=true
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
@@ -58,7 +58,7 @@ public class SqlServerXAIntegrationTest {
     }
 
     @AfterEach
-    public void tearDown() {
+    void tearDown() {
         TestDBUtils.closeQuietly(connection);
         if (xaConnection != null) {
             try {
@@ -74,7 +74,7 @@ public class SqlServerXAIntegrationTest {
      */
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
+    void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
         setUp(url, user, password);
 
         assertNotNull(xaConnection, "XA connection should be created");
@@ -95,7 +95,7 @@ public class SqlServerXAIntegrationTest {
      */
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
+    void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
         setUp(url, user, password);
 
         XAResource xaResource = xaConnection.getXAResource();
@@ -174,7 +174,7 @@ public class SqlServerXAIntegrationTest {
      */
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
+    void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
         setUp(url, user, password);
 
         XAResource xaResource = xaConnection.getXAResource();
@@ -236,7 +236,7 @@ public class SqlServerXAIntegrationTest {
      */
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testXATransactionTimeout(String driverClass, String url, String user, String password) throws Exception {
+    void testXATransactionTimeout(String driverClass, String url, String user, String password) throws Exception {
         setUp(url, user, password);
 
         XAResource xaResource = xaConnection.getXAResource();
@@ -259,7 +259,7 @@ public class SqlServerXAIntegrationTest {
      */
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
+    void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
         setUp(url, user, password);
 
         XAResource xaResource = xaConnection.getXAResource();

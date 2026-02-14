@@ -29,13 +29,13 @@ public class SQLServerConnectionExtensiveTests {
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void setup() {
+    static void setup() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         log.info("Testing SQL Server connection with URL: {}", url);
@@ -71,7 +71,7 @@ public class SQLServerConnectionExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         log.info("Testing SQL Server data types with URL: {}", url);
@@ -97,7 +97,7 @@ public class SQLServerConnectionExtensiveTests {
                     assertEquals(9876543210L, rs.getLong("val_bigint"));
                     assertEquals(255, rs.getInt("val_tinyint"));  // SQL Server TINYINT is 0-255
                     assertEquals(32767, rs.getInt("val_smallint"));
-                    assertEquals(true, rs.getBoolean("val_boolean"));  // SQL Server BIT
+                    assertTrue( rs.getBoolean("val_boolean"));  // SQL Server BIT
                 }
                 
                 // Clean up
@@ -108,7 +108,7 @@ public class SQLServerConnectionExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerSpecificSyntax(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerSpecificSyntax(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         log.info("Testing SQL Server specific syntax with URL: {}", url);
@@ -154,7 +154,7 @@ public class SQLServerConnectionExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerUnicodeSupport(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerUnicodeSupport(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         log.info("Testing SQL Server Unicode support with URL: {}", url);
@@ -187,7 +187,7 @@ public class SQLServerConnectionExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerTransactionHandling(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerTransactionHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         log.info("Testing SQL Server transaction handling with URL: {}", url);
@@ -237,7 +237,7 @@ public class SQLServerConnectionExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         log.info("Testing SQL Server metadata with URL: {}", url);

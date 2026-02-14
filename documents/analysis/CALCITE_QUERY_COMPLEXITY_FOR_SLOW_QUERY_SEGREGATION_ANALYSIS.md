@@ -1,8 +1,22 @@
 # Query Complexity Analysis for Slow Query Segregation - Apache Calcite Integration
 
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> **IMPORTANT:** This analysis document describes using Apache Calcite for query complexity analysis, which is now **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use due to discovered limitations.
+>
+> - **Status**: Experimental / Not Production Ready
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases
+> - **Recommendation**: **Do NOT implement this feature in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases. Query complexity analysis using Calcite would face the same type system issues.
+>
+> **We strongly discourage implementing this feature in its current state.**
+>
+> This document remains for reference purposes.
+
 **Author:** AI Agent Analysis  
 **Date:** January 13, 2026  
-**Status:** 📋 ANALYSIS - For Review and Discussion  
+**Status:** 📋 ANALYSIS - For Review and Discussion (Not Recommended for Implementation)
 **Related to:** Slow Query Segregation Enhancement
 
 ---
@@ -15,7 +29,7 @@ This document analyzes the feasibility, benefits, risks, and implementation appr
 
 **Proposed Solution:** Augment time-based metrics with Apache Calcite's query complexity analysis to create a more robust slow query classification mechanism.
 
-**Recommendation:** ✅ **Proceed with implementation with significant considerations** - The integration is technically feasible and addresses real limitations, but requires careful design to avoid introducing new problems.
+**Updated Recommendation:** ❌ **Do NOT implement** - While technically feasible, subsequent testing of Calcite integration revealed substantial type system incompatibilities with traditional JDBC databases that would prevent reliable query analysis.
 
 ---
 

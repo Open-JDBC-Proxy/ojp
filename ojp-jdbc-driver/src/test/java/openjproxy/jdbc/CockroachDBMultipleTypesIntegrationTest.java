@@ -1,10 +1,11 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -17,22 +18,27 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class CockroachDBMultipleTypesIntegrationTest {
-
+class CockroachDBMultipleTypesIntegrationTest {
+    private static final Logger logger = LoggerFactory.getLogger(CockroachDBMultipleTypesIntegrationTest.class);
     private static boolean isTestEnabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException {
+        logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing for url -> " + url);
@@ -49,7 +55,7 @@ public class CockroachDBMultipleTypesIntegrationTest {
         psInsert.setInt(1, 1);
         psInsert.setString(2, "TITLE_1");
         psInsert.setDouble(3, 2.2222d);
-        psInsert.setLong(4, 33333333333333l);
+        psInsert.setLong(4, 33333333333333L);
         psInsert.setInt(5, 127); // CockroachDB SMALLINT can handle this
         psInsert.setInt(6, 32767);
         psInsert.setBoolean(7, true);
@@ -69,61 +75,59 @@ public class CockroachDBMultipleTypesIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(127, resultSet.getInt(5)); // SMALLINT in CockroachDB
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(true, resultSet.getBoolean(7));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", "" + resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(127, resultSet.getInt(5)); // SMALLINT in CockroachDB
+        assertEquals(32767, resultSet.getInt(6));
+        assertTrue(resultSet.getBoolean(7));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
+        assertEquals(20.20f + "", "" + resultSet.getFloat(9));
         // CockroachDB BYTEA column may be returned as String by OJP driver
         Object byteValue = resultSet.getObject(10);
-        Assert.assertNotNull("BYTEA column should not be null", byteValue);
+        assertNotNull(byteValue, "BYTEA column should not be null");
         // CockroachDB BYTEA column may be returned as String by OJP driver  
         Object binaryValue = resultSet.getObject(11);
         if (binaryValue instanceof String) {
             String stringValue = (String) binaryValue;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            assertTrue(stringValue.contains("AAAA") || !stringValue.isEmpty(), "Binary column should contain expected data");
         } else {
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes(11)));
+            assertEquals("AAAA", new String(resultSet.getBytes(11)));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
 
         // Test column name access
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
-        Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
-        Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
-        Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        Assert.assertEquals(true, resultSet.getBoolean("val_boolean"));
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("TITLE_1", resultSet.getString("val_varchar"));
+        assertEquals("2.2222", "" + resultSet.getDouble("val_double_precision"));
+        assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
+        assertEquals(127, resultSet.getInt("val_tinyint"));
+        assertEquals(32767, resultSet.getInt("val_smallint"));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
+        assertEquals(20.20f + "", "" + resultSet.getFloat("val_float"));
+        assertTrue(resultSet.getBoolean("val_boolean"));
         // CockroachDB BYTEA column may be returned as String by OJP driver
         Object byteValueByName = resultSet.getObject("val_byte");
-        Assert.assertNotNull("BYTEA column val_byte should not be null", byteValueByName);
+        assertNotNull(byteValueByName, "BYTEA column val_byte should not be null");
         // CockroachDB BYTEA column may be returned as String by OJP driver
         Object binaryValueByName = resultSet.getObject("val_binary");
         if (binaryValueByName instanceof String) {
             String stringValue = (String) binaryValueByName;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            assertTrue(stringValue.contains("AAAA") || !stringValue.isEmpty(), "Binary column should contain expected data");
         } else {
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
+            assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
 
         TestDBUtils.executeUpdate(conn, "delete from cockroachdb_multi_types_test where val_int=1");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
@@ -132,9 +136,10 @@ public class CockroachDBMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    public void testCockroachDBSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testCockroachDBSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+        logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing CockroachDB-specific types for url -> " + url);
@@ -146,15 +151,15 @@ public class CockroachDBMultipleTypesIntegrationTest {
             // Ignore if table doesn't exist
         }
 
-        TestDBUtils.executeUpdate(conn, 
-            "CREATE TABLE test_cockroachdb_types (" +
-            "id SERIAL PRIMARY KEY, " +
-            "uuid_col UUID, " +
-            "text_col TEXT)"
+        TestDBUtils.executeUpdate(conn,
+                "CREATE TABLE test_cockroachdb_types (" +
+                        "id SERIAL PRIMARY KEY, " +
+                        "uuid_col UUID, " +
+                        "text_col TEXT)"
         );
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
-            "INSERT INTO test_cockroachdb_types (uuid_col, text_col) VALUES (?, ?)"
+                "INSERT INTO test_cockroachdb_types (uuid_col, text_col) VALUES (?, ?)"
         );
 
         // Test UUID
@@ -166,9 +171,9 @@ public class CockroachDBMultipleTypesIntegrationTest {
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT text_col FROM test_cockroachdb_types LIMIT 1");
         ResultSet resultSet = psSelect.executeQuery();
-        
-        Assert.assertTrue(resultSet.next());
-        Assert.assertEquals("CockroachDB text type", resultSet.getString("text_col"));
+
+        assertTrue(resultSet.next());
+        assertEquals("CockroachDB text type", resultSet.getString("text_col"));
 
         resultSet.close();
         psSelect.close();

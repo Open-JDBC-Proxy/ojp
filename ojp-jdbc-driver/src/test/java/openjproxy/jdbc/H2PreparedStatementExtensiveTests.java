@@ -38,7 +38,7 @@ public class H2PreparedStatementExtensiveTests {
     private PreparedStatement ps;
 
     @BeforeAll
-    public static void setupClass() {
+    static void setupClass() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
 
@@ -60,14 +60,14 @@ public class H2PreparedStatementExtensiveTests {
     }
 
     @AfterEach
-    public void tearDown() throws Exception {
+    void tearDown() throws Exception {
         if (ps != null) ps.close();
         if (connection != null) connection.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testParameterSetters(String driverClass, String url, String user, String password) throws Exception {
+    void testParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
@@ -141,7 +141,7 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testExecutionAndBatchMethods(String driverClass, String url, String user, String password) throws Exception {
+    void testExecutionAndBatchMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
@@ -181,7 +181,7 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testMetaDataAndWarnings(String driverClass, String url, String user, String password) throws Exception {
+    void testMetaDataAndWarnings(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
@@ -197,7 +197,7 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testStatementCommonMethods(String driverClass, String url, String user, String password) throws Exception {
+    void testStatementCommonMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
@@ -247,7 +247,7 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testStatementBatchAndConnection(String driverClass, String url, String user, String password) throws Exception {
+    void testStatementBatchAndConnection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
@@ -260,7 +260,7 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testResultAndGeneratedKeysMethods(String driverClass, String url, String user, String password) throws Exception {
+    void testResultAndGeneratedKeysMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         PreparedStatement ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
@@ -310,7 +310,7 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    public void testStatementLargeAndDefaultMethods(String driverClass, String url, String user, String password) throws Exception {
+    void testStatementLargeAndDefaultMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         Statement stmt = connection.createStatement();

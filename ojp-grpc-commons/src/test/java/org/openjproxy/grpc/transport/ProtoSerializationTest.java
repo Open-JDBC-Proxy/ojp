@@ -21,7 +21,7 @@ public class ProtoSerializationTest {
     // ==================== Properties Tests ====================
 
     @Test
-    public void testPropertiesRoundTrip() throws SerializationException {
+    void testPropertiesRoundTrip() throws SerializationException {
         Properties props = new Properties();
         props.setProperty("key1", "value1");
         props.setProperty("key2", "value2");
@@ -40,7 +40,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testEmptyProperties() throws SerializationException {
+    void testEmptyProperties() throws SerializationException {
         Properties props = new Properties();
 
         byte[] bytes = ProtoSerialization.serializeToTransport(props);
@@ -53,7 +53,7 @@ public class ProtoSerializationTest {
     // ==================== Map Tests ====================
 
     @Test
-    public void testMapRoundTripWithPrimitives() throws SerializationException {
+    void testMapRoundTripWithPrimitives() throws SerializationException {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("string", "hello");
         map.put("int", 42);
@@ -62,18 +62,18 @@ public class ProtoSerializationTest {
         map.put("null", null);
 
         byte[] bytes = ProtoSerialization.serializeToTransport(map);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        Map<?, ?> result = deserializeMap(bytes);
 
+        assertNotNull(result);
         assertEquals("hello", result.get("string"));
         assertEquals(42.0, result.get("int")); // Numbers are stored as doubles
         assertEquals(3.14, result.get("double"));
-        assertEquals(true, result.get("boolean"));
+        assertTrue((Boolean) result.get("boolean"));
         assertNull(result.get("null"));
     }
 
     @Test
-    public void testNestedMaps() throws SerializationException {
+    void testNestedMaps() throws SerializationException {
         Map<String, Object> inner = new LinkedHashMap<>();
         inner.put("innerKey", "innerValue");
         inner.put("innerNumber", 123);
@@ -83,24 +83,23 @@ public class ProtoSerializationTest {
         outer.put("nested", inner);
 
         byte[] bytes = ProtoSerialization.serializeToTransport(outer);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        Map<?, ?> result = deserializeMap(bytes);
 
         assertEquals("outerValue", result.get("outerKey"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> resultInner = (Map<String, Object>) result.get("nested");
+        Object nested = result.get("nested");
+        assertInstanceOf(Map.class, nested);
+        Map<?, ?> resultInner = (Map<?, ?>) nested;
         assertNotNull(resultInner);
         assertEquals("innerValue", resultInner.get("innerKey"));
         assertEquals(123.0, resultInner.get("innerNumber"));
     }
 
     @Test
-    public void testEmptyMap() throws SerializationException {
+    void testEmptyMap() throws SerializationException {
         Map<String, Object> map = new LinkedHashMap<>();
 
         byte[] bytes = ProtoSerialization.serializeToTransport(map);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        Map<?, ?> result = deserializeMap(bytes);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -109,7 +108,7 @@ public class ProtoSerializationTest {
     // ==================== List Tests ====================
 
     @Test
-    public void testListRoundTripWithPrimitives() throws SerializationException {
+    void testListRoundTripWithPrimitives() throws SerializationException {
         List<Object> list = new ArrayList<>();
         list.add("string");
         list.add(42);
@@ -118,19 +117,19 @@ public class ProtoSerializationTest {
         list.add(null);
 
         byte[] bytes = ProtoSerialization.serializeToTransport(list);
-        @SuppressWarnings("unchecked")
-        List<Object> result = ProtoSerialization.deserializeFromTransport(bytes, List.class);
+        List<?> result = deserializeList(bytes);
 
+        assertNotNull(result);
         assertEquals(5, result.size());
         assertEquals("string", result.get(0));
         assertEquals(42.0, result.get(1)); // Numbers are stored as doubles
         assertEquals(3.14, result.get(2));
-        assertEquals(true, result.get(3));
+        assertTrue((Boolean) result.get(3));
         assertNull(result.get(4));
     }
 
     @Test
-    public void testNestedLists() throws SerializationException {
+    void testNestedLists() throws SerializationException {
         List<Object> inner = new ArrayList<>();
         inner.add("innerValue");
         inner.add(123);
@@ -140,13 +139,13 @@ public class ProtoSerializationTest {
         outer.add(inner);
 
         byte[] bytes = ProtoSerialization.serializeToTransport(outer);
-        @SuppressWarnings("unchecked")
-        List<Object> result = ProtoSerialization.deserializeFromTransport(bytes, List.class);
+        List<?> result = deserializeList(bytes);
 
         assertEquals(2, result.size());
         assertEquals("outerValue", result.get(0));
-        @SuppressWarnings("unchecked")
-        List<Object> resultInner = (List<Object>) result.get(1);
+        Object nested = result.get(1);
+        assertInstanceOf(List.class, nested);
+        List<?> resultInner = (List<?>) nested;
         assertNotNull(resultInner);
         assertEquals(2, resultInner.size());
         assertEquals("innerValue", resultInner.get(0));
@@ -154,12 +153,11 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testEmptyList() throws SerializationException {
+    void testEmptyList() throws SerializationException {
         List<Object> list = new ArrayList<>();
 
         byte[] bytes = ProtoSerialization.serializeToTransport(list);
-        @SuppressWarnings("unchecked")
-        List<Object> result = ProtoSerialization.deserializeFromTransport(bytes, List.class);
+        List<?> result = deserializeList(bytes);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -168,7 +166,7 @@ public class ProtoSerializationTest {
     // ==================== Nested Maps and Lists Tests ====================
 
     @Test
-    public void testMapWithNestedListsAndMaps() throws SerializationException {
+    void testMapWithNestedListsAndMaps() throws SerializationException {
         List<Object> list = new ArrayList<>();
         list.add("item1");
         list.add("item2");
@@ -182,22 +180,23 @@ public class ProtoSerializationTest {
         map.put("string", "value");
 
         byte[] bytes = ProtoSerialization.serializeToTransport(map);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        Map<?, ?> result = deserializeMap(bytes);
 
-        @SuppressWarnings("unchecked")
-        List<Object> resultList = (List<Object>) result.get("list");
+        Object listValue = result.get("list");
+        assertInstanceOf(List.class, listValue);
+        List<?> resultList = (List<?>) listValue;
         assertEquals(Arrays.asList("item1", "item2"), resultList);
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> resultMap = (Map<String, Object>) result.get("map");
+        Object mapValue = result.get("map");
+        assertInstanceOf(Map.class, mapValue);
+        Map<?, ?> resultMap = (Map<?, ?>) mapValue;
         assertEquals("nestedValue", resultMap.get("nestedKey"));
 
         assertEquals("value", result.get("string"));
     }
 
     @Test
-    public void testListWithNestedMapsAndLists() throws SerializationException {
+    void testListWithNestedMapsAndLists() throws SerializationException {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("key", "value");
 
@@ -211,17 +210,18 @@ public class ProtoSerializationTest {
         list.add("simple");
 
         byte[] bytes = ProtoSerialization.serializeToTransport(list);
-        @SuppressWarnings("unchecked")
-        List<Object> result = ProtoSerialization.deserializeFromTransport(bytes, List.class);
+        List<?> result = deserializeList(bytes);
 
         assertEquals(3, result.size());
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> resultMap = (Map<String, Object>) result.get(0);
+        Object mapValue = result.get(0);
+        assertInstanceOf(Map.class, mapValue);
+        Map<?, ?> resultMap = (Map<?, ?>) mapValue;
         assertEquals("value", resultMap.get("key"));
 
-        @SuppressWarnings("unchecked")
-        List<Object> resultList = (List<Object>) result.get(1);
+        Object listValue = result.get(1);
+        assertInstanceOf(List.class, listValue);
+        List<?> resultList = (List<?>) listValue;
         assertEquals(Arrays.asList("nested1", "nested2"), resultList);
 
         assertEquals("simple", result.get(2));
@@ -230,7 +230,7 @@ public class ProtoSerializationTest {
     // ==================== Primitive Types Tests ====================
 
     @Test
-    public void testStringRoundTrip() throws SerializationException {
+    void testStringRoundTrip() throws SerializationException {
         String value = "hello world";
         byte[] bytes = ProtoSerialization.serializeToTransport(value);
         String result = ProtoSerialization.deserializeFromTransport(bytes, String.class);
@@ -238,7 +238,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testNumberRoundTrip() throws SerializationException {
+    void testNumberRoundTrip() throws SerializationException {
         Integer value = 42;
         byte[] bytes = ProtoSerialization.serializeToTransport(value);
         Object result = ProtoSerialization.deserializeFromTransport(bytes);
@@ -246,7 +246,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testBooleanRoundTrip() throws SerializationException {
+    void testBooleanRoundTrip() throws SerializationException {
         Boolean value = true;
         byte[] bytes = ProtoSerialization.serializeToTransport(value);
         Boolean result = ProtoSerialization.deserializeFromTransport(bytes, Boolean.class);
@@ -254,7 +254,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testNullRoundTrip() throws SerializationException {
+    void testNullRoundTrip() throws SerializationException {
         byte[] bytes = ProtoSerialization.serializeToTransport(null);
         Object result = ProtoSerialization.deserializeFromTransport(bytes);
         assertNull(result);
@@ -263,7 +263,7 @@ public class ProtoSerializationTest {
     // ==================== Error Cases Tests ====================
 
     @Test
-    public void testUnsupportedTypeThrowsException() {
+    void testUnsupportedTypeThrowsException() {
         Object unsupportedObject = new Object(); // Plain POJO
         SerializationException exception = assertThrows(SerializationException.class, () -> {
             ProtoSerialization.serializeToTransport(unsupportedObject);
@@ -273,7 +273,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testUnsupportedNestedTypeThrowsException() {
+    void testUnsupportedNestedTypeThrowsException() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("valid", "value");
         map.put("invalid", new Object()); // POJO inside map
@@ -285,7 +285,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testNonStringMapKeysThrowException() {
+    void testNonStringMapKeysThrowException() {
         Map<Integer, String> map = new LinkedHashMap<>();
         map.put(1, "value");
 
@@ -296,7 +296,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testInvalidProtobufBytesThrowException() {
+    void testInvalidProtobufBytesThrowException() {
         byte[] invalidBytes = new byte[]{0, 1, 2, 3, 4, 5}; // Random bytes
 
         SerializationException exception = assertThrows(SerializationException.class, () -> {
@@ -306,7 +306,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testNullPayloadThrowsException() {
+    void testNullPayloadThrowsException() {
         SerializationException exception = assertThrows(SerializationException.class, () -> {
             ProtoSerialization.deserializeFromTransport(null);
         });
@@ -314,7 +314,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testEmptyPayloadThrowsException() {
+    void testEmptyPayloadThrowsException() {
         byte[] emptyBytes = new byte[0];
         SerializationException exception = assertThrows(SerializationException.class, () -> {
             ProtoSerialization.deserializeFromTransport(emptyBytes);
@@ -323,7 +323,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testTypeMismatchThrowsException() throws SerializationException {
+    void testTypeMismatchThrowsException() throws SerializationException {
         String value = "hello";
         byte[] bytes = ProtoSerialization.serializeToTransport(value);
 
@@ -336,15 +336,14 @@ public class ProtoSerializationTest {
     // ==================== Edge Cases Tests ====================
 
     @Test
-    public void testUnicodeStrings() throws SerializationException {
+    void testUnicodeStrings() throws SerializationException {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("chinese", "你好世界");
         map.put("arabic", "مرحبا بالعالم");
         map.put("emoji", "😀🎉");
 
         byte[] bytes = ProtoSerialization.serializeToTransport(map);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        Map<?, ?> result = deserializeMap(bytes);
 
         assertEquals("你好世界", result.get("chinese"));
         assertEquals("مرحبا بالعالم", result.get("arabic"));
@@ -352,7 +351,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testKeysWithSpecialCharacters() throws SerializationException {
+    void testKeysWithSpecialCharacters() throws SerializationException {
         Properties props = new Properties();
         props.setProperty("key with spaces", "value1");
         props.setProperty("key.with.dots", "value2");
@@ -369,15 +368,14 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testLargeDataStructure() throws SerializationException {
+    void testLargeDataStructure() throws SerializationException {
         Map<String, Object> largeMap = new LinkedHashMap<>();
         for (int i = 0; i < 100; i++) {
             largeMap.put("key" + i, "value" + i);
         }
 
         byte[] bytes = ProtoSerialization.serializeToTransport(largeMap);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        Map<?, ?> result = deserializeMap(bytes);
 
         assertEquals(100, result.size());
         for (int i = 0; i < 100; i++) {
@@ -386,7 +384,7 @@ public class ProtoSerializationTest {
     }
 
     @Test
-    public void testNumberPrecision() throws SerializationException {
+    void testNumberPrecision() throws SerializationException {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("int", 42);
         map.put("long", 9223372036854775807L);
@@ -394,13 +392,26 @@ public class ProtoSerializationTest {
         map.put("double", 2.718281828459045);
 
         byte[] bytes = ProtoSerialization.serializeToTransport(map);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        Map<?, ?> result = deserializeMap(bytes);
 
         // All numbers are returned as doubles
         assertEquals(42.0, result.get("int"));
         assertEquals(9.223372036854776E18, result.get("long")); // Note: may lose precision
         assertEquals(3.14, (Double) result.get("float"), 0.01);
         assertEquals(2.718281828459045, result.get("double"));
+    }
+
+    private static Map<?, ?> deserializeMap(byte[] bytes) throws SerializationException {
+        Object result = ProtoSerialization.deserializeFromTransport(bytes, Map.class);
+        assertNotNull(result);
+        assertInstanceOf(Map.class, result);
+        return (Map<?, ?>) result;
+    }
+
+    private static List<?> deserializeList(byte[] bytes) throws SerializationException {
+        Object result = ProtoSerialization.deserializeFromTransport(bytes, List.class);
+        assertNotNull(result);
+        assertInstanceOf(List.class, result);
+        return (List<?>) result;
     }
 }

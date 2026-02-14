@@ -16,7 +16,6 @@ import java.sql.Types;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -29,7 +28,7 @@ public class Db2PreparedStatementExtensiveTests {
     private PreparedStatement ps;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
@@ -64,7 +63,7 @@ public class Db2PreparedStatementExtensiveTests {
     }
 
     @AfterEach
-    public void tearDown() throws SQLException {
+    void tearDown() throws SQLException {
         if (ps != null) {
             ps.close();
         }
@@ -82,7 +81,7 @@ public class Db2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2PreparedStatementBasicOperations(String driverClass, String url, String user, String password) throws Exception {
+    void testDb2PreparedStatementBasicOperations(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Test INSERT operation
@@ -135,7 +134,7 @@ public class Db2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2PreparedStatementDataTypes(String driverClass, String url, String user, String password) throws Exception {
+    void testDb2PreparedStatementDataTypes(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Test various data types
@@ -170,7 +169,7 @@ public class Db2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2PreparedStatementNullHandling(String driverClass, String url, String user, String password) throws Exception {
+    void testDb2PreparedStatementNullHandling(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Test NULL values
@@ -206,7 +205,7 @@ public class Db2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2PreparedStatementBatch(String driverClass, String url, String user, String password) throws Exception {
+    void testDb2PreparedStatementBatch(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Test batch operations

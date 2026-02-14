@@ -151,18 +151,32 @@ public class MultinodeConnectionManager {
     }
     
     private ChannelAndStub createChannelAndStub(ServerEndpoint endpoint) {
-        String target = DNS_PREFIX + endpoint.getHost() + ":" + endpoint.getPort();
-        ManagedChannel channel = GrpcChannelFactory.createChannel(target);
-        
-        StatementServiceGrpc.StatementServiceBlockingStub blockingStub = 
-                StatementServiceGrpc.newBlockingStub(channel);
-        StatementServiceGrpc.StatementServiceStub asyncStub = 
-                StatementServiceGrpc.newStub(channel);
-        
-        ChannelAndStub channelAndStub = new ChannelAndStub(channel, blockingStub, asyncStub);
-        channelMap.put(endpoint, channelAndStub);
-        
-        return channelAndStub;
+        // Synchronize on the endpoint to prevent concurrent channel creation for the same endpoint
+        synchronized (endpoint) {
+            String target = DNS_PREFIX + endpoint.getHost() + ":" + endpoint.getPort();
+            ManagedChannel channel = GrpcChannelFactory.createChannel(target);
+            
+            StatementServiceGrpc.StatementServiceBlockingStub blockingStub = 
+                    StatementServiceGrpc.newBlockingStub(channel);
+            StatementServiceGrpc.StatementServiceStub asyncStub = 
+                    StatementServiceGrpc.newStub(channel);
+            
+            ChannelAndStub newChannelAndStub = new ChannelAndStub(channel, blockingStub, asyncStub);
+            
+            // Atomically replace old channel with new one and shutdown the old one if it exists
+            // This prevents race conditions by doing check-and-replace atomically
+            ChannelAndStub oldChannelAndStub = channelMap.put(endpoint, newChannelAndStub);
+            if (oldChannelAndStub != null) {
+                log.debug("Shutting down replaced channel for {}", endpoint.getAddress());
+                try {
+                    oldChannelAndStub.channel.shutdown();
+                } catch (Exception e) {
+                    log.warn("Error shutting down replaced channel for {}: {}", endpoint.getAddress(), e.getMessage());
+                }
+            }
+            
+            return newChannelAndStub;
+        }
     }
     
     /**
@@ -465,6 +479,7 @@ public class MultinodeConnectionManager {
         SQLException lastException = null;
         int successfulConnections = 0;
         List<ServerEndpoint> connectedServers = new ArrayList<>();
+        List<SessionInfo> allSessionInfos = new ArrayList<>(); // Track all successful sessions
         boolean isXA = connectionDetails.getIsXA();
         
         // Try to connect to all servers
@@ -528,6 +543,9 @@ public class MultinodeConnectionManager {
                 // Track that this server received a connect() call
                 connectedServers.add(server);
                 
+                // Track all successful session infos
+                allSessionInfos.add(sessionInfo);
+                
                 // Use the first successful connection as the primary
                 if (primarySessionInfo == null) {
                     primarySessionInfo = sessionInfo;
@@ -550,6 +568,34 @@ public class MultinodeConnectionManager {
         if (primarySessionInfo == null) {
             throw new SQLException("Failed to connect to any server. " +
                     "Last error: " + (lastException != null ? lastException.getMessage() : "No healthy servers available"));
+        }
+        
+        // CRITICAL FIX: Check if primary session was invalidated by health checker during connect
+        // This can happen if health checker runs between binding the session and returning from connect()
+        String primarySessionUUID = primarySessionInfo.getSessionUUID();
+        if (primarySessionUUID != null && !primarySessionUUID.isEmpty()) {
+            if (!sessionToServerMap.containsKey(primarySessionUUID)) {
+                log.warn("[RACE-FIX] Primary session {} was invalidated during connect(), searching for valid session", 
+                        primarySessionUUID);
+                
+                // Find a valid session from the other successful connections
+                SessionInfo validSession = null;
+                for (SessionInfo si : allSessionInfos) {
+                    String uuid = si.getSessionUUID();
+                    if (uuid != null && !uuid.isEmpty() && sessionToServerMap.containsKey(uuid)) {
+                        validSession = si;
+                        log.info("[RACE-FIX] Found valid session {} to use instead", uuid);
+                        break;
+                    }
+                }
+                
+                if (validSession != null) {
+                    primarySessionInfo = validSession;
+                } else {
+                    // All sessions were invalidated - this is a rare case but possible
+                    throw new SQLException("All sessions were invalidated during connection establishment (servers failed during connect)");
+                }
+            }
         }
         
         // Track which servers received connect() for this connection hash
@@ -781,15 +827,18 @@ public class MultinodeConnectionManager {
         // Phase 2: Notify listeners that server became unhealthy
         notifyServerUnhealthy(endpoint, exception);
         
-        // Remove the failed channel from the map, but don't shut it down immediately
-        // The channel will be replaced during recovery, and the old one will be garbage collected
-        // This prevents "Channel shutdown invoked" errors for in-flight operations
+        // Remove the failed channel from the map and shut it down gracefully
+        // Using shutdown() instead of shutdownNow() allows in-flight operations to complete
         ChannelAndStub channelAndStub = channelMap.remove(endpoint);
         if (channelAndStub != null) {
-            log.debug("Removed channel for {} from map (will be replaced during recovery)", 
+            log.debug("Removed channel for {} from map, initiating graceful shutdown", 
                     endpoint.getAddress());
-            // Note: We intentionally don't call channel.shutdown() here to avoid disrupting
-            // in-flight operations. The channel will be garbage collected when no longer referenced.
+            try {
+                channelAndStub.channel.shutdown();
+                log.debug("Initiated graceful shutdown for channel {}", endpoint.getAddress());
+            } catch (Exception e) {
+                log.warn("Error shutting down channel for {}: {}", endpoint.getAddress(), e.getMessage());
+            }
         }
     }
     
@@ -805,37 +854,7 @@ public class MultinodeConnectionManager {
      * Pool exhaustion errors do NOT mark servers unhealthy - they indicate resource limits, not connectivity issues.
      */
     public boolean isConnectionLevelError(Exception exception) {
-        if (exception instanceof io.grpc.StatusRuntimeException) {
-            io.grpc.StatusRuntimeException statusException = (io.grpc.StatusRuntimeException) exception;
-            io.grpc.Status.Code code = statusException.getStatus().getCode();
-            
-            // Only these status codes indicate connection-level failures
-            return code == io.grpc.Status.Code.UNAVAILABLE ||
-                   code == io.grpc.Status.Code.DEADLINE_EXCEEDED ||
-                   code == io.grpc.Status.Code.CANCELLED ||
-                   (code == io.grpc.Status.Code.UNKNOWN && 
-                    statusException.getMessage() != null && 
-                    (statusException.getMessage().contains("connection") || 
-                     statusException.getMessage().contains("Connection")));
-        }
-        
-        // For non-gRPC exceptions, check for connection-related keywords
-        String message = exception.getMessage();
-        if (message != null) {
-            String lowerMessage = message.toLowerCase();
-            
-            // CRITICAL: Pool exhaustion is NOT a server connectivity issue
-            // Don't mark server unhealthy when pool is exhausted - it's a resource limit, not a connection failure
-            if (lowerMessage.contains("pool exhausted") || lowerMessage.contains("pool is exhausted")) {
-                return false;
-            }
-            
-            return lowerMessage.contains("connection") || 
-                   lowerMessage.contains("timeout") ||
-                   lowerMessage.contains("unavailable");
-        }
-        
-        return false; // Default to not marking unhealthy for unknown errors
+        return GrpcExceptionHandler.isConnectionLevelError(exception);
     }
     
     private void attemptServerRecovery() {
@@ -1025,6 +1044,21 @@ public class MultinodeConnectionManager {
     }
     
     /**
+     * Checks if a session is currently bound to a server.
+     * Used to detect race conditions where a session is created but then
+     * immediately invalidated by the health checker before it can be used.
+     * 
+     * @param sessionUUID The session UUID to check
+     * @return true if the session is bound to a server, false otherwise
+     */
+    public boolean isSessionBound(String sessionUUID) {
+        if (sessionUUID == null || sessionUUID.isEmpty()) {
+            return false;
+        }
+        return sessionToServerMap.containsKey(sessionUUID);
+    }
+    
+    /**
      * Shuts down all connections.
      */
     public void shutdown() {
@@ -1097,6 +1131,9 @@ public class MultinodeConnectionManager {
      */
     private void notifyServerUnhealthy(ServerEndpoint endpoint, Exception exception) {
         for (ServerHealthListener listener : healthListeners) {
+            if (listener == null) {
+                continue; // Skip null listeners
+            }
             try {
                 listener.onServerUnhealthy(endpoint, exception);
             } catch (Exception e) {
@@ -1114,6 +1151,9 @@ public class MultinodeConnectionManager {
      */
     private void notifyServerRecovered(ServerEndpoint endpoint) {
         for (ServerHealthListener listener : healthListeners) {
+            if (listener == null) {
+                continue; // Skip null listeners
+            }
             try {
                 listener.onServerRecovered(endpoint);
             } catch (Exception e) {

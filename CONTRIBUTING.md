@@ -31,23 +31,27 @@ We are committed to providing a welcoming and inclusive environment for all cont
 OJP values contributions across multiple tracks:
 
 ### 🔵 Code Contributions
+
 - Fix bugs and implement new features
 - Improve performance and refactor code
 - Review pull requests and provide feedback
 
 ### 🟠 Documentation & Content
+
 - Improve README files and setup guides
 - Write tutorials and examples
 - Create diagrams and visual aids
 - Update API documentation
 
 ### 🟢 Testing & Quality
+
 - Report bugs and validate fixes
 - Add test coverage
 - Improve CI/CD pipelines
 - Conduct stress and performance testing
 
 ### 🟣 Evangelism & Community
+
 - Write blog posts or articles
 - Give talks or presentations
 - Share OJP on social media
@@ -71,17 +75,20 @@ For more details on recognition for these contributions, see our [Contributor Re
 1. **Fork the repository** on GitHub by clicking the "Fork" button at the top right of the [OJP repository](https://github.com/Open-J-Proxy/ojp).
 
 2. **Clone your fork locally**:
+
    ```bash
    git clone https://github.com/YOUR-USERNAME/ojp.git
    cd ojp
    ```
 
 3. **Add the upstream repository** as a remote:
+
    ```bash
    git remote add upstream https://github.com/Open-J-Proxy/ojp.git
    ```
 
 4. **Keep your fork in sync** with the upstream repository:
+
    ```bash
    git fetch upstream
    git checkout main
@@ -90,7 +97,9 @@ For more details on recognition for these contributions, see our [Contributor Re
 
 ### Download JDBC Drivers
 
-OJP requires JDBC drivers to connect to databases. Open source drivers (H2, PostgreSQL, MySQL, MariaDB) are not embedded in the JAR and must be downloaded:
+> **⚠️ Required for v0.4.0-beta and later:** Download JDBC drivers before running OJP. See [Chapter 4: Database Drivers](../ebook/part2-chapter4-database-drivers.md) for comprehensive instructions.
+
+OJP requires JDBC drivers to connect to databases. Open source drivers (H2, PostgreSQL, MySQL, MariaDB) are not embedded and must be downloaded:
 
 ```bash
 cd ojp-server
@@ -136,6 +145,7 @@ git checkout -b docs/improve-setup-guide
 Before submitting a pull request, ensure your changes work correctly:
 
 **Download drivers** (if not already done):
+
 ```bash
 cd ojp-server
 bash download-drivers.sh
@@ -143,17 +153,22 @@ cd ..
 ```
 
 **Start the OJP server** (required for running tests):
+
 ```bash
 mvn verify -pl ojp-server -Prun-ojp-server
 ```
 
 **Run tests** (in a separate terminal, navigate to ojp-jdbc-driver):
+
 ```bash
 cd ojp-jdbc-driver
 mvn test -DenableH2Tests=true
 ```
 
-**Note**: By default, all database tests are disabled. Use the appropriate enable flags for specific databases:
+**Note 1:** the OJP server must be running to execute the integration tests.
+
+**Note 2**: By default, all database tests are disabled. Use the appropriate enable flags for specific databases:
+
 - `-DenableH2Tests=true` - H2 database tests
 - `-DenablePostgresTests=true` - PostgreSQL tests
 - `-DenableMySQLTests=true` - MySQL tests
@@ -174,12 +189,14 @@ git commit -m "Add connection timeout configuration to JDBC driver"
 ```
 
 **Good commit message examples**:
+
 - `Fix null pointer exception in ResultSet.getString()`
 - `Add support for PostgreSQL array types`
 - `Update README with Docker installation instructions`
 - `Improve error handling in connection pool`
 
 **Avoid**:
+
 - `Fixed stuff`
 - `Update`
 - `WIP`
@@ -201,6 +218,7 @@ git push origin feature/add-connection-timeout
 GitHub automatically links and closes issues when you use specific keywords in your PR description or commit messages. Use one of the following formats:
 
 **In the PR description** (recommended):
+
 ```markdown
 Fixes #123
 Closes #123
@@ -208,12 +226,14 @@ Resolves #123
 ```
 
 **Multiple issues**:
+
 ```markdown
 Fixes #123, fixes #124
 Resolves #123 and closes #124
 ```
 
 **In commit messages**:
+
 ```bash
 git commit -m "Fix connection timeout issue
 
@@ -223,6 +243,7 @@ Fixes #123"
 ### Supported Keywords
 
 GitHub recognizes the following keywords for automatic issue closing:
+
 - `close`, `closes`, `closed`
 - `fix`, `fixes`, `fixed`
 - `resolve`, `resolves`, `resolved`
@@ -238,6 +259,7 @@ GitHub recognizes the following keywords for automatic issue closing:
 4. **One issue per PR when possible**: Keep PRs focused. If fixing multiple unrelated issues, consider separate PRs.
 
 5. **Example PR description**:
+
    ```markdown
    ## Description
    This PR adds connection timeout configuration to the JDBC driver.
@@ -255,6 +277,7 @@ GitHub recognizes the following keywords for automatic issue closing:
    ```
 
 6. **Cross-repository references**: If referencing an issue in another repository:
+
    ```markdown
    Fixes Open-J-Proxy/ojp-docs#45
    ```
@@ -274,6 +297,7 @@ GitHub recognizes the following keywords for automatic issue closing:
 ### Project Structure
 
 OJP is a multi-module Maven project:
+
 - **ojp-grpc-commons**: Shared gRPC protocol definitions
 - **ojp-jdbc-driver**: JDBC driver implementation
 - **ojp-server**: Proxy server implementation
@@ -305,6 +329,7 @@ OJP is a multi-module Maven project:
 - Use **JUnit 5** for test framework
 - Follow existing test patterns in the codebase
 - Use **meaningful test names** that describe what is being tested:
+
   ```java
   @Test
   void shouldReturnNullWhenColumnDoesNotExist() {
@@ -315,6 +340,7 @@ OJP is a multi-module Maven project:
 ### CI/CD Testing
 
 Tests run automatically in GitHub Actions:
+
 - **Main CI**: Runs H2 tests first (fast fail-fast mechanism)
 - **Specialized Jobs**: Run only after Main CI succeeds (PostgreSQL, MySQL, MariaDB, CockroachDB, Oracle, SQL Server, DB2)
   - **PostgreSQL tests** run twice: once with standard OJP server and once with SQL enhancer enabled
@@ -346,6 +372,7 @@ For more details, see [Setup and Testing OJP Source](https://github.com/Open-J-P
 ### PR Title
 
 Use a clear, descriptive title:
+
 - ✅ `Add connection timeout configuration to JDBC driver`
 - ✅ `Fix null pointer exception in ResultSet.getString()`
 - ✅ `Update README with Docker installation instructions`
@@ -379,6 +406,7 @@ Use a clear, descriptive title:
 ### Reviewing Others' PRs
 
 We encourage contributors to review each other's PRs:
+
 - Check for correctness and clarity
 - Test the changes if possible
 - Provide constructive feedback
@@ -420,6 +448,7 @@ Badges can be used on CVs, LinkedIn profiles, and presentations!
 ### Questions?
 
 If you're unsure about something:
+
 1. Check existing documentation
 2. Search existing issues and discussions
 3. Ask in Discord or open a discussion on GitHub

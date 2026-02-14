@@ -16,44 +16,44 @@ import java.sql.Statement;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class Db2SavepointTests {
+class Db2SavepointTests {
 
     private static boolean isTestDisabled;
     private Connection connection;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @SneakyThrows
     public void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-        
+
         connection = DriverManager.getConnection(url, user, pwd);
         connection.setAutoCommit(false);
-        
+
         // Set schema explicitly to avoid "object not found" errors
         try (Statement schemaStmt = connection.createStatement()) {
             schemaStmt.execute("SET SCHEMA DB2INST1");
         }
-        
+
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE DB2INST1.savepoint_test_table");
         } catch (SQLException e) {
             // Table might not exist
         }
-        
+
         // DB2-specific CREATE TABLE syntax
         stmt.execute(
-            "CREATE TABLE DB2INST1.savepoint_test_table (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(255))"
+                "CREATE TABLE DB2INST1.savepoint_test_table (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(255))"
         );
         stmt.close();
     }
 
     @AfterEach
-    public void tearDown() throws SQLException {
+    void tearDown() throws SQLException {
         if (connection != null) {
             try {
                 Statement stmt = connection.createStatement();
@@ -68,7 +68,7 @@ public class Db2SavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2SavepointBasicOperations(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2SavepointBasicOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         Statement stmt = connection.createStatement();
@@ -112,7 +112,7 @@ public class Db2SavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2MultipleSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2MultipleSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         Statement stmt = connection.createStatement();
@@ -160,7 +160,7 @@ public class Db2SavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2SavepointRelease(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2SavepointRelease(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         Statement stmt = connection.createStatement();
@@ -191,7 +191,7 @@ public class Db2SavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2UnnamedSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2UnnamedSavepoint(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         Statement stmt = connection.createStatement();
@@ -221,7 +221,7 @@ public class Db2SavepointTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2SavepointWithCommit(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2SavepointWithCommit(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         Statement stmt = connection.createStatement();

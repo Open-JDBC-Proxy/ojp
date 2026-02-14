@@ -1,9 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
@@ -18,6 +16,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -31,13 +30,13 @@ public class SQLServerBinaryStreamIntegrationTest {
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void setup() {
+    static void setup() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping SQL Server tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -78,16 +77,16 @@ public class SQLServerBinaryStreamIntegrationTest {
         
         InputStream blobResult = resultSet.getBinaryStream(1);
         String fromBlobByIdx = new String(blobResult.readAllBytes());
-        Assert.assertEquals(testString, fromBlobByIdx);
+        assertEquals(testString, fromBlobByIdx);
 
         InputStream blobResultByName = resultSet.getBinaryStream("val_varbinary1");
         byte[] allBytes = blobResultByName.readAllBytes();
         String fromBlobByName = new String(allBytes);
-        Assert.assertEquals(testString, fromBlobByName);
+        assertEquals(testString, fromBlobByName);
 
         InputStream blobResult2 = resultSet.getBinaryStream(2);
         String fromBlobByIdx2 = new String(blobResult2.readAllBytes());
-        Assert.assertEquals(testString.substring(0, 7), fromBlobByIdx2);
+        assertEquals(testString.substring(0, 7), fromBlobByIdx2);
 
         executeUpdate(conn, "delete from sqlserver_binary_stream_test");
 
@@ -98,7 +97,7 @@ public class SQLServerBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping SQL Server tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -135,7 +134,7 @@ public class SQLServerBinaryStreamIntegrationTest {
         int byteFile = inputStreamTestFile.read();
         while (byteFile != -1) {
             int blobByte = inputStreamBlob.read();
-            Assert.assertEquals(byteFile, blobByte);
+            assertEquals(byteFile, blobByte);
             byteFile = inputStreamTestFile.read();
         }
 
@@ -148,7 +147,7 @@ public class SQLServerBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerSpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    void testSqlServerSpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping SQL Server tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -189,15 +188,15 @@ public class SQLServerBinaryStreamIntegrationTest {
 
         // Verify small VARBINARY
         String retrievedSmall = new String(resultSet.getBinaryStream(1).readAllBytes());
-        Assert.assertEquals(smallData, retrievedSmall);
+        assertEquals(smallData, retrievedSmall);
 
         // Verify medium VARBINARY
         String retrievedMedium = new String(resultSet.getBinaryStream(2).readAllBytes());
-        Assert.assertEquals(mediumData, retrievedMedium);
+        assertEquals(mediumData, retrievedMedium);
 
         // Verify large VARBINARY(MAX)
         String retrievedLarge = new String(resultSet.getBinaryStream(3).readAllBytes());
-        Assert.assertEquals(largeData, retrievedLarge);
+        assertEquals(largeData, retrievedLarge);
 
         executeUpdate(conn, "delete from sqlserver_binary_types_test");
 

@@ -4,13 +4,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Integration tests for schema refresh functionality.
@@ -63,7 +72,7 @@ class SchemaRefreshIntegrationTest {
         assertFalse(schemaCache.needsRefresh(1000), "Should not need refresh immediately after load");
         
         // Wait for refresh interval
-        Thread.sleep(110);
+        Thread.sleep(110); //NOSONAR
         
         // Verify refresh is needed
         assertTrue(schemaCache.needsRefresh(100), "Should need refresh after interval");
@@ -107,7 +116,8 @@ class SchemaRefreshIntegrationTest {
         DataSource slowDataSource = mock(DataSource.class);
         try {
             when(slowDataSource.getConnection()).thenAnswer(invocation -> {
-                Thread.sleep(100000); // Very long delay
+                // Very long delay
+                Thread.sleep(100000); //NOSONAR
                 return null;
             });
         } catch (Exception e) {
@@ -117,12 +127,10 @@ class SchemaRefreshIntegrationTest {
         // Create loader with very short timeout
         SchemaLoader loaderWithShortTimeout = new SchemaLoader(java.util.concurrent.ForkJoinPool.commonPool(), 1);
         
-        // Attempt to load schema - should timeout
+        // Attempt to load schema - should time out
         CompletableFuture<SchemaMetadata> future = loaderWithShortTimeout.loadSchemaAsync(slowDataSource, null, null);
         
         // Verify it times out
-        assertThrows(Exception.class, () -> {
-            future.get(3, TimeUnit.SECONDS);
-        }, "Should timeout when schema loading takes too long");
+        assertThrows(Exception.class, () -> future.get(3, TimeUnit.SECONDS), "Should timeout when schema loading takes too long");
     }
 }

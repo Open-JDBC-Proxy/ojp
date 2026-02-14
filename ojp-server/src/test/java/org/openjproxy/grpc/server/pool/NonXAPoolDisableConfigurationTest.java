@@ -12,51 +12,51 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for Non-XA pool disable configuration parsing.
  * Tests the parsing and application of the ojp.connection.pool.enabled property.
  */
-public class NonXAPoolDisableConfigurationTest {
+class NonXAPoolDisableConfigurationTest {
 
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         // Clear cache before each test
         DataSourceConfigurationManager.clearCache();
     }
 
     @Test
-    public void testPoolDisabledPropertyParsing() {
+    void testPoolDisabledPropertyParsing() {
         Properties props = new Properties();
         props.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "false");
         props.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "testDS");
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
-        assertFalse(config.isPoolEnabled(), 
-            "Pool should be disabled when property is false");
+
+        DataSourceConfigurationManager.DataSourceConfiguration config =
+                DataSourceConfigurationManager.getConfiguration(props);
+
+        assertFalse(config.isPoolEnabled(),
+                "Pool should be disabled when property is false");
         assertEquals("testDS", config.getDataSourceName());
     }
 
     @Test
-    public void testPoolEnabledByDefault() {
+    void testPoolEnabledByDefault() {
         Properties props = new Properties();
         props.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "defaultDS");
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
-        assertTrue(config.isPoolEnabled(), 
-            "Pool should be enabled by default when property is not specified");
+
+        DataSourceConfigurationManager.DataSourceConfiguration config =
+                DataSourceConfigurationManager.getConfiguration(props);
+
+        assertTrue(config.isPoolEnabled(),
+                "Pool should be enabled by default when property is not specified");
         assertEquals("defaultDS", config.getDataSourceName());
     }
 
     @Test
-    public void testPoolDisabledWithNamedDataSource() {
+    void testPoolDisabledWithNamedDataSource() {
         Properties props = new Properties();
         props.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "namedDS");
         props.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "false");
         props.setProperty(CommonConstants.MAXIMUM_POOL_SIZE_PROPERTY, "25");
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
+
+        DataSourceConfigurationManager.DataSourceConfiguration config =
+                DataSourceConfigurationManager.getConfiguration(props);
+
         assertFalse(config.isPoolEnabled(), "Named datasource should have pool disabled");
         assertEquals("namedDS", config.getDataSourceName());
         // Pool size properties should still be parsed even if pool is disabled
@@ -64,26 +64,26 @@ public class NonXAPoolDisableConfigurationTest {
     }
 
     @Test
-    public void testPoolDisabledInvalidValue() {
+    void testPoolDisabledInvalidValue() {
         Properties props = new Properties();
         props.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "maybe");
         props.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "invalidDS");
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
+
+        DataSourceConfigurationManager.DataSourceConfiguration config =
+                DataSourceConfigurationManager.getConfiguration(props);
+
         // Invalid boolean value should be parsed as false by Boolean.parseBoolean()
-        assertFalse(config.isPoolEnabled(), 
-            "Invalid boolean value should be parsed as false");
+        assertFalse(config.isPoolEnabled(),
+                "Invalid boolean value should be parsed as false");
     }
 
     @Test
-    public void testPoolDisabledCaseInsensitive() {
+    void testPoolDisabledCaseInsensitive() {
         // Test "FALSE"
         Properties props1 = new Properties();
         props1.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "FALSE");
-        DataSourceConfigurationManager.DataSourceConfiguration config1 = 
-            DataSourceConfigurationManager.getConfiguration(props1);
+        DataSourceConfigurationManager.DataSourceConfiguration config1 =
+                DataSourceConfigurationManager.getConfiguration(props1);
         assertFalse(config1.isPoolEnabled(), "Pool should be disabled with 'FALSE'");
 
         DataSourceConfigurationManager.clearCache();
@@ -91,8 +91,8 @@ public class NonXAPoolDisableConfigurationTest {
         // Test "False"
         Properties props2 = new Properties();
         props2.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "False");
-        DataSourceConfigurationManager.DataSourceConfiguration config2 = 
-            DataSourceConfigurationManager.getConfiguration(props2);
+        DataSourceConfigurationManager.DataSourceConfiguration config2 =
+                DataSourceConfigurationManager.getConfiguration(props2);
         assertFalse(config2.isPoolEnabled(), "Pool should be disabled with 'False'");
 
         DataSourceConfigurationManager.clearCache();
@@ -100,43 +100,43 @@ public class NonXAPoolDisableConfigurationTest {
         // Test "true"
         Properties props3 = new Properties();
         props3.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "true");
-        DataSourceConfigurationManager.DataSourceConfiguration config3 = 
-            DataSourceConfigurationManager.getConfiguration(props3);
+        DataSourceConfigurationManager.DataSourceConfiguration config3 =
+                DataSourceConfigurationManager.getConfiguration(props3);
         assertTrue(config3.isPoolEnabled(), "Pool should be enabled with 'true'");
     }
 
     @Test
-    public void testPoolDisabledWithNullProperties() {
-        DataSourceConfigurationManager.DataSourceConfiguration config = 
-            DataSourceConfigurationManager.getConfiguration(null);
-        
-        assertTrue(config.isPoolEnabled(), 
-            "Pool should be enabled by default when properties are null");
+    void testPoolDisabledWithNullProperties() {
+        DataSourceConfigurationManager.DataSourceConfiguration config =
+                DataSourceConfigurationManager.getConfiguration(null);
+
+        assertTrue(config.isPoolEnabled(),
+                "Pool should be enabled by default when properties are null");
         assertEquals("default", config.getDataSourceName());
     }
 
     @Test
-    public void testPoolDisabledWithEmptyProperties() {
+    void testPoolDisabledWithEmptyProperties() {
         Properties props = new Properties();
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
-        assertTrue(config.isPoolEnabled(), 
-            "Pool should be enabled by default when properties are empty");
+
+        DataSourceConfigurationManager.DataSourceConfiguration config =
+                DataSourceConfigurationManager.getConfiguration(props);
+
+        assertTrue(config.isPoolEnabled(),
+                "Pool should be enabled by default when properties are empty");
     }
 
     @Test
-    public void testMultipleDatasourcesWithDifferentPoolSettings() {
+    void testMultipleDatasourcesWithDifferentPoolSettings() {
         // DS1: Pool enabled
         Properties props1 = new Properties();
         props1.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "ds1");
         props1.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "true");
         props1.setProperty(CommonConstants.MAXIMUM_POOL_SIZE_PROPERTY, "20");
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config1 = 
-            DataSourceConfigurationManager.getConfiguration(props1);
-        
+
+        DataSourceConfigurationManager.DataSourceConfiguration config1 =
+                DataSourceConfigurationManager.getConfiguration(props1);
+
         assertTrue(config1.isPoolEnabled(), "DS1 should have pool enabled");
         assertEquals(20, config1.getMaximumPoolSize());
 
@@ -145,10 +145,10 @@ public class NonXAPoolDisableConfigurationTest {
         props2.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "ds2");
         props2.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "false");
         props2.setProperty(CommonConstants.MAXIMUM_POOL_SIZE_PROPERTY, "10");
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config2 = 
-            DataSourceConfigurationManager.getConfiguration(props2);
-        
+
+        DataSourceConfigurationManager.DataSourceConfiguration config2 =
+                DataSourceConfigurationManager.getConfiguration(props2);
+
         assertFalse(config2.isPoolEnabled(), "DS2 should have pool disabled");
         assertEquals(10, config2.getMaximumPoolSize());
 
@@ -157,26 +157,26 @@ public class NonXAPoolDisableConfigurationTest {
     }
 
     @Test
-    public void testConfigurationCachingWithPoolDisabled() {
+    void testConfigurationCachingWithPoolDisabled() {
         Properties props = new Properties();
         props.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "cachedDS");
         props.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "false");
-        
+
         // First call should create and cache
-        DataSourceConfigurationManager.DataSourceConfiguration config1 = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
+        DataSourceConfigurationManager.DataSourceConfiguration config1 =
+                DataSourceConfigurationManager.getConfiguration(props);
+
         // Second call should return cached instance
-        DataSourceConfigurationManager.DataSourceConfiguration config2 = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
+        DataSourceConfigurationManager.DataSourceConfiguration config2 =
+                DataSourceConfigurationManager.getConfiguration(props);
+
         assertSame(config1, config2, "Configuration should be cached");
         assertFalse(config1.isPoolEnabled());
         assertFalse(config2.isPoolEnabled());
     }
 
     @Test
-    public void testPoolDisabledWithAllOtherProperties() {
+    void testPoolDisabledWithAllOtherProperties() {
         Properties props = new Properties();
         props.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "fullConfig");
         props.setProperty(CommonConstants.POOL_ENABLED_PROPERTY, "false");
@@ -185,10 +185,10 @@ public class NonXAPoolDisableConfigurationTest {
         props.setProperty(CommonConstants.CONNECTION_TIMEOUT_PROPERTY, "15000");
         props.setProperty(CommonConstants.IDLE_TIMEOUT_PROPERTY, "300000");
         props.setProperty(CommonConstants.MAX_LIFETIME_PROPERTY, "900000");
-        
-        DataSourceConfigurationManager.DataSourceConfiguration config = 
-            DataSourceConfigurationManager.getConfiguration(props);
-        
+
+        DataSourceConfigurationManager.DataSourceConfiguration config =
+                DataSourceConfigurationManager.getConfiguration(props);
+
         assertFalse(config.isPoolEnabled(), "Pool should be disabled");
         // Other properties should still be parsed correctly
         assertEquals(30, config.getMaximumPoolSize());

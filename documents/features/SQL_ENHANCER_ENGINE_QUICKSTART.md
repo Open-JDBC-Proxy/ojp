@@ -1,21 +1,43 @@
 # SQL Enhancer Engine - Quick Start Guide
 
-**Status:** ✅ Production Ready  
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> **Status:** ❌ Experimental / Not Production Ready
+>
+> The SQL Enhancer with Apache Calcite is **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use.
+>
+> - **Default**: Disabled by default (opt-in only)
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases
+> - **Recommendation**: **Do NOT enable in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases. Early testing revealed critical type mapping issues that prevent reliable query optimization.
+>
+> **We strongly discourage using this feature in its current state.**
+
 **Version:** 0.3.2-snapshot
 
 ---
 
 ## What is the SQL Enhancer Engine?
 
-An optional feature that validates, optimizes, and caches SQL queries using Apache Calcite, providing:
+An **experimental** feature that validates, optimizes, and caches SQL queries using Apache Calcite. While it provides interesting capabilities for SQL parsing and validation, it has known limitations with traditional JDBC databases.
+
+**Intended capabilities** (with known limitations):
 - SQL syntax validation before execution
-- Query optimization and rewriting for better performance
+- Query optimization and rewriting for better performance (limited by type system issues)
 - Fast query caching (70-90% hit rate, <1ms overhead)
-- ANSI SQL support (works with all databases)
+- ANSI SQL support (designed for all databases, but has compatibility issues)
 - Graceful error handling
 - Real-time metrics and monitoring
 
-## Quick Start
+**Known Limitations:**
+- Type system mismatches with PostgreSQL, MySQL, Oracle, SQL Server
+- Query optimization often fails and falls back to original SQL
+- Not suitable for production use with traditional JDBC databases
+
+## Quick Start (For Testing/Development Only)
+
+> **⚠️ WARNING**: The following instructions are for testing and experimental purposes only. Do not use in production.
 
 ### Enable the Feature
 

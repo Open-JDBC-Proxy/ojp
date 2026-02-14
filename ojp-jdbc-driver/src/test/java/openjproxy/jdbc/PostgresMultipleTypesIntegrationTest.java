@@ -1,7 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -17,6 +17,7 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class PostgresMultipleTypesIntegrationTest {
@@ -24,15 +25,15 @@ public class PostgresMultipleTypesIntegrationTest {
     private static boolean isTestEnabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing for url -> " + url);
@@ -49,7 +50,7 @@ public class PostgresMultipleTypesIntegrationTest {
         psInsert.setInt(1, 1);
         psInsert.setString(2, "TITLE_1");
         psInsert.setDouble(3, 2.2222d);
-        psInsert.setLong(4, 33333333333333l);
+        psInsert.setLong(4, 33333333333333L);
         psInsert.setInt(5, 127); // PostgreSQL SMALLINT can handle this
         psInsert.setInt(6, 32767);
         psInsert.setBoolean(7, true);
@@ -69,64 +70,64 @@ public class PostgresMultipleTypesIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(127, resultSet.getInt(5)); // SMALLINT in PostgreSQL
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(true, resultSet.getBoolean(7));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", "" + resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(127, resultSet.getInt(5)); // SMALLINT in PostgreSQL
+        assertEquals(32767, resultSet.getInt(6));
+        assertTrue(resultSet.getBoolean(7));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
+        assertEquals(20.20f + "", "" + resultSet.getFloat(9));
         // PostgreSQL BYTEA column may be returned as String by OJP driver
         // For now, just verify we get a non-null value
         Object byteValue = resultSet.getObject(10);
-        Assert.assertNotNull("BYTEA column should not be null", byteValue);
+        Assertions.assertNotNull(byteValue, "BYTEA column should not be null");
         // PostgreSQL BYTEA column may be returned as String by OJP driver  
         Object binaryValue = resultSet.getObject(11);
         if (binaryValue instanceof String) {
             // If returned as string, check the content
             String stringValue = (String) binaryValue;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            Assertions.assertTrue(
+                    stringValue.contains("AAAA") || stringValue.length() > 0, "Binary column should contain expected data");
         } else {
             // Handle as byte array
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes(11)));
+            assertEquals("AAAA", new String(resultSet.getBytes(11)));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
 
         // Test column name access
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
-        Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
-        Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
-        Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        Assert.assertEquals(true, resultSet.getBoolean("val_boolean"));
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("TITLE_1", resultSet.getString("val_varchar"));
+        assertEquals("2.2222", "" + resultSet.getDouble("val_double_precision"));
+        assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
+        assertEquals(127, resultSet.getInt("val_tinyint"));
+        assertEquals(32767, resultSet.getInt("val_smallint"));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
+        assertEquals(20.20f + "", "" + resultSet.getFloat("val_float"));
+        assertTrue(resultSet.getBoolean("val_boolean"));
         // PostgreSQL BYTEA column may be returned as String by OJP driver
         Object byteValueByName = resultSet.getObject("val_byte");
-        Assert.assertNotNull("BYTEA column val_byte should not be null", byteValueByName);
+        Assertions.assertNotNull(byteValueByName, "BYTEA column val_byte should not be null");
         // PostgreSQL BYTEA column may be returned as String by OJP driver
         Object binaryValueByName = resultSet.getObject("val_binary");
         if (binaryValueByName instanceof String) {
             String stringValue = (String) binaryValueByName;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            Assertions.assertTrue(
+                    stringValue.contains("AAAA") || stringValue.length() > 0, "Binary column should contain expected data");
         } else {
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
+            assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
 
         TestDBUtils.executeUpdate(conn, "delete from postgres_multi_types_test where val_int=1");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
@@ -135,9 +136,9 @@ public class PostgresMultipleTypesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    public void testPostgresSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testPostgresSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing PostgreSQL-specific types for url -> " + url);
@@ -149,17 +150,17 @@ public class PostgresMultipleTypesIntegrationTest {
             // Ignore if table doesn't exist
         }
 
-        TestDBUtils.executeUpdate(conn, 
-            "CREATE TABLE test_postgres_types (" +
-            "id SERIAL PRIMARY KEY, " +
-            "uuid_col UUID, " +
-            "json_col JSON, " +
-            "array_col INTEGER[], " +
-            "text_col TEXT)"
+        TestDBUtils.executeUpdate(conn,
+                "CREATE TABLE test_postgres_types (" +
+                        "id SERIAL PRIMARY KEY, " +
+                        "uuid_col UUID, " +
+                        "json_col JSON, " +
+                        "array_col INTEGER[], " +
+                        "text_col TEXT)"
         );
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
-            "INSERT INTO test_postgres_types (uuid_col, json_col, array_col, text_col) VALUES (?, ?::json, ?::integer[], ?)"
+                "INSERT INTO test_postgres_types (uuid_col, json_col, array_col, text_col) VALUES (?, ?::json, ?::integer[], ?)"
         );
 
         // Test UUID
@@ -175,9 +176,9 @@ public class PostgresMultipleTypesIntegrationTest {
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT text_col FROM test_postgres_types WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
-        
-        Assert.assertTrue(resultSet.next());
-        Assert.assertEquals("PostgreSQL text type", resultSet.getString("text_col"));
+
+        assertTrue(resultSet.next());
+        assertEquals("PostgreSQL text type", resultSet.getString("text_col"));
 
         resultSet.close();
         psSelect.close();

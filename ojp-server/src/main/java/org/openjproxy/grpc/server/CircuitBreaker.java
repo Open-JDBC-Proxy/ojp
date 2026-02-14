@@ -75,7 +75,9 @@ public class CircuitBreaker {
      */
     public void preCheck(String sql) throws SQLException {
         FailureRecord rec = state.get(sql);
-        if (rec == null) return;
+        if (rec == null) {
+            return;
+        }
         if (rec.isOpen()) {
             throw rec.getLastError();
         }

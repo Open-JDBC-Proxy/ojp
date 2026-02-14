@@ -2,29 +2,32 @@ package org.openjproxy.grpc.server;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for QueryPerformanceMonitor functionality.
  */
-public class QueryPerformanceMonitorTest {
+class QueryPerformanceMonitorTest {
 
     private QueryPerformanceMonitor monitor;
 
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         monitor = new QueryPerformanceMonitor();
     }
 
     @Test
-    public void testInitialState() {
+    void testInitialState() {
         assertEquals(0, monitor.getTrackedOperationCount());
         assertEquals(0, monitor.getTotalExecutionCount());
         assertEquals(0.0, monitor.getOverallAverageExecutionTime(), 0.001);
     }
 
     @Test
-    public void testRecordSingleExecution() {
+    void testRecordSingleExecution() {
         String operationHash = "test-hash-1";
         double executionTime = 100.0;
 
@@ -37,7 +40,7 @@ public class QueryPerformanceMonitorTest {
     }
 
     @Test
-    public void testRecordMultipleExecutionsSameOperation() {
+    void testRecordMultipleExecutionsSameOperation() {
         String operationHash = "test-hash-1";
 
         // First execution: 100ms
@@ -60,13 +63,13 @@ public class QueryPerformanceMonitorTest {
     }
 
     @Test
-    public void testMultipleOperations() {
+    void testMultipleOperations() {
         String op1 = "operation-1";
         String op2 = "operation-2";
 
         // Operation 1: 100ms
         monitor.recordExecutionTime(op1, 100.0);
-        
+
         // Operation 2: 200ms
         monitor.recordExecutionTime(op2, 200.0);
 
@@ -78,7 +81,7 @@ public class QueryPerformanceMonitorTest {
     }
 
     @Test
-    public void testSlowOperationClassification() {
+    void testSlowOperationClassification() {
         String fastOp = "fast-operation";
         String slowOp = "slow-operation";
 
@@ -94,7 +97,7 @@ public class QueryPerformanceMonitorTest {
 
         // Add a slow operation: 150ms (which is > 55 * 2 = 110)
         monitor.recordExecutionTime(slowOp, 150.0);
-        
+
         // Overall average should now be (50 + 60 + 150) / 3 = 86.67ms
         assertEquals(86.67, monitor.getOverallAverageExecutionTime(), 0.01);
 
@@ -104,39 +107,39 @@ public class QueryPerformanceMonitorTest {
 
         // Add more executions to make it clearly slow
         monitor.recordExecutionTime(slowOp, 300.0); // avg becomes (150*4 + 300)/5 = 180ms
-        
+
         // Overall average should now be (50 + 60 + 180) / 3 = 96.67ms
         assertEquals(96.67, monitor.getOverallAverageExecutionTime(), 0.01);
-        
+
         // Now the slow operation should be classified as slow (180 > 96.67 * 2 = 193.33, still false)
         // Let's add one more really slow execution
         monitor.recordExecutionTime(slowOp, 500.0); // avg becomes (180*4 + 500)/5 = 244ms
-        
+
         // Overall average should now be (50 + 60 + 244) / 3 = 118ms
         assertEquals(118.0, monitor.getOverallAverageExecutionTime(), 0.01);
-        
+
         // Now the slow operation should be classified as slow (244 > 118 * 2 = 236)
         assertTrue(monitor.isSlowOperation(slowOp));
         assertFalse(monitor.isSlowOperation(fastOp));
     }
 
     @Test
-    public void testLowOverallAverageHandling() {
+    void testLowOverallAverageHandling() {
         String operation = "test-op";
-        
+
         // When overall average is very low, operations should be classified as fast
         monitor.recordExecutionTime(operation, 0.5);
-        
+
         assertFalse(monitor.isSlowOperation(operation));
-        
+
         // Even if the operation time is higher than 2x the overall average
         monitor.recordExecutionTime(operation, 2.0); // avg becomes (0.5*4 + 2)/5 = 0.8ms
-        
+
         assertFalse(monitor.isSlowOperation(operation)); // Still fast because overall avg < 1.0
     }
 
     @Test
-    public void testInvalidInputHandling() {
+    void testInvalidInputHandling() {
         // Null hash should be handled gracefully
         monitor.recordExecutionTime(null, 100.0);
         assertEquals(0, monitor.getTrackedOperationCount());
@@ -150,15 +153,15 @@ public class QueryPerformanceMonitorTest {
     }
 
     @Test
-    public void testClear() {
+    void testClear() {
         monitor.recordExecutionTime("op1", 100.0);
         monitor.recordExecutionTime("op2", 200.0);
-        
+
         assertEquals(2, monitor.getTrackedOperationCount());
         assertEquals(2, monitor.getTotalExecutionCount());
-        
+
         monitor.clear();
-        
+
         assertEquals(0, monitor.getTrackedOperationCount());
         assertEquals(0, monitor.getTotalExecutionCount());
         assertEquals(0.0, monitor.getOverallAverageExecutionTime(), 0.001);

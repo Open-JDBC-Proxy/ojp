@@ -7,12 +7,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class Db2ResultSetMetaDataExtensiveTests {
+class Db2ResultSetMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
     private Connection connection;
@@ -21,21 +28,21 @@ public class Db2ResultSetMetaDataExtensiveTests {
     private ResultSetMetaData metaData;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @SneakyThrows
-    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
+    void setUp(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
-        
+
         // Set schema explicitly to avoid "object not found" errors
         try (Statement schemaStmt = connection.createStatement()) {
             schemaStmt.execute("SET SCHEMA DB2INST1");
         }
-        
+
         statement = connection.createStatement();
 
         try {
@@ -61,7 +68,7 @@ public class Db2ResultSetMetaDataExtensiveTests {
     }
 
     @AfterEach
-    public void tearDown() throws Exception {
+    void tearDown() throws Exception {
         // Close in reverse order: resultSet, statement, then connection
         try {
             if (resultSet != null && !resultSet.isClosed()) {
@@ -88,35 +95,35 @@ public class Db2ResultSetMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
+    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
         // getColumnCount
         assertEquals(4, metaData.getColumnCount());
 
         // isAutoIncrement - DB2 IDENTITY columns are auto-increment
-        assertEquals(true, metaData.isAutoIncrement(1)); // IDENTITY column
-        assertEquals(false, metaData.isAutoIncrement(2));
-        assertEquals(false, metaData.isAutoIncrement(3));
-        assertEquals(false, metaData.isAutoIncrement(4));
+        assertTrue(metaData.isAutoIncrement(1)); // IDENTITY column
+        assertFalse(metaData.isAutoIncrement(2));
+        assertFalse(metaData.isAutoIncrement(3));
+        assertFalse(metaData.isAutoIncrement(4));
 
         // isCaseSensitive - DB2 is case sensitive for character data
-        assertEquals(false, metaData.isCaseSensitive(1)); // INTEGER
-        assertEquals(true, metaData.isCaseSensitive(2));  // VARCHAR
-        assertEquals(false, metaData.isCaseSensitive(3)); // INTEGER
-        assertEquals(false, metaData.isCaseSensitive(4)); // DECIMAL
+        assertFalse(metaData.isCaseSensitive(1)); // INTEGER
+        assertTrue(metaData.isCaseSensitive(2));  // VARCHAR
+        assertFalse(metaData.isCaseSensitive(3)); // INTEGER
+        assertFalse(metaData.isCaseSensitive(4)); // DECIMAL
 
         // isSearchable - All DB2 columns are searchable
-        assertEquals(true, metaData.isSearchable(1));
-        assertEquals(true, metaData.isSearchable(2));
-        assertEquals(true, metaData.isSearchable(3));
-        assertEquals(true, metaData.isSearchable(4));
+        assertTrue(metaData.isSearchable(1));
+        assertTrue(metaData.isSearchable(2));
+        assertTrue(metaData.isSearchable(3));
+        assertTrue(metaData.isSearchable(4));
 
         // isCurrency - Only numeric columns can represent currency
-        assertEquals(false, metaData.isCurrency(1)); // ID is not currency
-        assertEquals(false, metaData.isCurrency(2)); // VARCHAR is not currency
-        assertEquals(false, metaData.isCurrency(3)); // Age is not currency
-        assertEquals(false, metaData.isCurrency(4)); // Salary could be currency
+        assertFalse(metaData.isCurrency(1)); // ID is not currency
+        assertFalse(metaData.isCurrency(2)); // VARCHAR is not currency
+        assertFalse(metaData.isCurrency(3)); // Age is not currency
+        assertFalse(metaData.isCurrency(4)); // Salary could be currency
 
         // isNullable - DB2 NULL constraints
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(1)); // PRIMARY KEY
@@ -125,10 +132,10 @@ public class Db2ResultSetMetaDataExtensiveTests {
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4)); // NOT NULL
 
         // isSigned - DB2 numeric types are signed
-        assertEquals(true, metaData.isSigned(1));  // INTEGER is signed
-        assertEquals(false, metaData.isSigned(2)); // VARCHAR is not signed
-        assertEquals(true, metaData.isSigned(3));  // INTEGER is signed
-        assertEquals(true, metaData.isSigned(4));  // DECIMAL is signed
+        assertTrue(metaData.isSigned(1));  // INTEGER is signed
+        assertFalse(metaData.isSigned(2)); // VARCHAR is not signed
+        assertTrue(metaData.isSigned(3));  // INTEGER is signed
+        assertTrue(metaData.isSigned(4));  // DECIMAL is signed
 
         // getColumnDisplaySize - DB2-specific display sizes
         assertTrue(metaData.getColumnDisplaySize(1) > 0); // INTEGER display size
@@ -202,16 +209,16 @@ public class Db2ResultSetMetaDataExtensiveTests {
         assertTrue(salaryTypeName.contains("DECIMAL") || salaryTypeName.contains("DEC"));
 
         // isReadOnly - DB2 columns are writable by default
-        assertEquals(true, metaData.isReadOnly(1));
-        assertEquals(true, metaData.isReadOnly(2));
-        assertEquals(true, metaData.isReadOnly(3));
-        assertEquals(true, metaData.isReadOnly(4));
+        assertTrue(metaData.isReadOnly(1));
+        assertTrue(metaData.isReadOnly(2));
+        assertTrue(metaData.isReadOnly(3));
+        assertTrue(metaData.isReadOnly(4));
 
         // isWritable - DB2 columns are writable
-        assertEquals(false, metaData.isWritable(1));
-        assertEquals(false, metaData.isWritable(2));
-        assertEquals(false, metaData.isWritable(3));
-        assertEquals(false, metaData.isWritable(4));
+        assertFalse(metaData.isWritable(1));
+        assertFalse(metaData.isWritable(2));
+        assertFalse(metaData.isWritable(3));
+        assertFalse(metaData.isWritable(4));
 
         // isDefinitelyWritable - DB2 behavior for definitely writable
         // This varies by driver implementation
@@ -234,16 +241,16 @@ public class Db2ResultSetMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2SpecificDataTypes(String driverClass, String url, String user, String password) throws SQLException {
+    void testDb2SpecificDataTypes(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
-        
+
         // Set schema explicitly to avoid "object not found" errors
         try (Statement schemaStmt = connection.createStatement()) {
             schemaStmt.execute("SET SCHEMA DB2INST1");
         }
-        
+
         Statement statement = connection.createStatement();
 
         try {
@@ -272,8 +279,8 @@ public class Db2ResultSetMetaDataExtensiveTests {
         );
         // Insert data with proper BLOB handling
         PreparedStatement pst = connection.prepareStatement(
-            "INSERT INTO DB2INST1.TEST_DB2_TYPES (bigint_col, smallint_col, real_col, double_col, char_col, varchar_col, clob_col, blob_col, date_col, time_col, timestamp_col, boolean_col) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE, CURRENT_TIME, CURRENT_TIMESTAMP, ?)"
+                "INSERT INTO DB2INST1.TEST_DB2_TYPES (bigint_col, smallint_col, real_col, double_col, char_col, varchar_col, clob_col, blob_col, date_col, time_col, timestamp_col, boolean_col) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE, CURRENT_TIME, CURRENT_TIMESTAMP, ?)"
         );
         pst.setLong(1, 9223372036854775807L);
         pst.setInt(2, 32767);

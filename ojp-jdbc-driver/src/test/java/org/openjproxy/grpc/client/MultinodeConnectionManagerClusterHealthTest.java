@@ -59,8 +59,8 @@ class MultinodeConnectionManagerClusterHealthTest {
 
     @Test
     void testGenerateClusterHealthSingleServer() {
-        List<ServerEndpoint> endpoints = Arrays.asList(
-            new ServerEndpoint("localhost", 1059)
+        List<ServerEndpoint> endpoints = List.of(
+                new ServerEndpoint("localhost", 1059)
         );
         
         MultinodeConnectionManager manager = new MultinodeConnectionManager(endpoints);

@@ -26,13 +26,13 @@ public class OracleConnectionExtensiveTests {
     private static boolean isOracleTestEnabled;
 
     @BeforeAll
-    public static void setup() {
+    static void setup() {
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
         log.info("Testing Oracle connection with URL: {}", url);
@@ -68,7 +68,7 @@ public class OracleConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
         log.info("Testing Oracle data types with URL: {}", url);
@@ -105,7 +105,7 @@ public class OracleConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    public void testOracleAutoIncrementSequence(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testOracleAutoIncrementSequence(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
         log.info("Testing Oracle auto-increment (IDENTITY) with URL: {}", url);

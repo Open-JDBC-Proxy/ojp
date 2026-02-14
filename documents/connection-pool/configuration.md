@@ -22,7 +22,7 @@ OJP uses a connection pool abstraction layer that allows switching between diffe
 
 ## Client Configuration (ojp.properties)
 
-Add these properties to your `ojp.properties` file:
+Add these properties to your `ojp.properties` file (or environment-specific files like `ojp-dev.properties`, `ojp-staging.properties`, `ojp-prod.properties`):
 
 ```properties
 # Connection pool provider (optional, default: hikari)
@@ -37,6 +37,9 @@ ojp.connection.pool.connectionTimeout=10000
 ojp.connection.pool.idleTimeout=600000
 ojp.connection.pool.maxLifetime=1800000
 ```
+
+**For environment-specific configuration**, see:
+- **[OJP JDBC Configuration](../configuration/ojp-jdbc-configuration.md)** - Complete guide to environment-specific properties files (introduced in PR #298)
 
 ### Per-Datasource Configuration
 

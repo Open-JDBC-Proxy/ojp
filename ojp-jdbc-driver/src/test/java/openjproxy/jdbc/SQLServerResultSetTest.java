@@ -1,16 +1,25 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -18,18 +27,18 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * Tests SQL Server-specific ResultSet functionality and navigation.
  */
 @EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
-public class SQLServerResultSetTest {
+class SQLServerResultSetTest {
 
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableSqlServerTests", "false"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerBasicResultSetOperations(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerBasicResultSetOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -57,10 +66,10 @@ public class SQLServerResultSetTest {
         int count = 0;
         while (rs.next()) {
             count++;
-            Assert.assertEquals(count, rs.getInt("id"));
-            Assert.assertEquals("Test " + count, rs.getString("name"));
+            assertEquals(count, rs.getInt("id"));
+            assertEquals("Test " + count, rs.getString("name"));
         }
-        Assert.assertEquals(5, count);
+        assertEquals(5, count);
 
         rs.close();
         ps.close();
@@ -70,7 +79,7 @@ public class SQLServerResultSetTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerScrollableResultSet(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerScrollableResultSet(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -99,20 +108,20 @@ public class SQLServerResultSetTest {
         ResultSet rs = ps.executeQuery();
 
         // Test scrollable operations
-        Assert.assertTrue("Should be able to move to first", rs.first());
-        Assert.assertEquals(1, rs.getInt("id"));
+        Assertions.assertTrue(rs.first(), "Should be able to move to first");
+        assertEquals(1, rs.getInt("id"));
 
-        Assert.assertTrue("Should be able to move to last", rs.last());
-        Assert.assertEquals(10, rs.getInt("id"));
+        Assertions.assertTrue(rs.last(), "Should be able to move to last");
+        assertEquals(10, rs.getInt("id"));
 
-        Assert.assertTrue("Should be able to move to absolute position", rs.absolute(5));
-        Assert.assertEquals(5, rs.getInt("id"));
+        Assertions.assertTrue(rs.absolute(5), "Should be able to move to absolute position");
+        assertEquals(5, rs.getInt("id"));
 
-        Assert.assertTrue("Should be able to move relative", rs.relative(2));
-        Assert.assertEquals(7, rs.getInt("id"));
+        Assertions.assertTrue(rs.relative(2), "Should be able to move relative");
+        assertEquals(7, rs.getInt("id"));
 
-        Assert.assertTrue("Should be able to move previous", rs.previous());
-        Assert.assertEquals(6, rs.getInt("id"));
+        Assertions.assertTrue(rs.previous(), "Should be able to move previous");
+        assertEquals(6, rs.getInt("id"));
 
         rs.close();
         ps.close();
@@ -122,7 +131,7 @@ public class SQLServerResultSetTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerResultSetTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerResultSetTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -150,27 +159,27 @@ public class SQLServerResultSetTest {
         PreparedStatement ps = conn.prepareStatement("SELECT * FROM sqlserver_rs_types_test");
         ResultSet rs = ps.executeQuery();
 
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
 
         // Test getters by index
-        Assert.assertEquals(42, rs.getInt(1));
-        Assert.assertEquals("Type Test", rs.getString(2));
-        Assert.assertEquals(3.14159, rs.getDouble(3), 0.00001);
-        Assert.assertEquals(9876543210L, rs.getLong(4));
-        Assert.assertEquals((byte) 255, rs.getByte(5) );
-        Assert.assertEquals(32000, rs.getShort(6));
-        Assert.assertTrue(rs.getBoolean(7));
-        Assert.assertEquals(new java.math.BigDecimal("123.45"), rs.getBigDecimal(8));
+        assertEquals(42, rs.getInt(1));
+        assertEquals("Type Test", rs.getString(2));
+        assertEquals(3.14159, rs.getDouble(3), 0.00001);
+        assertEquals(9876543210L, rs.getLong(4));
+        assertEquals((byte) 255, rs.getByte(5) );
+        assertEquals(32000, rs.getShort(6));
+        assertTrue(rs.getBoolean(7));
+        assertEquals(new java.math.BigDecimal("123.45"), rs.getBigDecimal(8));
 
         // Test getters by name
-        Assert.assertEquals(42, rs.getInt("val_int"));
-        Assert.assertEquals("Type Test", rs.getString("val_varchar"));
-        Assert.assertEquals(3.14159, rs.getDouble("val_double_precision"), 0.00001);
-        Assert.assertEquals(9876543210L, rs.getLong("val_bigint"));
-        Assert.assertEquals((byte) 255, rs.getByte("val_tinyint"));
-        Assert.assertEquals(32000, rs.getShort("val_smallint"));
-        Assert.assertTrue(rs.getBoolean("val_boolean"));
-        Assert.assertEquals(new java.math.BigDecimal("123.45"), rs.getBigDecimal("val_decimal"));
+        assertEquals(42, rs.getInt("val_int"));
+        assertEquals("Type Test", rs.getString("val_varchar"));
+        assertEquals(3.14159, rs.getDouble("val_double_precision"), 0.00001);
+        assertEquals(9876543210L, rs.getLong("val_bigint"));
+        assertEquals((byte) 255, rs.getByte("val_tinyint"));
+        assertEquals(32000, rs.getShort("val_smallint"));
+        assertTrue(rs.getBoolean("val_boolean"));
+        assertEquals(new java.math.BigDecimal("123.45"), rs.getBigDecimal("val_decimal"));
 
         rs.close();
         ps.close();
@@ -180,7 +189,7 @@ public class SQLServerResultSetTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -200,23 +209,23 @@ public class SQLServerResultSetTest {
         PreparedStatement ps = conn.prepareStatement("SELECT * FROM sqlserver_rs_null_test");
         ResultSet rs = ps.executeQuery();
 
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
 
         // Test non-null values
-        Assert.assertEquals(1, rs.getInt("val_int"));
-        Assert.assertFalse(rs.wasNull());
-        Assert.assertEquals("Test", rs.getString("val_varchar"));
-        Assert.assertFalse(rs.wasNull());
+        assertEquals(1, rs.getInt("val_int"));
+        assertFalse(rs.wasNull());
+        assertEquals("Test", rs.getString("val_varchar"));
+        assertFalse(rs.wasNull());
 
         // Test null values
-        Assert.assertEquals(0.0, rs.getDouble("val_double_precision"), 0.0);
-        Assert.assertTrue(rs.wasNull());
+        assertEquals(0.0, rs.getDouble("val_double_precision"), 0.0);
+        assertTrue(rs.wasNull());
 
-        Assert.assertEquals(0L, rs.getLong("val_bigint"));
-        Assert.assertTrue(rs.wasNull());
+        assertEquals(0L, rs.getLong("val_bigint"));
+        assertTrue(rs.wasNull());
 
-        Assert.assertNull(rs.getObject("val_double_precision"));
-        Assert.assertNull(rs.getObject("val_bigint"));
+        assertNull(rs.getObject("val_double_precision"));
+        assertNull(rs.getObject("val_bigint"));
 
         rs.close();
         ps.close();
@@ -226,7 +235,7 @@ public class SQLServerResultSetTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerBinaryData(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerBinaryData(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -264,15 +273,15 @@ public class SQLServerResultSetTest {
         PreparedStatement ps = conn.prepareStatement("SELECT * FROM sqlserver_rs_binary_test");
         ResultSet rs = ps.executeQuery();
 
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
 
         byte[] retrievedSmall = rs.getBytes("binary_data");
         Assert.assertArrayEquals(smallBinary, retrievedSmall);
 
         byte[] retrievedLarge = rs.getBytes("large_binary");
-        Assert.assertEquals(largeBinary.length, retrievedLarge.length);
+        assertEquals(largeBinary.length, retrievedLarge.length);
         for (int i = 0; i < 100; i++) { // Check first 100 bytes
-            Assert.assertEquals(largeBinary[i], retrievedLarge[i]);
+            assertEquals(largeBinary[i], retrievedLarge[i]);
         }
 
         rs.close();
@@ -283,7 +292,7 @@ public class SQLServerResultSetTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    public void testSqlServerDateTimeHandling(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerDateTimeHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -320,21 +329,21 @@ public class SQLServerResultSetTest {
         PreparedStatement ps = conn.prepareStatement("SELECT * FROM sqlserver_rs_datetime_test");
         ResultSet rs = ps.executeQuery();
 
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
 
         Date retrievedDate = rs.getDate("date_col");
-        Assert.assertEquals(Date.valueOf("2025-01-15"), retrievedDate);
+        assertEquals(Date.valueOf("2025-01-15"), retrievedDate);
 
         Time retrievedTime = rs.getTime("time_col");
-        Assert.assertEquals(Time.valueOf("14:30:45"), retrievedTime);
+        assertEquals(Time.valueOf("14:30:45"), retrievedTime);
 
         Timestamp retrievedTimestamp = rs.getTimestamp("datetime2_col");
-        Assert.assertNotNull(retrievedTimestamp);
-        Assert.assertTrue(retrievedTimestamp.toString().contains("2025-01-15"));
+        assertNotNull(retrievedTimestamp);
+        assertTrue(retrievedTimestamp.toString().contains("2025-01-15"));
 
         OffsetDateTime retrievedOffset = rs.getObject("datetimeoffset_col", OffsetDateTime.class);
-        Assert.assertNotNull(retrievedOffset);
-        Assert.assertTrue(retrievedOffset.toString().contains("2025-01-15"));
+        assertNotNull(retrievedOffset);
+        assertTrue(retrievedOffset.toString().contains("2025-01-15"));
 
         rs.close();
         ps.close();

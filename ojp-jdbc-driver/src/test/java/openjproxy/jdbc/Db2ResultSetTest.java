@@ -34,7 +34,7 @@ public class Db2ResultSetTest {
     private static boolean isTestDisabled;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
@@ -79,7 +79,7 @@ public class Db2ResultSetTest {
     }
 
     @AfterEach
-    public void tearDown() throws SQLException {
+    void tearDown() throws SQLException {
         if (resultSet != null) {
             resultSet.close();
         }
@@ -98,7 +98,7 @@ public class Db2ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2ResultSetNavigation(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2ResultSetNavigation(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         resultSet = statement.executeQuery("SELECT id, name, age FROM DB2INST1.db2_resultset_test ORDER BY id");
@@ -157,7 +157,7 @@ public class Db2ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2ResultSetDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2ResultSetDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         resultSet = statement.executeQuery("SELECT * FROM DB2INST1.db2_resultset_test WHERE id = 1");
@@ -186,7 +186,7 @@ public class Db2ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2ResultSetMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2ResultSetMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         resultSet = statement.executeQuery("SELECT * FROM DB2INST1.db2_resultset_test LIMIT 1");
@@ -205,16 +205,16 @@ public class Db2ResultSetTest {
         assertEquals("IS_ACTIVE", metaData.getColumnName(5).toUpperCase());
 
         // Test column types
-        assertTrue(metaData.getColumnType(1) == java.sql.Types.INTEGER);
-        assertTrue(metaData.getColumnType(2) == java.sql.Types.VARCHAR);
-        assertTrue(metaData.getColumnType(3) == java.sql.Types.INTEGER);
-        assertTrue(metaData.getColumnType(4) == java.sql.Types.DECIMAL);
-        assertTrue(metaData.getColumnType(5) == Types.SMALLINT);
+        assertEquals(Types.INTEGER, metaData.getColumnType(1));
+        assertEquals(Types.VARCHAR, metaData.getColumnType(2));
+        assertEquals(Types.INTEGER, metaData.getColumnType(3));
+        assertEquals(Types.DECIMAL, metaData.getColumnType(4));
+        assertEquals(Types.SMALLINT, metaData.getColumnType(5));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2ResultSetConcurrency(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2ResultSetConcurrency(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         resultSet = statement.executeQuery("SELECT * FROM DB2INST1.db2_resultset_test WHERE id = 1");
@@ -230,7 +230,7 @@ public class Db2ResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    public void testDb2ResultSetWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testDb2ResultSetWarnings(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         resultSet = statement.executeQuery("SELECT * FROM DB2INST1.db2_resultset_test LIMIT 1");

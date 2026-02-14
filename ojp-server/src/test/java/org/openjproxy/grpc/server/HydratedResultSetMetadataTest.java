@@ -10,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class HydratedResultSetMetadataTest {
+    private static final int TWO_HUNDRED_FIFTY_FIVE = 255;
+    private static final int TEN = 10;
 
     private ResultSetMetaData mockMetaData;
 
@@ -25,8 +27,8 @@ class HydratedResultSetMetadataTest {
         when(mockMetaData.getSchemaName(1)).thenReturn("schema");
         when(mockMetaData.getTableName(1)).thenReturn("table");
         when(mockMetaData.getCatalogName(1)).thenReturn("catalog");
-        when(mockMetaData.getColumnDisplaySize(1)).thenReturn(255);
-        when(mockMetaData.getPrecision(1)).thenReturn(10);
+        when(mockMetaData.getColumnDisplaySize(1)).thenReturn(TWO_HUNDRED_FIFTY_FIVE);
+        when(mockMetaData.getPrecision(1)).thenReturn(TEN);
         when(mockMetaData.getScale(1)).thenReturn(2);
         when(mockMetaData.isNullable(1)).thenReturn(ResultSetMetaData.columnNullable);
         when(mockMetaData.isAutoIncrement(1)).thenReturn(true);
@@ -50,8 +52,8 @@ class HydratedResultSetMetadataTest {
         assertEquals("schema", hydrated.getSchemaName(1));
         assertEquals("table", hydrated.getTableName(1));
         assertEquals("catalog", hydrated.getCatalogName(1));
-        assertEquals(255, hydrated.getColumnDisplaySize(1));
-        assertEquals(10, hydrated.getPrecision(1));
+        assertEquals(TWO_HUNDRED_FIFTY_FIVE, hydrated.getColumnDisplaySize(1));
+        assertEquals(TEN, hydrated.getPrecision(1));
         assertEquals(2, hydrated.getScale(1));
         assertEquals(ResultSetMetaData.columnNullable, hydrated.isNullable(1));
         assertTrue(hydrated.isAutoIncrement(1));

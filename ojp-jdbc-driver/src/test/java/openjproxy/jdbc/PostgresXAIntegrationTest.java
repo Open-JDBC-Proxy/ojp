@@ -35,7 +35,7 @@ public class PostgresXAIntegrationTest {
     private Connection connection;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         // Enable by default for testing
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
@@ -55,7 +55,7 @@ public class PostgresXAIntegrationTest {
     }
 
     @AfterEach
-    public void tearDown() {
+    void tearDown() {
         TestDBUtils.closeQuietly(connection);
         if (xaConnection != null) {
             try {
@@ -71,7 +71,7 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
+    void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
         assertNotNull(xaConnection, "XA connection should be created");
@@ -92,7 +92,7 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
+    void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
@@ -171,7 +171,7 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
+    void testXATransactionRollback(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
@@ -233,7 +233,7 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXATransactionTimeout(String driverClass, String url, String user, String password) throws Exception {
+    void testXATransactionTimeout(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
@@ -256,7 +256,7 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
+    void testXAOnePhaseCommit(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
@@ -316,7 +316,7 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testMultipleSequentialTransactionsWithSessionReuse(String driverClass, String url, String user, String password) throws Exception {
+    void testMultipleSequentialTransactionsWithSessionReuse(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();
@@ -408,7 +408,7 @@ public class PostgresXAIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    public void testTwoPhaseCommitWithSessionReuse(String driverClass, String url, String user, String password) throws Exception {
+    void testTwoPhaseCommitWithSessionReuse(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
         
         XAResource xaResource = xaConnection.getXAResource();

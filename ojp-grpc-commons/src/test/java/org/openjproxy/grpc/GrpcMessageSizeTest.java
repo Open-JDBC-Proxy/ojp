@@ -1,13 +1,12 @@
 package org.openjproxy.grpc;
 
-import org.openjproxy.grpc.EchoRequest;
-import org.openjproxy.grpc.EchoResponse;
-import org.openjproxy.grpc.EchoServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.StatusRuntimeException;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,6 +14,8 @@ public class GrpcMessageSizeTest {
 
 	static final int PORT = 5555; // Just a random port
 	static final int SIZE_LIMIT = 16 * 1024 * 1024; // Since 16MB is the default
+	static final int MAGIC_100 = 100;
+	static final int MAGIC_10 = 10;
 	static Server server;
 
 	@BeforeAll
@@ -43,16 +44,16 @@ public class GrpcMessageSizeTest {
 	// This should pass
 	@Test
 	void testMessageBelowSizeLimit() {
-		String message = generateMessageOfSize(SIZE_LIMIT - 100); // Just under 16MB
+		String message = generateMessageOfSize(SIZE_LIMIT - MAGIC_100); // Just under 16MB
 		EchoServiceGrpc.EchoServiceBlockingStub stub = getStub(SIZE_LIMIT);
 		EchoResponse response = stub.echo(EchoRequest.newBuilder().setMessage(message).build());
 		assertEquals(message, response.getMessage());
 	}
-
+	
 	// This should pass
 	@Test
 	void testMessageAtSizeLimit() {
-		String message = generateMessageOfSize(SIZE_LIMIT - 10); // Exactly 16MB
+		String message = generateMessageOfSize(SIZE_LIMIT - MAGIC_10); // Exactly 16MB
 		EchoServiceGrpc.EchoServiceBlockingStub stub = getStub(SIZE_LIMIT);
 		EchoResponse response = stub.echo(EchoRequest.newBuilder().setMessage(message).build());
 		assertEquals(message, response.getMessage());

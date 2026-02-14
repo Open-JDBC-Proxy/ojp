@@ -6,7 +6,11 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for SchemaCache.
@@ -70,7 +74,7 @@ class SchemaCacheTest {
         
         // Wait a bit and check again
         try {
-            Thread.sleep(100);
+            Thread.sleep(100); //NOSONAR
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -115,7 +119,7 @@ class SchemaCacheTest {
         Thread thread1 = new Thread(() -> {
             thread1Acquired[0] = schemaCache.tryAcquireRefreshLock();
             try {
-                Thread.sleep(100);
+                Thread.sleep(100);//NOSONAR
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -124,7 +128,8 @@ class SchemaCacheTest {
         
         Thread thread2 = new Thread(() -> {
             try {
-                Thread.sleep(50); // Start a bit later
+                // Start a bit later
+                Thread.sleep(50); //NOSONAR
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }

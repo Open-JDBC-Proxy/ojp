@@ -4,20 +4,20 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.openjproxy.xa.pool.commons.CommonsPool2XADataSource;
 import org.openjproxy.xa.pool.XABackendSession;
+import org.openjproxy.xa.pool.commons.CommonsPool2XADataSource;
 
-import javax.sql.XAConnection;
-import javax.sql.XADataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Integration tests for all housekeeping features working together with real H2 database.
@@ -29,7 +29,7 @@ class HousekeepingIntegrationTest {
     private CommonsPool2XADataSource pooledDataSource;
     
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         // Create H2 XA-capable data source
         h2DataSource = new org.h2.jdbcx.JdbcDataSource();
         h2DataSource.setURL("jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1");
@@ -106,7 +106,7 @@ class HousekeepingIntegrationTest {
         assertNotNull(leakedSession);
         
         // Wait for leak detection to kick in
-        Thread.sleep(2000);
+        Thread.sleep(2000); //NOSONAR
         
         // Session should still be borrowed (leak detection just logs)
         assertNotNull(leakedSession);
@@ -132,7 +132,8 @@ class HousekeepingIntegrationTest {
         pooledDataSource.returnSession(session1);
         
         // Wait for session to become idle and then expire
-        Thread.sleep(3500); // Wait for both idle time and max lifetime
+        // Wait for both idle time and max lifetime
+        Thread.sleep(3500); //NOSONAR
         
         // Try to borrow - should get a new session (old one expired)
         XABackendSession session2 = pooledDataSource.borrowSession();
@@ -161,7 +162,7 @@ class HousekeepingIntegrationTest {
         XABackendSession session2 = pooledDataSource.borrowSession();
         
         // Wait for diagnostics to run
-        Thread.sleep(1500);
+        Thread.sleep(1500); //NOSONAR
         
         // Return sessions
         pooledDataSource.returnSession(session1);
@@ -214,7 +215,7 @@ class HousekeepingIntegrationTest {
         pooledDataSource.returnSession(session2);
         
         // Wait a bit for housekeeping tasks
-        Thread.sleep(3000);
+        Thread.sleep(3000);  //NOSONAR
         
         // Return the last session
         pooledDataSource.returnSession(session3);
@@ -290,7 +291,7 @@ class HousekeepingIntegrationTest {
         pooledDataSource.returnSession(session);
         
         // After return, session should still be healthy
-        Thread.sleep(100);
+        Thread.sleep(100); //NOSONAR
         
         // Borrow again to check
         XABackendSession session2 = pooledDataSource.borrowSession();
@@ -342,7 +343,7 @@ class HousekeepingIntegrationTest {
         assertNotNull(session);
         
         // Wait for leak detection
-        Thread.sleep(2000);
+        Thread.sleep(2000); //NOSONAR
         
         // Clean up
         pooledDataSource.returnSession(session);

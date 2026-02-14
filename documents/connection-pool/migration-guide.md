@@ -77,7 +77,31 @@ mainApp.ojp.connection.pool.maximumPoolSize=30
 batchJob.ojp.connection.pool.maximumPoolSize=5
 ```
 
-## Programmatic Usage
+## Environment-Specific Configuration
+
+**Recommended Approach (Since PR #298):** OJP automatically loads environment-specific properties files without requiring any custom code.
+
+Use environment-specific properties files for different environments:
+- `ojp-dev.properties` - Development environment
+- `ojp-staging.properties` - Staging environment
+- `ojp-prod.properties` - Production environment
+
+Set the environment using:
+```bash
+# System property
+-Dojp.environment=dev
+
+# Or environment variable
+export OJP_ENVIRONMENT=dev
+```
+
+**For more details, see:**
+- **[OJP JDBC Configuration](../configuration/ojp-jdbc-configuration.md)** - Complete guide to environment-specific configuration
+- **[Example Configuration Files](../configuration/)** - ojp-dev.properties, ojp-staging.properties, ojp-prod.properties
+
+## Programmatic Usage (Advanced)
+
+**Note:** For most use cases, including environment-specific configuration, you should use the properties file approach described above. The programmatic API shown below is intended for advanced scenarios where you need direct control over DataSource creation.
 
 ### Using the SPI Directly
 

@@ -1,12 +1,11 @@
 package org.openjproxy.grpc.client;
 
-import org.openjproxy.grpc.GrpcChannelFactory;
 import com.openjproxy.grpc.ConnectionDetails;
 import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.StatementServiceGrpc;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
+import org.openjproxy.grpc.GrpcChannelFactory;
 
 import java.sql.SQLException;
 

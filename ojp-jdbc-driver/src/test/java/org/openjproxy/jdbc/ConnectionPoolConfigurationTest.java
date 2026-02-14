@@ -5,7 +5,6 @@ import org.openjproxy.constants.CommonConstants;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.lang.reflect.Method;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class ConnectionPoolConfigurationTest {
 
     @Test
-    public void testDefaultConstantsAreSet() {
+    void testDefaultConstantsAreSet() {
         assertEquals(20, CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE);
         assertEquals(5, CommonConstants.DEFAULT_MINIMUM_IDLE);
         assertEquals(600000L, CommonConstants.DEFAULT_IDLE_TIMEOUT);
@@ -28,7 +27,7 @@ public class ConnectionPoolConfigurationTest {
     }
 
     @Test
-    public void testPropertiesFileLoading() {
+    void testPropertiesFileLoading() {
         // Create a test properties file content
         String propertiesContent = 
             "maximumPoolSize=15\n" +
@@ -50,7 +49,7 @@ public class ConnectionPoolConfigurationTest {
     }
 
     @Test
-    public void testOjpPropertiesFileLoadingFromClasspath() throws Exception {
+    void testOjpPropertiesFileLoadingFromClasspath() throws Exception {
         // Test that the DatasourcePropertiesLoader can load the ojp.properties file from classpath
         Properties properties = DatasourcePropertiesLoader.loadOjpProperties();
         
@@ -63,7 +62,7 @@ public class ConnectionPoolConfigurationTest {
     }
 
     @Test
-    public void testPropertiesSerialization() throws Exception {
+    void testPropertiesSerialization() throws Exception {
         // Test that we can serialize and deserialize properties
         Properties originalProperties = new Properties();
         originalProperties.setProperty("maximumPoolSize", "25");

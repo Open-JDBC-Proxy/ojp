@@ -1,8 +1,5 @@
 package org.openjproxy.grpc;
 
-import org.openjproxy.grpc.EchoRequest;
-import org.openjproxy.grpc.EchoResponse;
-import org.openjproxy.grpc.EchoServiceGrpc;
 import io.grpc.stub.StreamObserver;
 
 // Just echoing back the message

@@ -19,48 +19,48 @@ import static org.junit.jupiter.api.Assertions.*;
 public class BigDecimalWireTest {
 
     @Test
-    public void testNull() throws IOException {
+    void testNull() throws IOException {
         assertRoundTrip(null);
     }
 
     @Test
-    public void testZero() throws IOException {
+    void testZero() throws IOException {
         assertRoundTrip(BigDecimal.ZERO);
     }
 
     @Test
-    public void testPositiveInteger() throws IOException {
+    void testPositiveInteger() throws IOException {
         assertRoundTrip(new BigDecimal("123"));
     }
 
     @Test
-    public void testNegativeInteger() throws IOException {
+    void testNegativeInteger() throws IOException {
         assertRoundTrip(new BigDecimal("-456"));
     }
 
     @Test
-    public void testPositiveDecimal() throws IOException {
+    void testPositiveDecimal() throws IOException {
         assertRoundTrip(new BigDecimal("123.456"));
     }
 
     @Test
-    public void testNegativeDecimal() throws IOException {
+    void testNegativeDecimal() throws IOException {
         assertRoundTrip(new BigDecimal("-789.012"));
     }
 
     @Test
-    public void testSmallScale() throws IOException {
+    void testSmallScale() throws IOException {
         assertRoundTrip(new BigDecimal("1.23"));
     }
 
     @Test
-    public void testLargePositiveScale() throws IOException {
+    void testLargePositiveScale() throws IOException {
         // Scale of 10 means 10 digits after decimal point
         assertRoundTrip(new BigDecimal("1.2345678901"));
     }
 
     @Test
-    public void testNegativeScale() throws IOException {
+    void testNegativeScale() throws IOException {
         // Negative scale means significant digits before decimal
         // BigDecimal with unscaled value 123 and scale -2 = 12300
         BigDecimal value = new BigDecimal(new BigInteger("123"), -2);
@@ -70,44 +70,44 @@ public class BigDecimalWireTest {
     }
 
     @Test
-    public void testVeryLargeUnscaledValue() throws IOException {
+    void testVeryLargeUnscaledValue() throws IOException {
         // Test with a very large BigInteger (> 64-bit)
         String largeNumber = "123456789012345678901234567890123456789012345678901234567890";
         assertRoundTrip(new BigDecimal(largeNumber));
     }
 
     @Test
-    public void testVeryLargeNegativeUnscaledValue() throws IOException {
+    void testVeryLargeNegativeUnscaledValue() throws IOException {
         // Test with a very large negative BigInteger
         String largeNumber = "-987654321098765432109876543210987654321098765432109876543210";
         assertRoundTrip(new BigDecimal(largeNumber));
     }
 
     @Test
-    public void testVerySmallDecimal() throws IOException {
+    void testVerySmallDecimal() throws IOException {
         // Test with many decimal places
         assertRoundTrip(new BigDecimal("0.000000000000000001"));
     }
 
     @Test
-    public void testScientificNotation() throws IOException {
+    void testScientificNotation() throws IOException {
         // BigDecimal can be created from scientific notation
         assertRoundTrip(new BigDecimal("1.23E+10"));
         assertRoundTrip(new BigDecimal("4.56E-8"));
     }
 
     @Test
-    public void testOne() throws IOException {
+    void testOne() throws IOException {
         assertRoundTrip(BigDecimal.ONE);
     }
 
     @Test
-    public void testTen() throws IOException {
+    void testTen() throws IOException {
         assertRoundTrip(BigDecimal.TEN);
     }
 
     @Test
-    public void testSpecialScales() throws IOException {
+    void testSpecialScales() throws IOException {
         // Test with scale = 0
         assertRoundTrip(new BigDecimal(new BigInteger("12345"), 0));
         
@@ -119,14 +119,14 @@ public class BigDecimalWireTest {
     }
 
     @Test
-    public void testNegativeZeroScale() throws IOException {
+    void testNegativeZeroScale() throws IOException {
         // BigDecimal("-0") should be handled properly
         BigDecimal negZero = new BigDecimal("0.00").negate();
         assertRoundTrip(negZero);
     }
 
     @Test
-    public void testInvalidNegativeLength() {
+    void testInvalidNegativeLength() {
         assertThrows(IOException.class, () -> {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
@@ -145,7 +145,7 @@ public class BigDecimalWireTest {
     }
 
     @Test
-    public void testExcessiveLength() {
+    void testExcessiveLength() {
         assertThrows(IOException.class, () -> {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
@@ -164,7 +164,7 @@ public class BigDecimalWireTest {
     }
 
     @Test
-    public void testInvalidUnscaledValue() {
+    void testInvalidUnscaledValue() {
         assertThrows(IOException.class, () -> {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
@@ -187,7 +187,7 @@ public class BigDecimalWireTest {
     }
 
     @Test
-    public void testMultipleValues() throws IOException {
+    void testMultipleValues() throws IOException {
         // Test writing and reading multiple BigDecimal values in sequence
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);

@@ -2,27 +2,40 @@ package org.openjproxy.grpc.server.sql;
 
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.dialect.*;
+import org.apache.calcite.sql.fun.SqlLibrary;
 
 /**
  * Supported SQL dialects for the SQL enhancer engine.
  * Maps to Apache Calcite's dialect implementations.
  */
 public enum OjpSqlDialect {
-    GENERIC(AnsiSqlDialect.DEFAULT),
-    POSTGRESQL(PostgresqlSqlDialect.DEFAULT),
-    MYSQL(MysqlSqlDialect.DEFAULT),
-    ORACLE(OracleSqlDialect.DEFAULT),
-    SQL_SERVER(MssqlSqlDialect.DEFAULT),
-    H2(H2SqlDialect.DEFAULT);
+    GENERIC(AnsiSqlDialect.DEFAULT, SqlLibrary.STANDARD),
+    POSTGRESQL(PostgresqlSqlDialect.DEFAULT, SqlLibrary.POSTGRESQL),
+    MYSQL(MysqlSqlDialect.DEFAULT, SqlLibrary.MYSQL),
+    ORACLE(OracleSqlDialect.DEFAULT, SqlLibrary.ORACLE),
+    SQL_SERVER(MssqlSqlDialect.DEFAULT, SqlLibrary.MSSQL),
+    H2(H2SqlDialect.DEFAULT, SqlLibrary.STANDARD);
     
     private final SqlDialect calciteDialect;
+    private final SqlLibrary sqlLibrary;
     
-    OjpSqlDialect(SqlDialect calciteDialect) {
+    OjpSqlDialect(SqlDialect calciteDialect, SqlLibrary sqlLibrary) {
         this.calciteDialect = calciteDialect;
+        this.sqlLibrary = sqlLibrary;
     }
     
     public SqlDialect getCalciteDialect() {
         return calciteDialect;
+    }
+    
+    /**
+     * Get the Calcite SQL library for this dialect.
+     * Used to load dialect-specific operators and functions.
+     * 
+     * @return SqlLibrary for this dialect
+     */
+    public SqlLibrary getSqlLibrary() {
+        return sqlLibrary;
     }
     
     /**

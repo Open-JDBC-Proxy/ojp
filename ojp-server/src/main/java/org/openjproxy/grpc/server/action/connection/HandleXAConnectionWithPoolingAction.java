@@ -22,6 +22,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 
@@ -36,6 +39,12 @@ public class HandleXAConnectionWithPoolingAction {
     
     private static final HandleXAConnectionWithPoolingAction INSTANCE = new HandleXAConnectionWithPoolingAction();
     
+    // Lock objects for synchronizing registry creation per connection hash
+    // Using ReentrantLock for virtual thread compatibility
+    // Note: In practice, connection hashes are bounded by the finite set of database credentials
+    // used by the application, so this map won't grow indefinitely
+    private final Map<String, Lock> registryLocks = new ConcurrentHashMap<>();
+    
     private HandleXAConnectionWithPoolingAction() {
         // Private constructor prevents external instantiation
     }
@@ -49,6 +58,46 @@ public class HandleXAConnectionWithPoolingAction {
                        StreamObserver<SessionInfo> responseObserver) {
         log.info("Using XA Pool Provider SPI for connHash: {}", connHash);
         
+        // Use ReentrantLock for virtual thread compatibility
+        // Lock ONLY during registry creation/check, not during session borrowing
+        // This prevents race conditions in registry creation while avoiding deadlocks during pool borrowing
+        Lock lock = getRegistryLock(connHash);
+        XATransactionRegistry registry;
+        
+        lock.lock();
+        try {
+            registry = getOrCreateRegistry(context, connectionDetails, connHash, actualMaxXaTransactions, xaStartTimeoutMillis, responseObserver);
+            if (registry == null) {
+                // Unpooled mode or error - already handled
+                return;
+            }
+        } finally {
+            lock.unlock();
+        }
+        
+        // Now borrow from pool WITHOUT holding the lock
+        // This allows multiple threads to borrow concurrently from the same pool
+        borrowSessionAndRespond(context, connectionDetails, connHash, actualMaxXaTransactions, xaStartTimeoutMillis, registry, responseObserver);
+    }
+    
+    /**
+     * Get a lock for synchronizing registry operations for a specific connection hash.
+     * This prevents race conditions where multiple threads try to create registries simultaneously.
+     * Uses ReentrantLock for virtual thread compatibility.
+     */
+    private Lock getRegistryLock(String connHash) {
+        return registryLocks.computeIfAbsent(connHash, k -> new ReentrantLock());
+    }
+    
+    /**
+     * Get or create the XA registry for the given connection hash.
+     * This method is called while holding the registry lock to prevent race conditions.
+     * Returns null if unpooled mode or if an error occurred (error already sent to client).
+     */
+    private XATransactionRegistry getOrCreateRegistry(ActionContext context, ConnectionDetails connectionDetails, String connHash,
+                       int actualMaxXaTransactions, long xaStartTimeoutMillis,
+                       StreamObserver<SessionInfo> responseObserver) {
+        
         // Get current serverEndpoints configuration
         List<String> currentServerEndpoints = connectionDetails.getServerEndpointsList();
         String currentEndpointsHash = (currentServerEndpoints == null || currentServerEndpoints.isEmpty()) 
@@ -56,6 +105,7 @@ public class HandleXAConnectionWithPoolingAction {
                 : String.join(",", currentServerEndpoints);
         
         // Check if we already have an XA registry for this connection hash
+        // NOTE: This method is called while holding the registry lock to prevent race conditions
         XATransactionRegistry registry = context.getXaRegistries().get(connHash);
         log.info("XA registry cache lookup for {}: exists={}, current serverEndpoints hash: {}", 
                 connHash, registry != null, currentEndpointsHash);
@@ -131,9 +181,10 @@ public class HandleXAConnectionWithPoolingAction {
             if (!poolEnabled) {
                 log.info("XA unpooled mode enabled for connHash: {}", connHash);
                 
-                // Handle unpooled XA connection
+                // Handle unpooled XA connection (releases lock before handling)
+                // Return null to signal unpooled mode was handled
                 HandleUnpooledXAConnectionAction.getInstance().execute(context, connectionDetails, connHash, responseObserver);
-                return;
+                return null;
             }
             
             try {
@@ -221,12 +272,23 @@ public class HandleXAConnectionWithPoolingAction {
                         connHash, currentEndpointsHash, e.getMessage(), e);
                 SQLException sqlException = new SQLException("Failed to create XA pool: " + e.getMessage(), e);
                 sendSQLExceptionMetadata(sqlException, responseObserver);
-                return;
+                return null;  // Error was sent to client
             }
         } else {
             log.info("[XA-POOL-REUSE] Reusing EXISTING XA registry for connHash={} (pool already created, cached sizes: max={}, min={})",
                     connHash, registry.getMaxPoolSize(), registry.getMinIdle());
         }
+        
+        return registry;
+    }
+    
+    /**
+     * Borrow a session from the pool and send response to client.
+     * This method is called WITHOUT holding the registry lock to allow concurrent borrowing.
+     */
+    private void borrowSessionAndRespond(ActionContext context, ConnectionDetails connectionDetails, String connHash,
+                       int actualMaxXaTransactions, long xaStartTimeoutMillis, XATransactionRegistry registry,
+                       StreamObserver<SessionInfo> responseObserver) {
         
         context.getSessionManager().registerClientUUID(connHash, connectionDetails.getClientUUID());
         

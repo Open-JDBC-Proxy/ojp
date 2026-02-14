@@ -10,7 +10,11 @@ import org.apache.calcite.sql.validate.SqlConformanceEnum;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -39,8 +43,15 @@ public class SqlEnhancerEngine {
     
     // Optimization configuration
     private final boolean optimizationEnabled;
+    private final OptimizationMode optimizationMode;
     private final OptimizationRuleRegistry ruleRegistry;
     private final List<String> enabledRules;
+    
+    // Failed optimization tracking - stores original SQL that failed optimization
+    private final Set<String> failedOptimizations;
+    
+    // Async optimization executor
+    private final ExecutorService optimizationExecutor;
     
     // Schema management
     private final SchemaCache schemaCache;
@@ -52,19 +63,22 @@ public class SqlEnhancerEngine {
     
     // Metrics tracking - using AtomicLong for thread-safe updates without synchronization
     private final AtomicLong totalQueriesProcessed = new AtomicLong(0);
+    private final AtomicLong totalQueriesValidated = new AtomicLong(0);
     private final AtomicLong totalQueriesOptimized = new AtomicLong(0);
     private final AtomicLong totalOptimizationTimeMs = new AtomicLong(0);
     private final AtomicLong totalQueriesModified = new AtomicLong(0);
+    private final AtomicLong totalOptimizationFailures = new AtomicLong(0);
     
     
     /**
-     * Creates a new SqlEnhancerEngine with full configuration options including schema refresh.
+     * Creates a new SqlEnhancerEngine with full configuration options including schema refresh and optimization mode.
      * 
      * @param enabled Whether the SQL enhancer is enabled
      * @param dialectName The SQL dialect to use (source dialect)
      * @param targetDialectName The target SQL dialect for translation (empty = no translation)
      * @param conversionEnabled Whether to enable SQL-to-RelNode conversion
      * @param optimizationEnabled Whether to enable query optimization
+     * @param optimizationMode The optimization execution mode (SYNC, ASYNC, DISABLED)
      * @param enabledRules List of rule names to enable (null = use safe rules)
      * @param schemaCache Optional schema cache for real schema metadata (can be null)
      * @param schemaLoader Optional schema loader for periodic refresh (can be null)
@@ -74,14 +88,16 @@ public class SqlEnhancerEngine {
      * @param schemaRefreshIntervalHours Hours between schema refreshes (0 = disabled)
      */
     public SqlEnhancerEngine(boolean enabled, String dialectName, String targetDialectName, boolean conversionEnabled,
-                             boolean optimizationEnabled, List<String> enabledRules,
+                             boolean optimizationEnabled, OptimizationMode optimizationMode, List<String> enabledRules,
                              SchemaCache schemaCache, SchemaLoader schemaLoader,
                              javax.sql.DataSource dataSource, String catalogName, String schemaName,
                              long schemaRefreshIntervalHours) {
         this.enabled = enabled;
         this.conversionEnabled = conversionEnabled;
         this.optimizationEnabled = optimizationEnabled;
+        this.optimizationMode = optimizationMode != null ? optimizationMode : OptimizationMode.SYNC;
         this.cache = new ConcurrentHashMap<>();
+        this.failedOptimizations = ConcurrentHashMap.newKeySet();
         this.dialect = OjpSqlDialect.fromString(dialectName);
         this.calciteDialect = dialect.getCalciteDialect();
         
@@ -114,18 +130,38 @@ public class SqlEnhancerEngine {
             .withCaseSensitive(false); // Most SQL is case-insensitive
         
         // Initialize converter if conversion is enabled
-        // Pass SqlDialect for SQL generation and SchemaCache for real schema
+        // Pass SqlDialect for SQL generation, SqlLibrary for operators, and SchemaCache for real schema
         this.converter = conversionEnabled ? 
-            new RelationalAlgebraConverter(parserConfig, calciteDialect, schemaCache) : null;
+            new RelationalAlgebraConverter(parserConfig, calciteDialect, dialect.getSqlLibrary(), schemaCache) : null;
         
         // Initialize optimization components
         this.ruleRegistry = new OptimizationRuleRegistry();
         this.enabledRules = enabledRules != null ? enabledRules : 
-            Arrays.asList("FILTER_REDUCE", "PROJECT_REDUCE", "FILTER_MERGE", "PROJECT_MERGE", "PROJECT_REMOVE");
+            Arrays.asList(
+                // Basic expression optimization
+                "FILTER_REDUCE", "PROJECT_REDUCE", "FILTER_MERGE", "PROJECT_MERGE", "PROJECT_REMOVE",
+                // Subquery optimization - removes correlated subqueries by converting to JOINs
+                "SUB_QUERY_REMOVE", "SUB_QUERY_REMOVE_FILTER", "SUB_QUERY_REMOVE_JOIN",
+                "PROJECT_SUB_QUERY_TO_CORRELATE", "FILTER_SUB_QUERY_TO_CORRELATE", "JOIN_SUB_QUERY_TO_CORRELATE"
+            );
+        
+        // Initialize async executor if needed
+        if (optimizationEnabled && this.optimizationMode == OptimizationMode.ASYNC) {
+            // Use 2 threads: one for immediate processing and one for queued work
+            // This balances responsiveness with resource usage
+            this.optimizationExecutor = Executors.newFixedThreadPool(2, r -> {
+                Thread t = new Thread(r, "sql-optimizer");
+                t.setDaemon(true);
+                return t;
+            });
+        } else {
+            this.optimizationExecutor = null;
+        }
         
         if (enabled) {
             String conversionStatus = conversionEnabled ? " with relational algebra conversion" : "";
-            String optimizationStatus = optimizationEnabled ? " and optimization" : "";
+            String optimizationStatus = optimizationEnabled ? 
+                " and optimization (" + this.optimizationMode + " mode)" : "";
             String schemaStatus = schemaCache != null ? " and real schema support" : "";
             String refreshStatus = (schemaLoader != null && dataSource != null && schemaRefreshIntervalHours > 0) ? 
                 " with periodic refresh" : "";
@@ -138,7 +174,35 @@ public class SqlEnhancerEngine {
     }
     
     /**
+     * Creates a new SqlEnhancerEngine with full configuration options including schema refresh.
+     * Uses SYNC optimization mode by default for backward compatibility.
+     * 
+     * @param enabled Whether the SQL enhancer is enabled
+     * @param dialectName The SQL dialect to use (source dialect)
+     * @param targetDialectName The target SQL dialect for translation (empty = no translation)
+     * @param conversionEnabled Whether to enable SQL-to-RelNode conversion
+     * @param optimizationEnabled Whether to enable query optimization
+     * @param enabledRules List of rule names to enable (null = use safe rules)
+     * @param schemaCache Optional schema cache for real schema metadata (can be null)
+     * @param schemaLoader Optional schema loader for periodic refresh (can be null)
+     * @param dataSource Optional data source for schema refresh (can be null)
+     * @param catalogName Catalog name for schema refresh (can be null)
+     * @param schemaName Schema name for schema refresh (can be null)
+     * @param schemaRefreshIntervalHours Hours between schema refreshes (0 = disabled)
+     */
+    public SqlEnhancerEngine(boolean enabled, String dialectName, String targetDialectName, boolean conversionEnabled,
+                             boolean optimizationEnabled, List<String> enabledRules,
+                             SchemaCache schemaCache, SchemaLoader schemaLoader,
+                             javax.sql.DataSource dataSource, String catalogName, String schemaName,
+                             long schemaRefreshIntervalHours) {
+        this(enabled, dialectName, targetDialectName, conversionEnabled, optimizationEnabled, 
+             OptimizationMode.SYNC, enabledRules, schemaCache, schemaLoader, dataSource, 
+             catalogName, schemaName, schemaRefreshIntervalHours);
+    }
+    
+    /**
      * Creates a new SqlEnhancerEngine with full configuration options (without schema refresh).
+     * Uses SYNC optimization mode by default for backward compatibility.
      * 
      * @param enabled Whether the SQL enhancer is enabled
      * @param dialectName The SQL dialect to use
@@ -152,8 +216,8 @@ public class SqlEnhancerEngine {
     public SqlEnhancerEngine(boolean enabled, String dialectName, String targetDialectName, boolean conversionEnabled,
                              boolean optimizationEnabled, List<String> enabledRules,
                              SchemaCache schemaCache, long schemaRefreshIntervalHours) {
-        this(enabled, dialectName, targetDialectName, conversionEnabled, optimizationEnabled, enabledRules,
-             schemaCache, null, null, null, null, schemaRefreshIntervalHours);
+        this(enabled, dialectName, targetDialectName, conversionEnabled, optimizationEnabled, 
+             OptimizationMode.SYNC, enabledRules, schemaCache, null, null, null, null, schemaRefreshIntervalHours);
     }
     
     /**
@@ -274,9 +338,11 @@ public class SqlEnhancerEngine {
         }
         
         long processed = totalQueriesProcessed.get();
+        long validated = totalQueriesValidated.get();
         long optimized = totalQueriesOptimized.get();
         long optimizationTime = totalOptimizationTimeMs.get();
         long modified = totalQueriesModified.get();
+        long failures = totalOptimizationFailures.get();
         
         long avgOptimizationTime = optimized > 0 ? optimizationTime / optimized : 0;
         
@@ -286,10 +352,13 @@ public class SqlEnhancerEngine {
         double modificationRate = optimized > 0 ? 
             (100.0 * modified / optimized) : 0.0;
         
+        double failureRate = (optimized + failures) > 0 ?
+            (100.0 * failures / (optimized + failures)) : 0.0;
+        
         return String.format(
-            "Optimization Stats: Processed=%d, Optimized=%d (%.1f%%), Modified=%d (%.1f%%), AvgTime=%dms",
-            processed, optimized, optimizationRate,
-            modified, modificationRate, avgOptimizationTime
+            "Optimization Stats: Processed=%d, Validated=%d, Optimized=%d (%.1f%%), Modified=%d (%.1f%%), Failed=%d (%.1f%%), AvgTime=%dms, Mode=%s",
+            processed, validated, optimized, optimizationRate,
+            modified, modificationRate, failures, failureRate, avgOptimizationTime, optimizationMode
         );
     }
     
@@ -298,16 +367,109 @@ public class SqlEnhancerEngine {
      */
     public void clearCache() {
         cache.clear();
+        failedOptimizations.clear();
         log.info("SQL enhancer cache cleared");
     }
     
     /**
-     * Parses, validates, and optionally optimizes SQL.
-     * Phase 3: Adds database-specific dialect support.
+     * Validates SQL syntax and semantics without optimization.
+     * This method always runs synchronously and returns immediately after validation.
      * 
-     * Note: Enhancement happens synchronously in the same thread as query execution,
-     * on the first execution of each unique SQL query. The SQL is blocked until 
-     * parsing completes or times out. Subsequent executions use cached results.
+     * @param sql The SQL statement to validate
+     * @return SqlValidationResult containing validation status
+     */
+    public SqlValidationResult validate(String sql) {
+        if (!enabled) {
+            // If disabled, pass through without validation
+            return SqlValidationResult.success(sql);
+        }
+        
+        totalQueriesValidated.incrementAndGet();
+        
+        try {
+            // Parse and validate SQL with dialect-specific configuration
+            SqlParser parser = SqlParser.create(sql, parserConfig);
+            SqlNode sqlNode = parser.parseQuery();
+            
+            // Log successful parse
+            log.debug("Successfully validated SQL with {} dialect: {}", 
+                     dialect, sql.substring(0, Math.min(sql.length(), 100)));
+            
+            return SqlValidationResult.success(sql);
+            
+        } catch (SqlParseException e) {
+            // Log validation error
+            log.debug("SQL validation error with {} dialect: {} for SQL: {}", 
+                     dialect, e.getMessage(), sql.substring(0, Math.min(sql.length(), 100)));
+            
+            return SqlValidationResult.failure(sql, e.getMessage());
+        } catch (Exception e) {
+            // Catch any unexpected errors
+            log.warn("Unexpected error during SQL validation with {} dialect: {}", dialect, e.getMessage(), e);
+            
+            return SqlValidationResult.failure(sql, e.getMessage());
+        }
+    }
+    
+    /**
+     * Ensures schema is loaded from the provided DataSource.
+     * This is called before enhance() to populate the schema cache on-demand.
+     * Thread-safe and idempotent - multiple calls will only load once.
+     * 
+     * @param dataSource DataSource to load schema from
+     * @param catalogName Catalog name (may be null)
+     * @param schemaName Schema name (may be null)
+     */
+    public void ensureSchemaLoaded(javax.sql.DataSource dataSource, String catalogName, String schemaName) {
+        // Only load if we have a schema cache and loader
+        if (schemaCache == null || schemaLoader == null || dataSource == null) {
+            return;
+        }
+        
+        // Check if schema is already loaded
+        if (schemaCache.getSchema(false) != null) {
+            log.debug("Schema already loaded in cache");
+            return;
+        }
+        
+        // Try to acquire lock for loading
+        if (!schemaCache.tryAcquireRefreshLock()) {
+            log.debug("Schema load already in progress by another thread");
+            return;
+        }
+        
+        try {
+            // Double-check after acquiring lock
+            if (schemaCache.getSchema(false) != null) {
+                log.debug("Schema loaded by another thread while waiting for lock");
+                return;
+            }
+            
+            log.info("Loading schema metadata from DataSource (catalog: {}, schema: {})", 
+                     catalogName, schemaName);
+            
+            // Load schema synchronously
+            try (java.sql.Connection connection = dataSource.getConnection()) {
+                SchemaMetadata schema = schemaLoader.loadSchema(connection, catalogName, schemaName);
+                schemaCache.updateSchema(schema);
+                log.info("Successfully loaded schema with {} tables", schema.getTables().size());
+            } catch (java.sql.SQLException e) {
+                log.error("Failed to load schema metadata", e);
+                // Don't throw - allow query to proceed without schema (will fall back to generic schema)
+            }
+            
+        } finally {
+            schemaCache.releaseRefreshLock();
+        }
+    }
+    
+    /**
+     * Parses, validates, and optionally optimizes SQL.
+     * 
+     * Validation always happens synchronously. Optimization behavior depends on the optimization mode:
+     * - DISABLED: No optimization, validation only
+     * - SYNC: Optimization happens synchronously, query blocks until complete
+     * - ASYNC: First run returns original SQL and optimizes in background, subsequent runs use cached optimized SQL
      * 
      * @param sql The SQL statement to enhance
      * @return SqlEnhancementResult containing the result
@@ -318,7 +480,6 @@ public class SqlEnhancerEngine {
             return SqlEnhancementResult.passthrough(sql);
         }
         
-        // Phase 2: Use original SQL as cache key
         // Check cache first - no synchronization needed for ConcurrentHashMap.get()
         SqlEnhancementResult cached = cache.get(sql);
         if (cached != null) {
@@ -333,7 +494,7 @@ public class SqlEnhancerEngine {
         SqlEnhancementResult result;
         
         try {
-            // Parse and validate SQL with dialect-specific configuration
+            // Step 1: Always validate SQL synchronously
             SqlParser parser = SqlParser.create(sql, parserConfig);
             SqlNode sqlNode = parser.parseQuery();
             
@@ -341,88 +502,52 @@ public class SqlEnhancerEngine {
             log.debug("Successfully parsed and validated SQL with {} dialect: {}", 
                      dialect, sql.substring(0, Math.min(sql.length(), 100)));
             
-            // Relational Algebra Conversion and Optimization (if enabled)
-            if (conversionEnabled && converter != null) {
-                try {
-                    long optimizationStartTime = System.currentTimeMillis();
-                    
-                    // Convert SQL → RelNode
-                    RelNode relNode = converter.convertToRelNode(sql);
-                    log.debug("Successfully converted SQL to RelNode");
-                    
-                    // Apply optimization if enabled
-                    if (optimizationEnabled) {
-                        try {
-                            // Get optimization rules
-                            List<RelOptRule> rules = ruleRegistry.getRulesByNames(enabledRules);
-                            log.debug("Applying {} optimization rules", rules.size());
-                            
-                            // Apply optimizations
-                            RelNode optimizedNode = converter.applyOptimizations(relNode, rules);
-                            
-                            // Generate SQL from optimized RelNode
-                            try {
-                                String optimizedSql = converter.convertToSql(optimizedNode);
-                                
-                                long optimizationEndTime = System.currentTimeMillis();
-                                long optimizationTime = optimizationEndTime - optimizationStartTime;
-                                
-                                // Check if SQL was actually modified
-                                boolean wasModified = !sql.trim().equalsIgnoreCase(optimizedSql.trim());
-                                
-                                // Track metrics
-                                totalQueriesOptimized.incrementAndGet();
-                                totalOptimizationTimeMs.addAndGet(optimizationTime);
-                                if (wasModified) {
-                                    totalQueriesModified.incrementAndGet();
-                                }
-                                
-                                if (wasModified) {
-                                    log.info("SQL optimized with {} rules in {}ms. Original length: {}, Optimized length: {}", 
-                                            rules.size(), optimizationTime, sql.length(), optimizedSql.length());
-                                    log.debug("Original SQL: {}", sql.substring(0, Math.min(sql.length(), 200)));
-                                    log.debug("Optimized SQL: {}", optimizedSql.substring(0, Math.min(optimizedSql.length(), 200)));
-                                }
-                                
-                                result = SqlEnhancementResult.optimized(optimizedSql, wasModified, 
-                                                                       enabledRules, optimizationTime);
-                                
-                                log.debug("Optimization complete in {}ms with {} rules, modified: {}", 
-                                         optimizationTime, rules.size(), wasModified);
-                                
-                            } catch (RelationalAlgebraConverter.SqlGenerationException e) {
-                                log.debug("SQL generation failed, using original SQL: {}", e.getMessage());
-                                long optimizationTime = System.currentTimeMillis() - optimizationStartTime;
-                                // Return original SQL with optimization metadata even though generation failed
-                                result = SqlEnhancementResult.optimized(sql, false, enabledRules, optimizationTime);
-                            }
-                            
-                        } catch (RelationalAlgebraConverter.OptimizationException e) {
-                            log.debug("Optimization failed, using original SQL: {}", e.getMessage());
-                            result = SqlEnhancementResult.success(sql, false);
-                        }
-                    } else {
-                        // Optimization not enabled, return original SQL
-                        result = SqlEnhancementResult.success(sql, false);
-                    }
-                    
-                } catch (RelationalAlgebraConverter.ConversionException e) {
-                    log.debug("Conversion failed, falling back to original SQL: {}", e.getMessage());
+            // Step 2: Handle optimization based on mode
+            if (conversionEnabled && converter != null && optimizationEnabled) {
+                
+                if (optimizationMode == OptimizationMode.DISABLED) {
+                    // Optimization disabled, return validated original SQL
                     result = SqlEnhancementResult.success(sql, false);
-                } catch (Exception e) {
-                    log.warn("Unexpected error during conversion/optimization, falling back to original SQL: {}", 
-                            e.getMessage());
+                    
+                } else if (optimizationMode == OptimizationMode.SYNC) {
+                    // Synchronous optimization - block until complete
+                    result = performOptimization(sql);
+                    
+                } else if (optimizationMode == OptimizationMode.ASYNC) {
+                    // Asynchronous optimization - return original SQL immediately and optimize in background
+                    result = SqlEnhancementResult.success(sql, false);
+                    
+                    // Trigger async optimization
+                    String sqlToOptimize = sql; // Capture for lambda
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            log.debug("Starting async optimization for SQL: {}", 
+                                     sqlToOptimize.substring(0, Math.min(sqlToOptimize.length(), 50)));
+                            SqlEnhancementResult optimizedResult = performOptimization(sqlToOptimize);
+                            
+                            // Cache the optimized result for future use
+                            cache.put(sqlToOptimize, optimizedResult);
+                            log.debug("Async optimization complete and cached for SQL: {}", 
+                                     sqlToOptimize.substring(0, Math.min(sqlToOptimize.length(), 50)));
+                        } catch (Exception e) {
+                            log.warn("Async optimization failed: {}", e.getMessage());
+                            // Mark as failed so we don't retry
+                            failedOptimizations.add(sqlToOptimize);
+                        }
+                    }, optimizationExecutor);
+                } else {
+                    // Default fallback
                     result = SqlEnhancementResult.success(sql, false);
                 }
             } else {
-                // Conversion not enabled, return original SQL
+                // Conversion or optimization not enabled, return validated original SQL
                 result = SqlEnhancementResult.success(sql, false);
             }
             
         } catch (SqlParseException e) {
             // Log parse errors with dialect info
-            log.debug("SQL parse error with {} dialect: {} for SQL: {}", 
-                     dialect, e.getMessage(), sql.substring(0, Math.min(sql.length(), 100)));
+            log.info("SQL parse error with {} dialect: {} for SQL: {}",
+                     dialect, e.getMessage(), sql.substring(0, Math.min(sql.length(), 100)), e);
             
             // On parse error, return original SQL (pass-through mode)
             result = SqlEnhancementResult.passthrough(sql);
@@ -469,7 +594,7 @@ public class SqlEnhancerEngine {
             log.debug("SQL enhancement took {}ms for SQL: {}", duration, sql.substring(0, Math.min(sql.length(), 50)));
         }
         
-        // Phase 2: Cache the result - ConcurrentHashMap.put() is thread-safe without explicit synchronization
+        // Cache the result - ConcurrentHashMap.put() is thread-safe without explicit synchronization
         // If two threads cache the same SQL simultaneously, the last one wins (acceptable - same result)
         cache.put(sql, result);
         
@@ -532,6 +657,84 @@ public class SqlEnhancerEngine {
     }
     
     /**
+     * Performs SQL optimization synchronously.
+     * This is an internal helper method that performs the actual optimization work.
+     * 
+     * @param sql The original SQL to optimize
+     * @return SqlEnhancementResult with optimization result
+     */
+    private SqlEnhancementResult performOptimization(String sql) {
+        // Check if this SQL previously failed optimization
+        if (failedOptimizations.contains(sql)) {
+            log.debug("Skipping optimization for previously failed SQL: {}", 
+                     sql.substring(0, Math.min(sql.length(), 50)));
+            return SqlEnhancementResult.success(sql, false);
+        }
+        
+        long optimizationStartTime = System.currentTimeMillis();
+        
+        try {
+            // Convert SQL → RelNode
+            RelNode relNode = converter.convertToRelNode(sql);
+            log.debug("Successfully converted SQL to RelNode");
+            
+            // Get optimization rules
+            List<RelOptRule> rules = ruleRegistry.getRulesByNames(enabledRules);
+            log.debug("Applying {} optimization rules", rules.size());
+            
+            // Apply optimizations
+            RelNode optimizedNode = converter.applyOptimizations(relNode, rules);
+            
+            // Generate SQL from optimized RelNode
+            try {
+                String optimizedSql = converter.convertToSql(optimizedNode);
+                
+                long optimizationEndTime = System.currentTimeMillis();
+                long optimizationTime = optimizationEndTime - optimizationStartTime;
+                
+                // Check if SQL was actually modified
+                boolean wasModified = !sql.trim().equalsIgnoreCase(optimizedSql.trim());
+                
+                // Track metrics
+                totalQueriesOptimized.incrementAndGet();
+                totalOptimizationTimeMs.addAndGet(optimizationTime);
+                if (wasModified) {
+                    totalQueriesModified.incrementAndGet();
+                }
+                
+                if (wasModified) {
+                    log.info("SQL optimized with {} rules in {}ms. Original length: {}, Optimized length: {}", 
+                            rules.size(), optimizationTime, sql.length(), optimizedSql.length());
+                    log.debug("Original SQL: {}", sql.substring(0, Math.min(sql.length(), 200)));
+                    log.debug("Optimized SQL: {}", optimizedSql.substring(0, Math.min(optimizedSql.length(), 200)));
+                }
+                
+                return SqlEnhancementResult.optimized(optimizedSql, wasModified, 
+                                                     enabledRules, optimizationTime);
+                
+            } catch (RelationalAlgebraConverter.SqlGenerationException e) {
+                log.debug("SQL generation failed, marking as failed optimization: {}", e.getMessage());
+                long optimizationTime = System.currentTimeMillis() - optimizationStartTime;
+                totalOptimizationFailures.incrementAndGet();
+                failedOptimizations.add(sql);
+                // Return original SQL with optimization metadata even though generation failed
+                return SqlEnhancementResult.optimized(sql, false, enabledRules, optimizationTime);
+            }
+            
+        } catch (RelationalAlgebraConverter.ConversionException | RelationalAlgebraConverter.OptimizationException e) {
+            log.debug("Optimization failed, marking as failed: {}", e.getMessage());
+            totalOptimizationFailures.incrementAndGet();
+            failedOptimizations.add(sql);
+            return SqlEnhancementResult.success(sql, false);
+        } catch (Exception e) {
+            log.warn("Unexpected error during optimization, marking as failed: {}", e.getMessage());
+            totalOptimizationFailures.incrementAndGet();
+            failedOptimizations.add(sql);
+            return SqlEnhancementResult.success(sql, false);
+        }
+    }
+    
+    /**
      * Triggers an asynchronous schema refresh if needed.
      * Checks if refresh interval has passed and refresh is not already in progress.
      */
@@ -561,6 +764,38 @@ public class SqlEnhancerEngine {
                     schemaCache.releaseRefreshLock();
                     log.warn("Failed to start schema refresh: {}", e.getMessage());
                 }
+            }
+        }
+    }
+    
+    /**
+     * Shuts down the async optimization executor if it exists.
+     * This method should be called when the SQL enhancer is no longer needed
+     * to ensure proper cleanup of background threads.
+     * 
+     * The method will:
+     * 1. Initiate an orderly shutdown
+     * 2. Wait up to 5 seconds for existing tasks to complete
+     * 3. Force shutdown if tasks don't complete in time
+     */
+    public void shutdown() {
+        if (optimizationExecutor != null) {
+            log.info("Shutting down SQL optimization executor");
+            optimizationExecutor.shutdown();
+            try {
+                // Wait up to 5 seconds for existing tasks to complete
+                if (!optimizationExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    log.warn("SQL optimization executor did not terminate in time, forcing shutdown");
+                    optimizationExecutor.shutdownNow();
+                    // Wait a bit more for tasks to respond to interruption
+                    if (!optimizationExecutor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                        log.error("SQL optimization executor did not terminate after forced shutdown");
+                    }
+                }
+            } catch (InterruptedException e) {
+                log.warn("Interrupted while waiting for SQL optimization executor to terminate");
+                optimizationExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         }
     }

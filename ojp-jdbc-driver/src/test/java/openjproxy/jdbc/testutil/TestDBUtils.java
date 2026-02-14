@@ -144,7 +144,7 @@ public class TestDBUtils {
                     System.err.println("Warning: Failed to rollback XA transaction during close: " + e.getMessage());
                 }
             }
-            
+
             try {
                 if (connection != null) {
                     connection.close();
@@ -168,7 +168,7 @@ public class TestDBUtils {
     private static class SimpleXid implements Xid {
         // AtomicInteger replaces synchronized(SimpleXid.class) for thread-safe ID generation
         // and avoids virtual-thread pinning
-        private static AtomicInteger counter = new AtomicInteger(0);;
+        private static final AtomicInteger counter = new AtomicInteger(0);
         private final int id;
 
         public SimpleXid() {
@@ -196,10 +196,10 @@ public class TestDBUtils {
      * If isXA is true, creates an XA connection using OjpXADataSource.
      * If isXA is false, creates a standard JDBC connection using DriverManager.
      *
-     * @param url The JDBC URL
-     * @param user The database user
+     * @param url      The JDBC URL
+     * @param user     The database user
      * @param password The database password
-     * @param isXA Whether to create an XA connection
+     * @param isXA     Whether to create an XA connection
      * @return ConnectionResult containing the Connection and optionally XAConnection
      * @throws SQLException if connection creation fails
      */
@@ -237,9 +237,10 @@ public class TestDBUtils {
 
     /**
      * Creates a basic test table for integration tests.
+     *
      * @param connection The database connection
-     * @param tableName The name of the table to create
-     * @param sqlSyntax The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
+     * @param tableName  The name of the table to create
+     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
      * @throws SQLException if table creation fails
      */
     public static void createBasicTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax, boolean createDefalutData) throws SQLException {
@@ -290,9 +291,10 @@ public class TestDBUtils {
 
     /**
      * Creates a test table with auto-increment capabilities.
+     *
      * @param connection The database connection
-     * @param tableName The name of the table to create
-     * @param sqlSyntax The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
+     * @param tableName  The name of the table to create
+     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
      * @throws SQLException if table creation fails
      */
     public static void createAutoIncrementTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax) throws SQLException {
@@ -344,9 +346,10 @@ public class TestDBUtils {
 
     /**
      * Creates a comprehensive test table with multiple data types.
+     *
      * @param connection The database connection
-     * @param tableName The name of the table to create
-     * @param sqlSyntax The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
+     * @param tableName  The name of the table to create
+     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
      * @throws SQLException if table creation fails
      */
     public static void createMultiTypeTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax) throws SQLException {
@@ -484,6 +487,7 @@ public class TestDBUtils {
 
     /**
      * Cleans up test tables by dropping them.
+     *
      * @param connection The database connection
      * @param tableNames The names of the tables to drop
      */
@@ -504,6 +508,7 @@ public class TestDBUtils {
     /**
      * Validates that all rows in a ResultSet can be read without errors.
      * This is useful for testing metadata operations that return ResultSets.
+     *
      * @param rs The ResultSet to validate
      * @throws SQLException if validation fails
      */
@@ -536,8 +541,9 @@ public class TestDBUtils {
 
     /**
      * Executes an update statement and returns the affected row count.
+     *
      * @param connection The database connection
-     * @param sql The SQL update statement
+     * @param sql        The SQL update statement
      * @return The number of affected rows
      * @throws SQLException if the update fails
      */
@@ -549,8 +555,9 @@ public class TestDBUtils {
 
     /**
      * Creates a MySQL-specific test table with MySQL unique data types.
+     *
      * @param connection The database connection
-     * @param tableName The name of the table to create
+     * @param tableName  The name of the table to create
      * @throws SQLException if table creation fails
      */
     public static void createMySQLSpecificTestTable(Connection connection, String tableName) throws SQLException {
@@ -580,8 +587,9 @@ public class TestDBUtils {
 
     /**
      * Creates a SQL Server-specific test table with SQL Server unique data types.
+     *
      * @param connection The database connection
-     * @param tableName The name of the table to create
+     * @param tableName  The name of the table to create
      * @throws SQLException if table creation fails
      */
     public static void createSqlServerSpecificTestTable(Connection connection, String tableName) throws SQLException {
@@ -613,24 +621,8 @@ public class TestDBUtils {
     }
 
     /**
-     * Checks if the current test should be skipped due to database-specific flags.
-     * @param enablePostgresTests Whether Postgres tests are enabled
-     * @param enableMySQLTests Whether MySQL tests are enabled
-     * @param enableOracleTests Whether Oracle tests are enabled
-     * @param isPostgresTest Whether this is a Postgres test
-     * @param isMySQLTest Whether this is a MySQL test
-     * @param isOracleTest Whether this is an Oracle test
-     * @return true if the test should be skipped
-     */
-    public static boolean shouldSkipTest(boolean enablePostgresTests, boolean enableMySQLTests, boolean enableOracleTests,
-                                         boolean isPostgresTest, boolean isMySQLTest, boolean isOracleTest) {
-        return (!enablePostgresTests && isPostgresTest) || (!enableMySQLTests && isMySQLTest) || (!enableOracleTests && isOracleTest);
-    }
-
-
-
-    /**
      * Safely closes database resources without throwing exceptions.
+     *
      * @param autoCloseables The resources to close
      */
     public static void closeQuietly(AutoCloseable... autoCloseables) {

@@ -49,7 +49,7 @@ Connection conn = DriverManager.getConnection(url, "user", "password");
 
 ### Client-Side Configuration
 
-The multinode functionality works with the existing `ojp.properties` configuration file. Additional multinode-specific properties can be configured:
+The multinode functionality works with the `ojp.properties` configuration file (or environment-specific files like `ojp-dev.properties`, `ojp-staging.properties`, `ojp-prod.properties`). Additional multinode-specific properties can be configured:
 
 ```properties
 # Standard connection pool configuration (applied to each server)
@@ -68,6 +68,10 @@ ojp.loadaware.selection.enabled=true  # Enable load-aware selection (default: tr
                                        # When enabled, new connections go to the server with fewest active connections
                                        # When disabled, uses legacy round-robin distribution
 ```
+
+**For environment-specific configuration** (development, staging, production), see:
+- **[OJP JDBC Configuration](../configuration/ojp-jdbc-configuration.md)** - Environment-specific properties file guide
+- **[Example Configuration Files](../configuration/)** - ojp-dev.properties, ojp-staging.properties, ojp-prod.properties
 
 ### Server-Side Configuration
 

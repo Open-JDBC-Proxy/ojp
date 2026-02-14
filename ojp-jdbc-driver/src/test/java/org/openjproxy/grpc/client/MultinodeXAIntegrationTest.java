@@ -4,7 +4,6 @@ import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.codehaus.plexus.util.ExceptionUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -27,6 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -44,18 +45,31 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 public class MultinodeXAIntegrationTest {
     private static final int THREADS = 5; // Number of worker threads
     private static final int RAMPUP_MS = 50 * 1000; // 50 seconds Ramp-up window in milliseconds
+    
+    // Retry configuration for connection-level failures
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 100; // Initial delay between retries
+    
+    // Test failure thresholds
+    // Total failures can be higher due to session invalidation when servers restart
+    // Session invalidation is a consequence of server failure and is expected during testing
+    private static final int MAX_TOTAL_FAILURES = 50;
+    // Non-connectivity failures should be zero - all failures should be connectivity-related
+    // (including session invalidation, which is caused by server unavailability)
+    private static final int MAX_NON_CONNECTIVITY_FAILURES = 0;
 
     protected static boolean isTestDisabled;
     private static Queue<Long> queryDurations = new ConcurrentLinkedQueue<>();
     private static AtomicInteger totalQueries = new AtomicInteger(0);
     private static AtomicInteger totalFailedQueries = new AtomicInteger(0);
-    private static AtomicInteger nonConnectivityFailedQueries = new AtomicInteger(0);
-    private static ExecutorService queryExecutor = new RoundRobinExecutorService(100);
+    private static final AtomicInteger nonConnectivityFailedQueries = new AtomicInteger(0);
+    private static final ExecutorService queryExecutor = new RoundRobinExecutorService(100);
+    private static MultinodeTestHelper testHelper;
 
     private static OjpXADataSource xaDataSource;
 
     @BeforeAll
-    public static void checkTestConfiguration() {
+    static void checkTestConfiguration() {
         // Check both system property and environment variable
         boolean sysPropEnabled = Boolean.parseBoolean(System.getProperty("multinodeXATestsEnabled", "false"));
         boolean envVarEnabled = Boolean.parseBoolean(System.getenv("MULTINODE_XA_TESTS_ENABLED"));
@@ -67,12 +81,13 @@ public class MultinodeXAIntegrationTest {
         queryDurations = new ConcurrentLinkedQueue<>();
         totalQueries = new AtomicInteger(0);
         totalFailedQueries = new AtomicInteger(0);
+        testHelper = new MultinodeTestHelper(totalFailedQueries, nonConnectivityFailedQueries);
     }
 
     @SneakyThrows
     @ParameterizedTest
     @CsvFileSource(resources = "/multinode_connection.csv")
-    public void runTests(String driverClass, String url, String user, String password) throws SQLException {
+    void runTests(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "Multinode tests are disabled");
 
         this.setUp();
@@ -190,10 +205,12 @@ public class MultinodeXAIntegrationTest {
         System.out.println("Total query failures: " + numTotalFailures);
         System.out.println("Total non-connectivity-related failures: " + numNonConnectivityFailures);
         //Assertions.assertEquals(2160, numQueries);
-        Assertions.assertTrue(numTotalFailures < 50, "Expected fewer than 50 failures, but got: " + numTotalFailures);
-        Assertions.assertTrue(numNonConnectivityFailures <= 5, "Expected maximum 5 failures not related to connectivity, but got: " + numNonConnectivityFailures);
-        Assertions.assertTrue(totalTimeMs < 180000, "Total test time too high: " + totalTimeMs + " ms");
-        Assertions.assertTrue(avgQueryMs < 1000.0, "Average query time too high: " + avgQueryMs + " ms");
+        assertTrue(numTotalFailures < MAX_TOTAL_FAILURES,
+            "Expected fewer than " + MAX_TOTAL_FAILURES + " total failures, but got: " + numTotalFailures);
+        assertEquals(MAX_NON_CONNECTIVITY_FAILURES, numNonConnectivityFailures,
+            "Expected " + MAX_NON_CONNECTIVITY_FAILURES + " non-connectivity failures (session invalidation is connectivity-related), but got: " + numNonConnectivityFailures);
+        assertTrue(totalTimeMs < 180000, "Total test time too high: " + totalTimeMs + " ms");
+        assertTrue(avgQueryMs < 1000.0, "Average query time too high: " + avgQueryMs + " ms");
     }
 
     @SneakyThrows
@@ -201,12 +218,44 @@ public class MultinodeXAIntegrationTest {
         // Run each query in its own thread to better test multinode balancing
         CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
             long start = System.nanoTime();
-            try {
-                query.call();
-            } catch (Exception e) {
-                incrementFailures(e);
-                System.err.println("Query failed: " + e.getMessage() + " \n " + ExceptionUtils.getStackTrace(e));
+            Exception lastException = null;
+            boolean succeeded = false;
+            
+            // Retry logic for connection-level errors
+            for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    query.call();
+                    succeeded = true;
+                    break; // Success - exit retry loop
+                } catch (Exception e) {
+                    lastException = e;
+                    
+                    // Check if this is a connection-level error that should be retried
+                    if (GrpcExceptionHandler.isConnectionLevelError(e) && attempt < MAX_RETRIES) {
+                        // Connection-level error - retry after delay with exponential backoff
+                        long delayMs = (long) (RETRY_DELAY_MS * Math.pow(2, attempt));
+                        log.debug("Connection-level error on attempt {}, retrying after {}ms: {}", 
+                            attempt + 1, delayMs, e.getMessage());
+                        try {
+                            Thread.sleep(delayMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break; // Exit retry loop if interrupted
+                        }
+                    } else {
+                        // Either not a connection-level error, or we've exhausted retries
+                        break;
+                    }
+                }
             }
+            
+            // If we didn't succeed after retries, count it as a failure
+            if (!succeeded && lastException != null) {
+                incrementFailures(lastException);
+                System.err.println("Query failed after " + (MAX_RETRIES + 1) + " attempts: " + 
+                    lastException.getMessage() + " \n " + ExceptionUtils.getStackTrace(lastException));
+            }
+            
             long end = System.nanoTime();
             queryDurations.add(end - start);
             totalQueries.incrementAndGet();
@@ -1268,10 +1317,6 @@ public class MultinodeXAIntegrationTest {
     }
 
     private static void incrementFailures(Exception e) {
-        totalFailedQueries.incrementAndGet();
-        if (!(e instanceof StatusRuntimeException && e.getMessage().contains("UNAVAILABLE"))) {
-            //Errors non related to the fact that a node is down
-            nonConnectivityFailedQueries.incrementAndGet();
-        }
+        testHelper.incrementFailures(e);
     }
 }
