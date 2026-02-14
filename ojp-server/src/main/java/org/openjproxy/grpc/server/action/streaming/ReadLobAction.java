@@ -169,7 +169,7 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
      *
      * @param nextBlock the block to trim (must not be {@code null})
      * @return a new array containing the bytes up to the last non-zero byte
-     * (inclusive)
+     *         (inclusive)
      */
     private byte[] trim(byte[] nextBlock) {
         int lastBytePos = 0;
@@ -209,8 +209,8 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
      * @param request the read request containing the LOB reference, position and
      *                length
      * @return a context containing the resolved input stream and any known length
-     * metadata; the input stream may be
-     * {@code null} if the LOB cannot be resolved
+     *         metadata; the input stream may be
+     *         {@code null} if the LOB cannot be resolved
      * @throws SQLException if the LOB cannot be accessed via the JDBC driver
      */
     @SneakyThrows
@@ -249,6 +249,14 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
                 inputStream = this.inputStreamFromClob(sessionManager, lobReference, request, readLobContextBuilder);
                 break;
             }
+            case LT_CHARACTER_STREAM:
+            case LT_ASCII_STREAM:
+            case LT_UNICODE_STREAM:
+            case UNRECOGNIZED:
+            default: {
+                log.warn("LobType {} not supported for reading yet", request.getLobReference().getLobType());
+                break;
+            }
         }
         readLobContextBuilder.inputStream(inputStream);
 
@@ -274,12 +282,12 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
      * @param readLobContextBuilder builder updated with LOB length and computed
      *                              available length
      * @return an {@link InputStream} reading the requested clob range as UTF-8
-     * bytes
+     *         bytes
      */
     @SneakyThrows
     private InputStream inputStreamFromClob(SessionManager sessionManager, LobReference lobReference,
-                                            ReadLobRequest request,
-                                            StatementServiceImpl.ReadLobContext.ReadLobContextBuilder readLobContextBuilder) {
+            ReadLobRequest request,
+            StatementServiceImpl.ReadLobContext.ReadLobContextBuilder readLobContextBuilder) {
         Clob clob = sessionManager.getLob(lobReference.getSession(), lobReference.getUuid());
         long lobLength = clob.length();
         readLobContextBuilder.lobLength(Optional.of(lobLength));
@@ -314,8 +322,8 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
      */
     @SneakyThrows
     private InputStream inputStreamFromBlob(SessionManager sessionManager, LobReference lobReference,
-                                            ReadLobRequest request,
-                                            StatementServiceImpl.ReadLobContext.ReadLobContextBuilder readLobContextBuilder) {
+            ReadLobRequest request,
+            StatementServiceImpl.ReadLobContext.ReadLobContextBuilder readLobContextBuilder) {
         Blob blob = sessionManager.getLob(lobReference.getSession(), lobReference.getUuid());
         long lobLength = blob.length();
         readLobContextBuilder.lobLength(Optional.of(lobLength));
@@ -345,7 +353,7 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
      * @param position       the current read position (1-based) used to compute the
      *                       next block boundary
      * @return the number of bytes to read for the next block; may be {@code 0} when
-     * no further bytes are needed
+     *         no further bytes are needed
      */
     private int nextBlockSize(StatementServiceImpl.ReadLobContext readLobContext, long position) {
 

@@ -61,9 +61,9 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
             sendSQLExceptionMetadata(e, responseObserver);
         } catch (Exception e) {
             log.error("Unexpected failure during query execution: " + e.getMessage(), e);
-            if (e.getCause() instanceof SQLException) {
-                context.getCircuitBreaker().onFailure(stmtHash, (SQLException) e.getCause());
-                sendSQLExceptionMetadata((SQLException) e.getCause(), responseObserver);
+            if (e.getCause() instanceof SQLException sqlException) {
+                context.getCircuitBreaker().onFailure(stmtHash, sqlException);
+                sendSQLExceptionMetadata(sqlException, responseObserver);
             } else {
                 SQLException sqlException = new SQLException("Unexpected error: " + e.getMessage(), e);
                 context.getCircuitBreaker().onFailure(stmtHash, sqlException);

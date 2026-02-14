@@ -72,6 +72,36 @@ public class ExecuteQueryInternalAction
 
         String sql = request.getSql();
         if (context.getSqlEnhancerEngine().isEnabled()) {
+            // Ensure schema is loaded before enhancement (on-demand, only once)
+            try {
+                // Get the DataSource for this connection
+                String dsKey = dto.getSession().getConnHash();
+                javax.sql.DataSource dataSource = context.getDatasourceMap().get(dsKey);
+
+                if (dataSource != null) {
+                    // Get catalog and schema from the connection
+                    java.sql.Connection connection = dto.getConnection();
+                    String catalogName = connection.getCatalog();
+                    String schemaName = connection.getSchema();
+
+                    // PostgreSQL: Use "public" schema if schema name is null or empty
+                    // This ensures tables created in the default schema are visible to Calcite
+                    if ((schemaName == null || schemaName.isEmpty()) &&
+                            connection.getMetaData().getDatabaseProductName().equalsIgnoreCase("PostgreSQL")) {
+                        schemaName = "public";
+                        log.debug("Using default PostgreSQL 'public' schema for schema loading");
+                    }
+
+                    // Ensure schema is loaded (thread-safe, idempotent)
+                    context.getSqlEnhancerEngine().ensureSchemaLoaded(dataSource, catalogName, schemaName);
+                } else {
+                    log.debug("No DataSource found for connection hash: {}", dsKey);
+                }
+            } catch (Exception e) {
+                // Log but don't fail - enhancement can proceed without schema
+                log.warn("Failed to ensure schema loaded: {}", e.getMessage());
+            }
+
             SqlEnhancementResult result = context.getSqlEnhancerEngine().enhance(request.getSql());
             sql = result.getEnhancedSql();
 
