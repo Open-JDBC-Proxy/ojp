@@ -2,9 +2,28 @@
 
 This directory contains technical analysis documents for various OJP features and decisions.
 
-## Latest Analysis (January 2026)
+## Latest Analysis (February 2026)
 
-### 🆕 Agroal Connection Pool Evaluation
+### 🆕 Apache ShardingSphere Integration Analysis
+
+**Question:** Should OJP integrate Apache ShardingSphere to enhance its database proxy capabilities?
+
+**Quick Answer:** NO - Implement specific features natively instead.
+
+**Documents:**
+- **Full Analysis**: [APACHE_SHARDINGSPHERE_INTEGRATION_ANALYSIS.md](./APACHE_SHARDINGSPHERE_INTEGRATION_ANALYSIS.md) - 30 min read
+  - Comprehensive evaluation of integration approaches
+  - Benefits, challenges, and strategic alignment analysis
+  - Comparison of 4 different approaches
+  - Detailed recommendations and alternatives
+
+**Key Takeaway:** ShardingSphere is powerful but has different strategic goals than OJP. Instead of full integration, OJP should implement specific high-value features natively (like read/write splitting) while providing integration guides for users who need advanced sharding capabilities.
+
+---
+
+## Previous Analysis (January 2026)
+
+### Agroal Connection Pool Evaluation
 
 **Question:** Should OJP replace Apache Commons Pool 2 with Agroal for XA connection pooling?
 
