@@ -184,31 +184,35 @@ OJP Server supports multiple connection pool implementations:
 - **Apache DBCP** (alternative for non-XA connections) - Traditional pooling implementation  
 - **Custom XA Implementation** (for XA transactions) - Uses Apache Commons Pool 2 for backend session pooling (see Chapter 10 for details)
 
-These pools run on the OJP Server side, but you configure them from the client side via the `ojp.properties` file in your application. This allows you to tune the server-side connection pool behavior without modifying server configuration files. For XA-specific pooling architecture, refer to Chapter 10 which explains the dual-condition lifecycle and backend session management.
+These pools run on the OJP Server side, but you configure them from the client side via configuration files (`ojp.yaml` or `ojp.properties`) in your application. This allows you to tune the server-side connection pool behavior without modifying server configuration files. For XA-specific pooling architecture, refer to Chapter 10 which explains the dual-condition lifecycle and backend session management.
 
 ### Configuration File Location
 
 **[IMAGE PROMPT 4]**: Create a file location diagram showing:
 - Classpath root (src/main/resources)
-- ojp.properties file
+- ojp.yaml or ojp.properties file
 - Application loading configuration
 - Multiple datasource configs in one file
 Use file system and classpath visualization
 Professional configuration management guide
 
-The `ojp.properties` file should be placed in your application's classpath root:
+Configuration files should be placed in your application's classpath root:
 
 ```
 src/
 └── main/
     └── resources/
-        └── ojp.properties   ← Place here
+        └── ojp.yaml   ← Recommended (or ojp.properties for backward compatibility)
 ```
 
 **Alternative locations**:
-- JAR root: `/ojp.properties` (inside the JAR)
-- Working directory: `./ojp.properties` (for quick testing)
-- Custom location: Use system property `-Dojp.config.file=/path/to/ojp.properties`
+- JAR root: `/ojp.yaml` (inside the JAR)
+- Working directory: `./ojp.yaml` (for quick testing)
+- Custom location: Use system property `-Dojp.config.file=/path/to/ojp.yaml`
+
+**Supported formats**:
+- **YAML** (`.yaml`, `.yml`) - Recommended for new applications
+- **Properties** (`.properties`) - Backward compatible with existing applications
 
 ### Basic Configuration
 
@@ -218,7 +222,38 @@ Side annotations explaining each property
 Use code editor style with syntax highlighting
 Professional configuration guide
 
-**Example `ojp.properties`**:
+**Example YAML configuration (`ojp.yaml`):**
+
+```yaml
+# Default DataSource Configuration
+# These settings apply when no datasource name is specified in the URL
+
+ojp:
+  connection:
+    pool:
+      # Maximum pool size - max concurrent connections
+      maximumPoolSize: 20
+      
+      # Minimum idle connections - kept ready for use
+      minimumIdle: 5
+      
+      # Connection timeout - max wait for connection (milliseconds)
+      connectionTimeout: 30000
+      
+      # Idle timeout - close unused connections after this time (milliseconds)
+      idleTimeout: 600000
+      
+      # Max lifetime - maximum time a connection can exist (milliseconds)
+      maxLifetime: 1800000
+      
+      # Connection test query (optional, auto-detected if not set)
+      connectionTestQuery: "SELECT 1"
+      
+      # Leak detection threshold - warn if connection held too long (milliseconds)
+      leakDetectionThreshold: 60000
+```
+
+**Or using properties format (`ojp.properties`):**
 
 ```properties
 # Default DataSource Configuration (backward compatible)
