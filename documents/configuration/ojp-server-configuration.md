@@ -1,10 +1,16 @@
 # OJP Server Complete Configuration Guide
 
-The OJP Server supports comprehensive configuration through both JVM system properties and environment variables. This document covers all available configuration options including server settings, connection pools, slow query segregation, and client-side configuration.
+The OJP Server supports comprehensive configuration through YAML files, properties files, JVM system properties, and environment variables. This document covers all available configuration options including server settings, connection pools, slow query segregation, and client-side configuration.
 
 ## Server Configuration
 
-The server supports configuration through both JVM system properties and environment variables. JVM system properties take precedence over environment variables when both are specified.
+The server supports multiple configuration methods with the following precedence (highest to lowest):
+1. **JVM system properties** (`-Dojp.server.port=1059`)
+2. **Environment variables** (`OJP_SERVER_PORT=1059`)
+3. **Configuration files** (YAML or properties format)
+4. **Default values**
+
+**Recommended**: Use YAML configuration files (`ojp.yaml` or `ojp-{environment}.yaml`) for modern deployments. Properties files (`ojp.properties`) are also supported for backward compatibility.
 
 ### Core Server Settings
 
@@ -31,7 +37,28 @@ OJP Server uses Logback for logging with fully configurable options. All logging
 
 #### Logging Configuration Examples
 
-**Basic logging configuration:**
+**Using YAML configuration file (recommended):**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    logLevel: DEBUG
+    log:
+      file: /var/log/ojp/server.log
+      maxHistory: 60
+      totalSizeCap: 5GB
+```
+
+**Using properties file (alternative):**
+```properties
+# ojp.properties
+ojp.server.logLevel=DEBUG
+ojp.server.log.file=/var/log/ojp/server.log
+ojp.server.log.maxHistory=60
+ojp.server.log.totalSizeCap=5GB
+```
+
+**Using JVM system properties (for Docker/startup scripts):**
 ```bash
 # Set log level to DEBUG
 -Dojp.server.logLevel=DEBUG
@@ -46,7 +73,19 @@ OJP Server uses Logback for logging with fully configurable options. All logging
 -Dojp.server.log.totalSizeCap=5GB
 ```
 
-**Production logging setup:**
+**Production logging setup with YAML:**
+```yaml
+# ojp-prod.yaml
+ojp:
+  server:
+    logLevel: INFO
+    log:
+      file: /var/log/ojp/server.log
+      maxHistory: 90
+      totalSizeCap: 10GB
+```
+
+Or using JVM properties:
 ```bash
 java -Dojp.server.logLevel=INFO \
      -Dojp.server.log.file=/var/log/ojp/server.log \
@@ -246,9 +285,64 @@ For JDBC driver and client-side connection pool configuration, see:
 
 ## Configuration Methods
 
-### 1. JVM System Properties
+### 1. YAML Configuration Files (Recommended)
 
-Set configuration using JVM system properties when starting the server:
+Create an `ojp.yaml` file in your classpath (e.g., `src/main/resources/` or mounted in Docker):
+
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    port: 8080
+    threadPoolSize: 100
+    allowedIps:
+      - 192.168.1.0/24
+      - 10.0.0.1
+    circuitBreakerTimeout: 120000
+    circuitBreakerThreshold: 3
+    slowQuerySegregation:
+      enabled: true
+      slowSlotPercentage: 25
+  
+  prometheus:
+    port: 9091
+  
+  opentelemetry:
+    enabled: false
+```
+
+**Environment-specific configuration** is also supported:
+- `ojp-dev.yaml` - Development settings
+- `ojp-prod.yaml` - Production settings
+- `ojp-staging.yaml` - Staging settings
+
+Specify the environment using:
+```bash
+java -Dojp.environment=prod -jar ojp-server.jar
+# or
+export OJP_ENVIRONMENT=prod
+```
+
+### 2. Properties Files (Alternative)
+
+For backward compatibility, you can use properties files:
+
+```properties
+# ojp.properties
+ojp.server.port=8080
+ojp.prometheus.port=9091
+ojp.opentelemetry.enabled=false
+ojp.server.threadPoolSize=100
+ojp.server.circuitBreakerTimeout=120000
+ojp.server.circuitBreakerThreshold=3
+ojp.server.slowQuerySegregation.enabled=true
+ojp.server.slowQuerySegregation.slowSlotPercentage=25
+ojp.server.allowedIps=192.168.1.0/24,10.0.0.1
+```
+
+### 3. JVM System Properties
+
+Override configuration using JVM system properties when starting the server:
 
 ```bash
 java -Dojp.server.port=8080 \
@@ -263,7 +357,7 @@ java -Dojp.server.port=8080 \
      -jar ojp-server.jar
 ```
 
-### 2. Environment Variables
+### 4. Environment Variables
 
 Set configuration using environment variables:
 
@@ -280,7 +374,25 @@ export OJP_SERVER_ALLOWEDIPS="192.168.1.0/24,10.0.0.1"
 java -jar ojp-server.jar
 ```
 
-### 3. Docker Environment Variables
+### 5. Docker with Configuration Files
+
+Mount a YAML or properties configuration file:
+
+```bash
+# Using YAML configuration file
+docker run -v /path/to/ojp.yaml:/app/resources/ojp.yaml \
+           -p 1059:1059 \
+           -p 9159:9159 \
+           rrobetti/ojp:latest
+
+# Using properties file
+docker run -v /path/to/ojp.properties:/app/resources/ojp.properties \
+           -p 1059:1059 \
+           -p 9159:9159 \
+           rrobetti/ojp:latest
+```
+
+### 6. Docker with Environment Variables
 
 ```bash
 docker run -e OJP_SERVER_PORT=8080 \
@@ -307,6 +419,43 @@ The server supports IP-based access control for both the gRPC server and Prometh
 
 ### Examples
 
+**Using YAML (recommended):**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    # Allow only specific IPs
+    allowedIps:
+      - 192.168.1.100
+      - 192.168.1.101
+    
+    # Or allow a subnet range
+    allowedIps:
+      - 192.168.1.0/24
+    
+    # Or allow multiple subnets and specific IPs
+    allowedIps:
+      - 192.168.1.0/24
+      - 10.0.0.0/8
+      - 127.0.0.1
+```
+
+**Using properties file:**
+```properties
+# Allow only specific IPs
+ojp.server.allowedIps=192.168.1.100,192.168.1.101
+
+# Allow a subnet range
+ojp.server.allowedIps=192.168.1.0/24
+
+# Allow multiple subnets and specific IPs
+ojp.server.allowedIps=192.168.1.0/24,10.0.0.0/8,127.0.0.1
+
+# Allow all (default)
+ojp.server.allowedIps=0.0.0.0/0
+```
+
+**Using JVM properties:**
 ```bash
 # Allow only specific IPs
 -Dojp.server.allowedIps="192.168.1.100,192.168.1.101"
@@ -325,6 +474,22 @@ The server supports IP-based access control for both the gRPC server and Prometh
 
 You can configure different IP restrictions for the Prometheus metrics endpoint:
 
+**Using YAML:**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    # Allow gRPC from internal network
+    allowedIps:
+      - 10.0.0.0/8
+  
+  prometheus:
+    # Prometheus from monitoring subnet only
+    allowedIps:
+      - 192.168.100.0/24
+```
+
+**Using JVM properties:**
 ```bash
 # Allow gRPC from internal network, Prometheus from monitoring subnet only
 -Dojp.server.allowedIps="10.0.0.0/8" \
