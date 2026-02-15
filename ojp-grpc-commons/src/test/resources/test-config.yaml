@@ -1,0 +1,19 @@
+ojp:
+  server:
+    port: 1059
+    threadPoolSize: 200
+    logLevel: INFO
+    circuitBreakerTimeout: 60000
+    circuitBreakerThreshold: 3
+    slowQuerySegregation:
+      enabled: true
+      slowSlotPercentage: 20
+      idleTimeout: 10000
+      slowSlotTimeout: 120000
+      fastSlotTimeout: 60000
+  prometheus:
+    port: 9159
+  opentelemetry:
+    enabled: true
+  grpc:
+    maxInboundMessageSize: 16777216

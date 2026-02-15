@@ -1,5 +1,6 @@
 package org.openjproxy.grpc.server;
 
+import org.openjproxy.config.ConfigurationLoader;
 import org.openjproxy.constants.CommonConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,13 +8,22 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 
 /**
- * Configuration class for the OJP Server that loads settings from JVM arguments and environment variables.
- * JVM arguments take precedence over environment variables.
+ * Configuration class for the OJP Server that loads settings from YAML/Properties files,
+ * JVM arguments, and environment variables.
+ * 
+ * Configuration precedence (highest to lowest):
+ * 1. JVM system properties (-Dkey=value)
+ * 2. Environment variables
+ * 3. Configuration files (YAML or Properties)
  */
 public class ServerConfiguration {
     private static final Logger logger = LoggerFactory.getLogger(ServerConfiguration.class);
+    
+    // Load configuration from files once during class initialization
+    private static final Properties fileProperties = ConfigurationLoader.loadConfiguration();
 
     // Configuration keys
     private static final String SERVER_PORT_KEY = "ojp.server.port";
@@ -234,7 +244,11 @@ public class ServerConfiguration {
     }
 
     /**
-     * Gets a string property value. JVM system properties take precedence over environment variables.
+     * Gets a string property value with the following precedence:
+     * 1. JVM system properties
+     * 2. Environment variables
+     * 3. Configuration file (YAML or Properties)
+     * 4. Default value
      */
     private String getStringProperty(String key, String defaultValue) {
         // First check JVM system properties
@@ -250,6 +264,15 @@ public class ServerConfiguration {
         if (value != null) {
             logger.debug("Using environment variable {}={}", envKey, value);
             return value;
+        }
+        
+        // Then check configuration file
+        if (fileProperties != null) {
+            value = fileProperties.getProperty(key);
+            if (value != null) {
+                logger.debug("Using file property {}={}", key, value);
+                return value;
+            }
         }
 
         logger.debug("Using default value for {}: {}", key, defaultValue);
