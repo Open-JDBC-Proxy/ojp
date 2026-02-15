@@ -67,11 +67,24 @@ OJP session timeouts complement the existing connection pool timeouts:
 
 ## Configuration
 
-### Server Configuration Properties
+### Server Configuration
 
-Configure session cleanup using JVM system properties or environment variables:
+Configure session cleanup using YAML, properties files, JVM system properties, or environment variables:
 
+**Using YAML configuration file (recommended):**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    sessionCleanup:
+      enabled: true  # Enable/disable session cleanup (default: true)
+      timeoutMinutes: 30  # Session timeout in minutes (default: 30)
+      intervalMinutes: 5  # Cleanup task interval in minutes (default: 5)
+```
+
+**Using properties file (alternative):**
 ```properties
+# ojp.properties
 # Enable/disable session cleanup (default: true)
 ojp.server.sessionCleanup.enabled=true
 
@@ -163,6 +176,20 @@ ERROR o.o.grpc.server.SessionCleanupTask - Unexpected error during session clean
 
 For production environments:
 
+**Using YAML:**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    sessionCleanup:
+      # Match or slightly exceed connection pool maxLifetime
+      timeoutMinutes: 30
+      # Run cleanup frequently enough to catch abandoned sessions quickly
+      # but not so frequently that it impacts performance
+      intervalMinutes: 5
+```
+
+**Or using properties:**
 ```properties
 # Match or slightly exceed connection pool maxLifetime
 ojp.server.sessionCleanup.timeoutMinutes=30
@@ -176,6 +203,16 @@ ojp.server.sessionCleanup.intervalMinutes=5
 
 For high-traffic environments with many short-lived sessions:
 
+**Using YAML:**
+```yaml
+ojp:
+  server:
+    sessionCleanup:
+      timeoutMinutes: 15  # Shorter timeout for faster cleanup
+      intervalMinutes: 2  # More frequent cleanup
+```
+
+**Or using properties:**
 ```properties
 # Shorter timeout for faster cleanup
 ojp.server.sessionCleanup.timeoutMinutes=15
@@ -188,6 +225,16 @@ ojp.server.sessionCleanup.intervalMinutes=2
 
 For low-traffic environments or development:
 
+**Using YAML:**
+```yaml
+ojp:
+  server:
+    sessionCleanup:
+      timeoutMinutes: 60  # Longer timeout
+      intervalMinutes: 10  # Less frequent cleanup
+```
+
+**Or using properties:**
 ```properties
 # Longer timeout
 ojp.server.sessionCleanup.timeoutMinutes=60
@@ -200,6 +247,16 @@ ojp.server.sessionCleanup.intervalMinutes=10
 
 If your application performs long-running operations (>30 minutes):
 
+**Using YAML:**
+```yaml
+ojp:
+  server:
+    sessionCleanup:
+      timeoutMinutes: 120  # Increase timeout to accommodate long operations
+      intervalMinutes: 15  # Adjust interval accordingly
+```
+
+**Or using properties:**
 ```properties
 # Increase timeout to accommodate long operations
 ojp.server.sessionCleanup.timeoutMinutes=120
