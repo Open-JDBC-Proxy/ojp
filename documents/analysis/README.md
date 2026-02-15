@@ -11,6 +11,12 @@ This directory contains technical analysis documents for various OJP features an
 **Quick Answer:** NO - Implement specific features natively instead.
 
 **Documents:**
+- **Executive Summary**: [APACHE_SHARDINGSPHERE_INTEGRATION_SUMMARY.md](./APACHE_SHARDINGSPHERE_INTEGRATION_SUMMARY.md) - 5 min read
+  - Quick decision reference
+  - Key findings and recommendation
+  - Implementation roadmap
+  - Q&A section
+  
 - **Full Analysis**: [APACHE_SHARDINGSPHERE_INTEGRATION_ANALYSIS.md](./APACHE_SHARDINGSPHERE_INTEGRATION_ANALYSIS.md) - 30 min read
   - Comprehensive evaluation of integration approaches
   - Benefits, challenges, and strategic alignment analysis
