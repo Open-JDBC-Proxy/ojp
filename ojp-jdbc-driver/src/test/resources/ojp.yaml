@@ -1,0 +1,30 @@
+# Test ojp.yaml file
+ojp:
+  connection:
+    pool:
+      maximumPoolSize: 30
+      minimumIdle: 2
+      idleTimeout: 2000
+      maxLifetime: 1200000
+      connectionTimeout: 20000
+
+# Multinode-specific configuration for non-XA connections
+multinode:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 22
+        minimumIdle: 20
+        idleTimeout: 2000
+        maxLifetime: 1200000
+        connectionTimeout: 20000
+    
+    # Multinode-specific configuration for XA connections (separate from non-XA)
+    xa:
+      connection:
+        pool:
+          maximumPoolSize: 22
+          minimumIdle: 20
+          idleTimeout: 2000
+          maxLifetime: 1200000
+          connectionTimeout: 20000

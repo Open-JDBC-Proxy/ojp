@@ -1,0 +1,25 @@
+# Test environment-specific YAML file (ojp-test.yaml)
+# This file is used by DatasourcePropertiesLoaderEnvironmentTest
+
+# Marker property to verify environment-specific loading
+test:
+  environment:
+    marker: test-environment
+
+ojp:
+  connection:
+    pool:
+      # Test environment pool configuration
+      maximumPoolSize: 15
+      minimumIdle: 3
+      idleTimeout: 3000
+      maxLifetime: 900000
+      connectionTimeout: 15000
+  
+  # Test environment XA pool configuration
+  xa:
+    connection:
+      pool:
+        maxTotal: 10
+        minIdle: 2
+        connectionTimeout: 15000
