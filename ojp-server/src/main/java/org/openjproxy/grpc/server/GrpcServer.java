@@ -20,13 +20,24 @@ import java.util.concurrent.TimeUnit;
 public class GrpcServer {
     private static final Logger logger = LoggerFactory.getLogger(GrpcServer.class);
 
+    private Server server;
+    private ScheduledExecutorService sessionCleanupExecutor;
+    private StatementServiceImpl statementService;
+    private SessionManagerImpl sessionManager;
+
     public static void main(String[] args) throws IOException, InterruptedException {
+        GrpcServer grpcServer = new GrpcServer();
+        grpcServer.start();
+        grpcServer.blockUntilShutdown();
+    }
+
+    public void start() throws IOException {
         // Initialize health status manager
         OjpHealthManager.initialize();
 
         // Load configuration
         ServerConfiguration config = new ServerConfiguration();
-        
+
         // Load external JDBC drivers from configured directory
         logger.info("Loading external JDBC drivers...");
         boolean driversLoaded = DriverLoader.loadDriversFromPath(config.getDriversPath());
@@ -34,10 +45,8 @@ public class GrpcServer {
             logger.warn("Failed to load external libraries from path: {}", config.getDriversPath());
             logger.warn("Server will continue, but proprietary drivers may not be available");
         }
-        
         // Register JDBC drivers (both built-in and externally loaded)
         DriverUtils.registerDrivers(config.getDriversPath());
-        
         // Validate IP whitelist for server
         if (!IpWhitelistValidator.validateWhitelistRules(config.getAllowedIps())) {
             logger.error("Invalid IP whitelist configuration for server. Exiting.");
@@ -47,12 +56,10 @@ public class GrpcServer {
         // Initialize telemetry based on configuration
         OjpServerTelemetry ojpServerTelemetry = new OjpServerTelemetry();
         GrpcTelemetry grpcTelemetry;
-        
+
         if (config.isOpenTelemetryEnabled()) {
             grpcTelemetry = ojpServerTelemetry.createGrpcTelemetry(
-                config.getPrometheusPort(), 
-                config.getPrometheusAllowedIps()
-            );
+                    config.getPrometheusPort(),config.getPrometheusAllowedIps());
 
             OjpHealthManager.setServiceStatus(OjpHealthManager.Services.OPENTELEMETRY_SERVICE,
                     HealthCheckResponse.ServingStatus.SERVING);
@@ -61,23 +68,21 @@ public class GrpcServer {
         }
 
         // Build server with configuration
-        SessionManagerImpl sessionManager = new SessionManagerImpl();
-        final StatementServiceImpl statementService = new StatementServiceImpl(
+        this.sessionManager = new SessionManagerImpl();
+        this.statementService = new StatementServiceImpl(
                 sessionManager,
-                new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
-                config
-        );
-        
+                new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),config);
+
         NettyServerBuilder serverBuilder = NettyServerBuilder
                 .forPort(config.getServerPort())
                 .executor(Executors.newFixedThreadPool(config.getThreadPoolSize()))
                 .maxInboundMessageSize(config.getMaxRequestSize())
                 .keepAliveTime(config.getConnectionIdleTimeout(), TimeUnit.MILLISECONDS)
-                .addService(statementService)
+                .addService(this.statementService)
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
                 .intercept(new IpWhitelistingInterceptor(config.getAllowedIps()))
                 .intercept(grpcTelemetry.newServerInterceptor());
-        
+
         // Configure TLS if enabled
         if (config.isTlsEnabled()) {
             try {
@@ -92,70 +97,74 @@ public class GrpcServer {
             logger.info("TLS not enabled - using plaintext communication");
         }
 
-        Server server = serverBuilder.build();
+        this.server = serverBuilder.build();
 
         logger.info("Starting OJP gRPC Server on port {}", config.getServerPort());
         logger.info("Server configuration applied successfully");
-        
+
         // Initialize session cleanup task if enabled
-        ScheduledExecutorService sessionCleanupExecutor = null;
         if (config.isSessionCleanupEnabled()) {
-            logger.info("Initializing session cleanup task: timeout={}min, interval={}min", 
+            logger.info("Initializing session cleanup task: timeout={}min, interval={}min",
                     config.getSessionTimeoutMinutes(), config.getSessionCleanupIntervalMinutes());
-            
-            sessionCleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+
+            this.sessionCleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread thread = new Thread(r, "ojp-session-cleanup");
                 thread.setDaemon(true);
                 return thread;
             });
-            
+
             long timeoutMillis = config.getSessionTimeoutMinutes() * 60 * 1000;
             long intervalMillis = config.getSessionCleanupIntervalMinutes() * 60 * 1000;
-            
+
             SessionCleanupTask cleanupTask = new SessionCleanupTask(sessionManager, timeoutMillis);
-            sessionCleanupExecutor.scheduleAtFixedRate(
-                    cleanupTask, 
+            this.sessionCleanupExecutor.scheduleAtFixedRate(
+                    cleanupTask,
                     intervalMillis, // Initial delay
                     intervalMillis, // Period
-                    TimeUnit.MILLISECONDS
-            );
-            
+                    TimeUnit.MILLISECONDS);
+
             logger.info("Session cleanup task started successfully");
         } else {
             logger.info("Session cleanup is disabled");
         }
-        
-        server.start();
+
+        this.server.start();
         OjpHealthManager.setServiceStatus(OjpHealthManager.Services.OJP_SERVER,
                 HealthCheckResponse.ServingStatus.SERVING);
-        
+
         // Add shutdown hook
-        ScheduledExecutorService finalSessionCleanupExecutor = sessionCleanupExecutor;
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            logger.info("Shutting down OJP gRPC Server...");
-            
-            // Shutdown SQL enhancer engine first
+        Runtime.getRuntime().addShutdownHook(new Thread(this::stop));
+
+        logger.info("OJP gRPC Server started successfully");
+    }
+
+    public void stop() {
+        logger.info("Shutting down OJP gRPC Server...");
+
+        // Shutdown SQL enhancer engine first
+        if (statementService != null) {
             logger.info("Shutting down SQL enhancer engine...");
             statementService.shutdown();
-            
-            // Shutdown session cleanup task
-            if (finalSessionCleanupExecutor != null) {
-                logger.info("Shutting down session cleanup executor...");
-                finalSessionCleanupExecutor.shutdown();
-                try {
-                    if (!finalSessionCleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                        logger.warn("Session cleanup executor did not terminate gracefully");
-                        finalSessionCleanupExecutor.shutdownNow();
-                    }
-                } catch (InterruptedException e) {
-                    logger.warn("Interrupted while waiting for session cleanup shutdown");
-                    finalSessionCleanupExecutor.shutdownNow();
-                    Thread.currentThread().interrupt();
-                }
-            }
-            
-            server.shutdown();
+        }
 
+        // Shutdown session cleanup task
+        if (sessionCleanupExecutor != null) {
+            logger.info("Shutting down session cleanup executor...");
+            sessionCleanupExecutor.shutdown();
+            try {
+                if (!sessionCleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    logger.warn("Session cleanup executor did not terminate gracefully");
+                    sessionCleanupExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                logger.warn("Interrupted while waiting for session cleanup shutdown");
+                sessionCleanupExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        if (server != null) {
+            server.shutdown();
             try {
                 if (!server.awaitTermination(30, TimeUnit.SECONDS)) {
                     logger.warn("Server did not terminate gracefully, forcing shutdown");
@@ -166,36 +175,37 @@ public class GrpcServer {
                 server.shutdownNow();
                 Thread.currentThread().interrupt();
             }
-            
-            logger.info("OJP gRPC Server shutdown complete");
-        }));
+        }
 
-        logger.info("OJP gRPC Server started successfully and awaiting termination");
-        server.awaitTermination();
+        logger.info("OJP gRPC Server shutdown complete");
     }
-    
+
+    public void blockUntilShutdown() throws InterruptedException {
+        if (server != null) {
+            server.awaitTermination();
+        }
+    }
+
     /**
      * Configures TLS/mTLS for the gRPC server.
      * 
      * @param serverBuilder The NettyServerBuilder to configure
-     * @param config Server configuration containing TLS settings
+     * @param config        Server configuration containing TLS settings
      * @throws TlsConfigurationException if TLS configuration fails
      */
-    private static void configureTls(NettyServerBuilder serverBuilder, ServerConfiguration config) 
+    private static void configureTls(NettyServerBuilder serverBuilder, ServerConfiguration config)
             throws TlsConfigurationException {
         try {
             // Load keystore and extract certificate and key
             java.security.KeyStore keyStore = loadKeyStore(config);
-            
+
             // Build SSL context using Netty's builder
-            io.netty.handler.ssl.SslContextBuilder sslContextBuilder = 
-                io.netty.handler.ssl.SslContextBuilder.forServer(
-                    extractKeyManagerFactory(keyStore, config.getTlsKeystorePassword())
-                );
-            
+            io.netty.handler.ssl.SslContextBuilder sslContextBuilder = io.netty.handler.ssl.SslContextBuilder.forServer(
+                    extractKeyManagerFactory(keyStore, config.getTlsKeystorePassword()));
+
             // Apply gRPC-specific SSL settings
             sslContextBuilder = io.grpc.netty.GrpcSslContexts.configure(sslContextBuilder);
-            
+
             // Configure client authentication (mTLS) if required
             if (config.isTlsClientAuthRequired()) {
                 logger.info("mTLS (mutual TLS) enabled - client certificates required");
@@ -212,7 +222,7 @@ public class GrpcServer {
                     sslContextBuilder.clientAuth(io.netty.handler.ssl.ClientAuth.OPTIONAL);
                 }
             }
-            
+
             io.netty.handler.ssl.SslContext sslContext = sslContextBuilder.build();
             serverBuilder.sslContext(sslContext);
         } catch (TlsConfigurationException e) {
@@ -221,7 +231,7 @@ public class GrpcServer {
             throw new TlsConfigurationException("Failed to configure TLS for gRPC server", e);
         }
     }
-    
+
     /**
      * Loads the keystore containing server certificate and private key.
      * 
@@ -234,19 +244,20 @@ public class GrpcServer {
             throw new TlsConfigurationException("TLS is enabled but keystore path is not configured. " +
                     "Set ojp.server.tls.keystore.path property.");
         }
-        
+
         try {
             java.security.KeyStore keyStore = java.security.KeyStore.getInstance(config.getTlsKeystoreType());
-            try (java.io.FileInputStream fis = new java.io.FileInputStream(new java.io.File(config.getTlsKeystorePath()))) {
-                keyStore.load(fis, config.getTlsKeystorePassword() != null ? 
-                    config.getTlsKeystorePassword().toCharArray() : null);
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(
+                    new java.io.File(config.getTlsKeystorePath()))) {
+                keyStore.load(fis,
+                        config.getTlsKeystorePassword() != null ? config.getTlsKeystorePassword().toCharArray() : null);
             }
             return keyStore;
         } catch (Exception e) {
             throw new TlsConfigurationException("Failed to load keystore from: " + config.getTlsKeystorePath(), e);
         }
     }
-    
+
     /**
      * Creates a KeyManagerFactory from the keystore.
      * 
@@ -258,15 +269,15 @@ public class GrpcServer {
     private static javax.net.ssl.KeyManagerFactory extractKeyManagerFactory(
             java.security.KeyStore keyStore, String password) throws TlsConfigurationException {
         try {
-            javax.net.ssl.KeyManagerFactory keyManagerFactory = 
-                javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+            javax.net.ssl.KeyManagerFactory keyManagerFactory = javax.net.ssl.KeyManagerFactory
+                    .getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
             keyManagerFactory.init(keyStore, password != null ? password.toCharArray() : null);
             return keyManagerFactory;
         } catch (Exception e) {
             throw new TlsConfigurationException("Failed to create KeyManagerFactory from keystore", e);
         }
     }
-    
+
     /**
      * Loads the trust manager for client certificate verification.
      * 
@@ -274,31 +285,34 @@ public class GrpcServer {
      * @return TrustManagerFactory for client certificate verification
      * @throws TlsConfigurationException if truststore cannot be loaded
      */
-    private static javax.net.ssl.TrustManagerFactory loadTrustManager(ServerConfiguration config) 
+    private static javax.net.ssl.TrustManagerFactory loadTrustManager(ServerConfiguration config)
             throws TlsConfigurationException {
         try {
             if (config.getTlsTruststorePath() == null || config.getTlsTruststorePath().trim().isEmpty()) {
                 logger.info("No truststore path configured, using JVM default truststore");
                 // Return default trust manager factory
-                javax.net.ssl.TrustManagerFactory trustManagerFactory = 
-                    javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+                javax.net.ssl.TrustManagerFactory trustManagerFactory = javax.net.ssl.TrustManagerFactory
+                        .getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
                 trustManagerFactory.init((java.security.KeyStore) null);
                 return trustManagerFactory;
             }
-            
+
             java.security.KeyStore trustStore = java.security.KeyStore.getInstance(config.getTlsTruststoreType());
-            try (java.io.FileInputStream fis = new java.io.FileInputStream(new java.io.File(config.getTlsTruststorePath()))) {
-                trustStore.load(fis, config.getTlsTruststorePassword() != null ? 
-                    config.getTlsTruststorePassword().toCharArray() : null);
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(
+                    new java.io.File(config.getTlsTruststorePath()))) {
+                trustStore.load(fis,
+                        config.getTlsTruststorePassword() != null ? config.getTlsTruststorePassword().toCharArray()
+                                : null);
             }
-            
-            javax.net.ssl.TrustManagerFactory trustManagerFactory = 
-                javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+
+            javax.net.ssl.TrustManagerFactory trustManagerFactory = javax.net.ssl.TrustManagerFactory
+                    .getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
             trustManagerFactory.init(trustStore);
-            
+
             return trustManagerFactory;
         } catch (Exception e) {
-            throw new TlsConfigurationException("Failed to load trust manager from: " + config.getTlsTruststorePath(), e);
+            throw new TlsConfigurationException("Failed to load trust manager from: " + config.getTlsTruststorePath(),
+                    e);
         }
     }
 }

@@ -21,21 +21,24 @@ import static org.openjproxy.grpc.server.OjpHealthManager.Services;
 
 /**
  * Integration test for the complete GrpcServer health status functionality.
- * This test verifies that the health endpoints work correctly with the actual server implementation.
+ * This test verifies that the health endpoints work correctly with the actual
+ * server implementation.
  */
 class GrpcServerHealthTest {
     private static final Logger logger = LoggerFactory.getLogger(GrpcServerHealthTest.class);
     private static final int TEN = 10;
     private static final int ONE_THOUSAND = 1000;
 
-    private static ExecutorService virtualThreadExecutor;
+    private ExecutorService virtualThreadExecutor;
     private ManagedChannel channel;
     private HealthGrpc.HealthBlockingStub healthStub;
+    private GrpcServer grpcServer;
+    private int testPort;
 
-	@BeforeEach
+    @BeforeEach
     void setUp() {
-		int testPort = findAvailablePort();
-        int testPrometheusPort = testPort;
+        testPort = findAvailablePort();
+        int testPrometheusPort = findAvailablePort();
         while (testPrometheusPort == testPort) {
             testPrometheusPort = findAvailablePort();
         }
@@ -45,7 +48,6 @@ class GrpcServerHealthTest {
 
         // Create client channel
         channel = GrpcChannelFactory.createChannel("localhost", testPort);
-
         // Create health check stub
         healthStub = HealthGrpc.newBlockingStub(channel);
     }
@@ -57,15 +59,17 @@ class GrpcServerHealthTest {
             channel.awaitTermination(1, TimeUnit.SECONDS);
         }
 
-        System.clearProperty("ojp.server.port");
-        System.clearProperty("ojp.opentelemetry.enabled");
-    }
+        if (grpcServer != null) {
+            grpcServer.stop();
+        }
 
-    @AfterAll
-    static void cleanUp() {
         if (virtualThreadExecutor != null) {
             virtualThreadExecutor.shutdownNow();
         }
+
+        System.clearProperty("ojp.server.port");
+        System.clearProperty("ojp.prometheus.port");
+        System.clearProperty("ojp.opentelemetry.enabled");
     }
 
     @Test
@@ -91,8 +95,8 @@ class GrpcServerHealthTest {
                 .setService(Services.OJP_SERVER.getServiceName())
                 .build();
 
-        assertThrows(io.grpc.StatusRuntimeException.class, () ->
-                healthStub.check(request), "Expected UNAVAILABLE status when server is not running");
+        assertThrows(io.grpc.StatusRuntimeException.class, () -> healthStub.check(request),
+                "Expected UNAVAILABLE status when server is not running");
     }
 
     // Helpers
@@ -109,13 +113,13 @@ class GrpcServerHealthTest {
     }
 
     private void startServer() {
-		virtualThreadExecutor = Executors.newFixedThreadPool(TEN);
+        grpcServer = new GrpcServer();
+        virtualThreadExecutor = Executors.newFixedThreadPool(TEN);
         virtualThreadExecutor.submit(() -> {
             try {
-                String[] args = {};
-                GrpcServer.main(args);
-            } catch (Exception ignored) {
-                logger.error("Server interrupted");
+                grpcServer.start();
+            } catch (Exception e) {
+                logger.error("Server failed to start", e);
             }
         });
 
@@ -133,5 +137,4 @@ class GrpcServerHealthTest {
             return 0;
         }
     }
-
 }
