@@ -303,7 +303,7 @@ public class StatementServiceImpl extends com.openjproxy.grpc.StatementServiceGr
         private final Optional<Long> lobLength;
         private final Optional<Integer> availableLength;
 
-        private ReadLobContext(Builder builder) {
+        private ReadLobContext(ReadLobContextBuilder builder) {
             this.inputStream = builder.inputStream;
             this.lobLength = builder.lobLength;
             this.availableLength = builder.availableLength;
@@ -321,26 +321,26 @@ public class StatementServiceImpl extends com.openjproxy.grpc.StatementServiceGr
             return availableLength;
         }
 
-        public static Builder builder() {
-            return new Builder();
+        public static ReadLobContextBuilder builder() {
+            return new ReadLobContextBuilder();
         }
 
-        public static class Builder {
+        public static class ReadLobContextBuilder {
             private InputStream inputStream;
             private Optional<Long> lobLength = Optional.empty();
             private Optional<Integer> availableLength = Optional.empty();
 
-            public Builder inputStream(InputStream inputStream) {
+            public ReadLobContextBuilder inputStream(InputStream inputStream) {
                 this.inputStream = inputStream;
                 return this;
             }
 
-            public Builder lobLength(Optional<Long> lobLength) {
+            public ReadLobContextBuilder lobLength(Optional<Long> lobLength) {
                 this.lobLength = lobLength;
                 return this;
             }
 
-            public Builder availableLength(Optional<Integer> availableLength) {
+            public ReadLobContextBuilder availableLength(Optional<Integer> availableLength) {
                 this.availableLength = availableLength;
                 return this;
             }
