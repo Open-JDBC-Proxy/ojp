@@ -366,20 +366,25 @@ ojp:
       keystore:
         password: mysecretpassword
 
-# Good - reference environment variable
+# Good - omit password from YAML, provide via environment variable
 ojp:
   server:
     tls:
       keystore:
-        password: ${KEYSTORE_PASSWORD}  # Set via environment or system property
+        # password not specified in YAML file
+        # Will be overridden by environment variable OJP_SERVER_TLS_KEYSTORE_PASSWORD
 ```
 
-Then set the actual value:
+Then set the actual value via environment variable or system property:
 ```bash
+# Using environment variable (recommended for production)
 export OJP_SERVER_TLS_KEYSTORE_PASSWORD=mysecretpassword
-# or
+
+# Or using system property
 java -Dojp.server.tls.keystore.password=mysecretpassword -jar app.jar
 ```
+
+**Note:** OJP does not currently support variable interpolation (like `${VARIABLE}`) within YAML files. Always provide sensitive values through environment variables or system properties, which will override any values in the YAML file.
 
 ### 3. Document Your Configuration
 
