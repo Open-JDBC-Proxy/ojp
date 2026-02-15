@@ -1,4 +1,4 @@
-[package org.openjproxy.grpc.server.utils;
+package org.openjproxy.grpc.server.utils;
 
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
