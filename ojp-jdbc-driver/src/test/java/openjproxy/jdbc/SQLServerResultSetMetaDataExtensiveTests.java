@@ -1,15 +1,21 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Types;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -17,7 +23,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * Tests SQL Server-specific metadata functionality for result sets.
  */
 @EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
-public class SQLServerResultSetMetaDataExtensiveTests {
+class SQLServerResultSetMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
 
@@ -30,7 +36,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerResultSetMetaDataBasics(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server ResultSetMetaData basics for url -> " + url);
 
@@ -42,28 +48,28 @@ public class SQLServerResultSetMetaDataExtensiveTests {
 
         // Test basic metadata properties
         int columnCount = rsmd.getColumnCount();
-        Assert.assertTrue("Column count should be > 0", columnCount > 0);
+        assertTrue(columnCount > 0, "Column count should be > 0");
 
         // Test each column's metadata
         for (int i = 1; i <= columnCount; i++) {
             String columnName = rsmd.getColumnName(i);
-            Assert.assertNotNull("Column name should not be null", columnName);
-            Assert.assertTrue("Column name should not be empty", columnName.length() > 0);
+            assertNotNull("Column name should not be null", columnName);
+            assertTrue(columnName.length() > 0, "Column name should not be empty");
 
             String columnTypeName = rsmd.getColumnTypeName(i);
-            Assert.assertNotNull("Column type name should not be null", columnTypeName);
+            assertNotNull("Column type name should not be null", columnTypeName);
 
             int columnType = rsmd.getColumnType(i);
-            Assert.assertTrue("Column type should be valid SQL type", columnType != 0);
+            assertTrue(columnType != 0, "Column type should be valid SQL type");
 
             String columnClassName = rsmd.getColumnClassName(i);
-            Assert.assertNotNull("Column class name should not be null", columnClassName);
+            assertNotNull("Column class name should not be null", columnClassName);
 
             int precision = rsmd.getPrecision(i);
-            Assert.assertTrue("Precision should be >= 0", precision >= 0);
+            assertTrue(precision >= 0, "Precision should be >= 0");
 
             int scale = rsmd.getScale(i);
-            Assert.assertTrue("Scale should be >= 0", scale >= 0);
+            assertTrue(scale >= 0, "Scale should be >= 0");
         }
 
         rs.close();
@@ -76,7 +82,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerSpecificDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server specific data types metadata for url -> " + url);
 
@@ -88,7 +94,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
         ResultSetMetaData rsmd = rs.getMetaData();
 
         int columnCount = rsmd.getColumnCount();
-        
+
         // Check specific SQL Server types
         for (int i = 1; i <= columnCount; i++) {
             String columnName = rsmd.getColumnName(i);
@@ -97,29 +103,25 @@ public class SQLServerResultSetMetaDataExtensiveTests {
 
             switch (columnName.toLowerCase()) {
                 case "id":
-                    Assert.assertEquals("int", columnTypeName.toLowerCase());
-                    Assert.assertEquals(Types.INTEGER, columnType);
+                    assertEquals("int", columnTypeName.toLowerCase());
+                    assertEquals(Types.INTEGER, columnType);
                     break;
                 case "ntext_col":
-                    Assert.assertTrue("NTEXT type should be recognized", 
-                        columnTypeName.toLowerCase().contains("ntext") || 
-                        columnTypeName.toLowerCase().contains("nvarchar"));
+                    assertTrue(columnTypeName.toLowerCase().contains("ntext") ||
+                            columnTypeName.toLowerCase().contains("nvarchar"), "NTEXT type should be recognized");
                     break;
                 case "money_col":
-                    Assert.assertTrue("MONEY type should be recognized", 
-                        columnTypeName.toLowerCase().contains("money"));
+                    assertTrue(columnTypeName.toLowerCase().contains("money"), "MONEY type should be recognized");
                     break;
                 case "uniqueidentifier_col":
-                    Assert.assertTrue("UNIQUEIDENTIFIER type should be recognized", 
-                        columnTypeName.toLowerCase().contains("uniqueidentifier"));
+                    assertTrue(columnTypeName.toLowerCase().contains("uniqueidentifier"), "UNIQUEIDENTIFIER type should be recognized");
                     break;
                 case "datetimeoffset_col":
-                    Assert.assertTrue("DATETIMEOFFSET type should be recognized", 
-                        columnTypeName.toLowerCase().contains("datetimeoffset"));
+                    assertTrue(columnTypeName.toLowerCase().contains("datetimeoffset"), "DATETIMEOFFSET type should be recognized");
                     break;
                 case "datetime2_col":
-                    Assert.assertTrue("DATETIME2 type should be recognized", 
-                        columnTypeName.toLowerCase().contains("datetime2"));
+                    assertTrue(
+                            columnTypeName.toLowerCase().contains("datetime2"), "DATETIME2 type should be recognized");
                     break;
             }
         }
@@ -134,7 +136,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerColumnProperties(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server column properties for url -> " + url);
 
@@ -158,32 +160,32 @@ public class SQLServerResultSetMetaDataExtensiveTests {
         ResultSetMetaData rsmd = rs.getMetaData();
 
         int columnCount = rsmd.getColumnCount();
-        
+
         for (int i = 1; i <= columnCount; i++) {
             String columnName = rsmd.getColumnName(i);
-            
+
             switch (columnName.toLowerCase()) {
                 case "id":
-                    Assert.assertEquals(ResultSetMetaData.columnNoNulls, rsmd.isNullable(i));
-                    Assert.assertTrue("ID should be auto increment", rsmd.isAutoIncrement(i));
+                    assertEquals(ResultSetMetaData.columnNoNulls, rsmd.isNullable(i));
+                    assertTrue(rsmd.isAutoIncrement(i), "ID should be auto increment");
                     break;
                 case "required_col":
-                    Assert.assertEquals(ResultSetMetaData.columnNoNulls, rsmd.isNullable(i));
-                    Assert.assertFalse("Required column should not be auto increment", rsmd.isAutoIncrement(i));
+                    assertEquals(ResultSetMetaData.columnNoNulls, rsmd.isNullable(i));
+                    assertFalse(rsmd.isAutoIncrement(i), "Required column should not be auto increment");
                     break;
                 case "optional_col":
-                    Assert.assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i));
+                    assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i));
                     break;
                 case "readonly_col":
-                    Assert.assertTrue("Computed column should be read-only", rsmd.isReadOnly(i));
+                    assertTrue(rsmd.isReadOnly(i), "Computed column should be read-only");
                     break;
                 case "decimal_col":
-                    Assert.assertEquals(10, rsmd.getPrecision(i));
-                    Assert.assertEquals(2, rsmd.getScale(i));
+                    assertEquals(10, rsmd.getPrecision(i));
+                    assertEquals(2, rsmd.getScale(i));
                     break;
                 case "max_col":
                     // SQL Server MAX columns have very large precision
-                    Assert.assertTrue("MAX column should have large precision", rsmd.getPrecision(i) > 1000);
+                    assertTrue(rsmd.getPrecision(i) > 1000, "MAX column should have large precision");
                     break;
             }
         }
@@ -198,7 +200,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerTableAndSchemaInfo(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server table and schema info for url -> " + url);
 
@@ -209,7 +211,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
         ResultSetMetaData rsmd = rs.getMetaData();
 
         int columnCount = rsmd.getColumnCount();
-        
+
         for (int i = 1; i <= columnCount; i++) {
             // Test catalog and schema information
             String catalogName = rsmd.getCatalogName(i);
@@ -217,24 +219,24 @@ public class SQLServerResultSetMetaDataExtensiveTests {
             String tableName = rsmd.getTableName(i);
 
             // SQL Server should provide table information
-            Assert.assertNotNull("Table name should not be null", tableName);
+            assertNotNull("Table name should not be null", tableName);
             if (tableName.length() > 0) {
-                Assert.assertEquals("sqlserver_table_info_test", tableName.toLowerCase());
+                assertEquals("sqlserver_table_info_test", tableName.toLowerCase());
             }
 
             // Schema name should be available (might be 'dbo' or user schema)
             if (schemaName != null && schemaName.length() > 0) {
-                Assert.assertTrue("Schema name should be valid", schemaName.length() > 0);
+                assertTrue(schemaName.length() > 0, "Schema name should be valid");
             }
 
             // Test display size
             int displaySize = rsmd.getColumnDisplaySize(i);
-            Assert.assertTrue("Display size should be > 0", displaySize > 0);
+            assertTrue(displaySize > 0, "Display size should be > 0");
 
             // Test searchable property
             boolean isSearchable = rsmd.isSearchable(i);
             // Most columns should be searchable
-            Assert.assertTrue("Column should be searchable", isSearchable);
+            assertTrue(isSearchable, "Column should be searchable");
         }
 
         rs.close();
@@ -247,7 +249,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerAliasedColumns(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server aliased columns for url -> " + url);
 
@@ -255,24 +257,24 @@ public class SQLServerResultSetMetaDataExtensiveTests {
 
         PreparedStatement ps = conn.prepareStatement(
                 "SELECT id AS identifier, name AS full_name, " +
-                "UPPER(name) AS upper_name, " +
-                "LEN(name) AS name_length " +
-                "FROM sqlserver_alias_test"
+                        "UPPER(name) AS upper_name, " +
+                        "LEN(name) AS name_length " +
+                        "FROM sqlserver_alias_test"
         );
         ResultSet rs = ps.executeQuery();
         ResultSetMetaData rsmd = rs.getMetaData();
 
-        Assert.assertEquals(4, rsmd.getColumnCount());
+        assertEquals(4, rsmd.getColumnCount());
 
         // Test aliased column names
-        Assert.assertEquals("identifier", rsmd.getColumnLabel(1));
-        Assert.assertEquals("full_name", rsmd.getColumnLabel(2));
-        Assert.assertEquals("upper_name", rsmd.getColumnLabel(3));
-        Assert.assertEquals("name_length", rsmd.getColumnLabel(4));
+        assertEquals("identifier", rsmd.getColumnLabel(1));
+        assertEquals("full_name", rsmd.getColumnLabel(2));
+        assertEquals("upper_name", rsmd.getColumnLabel(3));
+        assertEquals("name_length", rsmd.getColumnLabel(4));
 
         // Test original column names (where applicable)
-        Assert.assertEquals("identifier", rsmd.getColumnName(1));
-        Assert.assertEquals("full_name", rsmd.getColumnName(2));
+        assertEquals("identifier", rsmd.getColumnName(1));
+        assertEquals("full_name", rsmd.getColumnName(2));
         // Computed columns might not have original names
 
         rs.close();
@@ -285,7 +287,7 @@ public class SQLServerResultSetMetaDataExtensiveTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerNullabilityAndUpdatability(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server nullability and updatability for url -> " + url);
 
@@ -309,29 +311,24 @@ public class SQLServerResultSetMetaDataExtensiveTests {
 
         for (int i = 1; i <= rsmd.getColumnCount(); i++) {
             String columnName = rsmd.getColumnName(i);
-            
+
             switch (columnName.toLowerCase()) {
                 case "id":
-                    Assert.assertEquals("Primary key should not allow nulls", 
-                        ResultSetMetaData.columnNoNulls, rsmd.isNullable(i));
-                    Assert.assertTrue("Identity column should be auto-increment", 
-                        rsmd.isAutoIncrement(i));
+                    assertEquals(
+                            ResultSetMetaData.columnNoNulls, rsmd.isNullable(i), "Primary key should not allow nulls");
+                    assertTrue(rsmd.isAutoIncrement(i), "Identity column should be auto-increment");
                     break;
                 case "not_null_col":
-                    Assert.assertEquals("NOT NULL column should not allow nulls", 
-                        ResultSetMetaData.columnNoNulls, rsmd.isNullable(i));
+                    assertEquals(ResultSetMetaData.columnNoNulls, rsmd.isNullable(i), "NOT NULL column should not allow nulls");
                     break;
                 case "nullable_col":
-                    Assert.assertEquals("Nullable column should allow nulls", 
-                        ResultSetMetaData.columnNullable, rsmd.isNullable(i));
+                    assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i), "Nullable column should allow nulls");
                     break;
                 case "computed_col":
-                    Assert.assertTrue("Computed column should be read-only", 
-                        rsmd.isReadOnly(i));
+                    assertTrue(rsmd.isReadOnly(i), "Computed column should be read-only");
                     break;
                 case "default_col":
-                    Assert.assertEquals("Column with default should allow nulls", 
-                        ResultSetMetaData.columnNullable, rsmd.isNullable(i));
+                    assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i), "Column with default should allow nulls");
                     break;
             }
         }

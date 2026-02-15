@@ -4,7 +4,6 @@ import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
@@ -23,9 +22,10 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class MySQLPreparedStatementExtensiveTests {
+ class MySQLPreparedStatementExtensiveTests {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
@@ -38,7 +38,7 @@ public class MySQLPreparedStatementExtensiveTests {
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+     void setUp(String driverClass, String url, String user, String password) throws Exception {
         assumeFalse(!isMySQLTestEnabled, "MySQL tests are not enabled");
         assumeFalse(!isMariaDBTestEnabled, "MariaDB tests are not enabled");
 
@@ -60,7 +60,7 @@ public class MySQLPreparedStatementExtensiveTests {
     }
 
     @AfterEach
-    void tearDown() throws Exception {
+    void tearDown() {
         TestDBUtils.closeQuietly(ps, connection);
     }
 
@@ -75,16 +75,16 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setInt(1, 1);
         ps.setString(2, "Alice");
         ps.setInt(3, 25);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Verify the insert
         ps = connection.prepareStatement("SELECT id, name, age FROM mysql_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 1);
         ResultSet rs = ps.executeQuery();
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(1, rs.getInt("id"));
-        Assert.assertEquals("Alice", rs.getString("name"));
-        Assert.assertEquals(25, rs.getInt("age"));
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt("id"));
+        assertEquals("Alice", rs.getString("name"));
+        assertEquals(25, rs.getInt("age"));
         rs.close();
     }
 
@@ -99,22 +99,22 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setLong(1, 2L);
         ps.setString(2, "Bob");
         ps.setShort(3, (short) 30);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         ps.setByte(1, (byte) 3);
         ps.setString(2, "Charlie");
         ps.setFloat(3, 35.5f);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         ps.setDouble(1, 4.0);
         ps.setString(2, "David");
         ps.setBigDecimal(3, BigDecimal.valueOf(40));
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         ps.setBoolean(1, true); // Will be converted to 1
         ps.setString(2, "Eve");
         ps.setInt(3, 45);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
     }
 
     @ParameterizedTest
@@ -133,16 +133,16 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setDate(3, testDate);
         ps.setTime(4, testTime);
         ps.setTimestamp(5, testTimestamp);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Verify the data
         ps = connection.prepareStatement("SELECT dt, tm, ts FROM mysql_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 10);
         ResultSet rs = ps.executeQuery();
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(testDate, rs.getDate("dt"));
-        Assert.assertEquals(testTime, rs.getTime("tm"));
-        Assert.assertEquals(testTimestamp, rs.getTimestamp("ts"));
+        assertTrue(rs.next());
+        assertEquals(testDate, rs.getDate("dt"));
+        assertEquals(testTime, rs.getTime("tm"));
+        assertEquals(testTimestamp, rs.getTimestamp("ts"));
         rs.close();
     }
 
@@ -157,21 +157,21 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setInt(1, 20);
         ps.setString(2, "BinaryTest");
         ps.setBytes(3, testData);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Test with InputStream
         ps.setInt(1, 21);
         ps.setString(2, "StreamTest");
         ps.setBinaryStream(3, new ByteArrayInputStream(testData));
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Verify the data
         ps = connection.prepareStatement("SELECT data FROM mysql_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 20);
         ResultSet rs = ps.executeQuery();
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         byte[] retrievedData = rs.getBytes("data");
-        Assert.assertEquals("Hello World", new String(retrievedData));
+        assertEquals("Hello World", new String(retrievedData));
         rs.close();
     }
 
@@ -186,20 +186,20 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setInt(1, 30);
         ps.setString(2, "TextTest");
         ps.setString(3, testText);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Test with character stream
         ps.setInt(1, 31);
         ps.setString(2, "StreamTextTest");
         ps.setCharacterStream(3, new StringReader(testText));
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Verify the data
         ps = connection.prepareStatement("SELECT info FROM mysql_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 30);
         ResultSet rs = ps.executeQuery();
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(testText, rs.getString("info"));
+        assertTrue(rs.next());
+        assertEquals(testText, rs.getString("info"));
         rs.close();
     }
 
@@ -215,18 +215,18 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setNull(3, Types.INTEGER);
         ps.setNull(4, Types.BLOB);
         ps.setNull(5, Types.LONGVARCHAR);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Verify nulls
         ps = connection.prepareStatement("SELECT name, age, data, info FROM mysql_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 40);
         ResultSet rs = ps.executeQuery();
-        Assert.assertTrue(rs.next());
-        Assert.assertNull(rs.getString("name"));
-        Assert.assertEquals(0, rs.getInt("age"));
-        Assert.assertTrue(rs.wasNull());
-        Assert.assertNull(rs.getBytes("data"));
-        Assert.assertNull(rs.getString("info"));
+        assertTrue(rs.next());
+        assertNull(rs.getString("name"));
+        assertEquals(0, rs.getInt("age"));
+        assertTrue(rs.wasNull());
+        assertNull(rs.getBytes("data"));
+        assertNull(rs.getString("info"));
         rs.close();
     }
 
@@ -246,12 +246,12 @@ public class MySQLPreparedStatementExtensiveTests {
         ps = connection.prepareStatement("SELECT * FROM mysql_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 50);
         ResultSet rs = ps.executeQuery();
-        Assert.assertNotNull(rs);
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(50, rs.getInt("id"));
-        Assert.assertEquals("QueryTest", rs.getString("name"));
-        Assert.assertEquals(25, rs.getInt("age"));
-        Assert.assertFalse(rs.next());
+        assertNotNull(rs);
+        assertTrue(rs.next());
+        assertEquals(50, rs.getInt("id"));
+        assertEquals("QueryTest", rs.getString("name"));
+        assertEquals(25, rs.getInt("age"));
+        assertFalse(rs.next());
         rs.close();
     }
 
@@ -265,18 +265,18 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setInt(1, 60);
         ps.setString(2, "UpdateTest");
         ps.setInt(3, 30);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Test UPDATE
         ps = connection.prepareStatement("UPDATE mysql_prepared_stmt_test SET age = ? WHERE id = ?");
         ps.setInt(1, 35);
         ps.setInt(2, 60);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         // Test DELETE
         ps = connection.prepareStatement("DELETE FROM mysql_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 60);
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
     }
 
     @ParameterizedTest
@@ -287,9 +287,9 @@ public class MySQLPreparedStatementExtensiveTests {
         // Test execute with query
         ps = connection.prepareStatement("SELECT COUNT(*) FROM mysql_prepared_stmt_test");
         boolean hasResultSet = ps.execute();
-        Assert.assertTrue(hasResultSet);
+        assertTrue(hasResultSet);
         ResultSet rs = ps.getResultSet();
-        Assert.assertNotNull(rs);
+        assertNotNull(rs);
         rs.close();
 
         // Test execute with update
@@ -297,8 +297,8 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.setInt(1, 70);
         ps.setString(2, "ExecuteTest");
         hasResultSet = ps.execute();
-        Assert.assertFalse(hasResultSet);
-        Assert.assertEquals(1, ps.getUpdateCount());
+        assertFalse(hasResultSet);
+        assertEquals(1, ps.getUpdateCount());
     }
 
     @ParameterizedTest
@@ -324,18 +324,18 @@ public class MySQLPreparedStatementExtensiveTests {
         ps.addBatch();
 
         int[] results = ps.executeBatch();
-        Assert.assertEquals(3, results.length);
-        Assert.assertEquals(1, results[0]);
-        Assert.assertEquals(1, results[1]);
-        Assert.assertEquals(1, results[2]);
+        assertEquals(3, results.length);
+        assertEquals(1, results[0]);
+        assertEquals(1, results[1]);
+        assertEquals(1, results[2]);
 
         // Verify the batch insert
         ps = connection.prepareStatement("SELECT COUNT(*) FROM mysql_prepared_stmt_test WHERE id BETWEEN ? AND ?");
         ps.setInt(1, 80);
         ps.setInt(2, 82);
         ResultSet rs = ps.executeQuery();
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(3, rs.getInt(1));
+        assertTrue(rs.next());
+        assertEquals(3, rs.getInt(1));
         rs.close();
     }
 
@@ -362,11 +362,11 @@ public class MySQLPreparedStatementExtensiveTests {
 
         ps = connection.prepareStatement("SELECT id, name, age FROM mysql_prepared_stmt_test WHERE id = ?");
         ResultSetMetaData metaData = ps.getMetaData();
-        Assert.assertNotNull(metaData);
-        Assert.assertEquals(3, metaData.getColumnCount());
-        Assert.assertEquals("id", metaData.getColumnName(1).toLowerCase());
-        Assert.assertEquals("name", metaData.getColumnName(2).toLowerCase());
-        Assert.assertEquals("age", metaData.getColumnName(3).toLowerCase());
+        assertNotNull(metaData);
+        assertEquals(3, metaData.getColumnCount());
+        assertEquals("id", metaData.getColumnName(1).toLowerCase());
+        assertEquals("name", metaData.getColumnName(2).toLowerCase());
+        assertEquals("age", metaData.getColumnName(3).toLowerCase());
     }
 
     @ParameterizedTest
@@ -377,9 +377,9 @@ public class MySQLPreparedStatementExtensiveTests {
         ps = connection.prepareStatement("INSERT INTO mysql_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         try {
             var paramMetaData = ps.getParameterMetaData();
-            Assert.assertNotNull(paramMetaData);
+            assertNotNull(paramMetaData);
             //TODO implement the ParameterMetaData using remote proxy
-            //Assert.assertEquals(3, paramMetaData.getParameterCount());
+            //Assertions.assertEquals(3, paramMetaData.getParameterCount());
         } catch (SQLException e) {
             // Some MySQL drivers/versions may not fully support parameter metadata
             // This is acceptable
@@ -402,12 +402,12 @@ public class MySQLPreparedStatementExtensiveTests {
         ps = connection.prepareStatement("INSERT INTO mysql_auto_increment_ps_test (name) VALUES (?)", 
                                         Statement.RETURN_GENERATED_KEYS);
         ps.setString(1, "GeneratedKeyTest");
-        Assert.assertEquals(1, ps.executeUpdate());
+        assertEquals(1, ps.executeUpdate());
 
         ResultSet keys = ps.getGeneratedKeys();
-        Assert.assertNotNull(keys);
-        Assert.assertTrue(keys.next());
-        Assert.assertTrue(keys.getInt(1) > 0);
+        assertNotNull(keys);
+        assertTrue(keys.next());
+        assertTrue(keys.getInt(1) > 0);
         keys.close();
 
         // Cleanup

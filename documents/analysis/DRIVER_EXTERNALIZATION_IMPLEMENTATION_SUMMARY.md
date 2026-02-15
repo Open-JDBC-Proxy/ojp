@@ -1,10 +1,13 @@
 # Driver Externalization Implementation - Final Summary
 
+> **📌 Version 0.4.0-beta Release:** This implementation is included in version 0.4.0-beta. Starting from this version, JDBC drivers are **NO LONGER included** in the OJP Server JAR when running from the runnable JAR. Users must download drivers and place them in the `ojp-libs` folder.
+
 ## Overview
 
 This document summarizes the complete implementation of moving open source JDBC drivers (H2, PostgreSQL, MySQL, MariaDB) from embedded dependencies in `pom.xml` to external loading via the `ojp-libs` directory mechanism.
 
 **Implementation Date:** December 2024  
+**Release Version:** 0.4.0-beta  
 **Status:** Complete ✅
 
 ## Objectives Achieved

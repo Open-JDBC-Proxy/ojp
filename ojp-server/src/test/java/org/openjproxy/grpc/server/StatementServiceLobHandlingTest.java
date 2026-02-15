@@ -10,13 +10,14 @@ import java.sql.Blob;
 import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Test for validating the LOB null handling fix in StatementServiceImpl.
  * This test ensures that the fix for issue #23 prevents NPE when Blob is null.
  */
-public class StatementServiceLobHandlingTest {
+ class StatementServiceLobHandlingTest {
 
     @Mock
     private SessionManager sessionManager;
@@ -24,7 +25,7 @@ public class StatementServiceLobHandlingTest {
     private SessionInfo sessionInfo;
     
     @BeforeEach
-    void setUp() {
+     void setUp() {
         MockitoAnnotations.openMocks(this);
         
         sessionInfo = SessionInfo.newBuilder()
@@ -35,7 +36,7 @@ public class StatementServiceLobHandlingTest {
     }
 
     @Test
-    void testGetLobReturnsNull_IsHandledGracefully() {
+     void testGetLobReturnsNull_IsHandledGracefully() {
         // Arrange: Mock sessionManager.getLob to return null (the problematic scenario)
         when(sessionManager.getLob(sessionInfo, "test-lob-uuid")).thenReturn(null);
         
@@ -50,7 +51,7 @@ public class StatementServiceLobHandlingTest {
     }
 
     @Test
-    void testNullBlobScenario_ValidationLogic() {
+     void testNullBlobScenario_ValidationLogic() {
         // This test validates that our null check logic would work correctly
         
         // Arrange
@@ -78,7 +79,7 @@ public class StatementServiceLobHandlingTest {
     }
     
     @Test 
-    void testSessionManagerImplNullChecks() {
+     void testSessionManagerImplNullChecks() {
         // Test that SessionManagerImpl properly handles null session scenarios
         SessionManagerImpl realSessionManager = new SessionManagerImpl();
         

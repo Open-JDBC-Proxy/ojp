@@ -64,28 +64,28 @@ public class OracleResultSetMetaDataExtensiveTests {
         assertEquals(4, metaData.getColumnCount());
 
         // isAutoIncrement - Oracle IDENTITY columns are auto-increment
-        assertEquals(false, metaData.isAutoIncrement(1));
-        assertEquals(false, metaData.isAutoIncrement(2));
-        assertEquals(false, metaData.isAutoIncrement(3));
-        assertEquals(false, metaData.isAutoIncrement(4));
+        assertFalse( metaData.isAutoIncrement(1));
+        assertFalse( metaData.isAutoIncrement(2));
+        assertFalse( metaData.isAutoIncrement(3));
+        assertFalse( metaData.isAutoIncrement(4));
 
         // isCaseSensitive - Oracle is case sensitive for data
-        assertEquals(false, metaData.isCaseSensitive(1));
-        assertEquals(true, metaData.isCaseSensitive(2));
-        assertEquals(false, metaData.isCaseSensitive(3));
-        assertEquals(false, metaData.isCaseSensitive(4));
+        assertFalse( metaData.isCaseSensitive(1));
+        assertTrue( metaData.isCaseSensitive(2));
+        assertFalse( metaData.isCaseSensitive(3));
+        assertFalse( metaData.isCaseSensitive(4));
 
         // isSearchable - All Oracle columns are searchable
-        assertEquals(true, metaData.isSearchable(1));
-        assertEquals(true, metaData.isSearchable(2));
-        assertEquals(true, metaData.isSearchable(3));
-        assertEquals(true, metaData.isSearchable(4));
+        assertTrue( metaData.isSearchable(1));
+        assertTrue( metaData.isSearchable(2));
+        assertTrue( metaData.isSearchable(3));
+        assertTrue( metaData.isSearchable(4));
 
         // isCurrency - None of these columns represent currency
-        assertEquals(true, metaData.isCurrency(1));
-        assertEquals(false, metaData.isCurrency(2));
-        assertEquals(true, metaData.isCurrency(3));
-        assertEquals(true, metaData.isCurrency(4));
+        assertTrue( metaData.isCurrency(1));
+        assertFalse( metaData.isCurrency(2));
+        assertTrue( metaData.isCurrency(3));
+        assertTrue( metaData.isCurrency(4));
 
         // isNullable - Oracle NULL constraints
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(1));
@@ -94,10 +94,10 @@ public class OracleResultSetMetaDataExtensiveTests {
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4));
 
         // isSigned - Oracle NUMBER types are signed
-        assertEquals(true, metaData.isSigned(1));
-        assertEquals(true, metaData.isSigned(2)); // VARCHAR2 is not signed
-        assertEquals(true, metaData.isSigned(3));
-        assertEquals(true, metaData.isSigned(4));
+        assertTrue( metaData.isSigned(1));
+        assertTrue( metaData.isSigned(2)); // VARCHAR2 is not signed
+        assertTrue( metaData.isSigned(3));
+        assertTrue( metaData.isSigned(4));
 
         // getColumnDisplaySize - Oracle-specific display sizes
         assertTrue(metaData.getColumnDisplaySize(1) > 0); // NUMBER display size
@@ -168,16 +168,16 @@ public class OracleResultSetMetaDataExtensiveTests {
         assertTrue(salaryTypeName.contains("NUMBER") || salaryTypeName.contains("NUMERIC"));
 
         // isReadOnly - Oracle columns are writable by default
-        assertEquals(false, metaData.isReadOnly(1));
-        assertEquals(false, metaData.isReadOnly(2));
-        assertEquals(false, metaData.isReadOnly(3));
-        assertEquals(false, metaData.isReadOnly(4));
+        assertFalse( metaData.isReadOnly(1));
+        assertFalse( metaData.isReadOnly(2));
+        assertFalse( metaData.isReadOnly(3));
+        assertFalse( metaData.isReadOnly(4));
 
         // isWritable - Oracle columns are writable
-        assertEquals(true, metaData.isWritable(1));
-        assertEquals(true, metaData.isWritable(2));
-        assertEquals(true, metaData.isWritable(3));
-        assertEquals(true, metaData.isWritable(4));
+        assertTrue( metaData.isWritable(1));
+        assertTrue( metaData.isWritable(2));
+        assertTrue( metaData.isWritable(3));
+        assertTrue( metaData.isWritable(4));
 
         // isDefinitelyWritable - Oracle behavior for definitely writable
         // This varies by driver implementation

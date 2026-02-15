@@ -5,7 +5,6 @@ import org.openjproxy.constants.CommonConstants;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.lang.reflect.Method;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

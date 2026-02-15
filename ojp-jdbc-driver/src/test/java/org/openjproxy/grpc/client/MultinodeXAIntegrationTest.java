@@ -4,7 +4,6 @@ import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.codehaus.plexus.util.ExceptionUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -27,6 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -61,8 +62,9 @@ public class MultinodeXAIntegrationTest {
     private static Queue<Long> queryDurations = new ConcurrentLinkedQueue<>();
     private static AtomicInteger totalQueries = new AtomicInteger(0);
     private static AtomicInteger totalFailedQueries = new AtomicInteger(0);
-    private static AtomicInteger nonConnectivityFailedQueries = new AtomicInteger(0);
-    private static ExecutorService queryExecutor = new RoundRobinExecutorService(100);
+    private static final AtomicInteger nonConnectivityFailedQueries = new AtomicInteger(0);
+    private static final ExecutorService queryExecutor = new RoundRobinExecutorService(100);
+    private static MultinodeTestHelper testHelper;
 
     private static OjpXADataSource xaDataSource;
 
@@ -79,6 +81,7 @@ public class MultinodeXAIntegrationTest {
         queryDurations = new ConcurrentLinkedQueue<>();
         totalQueries = new AtomicInteger(0);
         totalFailedQueries = new AtomicInteger(0);
+        testHelper = new MultinodeTestHelper(totalFailedQueries, nonConnectivityFailedQueries);
     }
 
     @SneakyThrows
@@ -202,12 +205,12 @@ public class MultinodeXAIntegrationTest {
         System.out.println("Total query failures: " + numTotalFailures);
         System.out.println("Total non-connectivity-related failures: " + numNonConnectivityFailures);
         //Assertions.assertEquals(2160, numQueries);
-        Assertions.assertTrue(numTotalFailures < MAX_TOTAL_FAILURES, 
+        assertTrue(numTotalFailures < MAX_TOTAL_FAILURES,
             "Expected fewer than " + MAX_TOTAL_FAILURES + " total failures, but got: " + numTotalFailures);
-        Assertions.assertEquals(MAX_NON_CONNECTIVITY_FAILURES, numNonConnectivityFailures, 
+        assertEquals(MAX_NON_CONNECTIVITY_FAILURES, numNonConnectivityFailures,
             "Expected " + MAX_NON_CONNECTIVITY_FAILURES + " non-connectivity failures (session invalidation is connectivity-related), but got: " + numNonConnectivityFailures);
-        Assertions.assertTrue(totalTimeMs < 180000, "Total test time too high: " + totalTimeMs + " ms");
-        Assertions.assertTrue(avgQueryMs < 1000.0, "Average query time too high: " + avgQueryMs + " ms");
+        assertTrue(totalTimeMs < 180000, "Total test time too high: " + totalTimeMs + " ms");
+        assertTrue(avgQueryMs < 1000.0, "Average query time too high: " + avgQueryMs + " ms");
     }
 
     @SneakyThrows
@@ -1314,23 +1317,6 @@ public class MultinodeXAIntegrationTest {
     }
 
     private static void incrementFailures(Exception e) {
-        totalFailedQueries.incrementAndGet();
-        
-        // Check if this is a connectivity-related failure
-        // 1. StatusRuntimeException with UNAVAILABLE - direct server unavailability
-        // 2. Session invalidation errors - indirect result of server unavailability
-        boolean isConnectivityRelated = false;
-        
-        if (e instanceof StatusRuntimeException && e.getMessage().contains("UNAVAILABLE")) {
-            isConnectivityRelated = true;
-        } else if (GrpcExceptionHandler.isSessionInvalidationError(e)) {
-            // Session invalidation due to server failure - use shared detection logic
-            isConnectivityRelated = true;
-        }
-        
-        if (!isConnectivityRelated) {
-            //Errors non related to the fact that a node is down
-            nonConnectivityFailedQueries.incrementAndGet();
-        }
+        testHelper.incrementFailures(e);
     }
 }

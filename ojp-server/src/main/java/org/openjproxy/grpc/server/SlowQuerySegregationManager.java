@@ -1,6 +1,5 @@
 package org.openjproxy.grpc.server;
 
-import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,11 +9,10 @@ import org.slf4j.LoggerFactory;
  * This class coordinates between the QueryPerformanceMonitor (which tracks execution times)
  * and the SlotManager (which enforces execution limits) to implement the slow query segregation feature.
  */
-@Slf4j
 public class SlowQuerySegregationManager {
     
     // Workaround for Lombok compilation issue
-    private static final Logger log = LoggerFactory.getLogger(SlowQuerySegregationManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(SlowQuerySegregationManager.class);
     
     private final QueryPerformanceMonitor performanceMonitor;
     private final SlotManager slotManager;
@@ -42,11 +40,11 @@ public class SlowQuerySegregationManager {
         
         if (enabled) {
             this.slotManager = new SlotManager(totalSlots, slowSlotPercentage, idleTimeoutMs);
-            log.info("SlowQuerySegregationManager initialized: enabled={}, totalSlots={}, slowSlotPercentage={}%, idleTimeout={}ms, slowSlotTimeout={}ms, fastSlotTimeout={}ms, updateGlobalAvgInterval={}s",
+            logger.info("SlowQuerySegregationManager initialized: enabled={}, totalSlots={}, slowSlotPercentage={}%, idleTimeout={}ms, slowSlotTimeout={}ms, fastSlotTimeout={}ms, updateGlobalAvgInterval={}s",
                     enabled, totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs, updateGlobalAvgIntervalSeconds);
         } else {
             this.slotManager = null;
-            log.info("SlowQuerySegregationManager initialized: enabled={}, updateGlobalAvgInterval={}s", enabled, updateGlobalAvgIntervalSeconds);
+            logger.info("SlowQuerySegregationManager initialized: enabled={}, updateGlobalAvgInterval={}s", enabled, updateGlobalAvgIntervalSeconds);
         }
     }
     
@@ -95,13 +93,13 @@ public class SlowQuerySegregationManager {
                 if (!slotAcquired) {
                     throw new RuntimeException("Timeout waiting for slow operation slot for operation: " + operationHash);
                 }
-                log.debug("Acquired slow slot for operation: {}", operationHash);
+                logger.debug("Acquired slow slot for operation: {}", operationHash);
             } else {
                 slotAcquired = slotManager.acquireFastSlot(fastSlotTimeoutMs);
                 if (!slotAcquired) {
                     throw new RuntimeException("Timeout waiting for fast operation slot for operation: " + operationHash);
                 }
-                log.debug("Acquired fast slot for operation: {}", operationHash);
+                logger.debug("Acquired fast slot for operation: {}", operationHash);
             }
             
             // Execute the operation and monitor its performance
@@ -112,10 +110,10 @@ public class SlowQuerySegregationManager {
             if (slotAcquired) {
                 if (isSlowOperation) {
                     slotManager.releaseSlowSlot();
-                    log.debug("Released slow slot for operation: {}", operationHash);
+                    logger.debug("Released slow slot for operation: {}", operationHash);
                 } else {
                     slotManager.releaseFastSlot();
-                    log.debug("Released fast slot for operation: {}", operationHash);
+                    logger.debug("Released fast slot for operation: {}", operationHash);
                 }
             }
         }

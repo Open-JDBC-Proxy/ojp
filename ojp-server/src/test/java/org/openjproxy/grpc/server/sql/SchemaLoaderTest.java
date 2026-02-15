@@ -1,15 +1,20 @@
 package org.openjproxy.grpc.server.sql;
 
-import org.apache.calcite.sql.type.SqlTypeName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.sql.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for SchemaLoader with mocked JDBC.
@@ -58,7 +63,7 @@ class SchemaLoaderTest {
         assertNotNull(table, "Table should exist");
         assertEquals(2, table.getColumns().size(), "Should have 2 columns");
         
-        ColumnMetadata idColumn = table.getColumns().get(0);
+        ColumnMetadata idColumn = table.getColumns().getFirst();
         assertEquals("id", idColumn.getColumnName());
         assertEquals(Types.INTEGER, idColumn.getJdbcType());
         assertFalse(idColumn.isNullable());

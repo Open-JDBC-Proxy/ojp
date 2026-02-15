@@ -1,15 +1,16 @@
 package org.openjproxy.grpc.server;
 
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Test to verify the new configuration property is loaded correctly.
  */
-public class ServerConfigurationUpdateGlobalAvgIntervalTest {
+ class ServerConfigurationUpdateGlobalAvgIntervalTest {
 
     @Test
-    void testDefaultUpdateGlobalAvgInterval() {
+     void testDefaultUpdateGlobalAvgInterval() {
         ServerConfiguration config = new ServerConfiguration();
         
         // Test default value
@@ -17,7 +18,7 @@ public class ServerConfigurationUpdateGlobalAvgIntervalTest {
     }
 
     @Test
-    void testCustomUpdateGlobalAvgInterval() {
+     void testCustomUpdateGlobalAvgInterval() {
         // Set a custom value via system property
         System.setProperty("ojp.server.slowQuerySegregation.updateGlobalAvgInterval", "600");
         
@@ -31,7 +32,7 @@ public class ServerConfigurationUpdateGlobalAvgIntervalTest {
     }
 
     @Test
-    void testZeroUpdateGlobalAvgInterval() {
+     void testZeroUpdateGlobalAvgInterval() {
         // Set to 0 (always update behavior)
         System.setProperty("ojp.server.slowQuerySegregation.updateGlobalAvgInterval", "0");
         

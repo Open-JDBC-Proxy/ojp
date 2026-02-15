@@ -1,16 +1,26 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
 import java.math.BigDecimal;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -42,16 +52,16 @@ public class SQLServerPreparedStatementExtensiveTests {
         ps.setInt(1, 100);
         ps.setString(2, "PreparedStatement Test");
         int rowsAffected = ps.executeUpdate();
-        Assert.assertEquals(1, rowsAffected);
+        assertEquals(1, rowsAffected);
 
         // Test query with PreparedStatement
         PreparedStatement psSelect = conn.prepareStatement("SELECT id, name FROM sqlserver_ps_test WHERE id = ?");
         psSelect.setInt(1, 100);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(100, rs.getInt("id"));
-        Assert.assertEquals("PreparedStatement Test", rs.getString("name"));
+        assertTrue(rs.next());
+        assertEquals(100, rs.getInt("id"));
+        assertEquals("PreparedStatement Test", rs.getString("name"));
 
         rs.close();
         psSelect.close();
@@ -91,22 +101,22 @@ public class SQLServerPreparedStatementExtensiveTests {
         ps.setTimestamp(12, Timestamp.valueOf("2025-01-15 14:30:45"));
 
         int rowsAffected = ps.executeUpdate();
-        Assert.assertEquals(1, rowsAffected);
+        assertEquals(1, rowsAffected);
 
         // Verify the inserted data
         PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM sqlserver_param_test WHERE val_int = ?");
         psSelect.setInt(1, 42);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(42, rs.getInt("val_int"));
-        Assert.assertEquals("Parameter Test", rs.getString("val_varchar"));
-        Assert.assertEquals(3.14159, rs.getDouble("val_double_precision"), 0.00001);
-        Assert.assertEquals(9876543210L, rs.getLong("val_bigint"));
-        Assert.assertEquals(200, rs.getInt("val_tinyint"));
-        Assert.assertEquals(1000, rs.getInt("val_smallint"));
-        Assert.assertTrue(rs.getBoolean("val_boolean"));
-        Assert.assertEquals(new BigDecimal("999.99"), rs.getBigDecimal("val_decimal"));
+        assertTrue(rs.next());
+        assertEquals(42, rs.getInt("val_int"));
+        assertEquals("Parameter Test", rs.getString("val_varchar"));
+        assertEquals(3.14159, rs.getDouble("val_double_precision"), 0.00001);
+        assertEquals(9876543210L, rs.getLong("val_bigint"));
+        assertEquals(200, rs.getInt("val_tinyint"));
+        assertEquals(1000, rs.getInt("val_smallint"));
+        assertTrue(rs.getBoolean("val_boolean"));
+        assertEquals(new BigDecimal("999.99"), rs.getBigDecimal("val_decimal"));
 
         rs.close();
         psSelect.close();
@@ -138,16 +148,16 @@ public class SQLServerPreparedStatementExtensiveTests {
         }
 
         int[] results = ps.executeBatch();
-        Assert.assertEquals(5, results.length);
+        assertEquals(5, results.length);
         for (int result : results) {
-            Assert.assertEquals(1, result); // Each insert should affect 1 row
+            assertEquals(1, result); // Each insert should affect 1 row
         }
 
         // Verify all batched data was inserted
         Statement stmt = conn.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM sqlserver_batch_test");
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(5, rs.getInt(1));
+        assertTrue(rs.next());
+        assertEquals(5, rs.getInt(1));
 
         rs.close();
         stmt.close();
@@ -179,19 +189,19 @@ public class SQLServerPreparedStatementExtensiveTests {
         ps.setNull(4, Types.DATE);
 
         int rowsAffected = ps.executeUpdate();
-        Assert.assertEquals(1, rowsAffected);
+        assertEquals(1, rowsAffected);
 
         // Verify null values were inserted correctly
         PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM sqlserver_null_param_test WHERE val_int = ?");
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(1, rs.getInt("val_int"));
-        Assert.assertNull(rs.getString("val_varchar"));
-        Assert.assertEquals(0.0, rs.getDouble("val_double_precision"), 0.0);
-        Assert.assertTrue(rs.wasNull());
-        Assert.assertNull(rs.getDate("val_date"));
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt("val_int"));
+        assertNull(rs.getString("val_varchar"));
+        assertEquals(0.0, rs.getDouble("val_double_precision"), 0.0);
+        assertTrue(rs.wasNull());
+        assertNull(rs.getDate("val_date"));
 
         rs.close();
         psSelect.close();
@@ -235,23 +245,23 @@ public class SQLServerPreparedStatementExtensiveTests {
         ps.setBytes(3, largeBinary);
 
         int rowsAffected = ps.executeUpdate();
-        Assert.assertEquals(1, rowsAffected);
+        assertEquals(1, rowsAffected);
 
         // Verify binary data was inserted correctly
         PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM sqlserver_binary_param_test WHERE id = ?");
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(1, rs.getInt("id"));
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt("id"));
         
         byte[] retrievedSmall = rs.getBytes("binary_data");
         Assert.assertArrayEquals(smallBinary, retrievedSmall);
         
         byte[] retrievedLarge = rs.getBytes("large_binary_data");
-        Assert.assertEquals(largeBinary.length, retrievedLarge.length);
+        assertEquals(largeBinary.length, retrievedLarge.length);
         for (int i = 0; i < 100; i++) { // Check first 100 bytes
-            Assert.assertEquals(largeBinary[i], retrievedLarge[i]);
+            assertEquals(largeBinary[i], retrievedLarge[i]);
         }
 
         rs.close();
@@ -284,25 +294,25 @@ public class SQLServerPreparedStatementExtensiveTests {
         psUpdate.setString(1, "Updated Name");
         psUpdate.setInt(2, 1);
         int updateCount = psUpdate.executeUpdate();
-        Assert.assertEquals(1, updateCount);
+        assertEquals(1, updateCount);
 
         // Verify update
         PreparedStatement psSelect = conn.prepareStatement("SELECT name FROM sqlserver_update_test WHERE id = ?");
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals("Updated Name", rs.getString("name"));
+        assertTrue(rs.next());
+        assertEquals("Updated Name", rs.getString("name"));
         rs.close();
 
         // Test DELETE
         PreparedStatement psDelete = conn.prepareStatement("DELETE FROM sqlserver_update_test WHERE id = ?");
         psDelete.setInt(1, 1);
         int deleteCount = psDelete.executeUpdate();
-        Assert.assertEquals(1, deleteCount);
+        assertEquals(1, deleteCount);
 
         // Verify delete
         rs = psSelect.executeQuery();
-        Assert.assertFalse(rs.next()); // No rows should remain
+        assertFalse(rs.next()); // No rows should remain
 
         rs.close();
         psSelect.close();

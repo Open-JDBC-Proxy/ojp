@@ -97,7 +97,9 @@ For more details on recognition for these contributions, see our [Contributor Re
 
 ### Download JDBC Drivers
 
-OJP requires JDBC drivers to connect to databases. Open source drivers (H2, PostgreSQL, MySQL, MariaDB) are not embedded in the JAR and must be downloaded:
+> **⚠️ Required for v0.4.0-beta and later:** Download JDBC drivers before running OJP. See [Chapter 4: Database Drivers](../ebook/part2-chapter4-database-drivers.md) for comprehensive instructions.
+
+OJP requires JDBC drivers to connect to databases. Open source drivers (H2, PostgreSQL, MySQL, MariaDB) are not embedded and must be downloaded:
 
 ```bash
 cd ojp-server

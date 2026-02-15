@@ -29,6 +29,9 @@ import java.sql.RowId;
 import java.sql.RowIdLifetime;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -60,7 +63,7 @@ public class ProtoConverter {
         if (parameter.getValues() != null) {
             // Special handling for temporal types
             if (parameter.getType() == ParameterType.TIMESTAMP && !parameter.getValues().isEmpty()) {
-                // TIMESTAMP: first value is Timestamp, optional second value is Calendar
+                // TIMESTAMP: first value is Timestamp or java.time temporal type, optional second value is Calendar
                 Object firstValue = parameter.getValues().get(0);
                 if (firstValue != null && firstValue instanceof Timestamp) {
                     Timestamp timestamp = (Timestamp) firstValue;
@@ -79,6 +82,9 @@ public class ProtoConverter {
                     builder.addValues(toParameterValue(timestamp, zoneId));
                 } else if (firstValue == null) {
                     builder.addValues(toParameterValue(null));
+                } else {
+                    // For java.time types with TIMESTAMP parameter type, convert directly
+                    builder.addValues(toParameterValue(firstValue));
                 }
             } else if (parameter.getType() == ParameterType.DATE && !parameter.getValues().isEmpty()) {
                 // DATE: convert using typed proto field
@@ -88,6 +94,30 @@ public class ProtoConverter {
                 // TIME: convert using typed proto field
                 Object firstValue = parameter.getValues().get(0);
                 builder.addValues(toParameterValueTime(firstValue));
+            } else if (parameter.getType() == ParameterType.OBJECT && parameter.getValues().size() == 2
+                    && parameter.getValues().get(1) instanceof Integer) {
+                // OBJECT with targetSqlType: first value is the object, second value is java.sql.Types constant
+                // This happens when setObject(index, value, targetSqlType) is called
+                Object value = parameter.getValues().get(0);
+                Integer targetSqlType = (Integer) parameter.getValues().get(1);
+                
+                // Convert based on targetSqlType using java.sql.Types constants
+                if (targetSqlType == java.sql.Types.TIMESTAMP || targetSqlType == java.sql.Types.TIMESTAMP_WITH_TIMEZONE) {
+                    // For TIMESTAMP types, use toParameterValue which handles java.time types
+                    builder.addValues(toParameterValue(value));
+                } else if (targetSqlType == java.sql.Types.DATE) {
+                    // For DATE type, use toParameterValueDate
+                    builder.addValues(toParameterValueDate(value));
+                } else if (targetSqlType == java.sql.Types.TIME) {
+                    // For plain TIME type, use toParameterValueTime (handles Time and LocalTime only)
+                    builder.addValues(toParameterValueTime(value));
+                } else if (targetSqlType == java.sql.Types.TIME_WITH_TIMEZONE) {
+                    // For TIME_WITH_TIMEZONE, use toParameterValue which handles OffsetTime
+                    builder.addValues(toParameterValue(value));
+                } else {
+                    // For other types, just convert the value directly
+                    builder.addValues(toParameterValue(value));
+                }
             } else {
                 // For all other types, use standard conversion
                 for (Object value : parameter.getValues()) {
@@ -364,6 +394,24 @@ public class ProtoConverter {
             // java.time.OffsetDateTime - convert to TimestampWithZone
             // Use offsetDateTimeToTimestampWithZone to preserve original type as OFFSET_DATE_TIME
             builder.setTimestampValue(TemporalConverter.offsetDateTimeToTimestampWithZone((OffsetDateTime) value));
+        } else if (value instanceof java.time.LocalDateTime) {
+            // java.time.LocalDateTime - convert to TimestampWithZone
+            // Use localDateTimeToTimestampWithZone to preserve original type as LOCAL_DATE_TIME
+            builder.setTimestampValue(TemporalConverter.localDateTimeToTimestampWithZone((java.time.LocalDateTime) value));
+        } else if (value instanceof Instant) {
+            // java.time.Instant - convert to TimestampWithZone
+            // Use instantToTimestampWithZone to preserve original type as INSTANT
+            builder.setTimestampValue(TemporalConverter.instantToTimestampWithZone((Instant) value));
+        } else if (value instanceof java.time.OffsetTime) {
+            // java.time.OffsetTime - convert to TimestampWithZone
+            // Use offsetTimeToTimestampWithZone to preserve original type as OFFSET_TIME
+            builder.setTimestampValue(TemporalConverter.offsetTimeToTimestampWithZone((java.time.OffsetTime) value));
+        } else if (value instanceof LocalDate) {
+            // java.time.LocalDate - convert to google.type.Date
+            return toParameterValueLocalDate(value);
+        } else if (value instanceof LocalTime) {
+            // java.time.LocalTime - convert to google.type.TimeOfDay
+            return toParameterValueLocalTime(value);
         } else if (value instanceof Map || value instanceof List || value instanceof java.util.Properties) {
             // For Map, List, and Properties objects, use protobuf serialization
             // instead of Java serialization for language independence
@@ -403,9 +451,9 @@ public class ProtoConverter {
     }
     
     /**
-     * Convert java.sql.Date to ParameterValue with google.type.Date.
+     * Convert java.sql.Date or java.time.LocalDate to ParameterValue with google.type.Date.
      * 
-     * @param date The date to convert (can be null or Object that will be cast)
+     * @param date The date to convert (can be null, java.sql.Date, or java.time.LocalDate)
      * @return ParameterValue with date_value set, or is_null if date is null
      */
     public static ParameterValue toParameterValueDate(Object date) {
@@ -413,20 +461,24 @@ public class ProtoConverter {
             return ParameterValue.newBuilder().setIsNull(true).build();
         }
         
-        if (!(date instanceof Date)) {
-            throw new IllegalArgumentException("Expected java.sql.Date but got " + date.getClass().getName());
+        com.google.type.Date protoDate;
+        if (date instanceof Date) {
+            protoDate = TemporalConverter.toProtoDate((Date) date);
+        } else if (date instanceof LocalDate) {
+            protoDate = TemporalConverter.localDateToProtoDate((LocalDate) date);
+        } else {
+            throw new IllegalArgumentException("Expected java.sql.Date or java.time.LocalDate but got " + date.getClass().getName());
         }
         
-        com.google.type.Date protoDate = TemporalConverter.toProtoDate((Date) date);
         return ParameterValue.newBuilder()
             .setDateValue(protoDate)
             .build();
     }
     
     /**
-     * Convert java.sql.Time to ParameterValue with google.type.TimeOfDay.
+     * Convert java.sql.Time or java.time.LocalTime to ParameterValue with google.type.TimeOfDay.
      * 
-     * @param time The time to convert (can be null or Object that will be cast)
+     * @param time The time to convert (can be null, java.sql.Time, or java.time.LocalTime)
      * @return ParameterValue with time_value set, or is_null if time is null
      */
     public static ParameterValue toParameterValueTime(Object time) {
@@ -434,11 +486,57 @@ public class ProtoConverter {
             return ParameterValue.newBuilder().setIsNull(true).build();
         }
         
-        if (!(time instanceof Time)) {
-            throw new IllegalArgumentException("Expected java.sql.Time but got " + time.getClass().getName());
+        com.google.type.TimeOfDay protoTimeOfDay;
+        if (time instanceof Time) {
+            protoTimeOfDay = TemporalConverter.toProtoTimeOfDay((Time) time);
+        } else if (time instanceof LocalTime) {
+            protoTimeOfDay = TemporalConverter.localTimeToProtoTimeOfDay((LocalTime) time);
+        } else {
+            throw new IllegalArgumentException("Expected java.sql.Time or java.time.LocalTime but got " + time.getClass().getName());
         }
         
-        com.google.type.TimeOfDay protoTimeOfDay = TemporalConverter.toProtoTimeOfDay((Time) time);
+        return ParameterValue.newBuilder()
+            .setTimeValue(protoTimeOfDay)
+            .build();
+    }
+    
+    /**
+     * Convert java.time.LocalDate to ParameterValue with google.type.Date.
+     * 
+     * @param localDate The LocalDate to convert (can be null or Object that will be cast)
+     * @return ParameterValue with date_value set, or is_null if localDate is null
+     */
+    public static ParameterValue toParameterValueLocalDate(Object localDate) {
+        if (localDate == null) {
+            return ParameterValue.newBuilder().setIsNull(true).build();
+        }
+        
+        if (!(localDate instanceof LocalDate)) {
+            throw new IllegalArgumentException("Expected java.time.LocalDate but got " + localDate.getClass().getName());
+        }
+        
+        com.google.type.Date protoDate = TemporalConverter.localDateToProtoDate((LocalDate) localDate);
+        return ParameterValue.newBuilder()
+            .setDateValue(protoDate)
+            .build();
+    }
+    
+    /**
+     * Convert java.time.LocalTime to ParameterValue with google.type.TimeOfDay.
+     * 
+     * @param localTime The LocalTime to convert (can be null or Object that will be cast)
+     * @return ParameterValue with time_value set, or is_null if localTime is null
+     */
+    public static ParameterValue toParameterValueLocalTime(Object localTime) {
+        if (localTime == null) {
+            return ParameterValue.newBuilder().setIsNull(true).build();
+        }
+        
+        if (!(localTime instanceof LocalTime)) {
+            throw new IllegalArgumentException("Expected java.time.LocalTime but got " + localTime.getClass().getName());
+        }
+        
+        com.google.type.TimeOfDay protoTimeOfDay = TemporalConverter.localTimeToProtoTimeOfDay((LocalTime) localTime);
         return ParameterValue.newBuilder()
             .setTimeValue(protoTimeOfDay)
             .build();

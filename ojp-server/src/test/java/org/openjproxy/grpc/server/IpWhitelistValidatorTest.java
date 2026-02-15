@@ -9,10 +9,10 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests for IpWhitelistValidator class.
  */
-public class IpWhitelistValidatorTest {
+ class IpWhitelistValidatorTest {
 
     @Test
-    void testWildcardAccess() {
+     void testWildcardAccess() {
         List<String> wildcardRules = List.of(IpWhitelistValidator.ALLOW_ALL_IPS);
         assertTrue(IpWhitelistValidator.isIpAllowed("192.168.1.1", wildcardRules));
         assertTrue(IpWhitelistValidator.isIpAllowed("10.0.0.1", wildcardRules));
@@ -24,7 +24,7 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testEmptyWhitelist() {
+     void testEmptyWhitelist() {
         List<String> emptyRules = List.of();
         assertTrue(IpWhitelistValidator.isIpAllowed("192.168.1.1", emptyRules));
         assertTrue(IpWhitelistValidator.isIpAllowed("10.0.0.1", emptyRules));
@@ -33,7 +33,7 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testIndividualIpMatching() {
+     void testIndividualIpMatching() {
         List<String> specificIps = List.of("192.168.1.1", "10.0.0.1", "172.16.0.1");
 
         assertTrue(IpWhitelistValidator.isIpAllowed("192.168.1.1", specificIps));
@@ -46,7 +46,7 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testCidrRangeMatching() {
+     void testCidrRangeMatching() {
         List<String> cidrRules = List.of("192.168.1.0/24", "10.0.0.0/8");
 
         // Test 192.168.1.0/24 range
@@ -62,7 +62,7 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testMixedRules() {
+     void testMixedRules() {
         List<String> mixedRules = List.of("127.0.0.1", "192.168.1.0/24", "10.0.0.1");
 
         assertTrue(IpWhitelistValidator.isIpAllowed("127.0.0.1", mixedRules));
@@ -75,14 +75,14 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testInvalidIpAddress() {
+     void testInvalidIpAddress() {
         List<String> rules = List.of("192.168.1.1");
         assertFalse(IpWhitelistValidator.isIpAllowed("invalid-ip", rules));
         assertFalse(IpWhitelistValidator.isIpAllowed("999.999.999.999", rules));
     }
 
     @Test
-    void testValidateWhitelistRules() {
+     void testValidateWhitelistRules() {
         // Valid rules
         assertTrue(IpWhitelistValidator.validateWhitelistRules(List.of("192.168.1.1")));
         assertTrue(IpWhitelistValidator.validateWhitelistRules(List.of("192.168.1.0/24")));
@@ -101,7 +101,7 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testCidrEdgeCases() {
+     void testCidrEdgeCases() {
         // Test /32 CIDR (single host)
         List<String> singleHostCidr = List.of("192.168.1.1/32");
         assertTrue(IpWhitelistValidator.isIpAllowed("192.168.1.1", singleHostCidr));
@@ -121,7 +121,7 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testInvalidCidrFormats() {
+     void testInvalidCidrFormats() {
         List<String> invalidCidr = List.of("192.168.1.0/");
         assertFalse(IpWhitelistValidator.isIpAllowed("192.168.1.1", invalidCidr));
 
@@ -130,7 +130,7 @@ public class IpWhitelistValidatorTest {
     }
 
     @Test
-    void testWhitespaceHandling() {
+     void testWhitespaceHandling() {
         List<String> rulesWithWhitespace = List.of(" 192.168.1.1 ", "  192.168.1.0/24  ");
         assertTrue(IpWhitelistValidator.isIpAllowed("192.168.1.1", rulesWithWhitespace));
         assertTrue(IpWhitelistValidator.isIpAllowed("192.168.1.50", rulesWithWhitespace));

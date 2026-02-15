@@ -1,6 +1,5 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -15,13 +14,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Oracle-specific binary stream integration tests.
  * Tests Oracle-specific binary data types (RAW, BLOB) and stream handling.
  */
-public class OracleBinaryStreamIntegrationTest {
+class OracleBinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
 
@@ -73,16 +73,16 @@ public class OracleBinaryStreamIntegrationTest {
         
         InputStream blobResult = resultSet.getBinaryStream(1);
         String fromBlobByIdx = new String(blobResult.readAllBytes());
-        Assert.assertEquals(testString, fromBlobByIdx);
+        assertEquals(testString, fromBlobByIdx);
 
         InputStream blobResultByName = resultSet.getBinaryStream("val_raw1");
         byte[] allBytes = blobResultByName.readAllBytes();
         String fromBlobByName = new String(allBytes);
-        Assert.assertEquals(testString, fromBlobByName);
+        assertEquals(testString, fromBlobByName);
 
         InputStream blobResult2 = resultSet.getBinaryStream(2);
         String fromBlobByIdx2 = new String(blobResult2.readAllBytes());
-        Assert.assertEquals(testString.substring(0, 7), fromBlobByIdx2);
+        assertEquals(testString.substring(0, 7), fromBlobByIdx2);
 
         executeUpdate(conn, "delete from oracle_binary_stream_test");
 
@@ -93,7 +93,7 @@ public class OracleBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -130,7 +130,7 @@ public class OracleBinaryStreamIntegrationTest {
         int byteFile = inputStreamTestFile.read();
         while (byteFile != -1) {
             int blobByte = inputStreamBlob.read();
-            Assert.assertEquals(byteFile, blobByte);
+            assertEquals(byteFile, blobByte);
             byteFile = inputStreamTestFile.read();
         }
 
@@ -184,15 +184,15 @@ public class OracleBinaryStreamIntegrationTest {
 
         // Verify small RAW
         String retrievedSmall = new String(resultSet.getBinaryStream(1).readAllBytes());
-        Assert.assertEquals(smallData, retrievedSmall);
+        assertEquals(smallData, retrievedSmall);
 
         // Verify medium RAW
         String retrievedMedium = new String(resultSet.getBinaryStream(2).readAllBytes());
-        Assert.assertEquals(mediumData, retrievedMedium);
+        assertEquals(mediumData, retrievedMedium);
 
         // Verify large BLOB
         String retrievedLarge = new String(resultSet.getBinaryStream(3).readAllBytes());
-        Assert.assertEquals(largeData, retrievedLarge);
+        assertEquals(largeData, retrievedLarge);
 
         executeUpdate(conn, "delete from oracle_binary_types_test");
 

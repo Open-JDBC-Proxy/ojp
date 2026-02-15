@@ -122,21 +122,35 @@ For detailed configuration examples for each database, see [SSL/TLS Certificate 
 
 ### SQL Enhancer and Schema Loader Settings
 
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> The SQL Enhancer with Apache Calcite is **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use.
+>
+> - **Default**: Disabled (false)
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases
+> - **Recommendation**: **Do NOT enable in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases. Early testing revealed critical type mapping issues that prevent reliable query optimization.
+>
+> **We strongly discourage using this feature in its current state.**
+
 The SQL Enhancer provides query optimization using Apache Calcite with real database schema metadata for accurate query analysis.
 
-| Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |
-|----------------------------------------------------|----------------------------------------------------|---------|----------|--------------------------------------------------|-------|
-| `ojp.sql.enhancer.enabled`                        | `OJP_SQL_ENHANCER_ENABLED`                        | boolean | false    | Enable/disable SQL query enhancement            | 0.4.0-beta |
-| `ojp.sql.enhancer.schema.refresh.enabled`         | `OJP_SQL_ENHANCER_SCHEMA_REFRESH_ENABLED`         | boolean | true     | Enable automatic schema metadata refresh        | 0.4.0-beta |
-| `ojp.sql.enhancer.schema.refresh.interval.hours`  | `OJP_SQL_ENHANCER_SCHEMA_REFRESH_INTERVAL_HOURS`  | long    | 24       | Hours between automatic schema refreshes         | 0.4.0-beta |
-| `ojp.sql.enhancer.schema.load.timeout.seconds`    | `OJP_SQL_ENHANCER_SCHEMA_LOAD_TIMEOUT_SECONDS`    | long    | 30       | Timeout for schema loading operations (seconds) | 0.4.0-beta |
-| `ojp.sql.enhancer.schema.fallback.enabled`        | `OJP_SQL_ENHANCER_SCHEMA_FALLBACK_ENABLED`        | boolean | true     | Fall back to generic schema if loading fails    | 0.4.0-beta |
+| Property                                           | Environment Variable                               | Type    | Default  | Description                                      |
+|----------------------------------------------------|----------------------------------------------------|---------|----------|--------------------------------------------------|
+| `ojp.sql.enhancer.enabled`                        | `OJP_SQL_ENHANCER_ENABLED`                        | boolean | false    | Enable/disable SQL query enhancement (**NOT RECOMMENDED**) |
+| `ojp.sql.enhancer.schema.refresh.enabled`         | `OJP_SQL_ENHANCER_SCHEMA_REFRESH_ENABLED`         | boolean | true     | Enable automatic schema metadata refresh        |
+| `ojp.sql.enhancer.schema.refresh.interval.hours`  | `OJP_SQL_ENHANCER_SCHEMA_REFRESH_INTERVAL_HOURS`  | long    | 24       | Hours between automatic schema refreshes         |
+| `ojp.sql.enhancer.schema.load.timeout.seconds`    | `OJP_SQL_ENHANCER_SCHEMA_LOAD_TIMEOUT_SECONDS`    | long    | 30       | Timeout for schema loading operations (seconds) |
+| `ojp.sql.enhancer.schema.fallback.enabled`        | `OJP_SQL_ENHANCER_SCHEMA_FALLBACK_ENABLED`        | boolean | true     | Fall back to generic schema if loading fails    |
 
 #### SQL Enhancer Configuration Examples
 
-**Enable SQL enhancement with schema loading:**
+> **⚠️ WARNING**: These examples are for testing/experimental purposes only. Do not use in production.
+
+**Enable SQL enhancement with schema loading (NOT RECOMMENDED):**
 ```bash
-# Enable SQL enhancer
+# Enable SQL enhancer (EXPERIMENTAL - NOT FOR PRODUCTION)
 -Dojp.sql.enhancer.enabled=true
 
 # Configure schema refresh (default 24 hours)
@@ -147,8 +161,9 @@ The SQL Enhancer provides query optimization using Apache Calcite with real data
 -Dojp.sql.enhancer.schema.load.timeout.seconds=60
 ```
 
-**Production setup with frequent schema refresh:**
+**Testing/Development setup (NOT FOR PRODUCTION):**
 ```bash
+# WARNING: For testing/development only
 java -Dojp.sql.enhancer.enabled=true \
      -Dojp.sql.enhancer.schema.refresh.enabled=true \
      -Dojp.sql.enhancer.schema.refresh.interval.hours=12 \
@@ -158,6 +173,8 @@ java -Dojp.sql.enhancer.enabled=true \
 
 #### Database Schema Integration
 
+> **⚠️ EXPERIMENTAL**: Schema integration has known limitations with traditional JDBC databases.
+
 The SQL Enhancer can load real database schema metadata to improve query optimization accuracy. Schema metadata is loaded asynchronously from database connections and cached for performance.
 
 **Features:**
@@ -165,7 +182,7 @@ The SQL Enhancer can load real database schema metadata to improve query optimiz
 - **Automatic Refresh**: Configurable periodic refresh keeps schema metadata current
 - **Thread-Safe**: Multiple connections can safely access and update schema cache
 - **Fallback Support**: Falls back to generic schema if real schema is unavailable
-- **Multi-Database**: Supports MySQL, PostgreSQL, Oracle, SQL Server, and other JDBC databases
+- **Multi-Database**: Designed for MySQL, PostgreSQL, Oracle, SQL Server (but has known limitations)
 
 **Required Database Privileges:**
 

@@ -4,6 +4,7 @@ import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -61,8 +63,8 @@ public class PostgresConnectionExtensiveTests {
     @CsvFileSource(resources = "/postgres_connection.csv")
     void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertEquals(false, connection.isClosed());
-        assertEquals(true, connection.isValid(5));
+        Assertions.assertFalse(connection.isClosed());
+        assertTrue( connection.isValid(5));
         assertNotNull(connection.getSchema()); // PostgreSQL should return current schema
         assertNull(connection.getClientInfo("nonexistent"));
     }
@@ -71,9 +73,9 @@ public class PostgresConnectionExtensiveTests {
     @CsvFileSource(resources = "/postgres_connection.csv")
     void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertEquals(true, connection.getAutoCommit());
+        assertTrue( connection.getAutoCommit());
         connection.setAutoCommit(false);
-        assertEquals(false, connection.getAutoCommit());
+        assertFalse( connection.getAutoCommit());
 
         int isolation = connection.getTransactionIsolation();
         assertEquals(Connection.TRANSACTION_READ_COMMITTED, isolation);
@@ -97,13 +99,13 @@ public class PostgresConnectionExtensiveTests {
         connection.rollback();
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertEquals(false, rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertEquals(true, rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
@@ -122,7 +124,7 @@ public class PostgresConnectionExtensiveTests {
         connection.rollback(sp1);
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertEquals(false, rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
         // sp1 is no longer valid after rollback, so create a new savepoint to demonstrate release functionality  
@@ -131,7 +133,7 @@ public class PostgresConnectionExtensiveTests {
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertEquals(true, rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
@@ -141,7 +143,7 @@ public class PostgresConnectionExtensiveTests {
         DatabaseMetaData metaData = connection.getMetaData();
         assertNotNull(metaData);
         assertEquals("PostgreSQL", metaData.getDatabaseProductName());
-        assertEquals(true, metaData.supportsTransactions());
+        assertTrue( metaData.supportsTransactions());
     }
 
     @ParameterizedTest
@@ -161,9 +163,9 @@ public class PostgresConnectionExtensiveTests {
     @CsvFileSource(resources = "/postgres_connection.csv")
     void testClose(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertEquals(false, connection.isClosed());
+        assertFalse( connection.isClosed());
         connection.close();
-        assertEquals(true, connection.isClosed());
+        assertTrue( connection.isClosed());
     }
 
     // ---------- Additional tests for every Connection interface method ----------
@@ -198,11 +200,11 @@ public class PostgresConnectionExtensiveTests {
 
         // setReadOnly / isReadOnly
         connection.setReadOnly(false);
-        assertEquals(false, connection.isReadOnly());
+        assertFalse( connection.isReadOnly());
         // Note: PostgreSQL might not allow setting read-only in a transaction
         try {
             connection.setReadOnly(true);
-            assertEquals(true, connection.isReadOnly());
+            assertTrue( connection.isReadOnly());
         } catch (SQLException e) {
             // PostgreSQL might reject this in certain states
         }
@@ -292,7 +294,7 @@ public class PostgresConnectionExtensiveTests {
         assertNotNull(sqlxml);
 
         // isValid
-        assertEquals(true, connection.isValid(5));
+        assertTrue( connection.isValid(5));
 
         // setClientInfo (Properties)
         Properties props = new Properties();

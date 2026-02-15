@@ -1,7 +1,22 @@
 # SQL Enhancer Gap Analysis Summary
 
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> **IMPORTANT:** This gap analysis document describes the SQL Enhancer implementation with Apache Calcite, which is now **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use.
+>
+> - **Status**: Experimental / Not Production Ready
+> - **Default**: Disabled by default (opt-in only)
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases
+> - **Recommendation**: **Do NOT enable in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases.
+>
+> **We strongly discourage using this feature in its current state.**
+>
+> This document remains for reference purposes.
+
 **Date:** January 15, 2026  
-**Status:** ✅ COMPLETE  
+**Status:** ✅ COMPLETE (Feature Now Experimental - Not Recommended)
 **Author:** GitHub Copilot
 
 ---
@@ -9,6 +24,8 @@
 ## Executive Summary
 
 Performed a comprehensive gap analysis between the `SQL_ENHANCER_ENGINE_ANALYSIS.md` document and the actual implementation. Identified 9 missing configuration properties and 1 redundant property. All gaps have been addressed with implementation, testing, and documentation.
+
+**Update:** Subsequent integration testing revealed substantial limitations with traditional JDBC databases. The feature is now marked as experimental and not recommended for production use.
 
 ---
 

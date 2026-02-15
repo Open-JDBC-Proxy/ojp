@@ -160,6 +160,57 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     }
 
     /**
+     * Creates and configures the SQL enhancer engine based on server configuration.
+     * Parses mode to determine conversion and optimization settings.
+     * Initializes schema cache and loader for query validation.
+     *
+     * @param config Server configuration
+     * @return Configured SqlEnhancerEngine instance
+     */
+    private org.openjproxy.grpc.server.sql.SqlEnhancerEngine createSqlEnhancerEngine(ServerConfiguration config) {
+        // Parse mode to determine conversion and optimization settings
+        org.openjproxy.grpc.server.sql.SqlEnhancerMode mode =
+                org.openjproxy.grpc.server.sql.SqlEnhancerMode.fromString(config.getSqlEnhancerMode());
+
+        // Parse rules if specified, otherwise use defaults
+        java.util.List<String> enabledRules = null;
+        if (config.getSqlEnhancerRules() != null && !config.getSqlEnhancerRules().trim().isEmpty()) {
+            enabledRules = java.util.Arrays.asList(config.getSqlEnhancerRules().split(","))
+                    .stream()
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
+        }
+
+        // Initialize schema cache and loader if SQL enhancer is enabled with conversion
+        org.openjproxy.grpc.server.sql.SchemaCache schemaCache = null;
+        org.openjproxy.grpc.server.sql.SchemaLoader schemaLoader = null;
+
+        if (config.isSqlEnhancerEnabled() && mode.isConversionEnabled()) {
+            log.info("Initializing schema cache and loader for SQL enhancer");
+            schemaCache = new org.openjproxy.grpc.server.sql.SchemaCache();
+            schemaLoader = new org.openjproxy.grpc.server.sql.SchemaLoader();
+            // Note: Schema will be loaded on first query execution when datasource is available
+        }
+
+        // Create engine with full configuration including schema support
+        return new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(
+                config.isSqlEnhancerEnabled(),
+                config.getSqlEnhancerDialect(),
+                config.getSqlEnhancerTargetDialect(),
+                mode.isConversionEnabled(),
+                mode.isOptimizationEnabled(),
+                enabledRules,
+                schemaCache,
+                schemaLoader,
+                null,  // DataSource will be provided during query execution
+                null,  // Catalog name will be determined from connection
+                null,  // Schema name will be determined from connection
+                0      // No automatic refresh (will refresh on-demand)
+        );
+    }
+
+    /**
      * Initialize XA Pool Provider if XA pooling is enabled in configuration.
      * Loads the provider via ServiceLoader (Commons Pool 2 by default).
      */
@@ -525,6 +576,36 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         long enhancementStartTime = System.currentTimeMillis();
 
         if (sqlEnhancerEngine.isEnabled()) {
+            // Ensure schema is loaded before enhancement (on-demand, only once)
+            try {
+                // Get the DataSource for this connection
+                String dsKey = dto.getSession().getConnHash();
+                DataSource dataSource = datasourceMap.get(dsKey);
+                
+                if (dataSource != null) {
+                    // Get catalog and schema from the connection
+                    Connection connection = dto.getConnection();
+                    String catalogName = connection.getCatalog();
+                    String schemaName = connection.getSchema();
+                    
+                    // PostgreSQL: Use "public" schema if schema name is null or empty
+                    // This ensures tables created in the default schema are visible to Calcite
+                    if ((schemaName == null || schemaName.isEmpty()) && 
+                        connection.getMetaData().getDatabaseProductName().equalsIgnoreCase("PostgreSQL")) {
+                        schemaName = "public";
+                        log.debug("Using default PostgreSQL 'public' schema for schema loading");
+                    }
+                    
+                    // Ensure schema is loaded (thread-safe, idempotent)
+                    sqlEnhancerEngine.ensureSchemaLoaded(dataSource, catalogName, schemaName);
+                } else {
+                    log.debug("No DataSource found for connection hash: {}", dsKey);
+                }
+            } catch (Exception e) {
+                // Log but don't fail - enhancement can proceed without schema
+                log.warn("Failed to ensure schema loaded: {}", e.getMessage());
+            }
+            
             org.openjproxy.grpc.server.sql.SqlEnhancementResult result = sqlEnhancerEngine.enhance(sql);
             sql = result.getEnhancedSql();
 
@@ -1006,5 +1087,16 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             StreamObserver<com.openjproxy.grpc.XaIsSameRMResponse> responseObserver) {
         org.openjproxy.grpc.server.action.transaction.XaIsSameRMAction.getInstance()
                 .execute(actionContext, request, responseObserver);
+    }
+    
+    /**
+     * Shuts down the SQL enhancer engine and releases associated resources.
+     * This method should be called during server shutdown to ensure proper cleanup.
+     */
+    public void shutdown() {
+        if (sqlEnhancerEngine != null) {
+            log.info("Shutting down SQL enhancer engine");
+            sqlEnhancerEngine.shutdown();
+        }
     }
 }

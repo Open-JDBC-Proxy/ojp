@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -50,11 +49,11 @@ class XASessionInvalidationTest {
         manager.bindSession("session-3", "server1:1059"); // Different server
         
         // Verify sessions are bound
-        Map<String, ServerEndpoint> sessionMap = getSessionToServerMap(manager);
+        Map<?, ?> sessionMap = getSessionToServerMap(manager);
         assertEquals(3, sessionMap.size());
-        assertEquals(server2, sessionMap.get("session-1"));
-        assertEquals(server2, sessionMap.get("session-2"));
-        assertEquals(endpoints.get(0), sessionMap.get("session-3"));
+        assertEquals(server2, getEndpoint(sessionMap, "session-1"));
+        assertEquals(server2, getEndpoint(sessionMap, "session-2"));
+        assertEquals(endpoints.get(0), getEndpoint(sessionMap, "session-3"));
         
         // Mark server2 as unhealthy
         server2.setHealthy(false);
@@ -99,7 +98,7 @@ class XASessionInvalidationTest {
         invokeInvalidateSessionsForServer(manager, server1);
         
         // Verify sessions were removed
-        Map<String, ServerEndpoint> sessionMap = getSessionToServerMap(manager);
+        Map<?, ?> sessionMap = getSessionToServerMap(manager);
         assertEquals(0, sessionMap.size(), "All sessions should be invalidated");
         
         // Note: Connection object invalidation is tested by checking that
@@ -117,7 +116,7 @@ class XASessionInvalidationTest {
         manager.bindSession("session-1", "server1:1059");
         manager.bindSession("session-2", "server3:1059");
         
-        Map<String, ServerEndpoint> sessionMapBefore = getSessionToServerMap(manager);
+        Map<?, ?> sessionMapBefore = getSessionToServerMap(manager);
         assertEquals(2, sessionMapBefore.size());
         
         // Mark server2 as unhealthy and recover
@@ -128,7 +127,7 @@ class XASessionInvalidationTest {
         invokeInvalidateSessionsForServer(manager, server2);
         
         // Verify no sessions were invalidated (none were bound to server2)
-        Map<String, ServerEndpoint> sessionMapAfter = getSessionToServerMap(manager);
+        Map<?, ?> sessionMapAfter = getSessionToServerMap(manager);
         assertEquals(2, sessionMapAfter.size(), "No sessions should be invalidated");
         assertNotNull(sessionMapAfter.get("session-1"));
         assertNotNull(sessionMapAfter.get("session-2"));
@@ -146,7 +145,7 @@ class XASessionInvalidationTest {
         // Bind a session
         managerWithoutXA.bindSession("session-1", "server1:1059");
         
-        Map<String, ServerEndpoint> sessionMap = getSessionToServerMap(managerWithoutXA);
+        Map<?, ?> sessionMap = getSessionToServerMap(managerWithoutXA);
         assertEquals(1, sessionMap.size());
         
         // Invoke session invalidation for server1
@@ -166,7 +165,7 @@ class XASessionInvalidationTest {
         manager.bindSession("session-4", "server2:1059");
         manager.bindSession("session-5", "server3:1059");
         
-        Map<String, ServerEndpoint> sessionMap = getSessionToServerMap(manager);
+        Map<?, ?> sessionMap = getSessionToServerMap(manager);
         assertEquals(5, sessionMap.size());
         
         // Mark server1 and server2 as unhealthy
@@ -217,15 +216,26 @@ class XASessionInvalidationTest {
 
     // Helper methods to access private fields and methods for testing
 
-    @SuppressWarnings("unchecked")
-    private Map<String, ServerEndpoint> getSessionToServerMap(MultinodeConnectionManager manager) {
+    private Map<?, ?> getSessionToServerMap(MultinodeConnectionManager manager) {
         try {
             java.lang.reflect.Field field = MultinodeConnectionManager.class.getDeclaredField("sessionToServerMap");
             field.setAccessible(true);
-            return (Map<String, ServerEndpoint>) field.get(manager);
+            Object mapValue = field.get(manager);
+            assertNotNull(mapValue);
+            assertInstanceOf(Map.class, mapValue);
+            return (Map<?, ?>) mapValue;
         } catch (Exception e) {
             throw new RuntimeException("Failed to access sessionToServerMap", e);
         }
+    }
+
+    private ServerEndpoint getEndpoint(Map<?, ?> sessionMap, String sessionId) {
+        Object endpoint = sessionMap.get(sessionId);
+        if (endpoint == null) {
+            return null;
+        }
+        assertInstanceOf(ServerEndpoint.class, endpoint);
+        return (ServerEndpoint) endpoint;
     }
 
     private void invokeInvalidateSessionsForServer(MultinodeConnectionManager manager, ServerEndpoint endpoint) {

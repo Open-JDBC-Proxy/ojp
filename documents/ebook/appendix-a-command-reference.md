@@ -2,11 +2,16 @@
 
 This appendix provides a comprehensive quick reference for all commands, configuration properties, and common patterns used throughout OJP. Use this as a desk reference when working with OJP in development or production environments.
 
+> **🚨 Important for Version 0.4.0-beta and Later:**  
+> JDBC drivers must be downloaded before running ojp-server (both JAR and Docker). See [Chapter 4: Database Drivers](part2-chapter4-database-drivers.md) for complete setup instructions.
+
 ## Server Commands
 
 ### Starting the Server
 
 The most common way to start the OJP server is using the standalone JAR:
+
+> **⚠️ For v0.4.0-beta and later:** Download drivers first using `bash ojp-server/download-drivers.sh`
 
 ```bash
 java -jar ojp-server-0.3.0.jar

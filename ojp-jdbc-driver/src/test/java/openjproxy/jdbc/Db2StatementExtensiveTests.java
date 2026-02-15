@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -13,17 +12,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class Db2StatementExtensiveTests {
+class Db2StatementExtensiveTests {
 
     private static boolean isTestDisabled;
 
@@ -35,16 +27,16 @@ public class Db2StatementExtensiveTests {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+     void setUp(String driverClass, String url, String user, String password) throws Exception {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
-        
+
         // Set schema explicitly to avoid "object not found" errors
         try (java.sql.Statement schemaStmt = connection.createStatement()) {
             schemaStmt.execute("SET SCHEMA DB2INST1");
         }
-        
+
         statement = connection.createStatement();
 
         TestDBUtils.createBasicTestTable(connection, "DB2INST1.db2_statement_test", TestDBUtils.SqlSyntax.DB2, true);
@@ -261,9 +253,9 @@ public class Db2StatementExtensiveTests {
     void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_auto_keys", TestDBUtils.SqlSyntax.DB2);
-        
+
         int affected = statement.executeUpdate("INSERT INTO test_auto_keys (name) VALUES ('foo')",
-                new String[] { "id" });
+                new String[]{"id"});
         assertEquals(1, affected);
         ResultSet keys = statement.getGeneratedKeys();
         assertTrue(keys.next());
@@ -277,7 +269,7 @@ public class Db2StatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
 
         TestDBUtils.createAutoIncrementTestTable(connection, "test_cols", TestDBUtils.SqlSyntax.DB2);
-        
+
         int a = statement.executeUpdate("INSERT INTO test_cols (name) VALUES ('bar')", Statement.RETURN_GENERATED_KEYS);
         assertEquals(1, a);
 
@@ -296,7 +288,7 @@ public class Db2StatementExtensiveTests {
     void testExecuteVariants(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_exec", TestDBUtils.SqlSyntax.DB2);
-        
+
         boolean b = statement.execute("INSERT INTO test_exec (name) VALUES ('v1')", Statement.RETURN_GENERATED_KEYS);
         assertFalse(b);
 
@@ -325,7 +317,7 @@ public class Db2StatementExtensiveTests {
         statement.setPoolable(true);
         // DB2 behavior: supports statement pooling
         boolean isPoolable = statement.isPoolable();
-        assertTrue(isPoolable == true || isPoolable == false, "isPoolable should return a boolean");
+        assertTrue(isPoolable || !isPoolable, "isPoolable should return a boolean");
         statement.setPoolable(false);
         // Just verify the method works, don't enforce specific behavior
         statement.isPoolable(); // Should not throw
@@ -385,7 +377,7 @@ public class Db2StatementExtensiveTests {
         boolean result1 = statement.isSimpleIdentifier("abc123");
         boolean result2 = statement.isSimpleIdentifier("ab-c");  // Contains hyphen - not simple
         boolean result3 = statement.isSimpleIdentifier("");      // Empty - not simple
-        
+
         assertTrue(result1);      // Should be true for simple identifier
         assertFalse(result2);     // Should be false - contains special character
         assertFalse(result3);     // Should be false - empty string
@@ -403,27 +395,27 @@ public class Db2StatementExtensiveTests {
     @CsvFileSource(resources = "/db2_connection.csv")
     void testDb2SpecificFeatures(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
-        
+
         // Test DB2-specific SQL features
         statement.execute("CREATE VIEW db2_test_view AS SELECT * FROM DB2INST1.db2_statement_test");
-        
+
         ResultSet rs = statement.executeQuery("SELECT * FROM db2_test_view");
         assertTrue(rs.next());
         rs.close();
-        
+
         // Test DB2 system tables
         rs = statement.executeQuery("SELECT CURRENT_TIMESTAMP FROM SYSIBM.SYSDUMMY1");
         assertTrue(rs.next());
         assertNotNull(rs.getTimestamp(1));
         rs.close();
-        
+
         // Test DB2 VALUES clause
         rs = statement.executeQuery("VALUES (1, 'test')");
         assertTrue(rs.next());
         assertEquals(1, rs.getInt(1));
         assertEquals("test", rs.getString(2));
         rs.close();
-        
+
         // Clean up
         statement.execute("DROP VIEW db2_test_view");
     }

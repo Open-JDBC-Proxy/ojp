@@ -1,6 +1,18 @@
 # SQL Enhancer Configuration Examples
 
-This document provides practical examples for configuring the SQL Enhancer Engine in OJP.
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> The SQL Enhancer with Apache Calcite is **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use.
+>
+> - **Default**: Disabled (false)
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases
+> - **Recommendation**: **Do NOT enable in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases.
+>
+> **The examples below are for testing/experimental purposes only. We strongly discourage using this feature in production.**
+
+This document provides practical examples for configuring the SQL Enhancer Engine in OJP for **testing and development purposes only**.
 
 ## Table of Contents
 
@@ -15,22 +27,25 @@ This document provides practical examples for configuring the SQL Enhancer Engin
 
 ## Basic Configuration
 
-### Disable SQL Enhancer (Default)
+### Disable SQL Enhancer (Default - RECOMMENDED)
 
 ```properties
-# SQL enhancer is disabled by default for safety
+# SQL enhancer is disabled by default (RECOMMENDED)
 ojp.sql.enhancer.enabled=false
 ```
 
-### Enable SQL Enhancer with Defaults
+### Enable SQL Enhancer with Defaults (NOT RECOMMENDED)
+
+> **⚠️ WARNING**: For testing/experimental purposes only.
 
 ```properties
 # Enable with default settings (VALIDATE mode, GENERIC dialect)
+# WARNING: NOT for production use
 ojp.sql.enhancer.enabled=true
 ```
 
 This will:
-- Enable SQL syntax validation
+- Enable SQL syntax validation (with known limitations)
 - Use GENERIC SQL dialect
 - Not perform query optimization
 - Cache validation results
@@ -39,11 +54,14 @@ This will:
 
 ## Mode-Based Configuration
 
+> **⚠️ WARNING**: All modes have known limitations with traditional JDBC databases.
+
 ### VALIDATE Mode (Default)
 
-Validates SQL syntax without modifying queries. Fastest mode with minimal overhead.
+Validates SQL syntax without modifying queries. Fastest mode with minimal overhead, but has type system limitations.
 
 ```properties
+# For testing/development only
 ojp.sql.enhancer.enabled=true
 ojp.sql.enhancer.mode=VALIDATE
 ```

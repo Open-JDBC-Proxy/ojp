@@ -1,6 +1,5 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -8,6 +7,7 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -17,24 +17,27 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * DB2-specific BLOB integration tests.
  * Tests DB2 BLOB functionality and performance.
  */
-public class Db2BlobIntegrationTest {
+ class Db2BlobIntegrationTest {
 
     private static boolean isTestDisabled;
     private String tableName;
     private Connection conn;
 
     @BeforeAll
-    static void checkTestConfiguration() {
+     static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+     void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         this.tableName = "DB2INST1.db2_blob_test";
@@ -59,13 +62,13 @@ public class Db2BlobIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2BlobCreationAndRetrieval(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+     void testDb2BlobCreationAndRetrieval(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         setUp(driverClass, url, user, pwd);
 
         System.out.println("Testing DB2 BLOB creation and retrieval for url -> " + url);
 
         String testData = "DB2 BLOB test data - special characters: äöü ñ 中文 🚀";
-        byte[] dataBytes = testData.getBytes("UTF-8");
+        byte[] dataBytes = testData.getBytes(StandardCharsets.UTF_8);
 
         // Insert BLOB data
         PreparedStatement psInsert = conn.prepareStatement(
@@ -82,16 +85,16 @@ public class Db2BlobIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         Blob blob = rs.getBlob("data_blob");
-        Assert.assertNotNull(blob);
+        assertNotNull(blob);
         
         InputStream blobStream = blob.getBinaryStream();
         byte[] retrievedBytes = blobStream.readAllBytes();
-        String retrievedData = new String(retrievedBytes, "UTF-8");
+        String retrievedData = new String(retrievedBytes, StandardCharsets.UTF_8);
         
-        Assert.assertEquals(testData, retrievedData);
+        assertEquals(testData, retrievedData);
         
         // Cleanup
         psSelect.close();
@@ -103,7 +106,7 @@ public class Db2BlobIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2BlobPerformance(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+     void testDb2BlobPerformance(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         setUp(driverClass, url, user, pwd);
 
         System.out.println("Testing DB2 BLOB performance for url -> " + url);
@@ -142,13 +145,13 @@ public class Db2BlobIntegrationTest {
             Blob blob = rs.getBlob("data_blob");
             InputStream blobStream = blob.getBinaryStream();
             byte[] retrievedBytes = blobStream.readAllBytes();
-            Assert.assertEquals(largeData.length, retrievedBytes.length);
+            assertEquals(largeData.length, retrievedBytes.length);
             count++;
         }
         
         long retrieveTime = System.currentTimeMillis() - startTime;
         
-        Assert.assertEquals(10, count);
+        assertEquals(10, count);
         
         System.out.println("DB2 BLOB Performance - Insert: " + insertTime + "ms, Retrieve: " + retrieveTime + "ms");
         

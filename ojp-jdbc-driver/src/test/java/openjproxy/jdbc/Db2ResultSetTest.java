@@ -205,11 +205,11 @@ public class Db2ResultSetTest {
         assertEquals("IS_ACTIVE", metaData.getColumnName(5).toUpperCase());
 
         // Test column types
-        assertTrue(metaData.getColumnType(1) == java.sql.Types.INTEGER);
-        assertTrue(metaData.getColumnType(2) == java.sql.Types.VARCHAR);
-        assertTrue(metaData.getColumnType(3) == java.sql.Types.INTEGER);
-        assertTrue(metaData.getColumnType(4) == java.sql.Types.DECIMAL);
-        assertTrue(metaData.getColumnType(5) == Types.SMALLINT);
+        assertEquals(Types.INTEGER, metaData.getColumnType(1));
+        assertEquals(Types.VARCHAR, metaData.getColumnType(2));
+        assertEquals(Types.INTEGER, metaData.getColumnType(3));
+        assertEquals(Types.DECIMAL, metaData.getColumnType(4));
+        assertEquals(Types.SMALLINT, metaData.getColumnType(5));
     }
 
     @ParameterizedTest

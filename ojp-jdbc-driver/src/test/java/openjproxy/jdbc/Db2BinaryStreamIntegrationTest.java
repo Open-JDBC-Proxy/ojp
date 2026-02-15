@@ -1,6 +1,5 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -16,24 +15,26 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * DB2-specific binary stream integration tests.
  * Tests DB2-specific binary data types (VARBINARY, BLOB) and stream handling.
  */
-public class Db2BinaryStreamIntegrationTest {
+ class Db2BinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
 
     @BeforeAll
-    static void setup() {
+     static void setup() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+     void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -79,16 +80,16 @@ public class Db2BinaryStreamIntegrationTest {
         
         InputStream blobResult = resultSet.getBinaryStream(1);
         String fromBlobByIdx = new String(blobResult.readAllBytes());
-        Assert.assertEquals(testString, fromBlobByIdx);
+        assertEquals(testString, fromBlobByIdx);
 
         InputStream blobResultByName = resultSet.getBinaryStream("val_varbinary1");
         byte[] allBytes = blobResultByName.readAllBytes();
         String fromBlobByName = new String(allBytes);
-        Assert.assertEquals(testString, fromBlobByName);
+        assertEquals(testString, fromBlobByName);
 
         InputStream blobResult2 = resultSet.getBinaryStream(2);
         String fromBlobByIdx2 = new String(blobResult2.readAllBytes());
-        Assert.assertEquals(testString.substring(0, 7), fromBlobByIdx2);
+        assertEquals(testString.substring(0, 7), fromBlobByIdx2);
 
         executeUpdate(conn, "delete from db2_binary_stream_test");
 
@@ -99,7 +100,7 @@ public class Db2BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+     void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -133,10 +134,11 @@ public class Db2BinaryStreamIntegrationTest {
 
         InputStream inputStreamTestFile = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
 
+        assertNotNull(inputStreamTestFile);
         int byteFile = inputStreamTestFile.read();
         while (byteFile != -1) {
             int blobByte = inputStreamBlob.read();
-            Assert.assertEquals(byteFile, blobByte);
+            assertEquals(byteFile, blobByte);
             byteFile = inputStreamTestFile.read();
         }
 
@@ -149,7 +151,7 @@ public class Db2BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2SpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+     void testDb2SpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -190,15 +192,15 @@ public class Db2BinaryStreamIntegrationTest {
 
         // Verify small VARBINARY
         String retrievedSmall = new String(resultSet.getBinaryStream(1).readAllBytes());
-        Assert.assertEquals(smallData, retrievedSmall);
+        assertEquals(smallData, retrievedSmall);
 
         // Verify medium VARBINARY
         String retrievedMedium = new String(resultSet.getBinaryStream(2).readAllBytes());
-        Assert.assertEquals(mediumData, retrievedMedium);
+        assertEquals(mediumData, retrievedMedium);
 
         // Verify large BLOB
         String retrievedLarge = new String(resultSet.getBinaryStream(3).readAllBytes());
-        Assert.assertEquals(largeData, retrievedLarge);
+        assertEquals(largeData, retrievedLarge);
 
         executeUpdate(conn, "delete from db2_binary_types_test");
 

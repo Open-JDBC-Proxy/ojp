@@ -150,6 +150,9 @@ Professional technical documentation style
 
 If Docker isn't available, use the standalone executable JAR.
 
+> **🚨 Important for Version 0.4.0-beta and Later:**  
+> JDBC drivers must be downloaded. See [Chapter 4: Database Drivers](part2-chapter4-database-drivers.md) for details.
+
 **Download or Build the JAR**:
 
 ```bash
@@ -613,7 +616,7 @@ cd ojp-server
 bash download-drivers.sh
 ```
 
-For proprietary databases like Oracle, SQL Server, or DB2, you'll need to download the driver JAR from the vendor. Place it in the `ojp-libs` directory and restart the OJP Server.
+For proprietary databases like Oracle, SQL Server, or DB2, see [Chapter 4: Database Drivers](part2-chapter4-database-drivers.md) for complete instructions.
 
 ```bash
 # Example: Adding Oracle driver

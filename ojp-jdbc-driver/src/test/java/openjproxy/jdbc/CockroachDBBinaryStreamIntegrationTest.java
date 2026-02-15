@@ -1,9 +1,10 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -15,14 +16,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * CockroachDB-specific binary stream integration tests.
  * Tests CockroachDB-specific binary data types (BYTEA) and stream handling.
  */
-public class CockroachDBBinaryStreamIntegrationTest {
-
+class CockroachDBBinaryStreamIntegrationTest {
+    private static final Logger logger = LoggerFactory.getLogger(CockroachDBBinaryStreamIntegrationTest.class);
     private static boolean isTestEnabled;
 
     @BeforeAll
@@ -32,7 +37,8 @@ public class CockroachDBBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
+        logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -70,19 +76,19 @@ public class CockroachDBBinaryStreamIntegrationTest {
         PreparedStatement psSelect = conn.prepareStatement("SELECT val_bytea1, val_bytea2 FROM cockroachdb_binary_stream_test");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        
+
         InputStream blobResult = resultSet.getBinaryStream(1);
         String fromBlobByIdx = new String(blobResult.readAllBytes());
-        Assert.assertEquals(testString, fromBlobByIdx);
+        assertEquals(testString, fromBlobByIdx);
 
         InputStream blobResultByName = resultSet.getBinaryStream("val_bytea1");
         byte[] allBytes = blobResultByName.readAllBytes();
         String fromBlobByName = new String(allBytes);
-        Assert.assertEquals(testString, fromBlobByName);
+        assertEquals(testString, fromBlobByName);
 
         InputStream blobResult2 = resultSet.getBinaryStream(2);
         String fromBlobByIdx2 = new String(blobResult2.readAllBytes());
-        Assert.assertEquals(testString.substring(0, 7), fromBlobByIdx2);
+        assertEquals(testString.substring(0, 7), fromBlobByIdx2);
 
         executeUpdate(conn, "DELETE FROM cockroachdb_binary_stream_test");
 
@@ -93,7 +99,8 @@ public class CockroachDBBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
+        logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -131,11 +138,11 @@ public class CockroachDBBinaryStreamIntegrationTest {
         PreparedStatement psSelect = conn.prepareStatement("SELECT val_bytea FROM cockroachdb_large_binary_stream_test");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        
+
         InputStream blobResult = resultSet.getBinaryStream(1);
         byte[] retrievedData = blobResult.readAllBytes();
-        Assert.assertEquals(largeData.length, retrievedData.length);
-        Assert.assertArrayEquals(largeData, retrievedData);
+        assertEquals(largeData.length, retrievedData.length);
+        assertArrayEquals(largeData, retrievedData);
 
         executeUpdate(conn, "DELETE FROM cockroachdb_large_binary_stream_test");
 
@@ -146,7 +153,8 @@ public class CockroachDBBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testBinaryStreamWithNullValues(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    void testBinaryStreamWithNullValues(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
+        logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -181,20 +189,20 @@ public class CockroachDBBinaryStreamIntegrationTest {
 
         PreparedStatement psSelect = conn.prepareStatement("SELECT id, val_bytea FROM cockroachdb_binary_null_test ORDER BY id");
         ResultSet resultSet = psSelect.executeQuery();
-        
+
         // Check NULL value
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
+        assertEquals(1, resultSet.getInt(1));
         InputStream nullStream = resultSet.getBinaryStream(2);
-        Assert.assertNull(nullStream);
+        assertNull(nullStream);
 
         // Check non-NULL value
         resultSet.next();
-        Assert.assertEquals(2, resultSet.getInt(1));
+        assertEquals(2, resultSet.getInt(1));
         InputStream nonNullStream = resultSet.getBinaryStream(2);
-        Assert.assertNotNull(nonNullStream);
+        assertNotNull(nonNullStream);
         String retrieved = new String(nonNullStream.readAllBytes());
-        Assert.assertEquals(testString, retrieved);
+        assertEquals(testString, retrieved);
 
         executeUpdate(conn, "DROP TABLE cockroachdb_binary_null_test");
 

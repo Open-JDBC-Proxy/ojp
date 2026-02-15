@@ -40,10 +40,22 @@ OJP protects your databases from overwhelming connection storms by acting as a s
 
 Get OJP running in under 5 minutes:
 
-### 1. Start OJP Server (Docker - Batteries Included)
+### 1. Start OJP Server (Docker)
+
+> **⚠️ Important for v0.4.0-beta and later:** JDBC drivers must be downloaded and mounted. See [Chapter 4: Database Drivers](documents/ebook/part2-chapter4-database-drivers.md) for details.
+
 ```bash
-# Includes H2, PostgreSQL, MySQL, MariaDB drivers
-docker run --rm -d --network host rrobetti/ojp:0.3.1-beta
+# Download drivers first
+mkdir -p ojp-libs
+cd ojp-server
+bash download-drivers.sh ../ojp-libs
+cd ..
+
+# Run with drivers mounted
+docker run --rm -d \
+  --network host \
+  -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
+  rrobetti/ojp:0.3.1-beta
 ```
 
 **Alternative: Runnable JAR (No Docker)**
@@ -51,7 +63,7 @@ docker run --rm -d --network host rrobetti/ojp:0.3.1-beta
 ```bash
 # Download OJP Server JAR and open source drivers
 cd ojp-server
-bash download-drivers.sh  # Downloads H2, PostgreSQL, MySQL, MariaDB
+bash download-drivers.sh  # Downloads H2, PostgreSQL, MySQL, MariaDB to ojp-libs/
 java -jar ojp-server-0.3.2-snapshot-shaded.jar
 ```
 
@@ -86,7 +98,7 @@ Use the ojp driver: `org.openjproxy.jdbc.Driver`
 
 That's it! Your application now uses intelligent connection pooling through OJP.
 
-**Note**: Docker images include H2, PostgreSQL, MySQL, and MariaDB drivers by default. For proprietary databases (Oracle, SQL Server, DB2), see the [Drop-In Driver Documentation](documents/configuration/DRIVERS_AND_LIBS.md).
+**Note**: For detailed driver setup including proprietary databases (Oracle, SQL Server, DB2), see [Chapter 4: Database Drivers](documents/ebook/part2-chapter4-database-drivers.md).
 
 ## Alternative Setup: Executable JAR (No Docker)
 
@@ -111,7 +123,7 @@ If Docker is not available in your environment, you can build and run OJP Server
 * OJP supports **multiple relational databases** - in theory it can support any relational database that provides a JDBC driver implementation.
 * OJP simple setup just requires the OJP library in the classpath and the OJP prefix added to the connection URL (e.g., `jdbc:ojp[host:port]_h2:~/test` where `host:port` represents the location of the OJP server).
 * **Drop-In External Libraries**: Add proprietary JDBC drivers (Oracle, SQL Server, DB2) and additional libraries (e.g., Oracle UCP) without recompiling - see [Drop-In Driver Documentation](documents/configuration/DRIVERS_AND_LIBS.md). Simply place JARs in the `ojp-libs` directory.
-* **SQL Query Optimization**: Optional SQL enhancer with Apache Calcite provides query optimization using real database schema metadata for improved performance analysis and dialect translation.
+* **SQL Query Enhancement**: ⚠️ **EXPERIMENTAL (NOT RECOMMENDED)** - Optional SQL enhancer with Apache Calcite for query optimization. **Disabled by default.** Has known limitations with traditional JDBC databases (PostgreSQL, MySQL, Oracle, SQL Server). See [configuration documentation](documents/configuration/ojp-server-configuration.md#sql-enhancer-and-schema-loader-settings) for details.
 
 ### Further documents
 - [Drop-In External Libraries Support](documents/configuration/DRIVERS_AND_LIBS.md) - Add proprietary database drivers and libraries (Oracle JDBC, Oracle UCP, SQL Server, DB2) without recompiling.

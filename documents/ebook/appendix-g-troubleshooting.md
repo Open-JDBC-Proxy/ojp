@@ -487,6 +487,8 @@ SET GLOBAL max_allowed_packet=67108864;  -- 64MB
 
 ### Oracle Issues
 
+> **⚠️ Required for v0.4.0-beta and later:** Oracle requires proprietary drivers. Download Oracle JDBC drivers and place them in the `ojp-libs` directory (see Chapter 4).
+
 Oracle requires proprietary drivers that OJP doesn't include by default. Download Oracle JDBC drivers and place them in the `ojp-libs` directory (Chapter 4).
 
 Oracle's service name vs. SID distinction confuses many users. Use the correct JDBC URL format:
@@ -504,6 +506,8 @@ Oracle's session multiplexing (shared server mode) incompatible with connection 
 Oracle RAC deployments require special handling. While OJP's multinode mode handles OJP server failures, Oracle RAC handles database node failures. These are complementary—use both for maximum availability.
 
 ### SQL Server Issues
+
+> **⚠️ Required for v0.4.0-beta and later:** SQL Server requires the Microsoft JDBC driver. Download it and place it in the `ojp-libs` directory.
 
 SQL Server's connection string syntax differs from other databases. Use the correct format:
 

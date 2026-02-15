@@ -97,7 +97,7 @@ public class SQLServerConnectionExtensiveTests {
                     assertEquals(9876543210L, rs.getLong("val_bigint"));
                     assertEquals(255, rs.getInt("val_tinyint"));  // SQL Server TINYINT is 0-255
                     assertEquals(32767, rs.getInt("val_smallint"));
-                    assertEquals(true, rs.getBoolean("val_boolean"));  // SQL Server BIT
+                    assertTrue( rs.getBoolean("val_boolean"));  // SQL Server BIT
                 }
                 
                 // Clean up

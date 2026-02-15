@@ -10,6 +10,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -767,5 +768,158 @@ class SqlEnhancerEngineTest {
         logger.info("Applied Rules: {}", result.getAppliedRules());
         logger.info("Optimization Time: {}ms", result.getOptimizationTimeMs());
         logger.info("SQL Modified: {}", result.isModified());
+    }
+    
+    // New tests for validation separation and optimization modes
+    
+    @Test
+    void testValidateOnly_ValidSQL() {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(true, "GENERIC");
+        
+        String sql = "SELECT * FROM users WHERE id = 1";
+        SqlValidationResult result = engine.validate(sql);
+        
+        assertTrue(result.isValid(), "Valid SQL should pass validation");
+        assertNull(result.getErrorMessage(), "Error message should be null for valid SQL");
+        assertEquals(sql, result.getSql(), "SQL should be unchanged");
+    }
+    
+    @Test
+    void testValidateOnly_InvalidSQL() {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(true, "GENERIC");
+        
+        String sql = "SELECT * FROM WHERE";
+        SqlValidationResult result = engine.validate(sql);
+        
+        assertFalse(result.isValid(), "Invalid SQL should fail validation");
+        assertNotNull(result.getErrorMessage(), "Error message should be present for invalid SQL");
+        assertEquals(sql, result.getSql(), "Original SQL should be returned");
+    }
+    
+    @Test
+    void testValidateOnly_ComplexSQL() {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(true, "POSTGRESQL");
+        
+        String sql = "SELECT u.id, u.name, COUNT(o.id) as order_count " +
+                     "FROM users u " +
+                     "LEFT JOIN orders o ON u.id = o.user_id " +
+                     "WHERE u.status = 'active' " +
+                     "GROUP BY u.id, u.name " +
+                     "HAVING COUNT(o.id) > 5";
+        
+        SqlValidationResult result = engine.validate(sql);
+        
+        assertTrue(result.isValid(), "Complex valid SQL should pass validation");
+        assertNull(result.getErrorMessage(), "Error message should be null");
+    }
+    
+    @Test
+    void testOptimizationMode_Disabled() {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(
+            true, "GENERIC", "", true, true, OptimizationMode.DISABLED, null, null, null, null, null, null, 0
+        );
+        
+        String sql = "SELECT * FROM users WHERE id = 1 AND id = 1";
+        SqlEnhancementResult result = engine.enhance(sql);
+        
+        assertNotNull(result.getEnhancedSql(), "Enhanced SQL should not be null");
+        assertFalse(result.isOptimized(), "Should NOT be optimized in DISABLED mode");
+        assertEquals(sql, result.getEnhancedSql(), "SQL should be unchanged in DISABLED mode");
+    }
+    
+    @Test
+    void testOptimizationMode_Sync() {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(
+            true, "GENERIC", "", true, true, OptimizationMode.SYNC, null, null, null, null, null, null, 0
+        );
+        
+        String sql = "SELECT * FROM users WHERE id = 1";
+        SqlEnhancementResult result = engine.enhance(sql);
+        
+        assertNotNull(result.getEnhancedSql(), "Enhanced SQL should not be null");
+        // In SYNC mode, optimization happens immediately
+        // Note: may or may not be marked as optimized depending on whether optimization changed SQL
+    }
+    
+    @Test
+    void testOptimizationMode_Async() throws InterruptedException {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(
+            true, "GENERIC", "", true, true, OptimizationMode.ASYNC, null, null, null, null, null, null, 0
+        );
+        
+        String sql = "SELECT * FROM users WHERE id = 1";
+        
+        // First call - should return immediately with original SQL
+        SqlEnhancementResult result1 = engine.enhance(sql);
+        
+        assertNotNull(result1.getEnhancedSql(), "Enhanced SQL should not be null");
+        assertFalse(result1.isOptimized(), "First call in ASYNC mode should not be optimized");
+        assertEquals(sql, result1.getEnhancedSql(), "First call should return original SQL");
+        
+        // Wait for async optimization to complete
+        Thread.sleep(1000);
+        
+        // Second call - should return cached optimized result
+        SqlEnhancementResult result2 = engine.enhance(sql);
+        
+        assertNotNull(result2.getEnhancedSql(), "Second call should have enhanced SQL");
+        // Note: may or may not be optimized depending on whether optimization succeeded
+    }
+    
+    @Test
+    void testFailedOptimizationCaching() {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(
+            true, "GENERIC", "", true, true, OptimizationMode.SYNC, null, null, null, null, null, null, 0
+        );
+        
+        // Use a SQL that might fail optimization but passes validation
+        String sql = "SELECT * FROM users WHERE id = 1";
+        
+        // First enhancement
+        SqlEnhancementResult result1 = engine.enhance(sql);
+        assertNotNull(result1.getEnhancedSql(), "First enhancement should succeed");
+        
+        // Get stats to check failure tracking
+        String stats = engine.getOptimizationStats();
+        assertNotNull(stats, "Stats should be available");
+        assertTrue(stats.contains("Mode="), "Stats should show mode");
+    }
+    
+    @Test
+    void testOptimizationStats_ShowsMode() {
+        SqlEnhancerEngine engineSync = new SqlEnhancerEngine(
+            true, "GENERIC", "", true, true, OptimizationMode.SYNC, null, null, null, null, null, null, 0
+        );
+        
+        SqlEnhancerEngine engineAsync = new SqlEnhancerEngine(
+            true, "GENERIC", "", true, true, OptimizationMode.ASYNC, null, null, null, null, null, null, 0
+        );
+        
+        String statsSync = engineSync.getOptimizationStats();
+        String statsAsync = engineAsync.getOptimizationStats();
+        
+        assertTrue(statsSync.contains("SYNC"), "Sync engine stats should show SYNC mode");
+        assertTrue(statsAsync.contains("ASYNC"), "Async engine stats should show ASYNC mode");
+    }
+    
+    @Test
+    void testClearCache_ClearsFailedOptimizations() {
+        SqlEnhancerEngine engine = new SqlEnhancerEngine(
+            true, "GENERIC", "", true, true, OptimizationMode.SYNC, null, null, null, null, null, null, 0
+        );
+        
+        String sql = "SELECT * FROM users WHERE id = 1";
+        engine.enhance(sql);
+        
+        // Verify cache has entry
+        String statsBefore = engine.getCacheStats();
+        assertTrue(statsBefore.contains("1"), "Cache should have 1 entry");
+        
+        // Clear cache (should also clear failed optimizations)
+        engine.clearCache();
+        
+        // Verify cache is empty
+        String statsAfter = engine.getCacheStats();
+        assertTrue(statsAfter.contains("0"), "Cache should be empty after clear");
     }
 }

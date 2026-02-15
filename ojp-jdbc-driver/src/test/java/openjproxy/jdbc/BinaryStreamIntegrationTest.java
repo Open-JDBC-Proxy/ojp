@@ -2,10 +2,11 @@ package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
 import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -16,8 +17,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class BinaryStreamIntegrationTest {
+class BinaryStreamIntegrationTest {
+    private static final Logger logger = LoggerFactory.getLogger(BinaryStreamIntegrationTest.class);
 
     private static boolean isH2TestEnabled;
     private static boolean isPostgresTestEnabled;
@@ -30,7 +34,8 @@ public class BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException {
+        logger.info("Testing temporay table with Driver: {}", driverClass);
         if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
             return;
         }
@@ -51,9 +56,9 @@ public class BinaryStreamIntegrationTest {
 
         // Create table with database-specific binary types
         String createTableSql = "create table binary_stream_test_blob(" +
-                    " val_blob1 BYTEA," +
-                    " val_blob2 BYTEA" +
-                    ")";
+                " val_blob1 BYTEA," +
+                " val_blob2 BYTEA" +
+                ")";
 
         executeUpdate(conn, createTableSql);
 
@@ -72,7 +77,7 @@ public class BinaryStreamIntegrationTest {
         psInsert.executeUpdate();
 
         connResult.commit();
-        
+
         // Start new transaction for reading
         connResult.startXATransactionIfNeeded();
 
@@ -82,16 +87,16 @@ public class BinaryStreamIntegrationTest {
         InputStream blobResult = resultSet.getBinaryStream(1);
         String fromBlobByIdx = new String(blobResult.readAllBytes());
 
-        Assert.assertEquals(testString, fromBlobByIdx);
+        assertEquals(testString, fromBlobByIdx);
 
         InputStream blobResultByName = resultSet.getBinaryStream("val_blob1");
         byte[] allBytes = blobResultByName.readAllBytes();
         String fromBlobByName = new String(allBytes);
-        Assert.assertEquals(testString, fromBlobByName);
+        assertEquals(testString, fromBlobByName);
 
         InputStream blobResult2 = resultSet.getBinaryStream(2);
         String fromBlobByIdx2 = new String(blobResult2.readAllBytes());
-        Assert.assertEquals(testString.substring(0, 5), fromBlobByIdx2);
+        assertEquals(testString.substring(0, 5), fromBlobByIdx2);
 
         executeUpdate(conn, "delete from binary_stream_test_blob"
         );
@@ -103,7 +108,8 @@ public class BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException {
+        logger.info("Testing temporay table with Driver: {}", driverClass);
         if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
             return;
         }
@@ -124,8 +130,8 @@ public class BinaryStreamIntegrationTest {
 
         // Create table with database-specific binary types for large data
         String createTableSql = "create table binary_stream_test_blob(" +
-                    " val_blob  BYTEA" +
-                    ")";
+                " val_blob  BYTEA" +
+                ")";
 
         executeUpdate(conn, createTableSql);
 
@@ -146,11 +152,12 @@ public class BinaryStreamIntegrationTest {
 
         InputStream inputStreamTestFile = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
 
+        assertNotNull(inputStreamTestFile);
         int byteFile = inputStreamTestFile.read();
         while (byteFile != -1) {
             int blobByte = inputStreamBlob.read();
 
-            Assert.assertEquals(byteFile, blobByte);
+            assertEquals(byteFile, blobByte);
 
             byteFile = inputStreamTestFile.read();
         }

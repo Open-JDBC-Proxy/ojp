@@ -54,15 +54,18 @@ The `.github/workflows/sqlserver-testing.yml` workflow:
 
 ### Dependencies
 
-#### ojp-server/pom.xml
-```xml
-<!-- SQL Server JDBC Driver - Added for test container support -->
-<dependency>
-    <groupId>com.microsoft.sqlserver</groupId>
-    <artifactId>mssql-jdbc</artifactId>
-    <version>12.8.1.jre11</version>
-</dependency>
+> **⚠️ For Version 0.4.0-beta and Later:**  
+> Runtime JDBC drivers are no longer added to ojp-server/pom.xml. Instead, they must be placed in the `ojp-libs` folder. The test dependencies below are still required in the test modules.
+
+#### ojp-libs (Runtime - Server)
+For running the OJP server, SQL Server JDBC driver must be placed in the `ojp-libs` directory:
+```bash
+# Download SQL Server JDBC driver
+mkdir -p ojp-libs
+cp ~/Downloads/mssql-jdbc-12.8.1.jre11.jar ./ojp-libs/
 ```
+
+See [Database Drivers Configuration Guide](configuration/DRIVERS_AND_LIBS.md) for more details.
 
 #### ojp-jdbc-driver/pom.xml
 ```xml

@@ -6,12 +6,21 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class CockroachDBResultSetMetaDataExtensiveTests {
+class CockroachDBResultSetMetaDataExtensiveTests {
 
     private static boolean isTestEnabled;
     private Connection connection;
@@ -23,9 +32,9 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
     }
 
     @SneakyThrows
-    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
+    void setUp(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
         Statement statement = connection.createStatement();
 
@@ -52,7 +61,9 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
 
     @AfterEach
     void tearDown() throws Exception {
-        if (connection != null) connection.close();
+        if (connection != null) {
+            connection.close();
+        }
     }
 
     @ParameterizedTest
@@ -64,31 +75,31 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
         assertEquals(4, metaData.getColumnCount());
 
         // isAutoIncrement - CockroachDB SERIAL columns are auto-increment
-        assertEquals(false, metaData.isAutoIncrement(1)); // Depends on driver implementation
-        assertEquals(false, metaData.isAutoIncrement(2));
-        assertEquals(false, metaData.isAutoIncrement(3));
-        assertEquals(false, metaData.isAutoIncrement(4));
+        assertFalse(metaData.isAutoIncrement(1)); // Depends on driver implementation
+        assertFalse(metaData.isAutoIncrement(2));
+        assertFalse(metaData.isAutoIncrement(3));
+        assertFalse(metaData.isAutoIncrement(4));
 
         // isCaseSensitive - CockroachDB is case sensitive for data
-        assertEquals(false, metaData.isCaseSensitive(1));
-        assertEquals(true, metaData.isCaseSensitive(2));
-        assertEquals(false, metaData.isCaseSensitive(3));
-        assertEquals(false, metaData.isCaseSensitive(4));
+        assertFalse(metaData.isCaseSensitive(1));
+        assertTrue(metaData.isCaseSensitive(2));
+        assertFalse(metaData.isCaseSensitive(3));
+        assertFalse(metaData.isCaseSensitive(4));
 
         // isSearchable - All CockroachDB columns are searchable
-        assertEquals(true, metaData.isSearchable(1));
-        assertEquals(true, metaData.isSearchable(2));
-        assertEquals(true, metaData.isSearchable(3));
-        assertEquals(true, metaData.isSearchable(4));
+        assertTrue(metaData.isSearchable(1));
+        assertTrue(metaData.isSearchable(2));
+        assertTrue(metaData.isSearchable(3));
+        assertTrue(metaData.isSearchable(4));
 
         // isCurrency - None of these columns represent currency explicitly
         boolean isCurrency1 = metaData.isCurrency(1);
-        assertTrue(isCurrency1 == true || isCurrency1 == false); // Accept both
-        assertEquals(false, metaData.isCurrency(2));
+        assertTrue(isCurrency1 || !isCurrency1); // Accept both
+        assertFalse(metaData.isCurrency(2));
         boolean isCurrency3 = metaData.isCurrency(3);
-        assertTrue(isCurrency3 == true || isCurrency3 == false); // Accept both
+        assertTrue(isCurrency3 || !isCurrency3); // Accept both
         boolean isCurrency4 = metaData.isCurrency(4);
-        assertTrue(isCurrency4 == true || isCurrency4 == false); // Accept both
+        assertTrue(isCurrency4 || !isCurrency4); // Accept both
 
         // isNullable - CockroachDB NULL constraints
         int nullable1 = metaData.isNullable(1);
@@ -98,11 +109,11 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4));
 
         // isSigned - CockroachDB numeric types are signed
-        assertEquals(true, metaData.isSigned(1));
+        assertTrue(metaData.isSigned(1));
         boolean signed2 = metaData.isSigned(2); // VARCHAR is not signed but driver may vary
-        assertTrue(signed2 == true || signed2 == false);
-        assertEquals(true, metaData.isSigned(3));
-        assertEquals(true, metaData.isSigned(4));
+        assertTrue(signed2 || !signed2);
+        assertTrue(metaData.isSigned(3));
+        assertTrue(metaData.isSigned(4));
 
         // getColumnDisplaySize
         assertTrue(metaData.getColumnDisplaySize(1) > 0);
@@ -143,15 +154,15 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
 
         // isReadOnly
         boolean readOnly1 = metaData.isReadOnly(1);
-        assertTrue(readOnly1 == true || readOnly1 == false);
+        assertTrue(readOnly1 || !readOnly1);
 
         // isWritable
         boolean writable1 = metaData.isWritable(1);
-        assertTrue(writable1 == true || writable1 == false);
+        assertTrue(writable1 || !writable1);
 
         // isDefinitelyWritable
         boolean definitelyWritable1 = metaData.isDefinitelyWritable(1);
-        assertTrue(definitelyWritable1 == true || definitelyWritable1 == false);
+        assertTrue(definitelyWritable1 || !definitelyWritable1);
 
         // getColumnClassName
         assertNotNull(metaData.getColumnClassName(1));
@@ -176,7 +187,7 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
     void testResultSetMetaDataWithNullValues(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
         Statement statement = connection.createStatement();
 
@@ -207,7 +218,7 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
     void testResultSetMetaDataWithComplexTypes(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
         Statement statement = connection.createStatement();
 
@@ -233,7 +244,7 @@ public class CockroachDBResultSetMetaDataExtensiveTests {
         ResultSetMetaData md = resultSet.getMetaData();
 
         assertEquals(5, md.getColumnCount());
-        
+
         // Verify column types
         assertEquals(Types.BIGINT, md.getColumnType(1));
         int boolType = md.getColumnType(2);

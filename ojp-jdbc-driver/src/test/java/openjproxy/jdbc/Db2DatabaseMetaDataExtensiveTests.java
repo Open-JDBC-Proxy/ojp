@@ -21,19 +21,19 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * DB2-specific DatabaseMetaData tests.
  * Tests DB2-specific metadata functionality and behavior.
  */
-public class Db2DatabaseMetaDataExtensiveTests {
+ class Db2DatabaseMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
     private Connection connection;
     private DatabaseMetaData metaData;
 
     @BeforeAll
-    static void checkTestConfiguration() {
+     static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @SneakyThrows
-    public void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
+     void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
         
         connection = DriverManager.getConnection(url, user, pwd);
@@ -62,7 +62,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
     }
 
     @AfterEach
-    void tearDown() throws SQLException {
+     void tearDown() throws SQLException {
         if (connection != null) {
             try {
                 Statement stmt = connection.createStatement();
@@ -78,7 +78,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2DatabaseInfo(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testDb2DatabaseInfo(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         // Test basic database information
@@ -107,7 +107,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2TableMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testDb2TableMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         // Test table information
@@ -126,7 +126,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2ColumnMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testDb2ColumnMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         // Test column information
@@ -145,23 +145,23 @@ public class Db2DatabaseMetaDataExtensiveTests {
             switch (columnName.toUpperCase()) {
                 case "ID":
                     foundId = true;
-                    assertEquals(java.sql.Types.INTEGER, dataType);
+                    assertEquals(Types.INTEGER, dataType);
                     assertEquals(DatabaseMetaData.columnNoNulls, nullable);
                     break;
                 case "NAME":
                     foundName = true;
-                    assertEquals(java.sql.Types.VARCHAR, dataType);
+                    assertEquals(Types.VARCHAR, dataType);
                     assertEquals(100, columnSize);
                     assertEquals(DatabaseMetaData.columnNoNulls, nullable);
                     break;
                 case "AGE":
                     foundAge = true;
-                    assertEquals(java.sql.Types.INTEGER, dataType);
+                    assertEquals(Types.INTEGER, dataType);
                     assertEquals(DatabaseMetaData.columnNullable, nullable);
                     break;
                 case "SALARY":
                     foundSalary = true;
-                    assertEquals(java.sql.Types.DECIMAL, dataType);
+                    assertEquals(Types.DECIMAL, dataType);
                     assertEquals(DatabaseMetaData.columnNullable, nullable);
                     break;
                 case "IS_ACTIVE":
@@ -170,12 +170,14 @@ public class Db2DatabaseMetaDataExtensiveTests {
                     break;
                 case "CREATED_DATE":
                     foundCreatedDate = true;
-                    assertEquals(java.sql.Types.DATE, dataType);
+                    assertEquals(Types.DATE, dataType);
                     break;
                 case "NOTES":
                     foundNotes = true;
-                    assertEquals(java.sql.Types.CLOB, dataType);
+                    assertEquals(Types.CLOB, dataType);
                     break;
+                default:
+                    throw new IllegalStateException("Unexpected value: " + columnName.toUpperCase());
             }
         }
         
@@ -192,7 +194,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2PrimaryKeyMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testDb2PrimaryKeyMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         // Test primary key information
@@ -211,7 +213,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2IndexMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testDb2IndexMetaData(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         // Test index information
@@ -230,7 +232,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
                     foundNameIndex = true;
                     assertEquals("NAME", columnName.toUpperCase());
                     assertTrue(nonUnique); // Our index is not unique
-                } else if (columnName != null && columnName.toUpperCase().equals("ID")) {
+                } else if (columnName != null && columnName.equalsIgnoreCase("ID")) {
                     foundPrimaryKeyIndex = true;
                     assertFalse(nonUnique); // Primary key index is unique
                 }
@@ -245,7 +247,7 @@ public class Db2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2DatabaseCapabilities(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testDb2DatabaseCapabilities(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         // Test various database capabilities
@@ -273,13 +275,13 @@ public class Db2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2SqlKeywords(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testDb2SqlKeywords(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         // Test SQL keywords
         String keywords = metaData.getSQLKeywords();
         assertNotNull(keywords);
-        assertTrue(keywords.length() > 0);
+        assertFalse(keywords.isEmpty());
         
         // Test identifier quote string
         String quoteString = metaData.getIdentifierQuoteString();

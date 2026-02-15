@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class CockroachDBStatementExtensiveTests {
+class CockroachDBStatementExtensiveTests {
 
     private static boolean isTestEnabled;
 
@@ -34,9 +34,9 @@ public class CockroachDBStatementExtensiveTests {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+    void setUp(String driverClass, String url, String user, String password) throws Exception {
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
         statement = connection.createStatement();
 
@@ -44,7 +44,7 @@ public class CockroachDBStatementExtensiveTests {
     }
 
     @AfterEach
-    void tearDown() throws Exception {
+    void tearDown() {
         TestDBUtils.closeQuietly(statement, connection);
     }
 
@@ -306,8 +306,8 @@ public class CockroachDBStatementExtensiveTests {
     void testResultSetHoldability(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int holdability = statement.getResultSetHoldability();
-        assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || 
-                   holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
+        assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT ||
+                holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @ParameterizedTest

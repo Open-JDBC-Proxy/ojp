@@ -1,6 +1,5 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -11,13 +10,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Oracle-specific multiple blocks of data integration tests.
  * Tests Oracle pagination and large result set handling.
  */
-public class OracleReadMultipleBlocksOfDataIntegrationTest {
+class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     private static boolean isTestDisabled;
 
@@ -59,14 +59,14 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
             resultSet.next();
             int id = resultSet.getInt(1);
             String title = resultSet.getString(2);
-            Assert.assertEquals(i, id);
-            Assert.assertEquals("ORACLE_TITLE_" + i, title);
+            assertEquals(i, id);
+            assertEquals("ORACLE_TITLE_" + i, title);
         }
 
         executeUpdate(conn, "delete from oracle_read_blocks_test_multi");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
@@ -75,7 +75,7 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -112,9 +112,9 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
         int count = 0;
         while (page1.next()) {
             count++;
-            Assert.assertTrue(page1.getInt("id") <= 1000);
+            assertTrue(page1.getInt("id") <= 1000);
         }
-        Assert.assertEquals(1000, count);
+        assertEquals(1000, count);
 
         // Test pagination with OFFSET/FETCH (Oracle 12c+)
         java.sql.PreparedStatement psPage2 = conn.prepareStatement(
@@ -125,9 +125,9 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
         while (page2.next()) {
             count++;
             int id = page2.getInt("id");
-            Assert.assertTrue(id > 1000 && id <= 2000);
+            assertTrue(id > 1000 && id <= 2000);
         }
-        Assert.assertEquals(1000, count);
+        assertEquals(1000, count);
 
         executeUpdate(conn, "delete from oracle_pagination_test");
 
@@ -140,7 +140,7 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -175,24 +175,24 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
                 "SELECT id, data FROM oracle_scroll_test ORDER BY id");
 
         // Test forward navigation
-        Assert.assertTrue(scrollableRs.next());
-        Assert.assertEquals(1, scrollableRs.getInt("id"));
+        assertTrue(scrollableRs.next());
+        assertEquals(1, scrollableRs.getInt("id"));
 
         // Test jumping to specific position
-        Assert.assertTrue(scrollableRs.absolute(50));
-        Assert.assertEquals(50, scrollableRs.getInt("id"));
+        assertTrue(scrollableRs.absolute(50));
+        assertEquals(50, scrollableRs.getInt("id"));
 
         // Test backward navigation
-        Assert.assertTrue(scrollableRs.previous());
-        Assert.assertEquals(49, scrollableRs.getInt("id"));
+        assertTrue(scrollableRs.previous());
+        assertEquals(49, scrollableRs.getInt("id"));
 
         // Test last position
-        Assert.assertTrue(scrollableRs.last());
-        Assert.assertEquals(totalRecords, scrollableRs.getInt("id"));
+        assertTrue(scrollableRs.last());
+        assertEquals(totalRecords, scrollableRs.getInt("id"));
 
         // Test first position
-        Assert.assertTrue(scrollableRs.first());
-        Assert.assertEquals(1, scrollableRs.getInt("id"));
+        assertTrue(scrollableRs.first());
+        assertEquals(1, scrollableRs.getInt("id"));
 
         executeUpdate(conn, "delete from oracle_scroll_test");
 
@@ -203,7 +203,7 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -246,16 +246,16 @@ public class OracleReadMultipleBlocksOfDataIntegrationTest {
         while (resultSet.next()) {
             count++;
             int id = resultSet.getInt("id");
-            Assert.assertEquals(count, id);
-            Assert.assertEquals(id * 10, resultSet.getInt("int_col"));
-            Assert.assertEquals(id * 100.5, resultSet.getDouble("decimal_col"), 0.01);
-            Assert.assertEquals("Varchar " + id, resultSet.getString("varchar_col"));
-            Assert.assertNotNull(resultSet.getDate("date_col"));
-            Assert.assertNotNull(resultSet.getTimestamp("timestamp_col"));
-            Assert.assertEquals("CLOB data for record " + id, resultSet.getString("clob_col"));
+            assertEquals(count, id);
+            assertEquals(id * 10, resultSet.getInt("int_col"));
+            assertEquals(id * 100.5, resultSet.getDouble("decimal_col"), 0.01);
+            assertEquals("Varchar " + id, resultSet.getString("varchar_col"));
+            assertNotNull(resultSet.getDate("date_col"));
+            assertNotNull(resultSet.getTimestamp("timestamp_col"));
+            assertEquals("CLOB data for record " + id, resultSet.getString("clob_col"));
         }
 
-        Assert.assertEquals(totalRecords, count);
+        assertEquals(totalRecords, count);
 
         executeUpdate(conn, "delete from oracle_multi_types_test");
 

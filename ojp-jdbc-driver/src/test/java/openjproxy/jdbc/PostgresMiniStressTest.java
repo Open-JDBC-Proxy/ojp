@@ -164,7 +164,7 @@ public class PostgresMiniStressTest {
         // Display JVM metrics
         System.out.println("=== OJP SERVER JVM METRICS ===");
         PerformanceMetrics.JvmStatistics jvmStats = PerformanceMetrics.collectJvmStatistics();
-        System.out.println(jvmStats.toString());
+        System.out.println(jvmStats);
         
         // Original assertions
         assertEquals(680, numQueries);

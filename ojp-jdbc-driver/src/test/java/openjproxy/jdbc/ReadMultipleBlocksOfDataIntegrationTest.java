@@ -1,6 +1,5 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -11,6 +10,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class ReadMultipleBlocksOfDataIntegrationTest {
 
@@ -61,14 +62,14 @@ public class ReadMultipleBlocksOfDataIntegrationTest {
             resultSet.next();
             int id = resultSet.getInt(1);
             String title = resultSet.getString(2);
-            Assert.assertEquals(i, id);
-            Assert.assertEquals("TITLE_" + i, title);
+            assertEquals(i, id);
+            assertEquals("TITLE_" + i, title);
         }
 
         executeUpdate(conn, "delete from read_blocks_test_multi");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         conn.close();
     }

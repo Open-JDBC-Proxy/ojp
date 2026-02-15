@@ -4,7 +4,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.codehaus.plexus.util.ExceptionUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -25,6 +24,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @Slf4j
@@ -165,18 +166,18 @@ public class PostgresSlowQuerySegregationTest {
         // Display JVM metrics
         System.out.println("=== OJP SERVER JVM METRICS ===");
         PerformanceMetrics.JvmStatistics jvmStats = PerformanceMetrics.collectJvmStatistics();
-        System.out.println(jvmStats.toString());
+        System.out.println(jvmStats);
         
         // Original assertions
-        Assertions.assertEquals(216, numQueries);
-        Assertions.assertEquals(0, numFailures);
-        Assertions.assertTrue(totalTimeMs < 40000);
+        assertEquals(216, numQueries);
+        assertEquals(0, numFailures);
+        assertTrue(totalTimeMs < 40000);
         
         // Calculate average for assertion
         double avgQueryMs = numQueries > 0
                 ? durationList.stream().mapToLong(Long::longValue).average().orElse(0) / 1_000_000.0
                 : 0;
-        Assertions.assertTrue(avgQueryMs < 40);
+        assertTrue(avgQueryMs < 40);
     }
 
     private static void timeAndRun(Callable<Void> query) {

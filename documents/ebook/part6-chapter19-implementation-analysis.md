@@ -4,11 +4,13 @@ Modern software development involves countless design decisions and trade-offs. 
 
 ## 19.1 Driver Externalization
 
+> **📌 Version 0.4.0-beta Change:** Starting from version 0.4.0-beta, JDBC drivers are **NO LONGER included** in the OJP Server JAR. Users must download drivers and place them in the `ojp-libs` folder before running ojp-server.
+
 When OJP first launched, it included all open-source JDBC drivers as embedded dependencies in the server JAR. While this "batteries included" approach simplified initial deployment, it created several challenges that became increasingly problematic as the project matured.
 
 The original 70MB JAR file contained drivers for H2, PostgreSQL, MySQL, and MariaDB—regardless of which databases a user actually needed. Organizations that only connected to PostgreSQL still downloaded MySQL and H2 drivers. Security teams struggled to scan and approve the JAR because all drivers were bundled together. When a critical security vulnerability appeared in a driver, users had to wait for a new OJP release rather than simply updating that specific driver.
 
-The externalization effort removed these embedded dependencies, shrinking the core JAR to just 20MB—a dramatic 71% reduction. More importantly, it placed control in users' hands. Now the `ojp-libs` directory serves as the loading mechanism for all drivers, whether open-source or proprietary. Users can update drivers independently, remove unnecessary ones for compliance purposes, or even add custom patched versions without rebuilding OJP.
+The externalization effort, completed in version 0.4.0-beta, removed these embedded dependencies, shrinking the core JAR to just 20MB—a dramatic 71% reduction. More importantly, it placed control in users' hands. Now the `ojp-libs` directory serves as the loading mechanism for all drivers, whether open-source or proprietary. Users can update drivers independently, remove unnecessary ones for compliance purposes, or even add custom patched versions without rebuilding OJP.
 
 The implementation required careful handling of class loading and reflection. The `DriverUtils` class manages driver discovery and loading, while `XADataSourceFactory` uses reflection-based instantiation to avoid compile-time dependencies. This approach maintains backward compatibility—Docker images still include all open-source drivers by default—while enabling the flexibility that enterprise users demand.
 

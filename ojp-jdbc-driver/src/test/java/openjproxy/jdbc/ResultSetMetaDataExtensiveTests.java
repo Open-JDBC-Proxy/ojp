@@ -63,28 +63,28 @@ public class ResultSetMetaDataExtensiveTests {
         assertEquals(4, metaData.getColumnCount());
 
         // isAutoIncrement
-        assertEquals(true, metaData.isAutoIncrement(1));
-        assertEquals(false, metaData.isAutoIncrement(2));
-        assertEquals(false, metaData.isAutoIncrement(3));
-        assertEquals(false, metaData.isAutoIncrement(4));
+        assertTrue( metaData.isAutoIncrement(1));
+        assertFalse( metaData.isAutoIncrement(2));
+        assertFalse( metaData.isAutoIncrement(3));
+        assertFalse( metaData.isAutoIncrement(4));
 
         // isCaseSensitive
-        assertEquals(true, metaData.isCaseSensitive(1));
-        assertEquals(true, metaData.isCaseSensitive(2));
-        assertEquals(true, metaData.isCaseSensitive(3));
-        assertEquals(true, metaData.isCaseSensitive(4));
+        assertTrue( metaData.isCaseSensitive(1));
+        assertTrue( metaData.isCaseSensitive(2));
+        assertTrue( metaData.isCaseSensitive(3));
+        assertTrue( metaData.isCaseSensitive(4));
 
         // isSearchable
-        assertEquals(true, metaData.isSearchable(1));
-        assertEquals(true, metaData.isSearchable(2));
-        assertEquals(true, metaData.isSearchable(3));
-        assertEquals(true, metaData.isSearchable(4));
+        assertTrue( metaData.isSearchable(1));
+        assertTrue( metaData.isSearchable(2));
+        assertTrue( metaData.isSearchable(3));
+        assertTrue( metaData.isSearchable(4));
 
         // isCurrency
-        assertEquals(false, metaData.isCurrency(1));
-        assertEquals(false, metaData.isCurrency(2));
-        assertEquals(false, metaData.isCurrency(3));
-        assertEquals(false, metaData.isCurrency(4));
+        assertFalse( metaData.isCurrency(1));
+        assertFalse( metaData.isCurrency(2));
+        assertFalse( metaData.isCurrency(3));
+        assertFalse( metaData.isCurrency(4));
 
         // isNullable
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(1));
@@ -93,10 +93,10 @@ public class ResultSetMetaDataExtensiveTests {
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4));
 
         // isSigned
-        assertEquals(true, metaData.isSigned(1));
-        assertEquals(false, metaData.isSigned(2));
-        assertEquals(true, metaData.isSigned(3));
-        assertEquals(true, metaData.isSigned(4));
+        assertTrue( metaData.isSigned(1));
+        assertFalse( metaData.isSigned(2));
+        assertTrue( metaData.isSigned(3));
+        assertTrue( metaData.isSigned(4));
 
         // getColumnDisplaySize
         assertEquals(11, metaData.getColumnDisplaySize(1));
@@ -159,22 +159,22 @@ public class ResultSetMetaDataExtensiveTests {
         assertEquals("NUMERIC", metaData.getColumnTypeName(4));
 
         // isReadOnly
-        assertEquals(false, metaData.isReadOnly(1));
-        assertEquals(false, metaData.isReadOnly(2));
-        assertEquals(false, metaData.isReadOnly(3));
-        assertEquals(false, metaData.isReadOnly(4));
+        assertFalse( metaData.isReadOnly(1));
+        assertFalse( metaData.isReadOnly(2));
+        assertFalse( metaData.isReadOnly(3));
+        assertFalse( metaData.isReadOnly(4));
 
         // isWritable
-        assertEquals(true, metaData.isWritable(1));
-        assertEquals(true, metaData.isWritable(2));
-        assertEquals(true, metaData.isWritable(3));
-        assertEquals(true, metaData.isWritable(4));
+        assertTrue( metaData.isWritable(1));
+        assertTrue( metaData.isWritable(2));
+        assertTrue( metaData.isWritable(3));
+        assertTrue( metaData.isWritable(4));
 
         // isDefinitelyWritable
-        assertEquals(false, metaData.isDefinitelyWritable(1));
-        assertEquals(false, metaData.isDefinitelyWritable(2));
-        assertEquals(false, metaData.isDefinitelyWritable(3));
-        assertEquals(false, metaData.isDefinitelyWritable(4));
+        assertFalse( metaData.isDefinitelyWritable(1));
+        assertFalse( metaData.isDefinitelyWritable(2));
+        assertFalse( metaData.isDefinitelyWritable(3));
+        assertFalse( metaData.isDefinitelyWritable(4));
 
         // getColumnClassName
         assertEquals("java.lang.Integer", metaData.getColumnClassName(1));

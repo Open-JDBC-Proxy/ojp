@@ -21,11 +21,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Calendar;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class PostgresCallableStatementTests {
@@ -200,7 +196,7 @@ public class PostgresCallableStatementTests {
         callableStatement.execute();
 
         Object result = callableStatement.getObject(3);
-        assertTrue(result instanceof BigDecimal);
+        assertInstanceOf(BigDecimal.class, result);
         assertEquals(new BigDecimal("70000.00"), result);
 
         // getBigDecimal

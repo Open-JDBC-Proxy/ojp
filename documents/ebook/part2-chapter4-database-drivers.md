@@ -1,12 +1,20 @@
 # Chapter 4: Database Driver Configuration
 
-> **Chapter Overview**: Learn how to configure database drivers for OJP Server, from open-source databases included by default to adding proprietary database drivers. This chapter covers the flexible "drop-in" driver mechanism and provides practical examples for all major databases.
+> **Chapter Overview**: Learn how to configure database drivers for OJP Server. This chapter covers the flexible "drop-in" driver mechanism and provides practical examples for all major databases.
+
+> **🚨 Important for Version 0.4.0-beta and Later:**  
+> Starting from version **0.4.0-beta**, JDBC drivers are **NO LONGER included** in the OJP Server JAR or Docker images. You **MUST** download the JDBC driver(s) you want to use and place them in the `ojp-libs` folder before running ojp-server.
+>
+> - **Runnable JAR** deployments require you to download drivers using the `download-drivers.sh` script (for open-source databases) or manually (for proprietary databases)
+> - **Docker** deployments require you to download drivers and mount the `ojp-libs` directory as a volume
 
 ---
 
 ## 4.1 Open Source Drivers
 
-OJP Server includes built-in support for popular open-source databases, making it "batteries included" for the most common use cases.
+> **⚠️ Required for v0.4.0-beta and later:** Open-source drivers must be downloaded before running OJP Server, whether using Docker or runnable JAR.
+
+OJP Server supports popular open-source databases. You must download the drivers before running the server.
 
 ### Included Databases
 
@@ -45,32 +53,41 @@ graph TB
 ```
 
 These drivers are:
-These drivers come pre-installed in Docker images, making deployment instant. For runnable JAR deployments, they're automatically available through the download script. All drivers are tested and verified to work correctly with OJP, and they're kept up-to-date with the latest stable versions from Maven Central.
+These drivers must be downloaded before deployment. For runnable JAR deployments, use the download script. For Docker deployments, download drivers and mount them as a volume. All drivers are tested and verified to work correctly with OJP, and they're kept up-to-date with the latest stable versions from Maven Central.
 
 ### Using Docker with Open Source Drivers
 
 **[IMAGE PROMPT 2]**: Create a step-by-step visual guide showing:
-Step 1: Docker pull command
-Step 2: Docker run with included drivers
-Step 3: Instant connection to any of the 4 databases
+Step 1: Download drivers using download-drivers.sh script
+Step 2: Docker run with volume mount
+Step 3: Connection to any of the 4 databases
 Step 4: Success indicator
 Use terminal-style screenshots with highlights
-Professional Docker quick start style
+Professional Docker setup guide style
 
-The simplest way to use OJP with open-source databases is Docker:
+> **⚠️ Required for v0.4.0-beta and later:** Docker images no longer include drivers. You must download and mount them.
+
+To use OJP with open-source databases via Docker:
 
 ```bash
-# Pull the latest OJP image (includes all 4 drivers)
+# Step 1: Download drivers
+mkdir -p ojp-libs
+cd ojp-server
+bash download-drivers.sh ../ojp-libs
+cd ..
+
+# Step 2: Pull the OJP image
 docker pull rrobetti/ojp:0.3.1-beta
 
-# Run OJP Server - ready for H2, PostgreSQL, MySQL, MariaDB
+# Step 3: Run OJP Server with drivers mounted
 docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -p 9159:9159 \
+  -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
   rrobetti/ojp:0.3.1-beta
 
-# Check logs to verify driver loading
+# Step 4: Check logs to verify driver loading
 docker logs ojp-server | grep "driver"
 # Expected: Lines showing H2, PostgreSQL, MySQL, MariaDB drivers loaded
 ```
@@ -86,26 +103,28 @@ docker logs ojp-server | grep "driver"
 
 ### Managing Drivers in Docker Deployments
 
-The Docker image includes open-source drivers by default, but you have full flexibility to customize which drivers are loaded. This is the standard approach for using specific driver versions, adding proprietary drivers (Oracle, SQL Server, DB2), or optimizing the container for specific databases.
+All drivers must be downloaded and mounted when using Docker (version 0.4.0-beta and later).
 
-**Volume Mount Method** (recommended):
+**Volume Mount Method** (required):
 
-The Docker image loads all `.jar` files from `/opt/ojp/ojp-libs`. You can replace the bundled drivers by mounting your own directory:
+The Docker image loads all `.jar` files from `/opt/ojp/ojp-libs`. You must mount this directory with your downloaded drivers:
 
 ```bash
 # Step 1: Create directory with your desired drivers
 mkdir my-drivers
 
-# Step 2: Add specific driver versions (open-source or proprietary)
-cp ~/Downloads/postgresql-42.6.0.jar my-drivers/
-cp ~/Downloads/mysql-connector-j-8.0.33.jar my-drivers/
+# Step 2: Download drivers - all databases require this step
+cd ojp-server
+bash download-drivers.sh ../my-drivers
+cd ..
 
-# For proprietary databases, add their drivers:
-cp ~/Downloads/ojdbc11-23.5.0.23.jar my-drivers/          # Oracle
-cp ~/Downloads/mssql-jdbc-12.8.1.jre11.jar my-drivers/    # SQL Server
-cp ~/Downloads/db2jcc4.jar my-drivers/                     # IBM DB2
+# Step 3: Add specific driver versions or proprietary drivers if needed
+cp ~/Downloads/postgresql-42.6.0.jar my-drivers/  # Specific version
+cp ~/Downloads/ojdbc11-23.5.0.23.jar my-drivers/  # Oracle
+cp ~/Downloads/mssql-jdbc-12.8.1.jre11.jar my-drivers/  # SQL Server
+cp ~/Downloads/db2jcc4.jar my-drivers/  # IBM DB2
 
-# Step 3: Mount your drivers directory
+# Step 4: Mount your drivers directory
 docker run -d \
   --name ojp-server \
   -p 1059:1059 \
@@ -113,17 +132,16 @@ docker run -d \
   -v $(pwd)/my-drivers:/opt/ojp/ojp-libs \
   rrobetti/ojp:0.3.1-beta
 
-# Step 4: Verify your drivers loaded
+# Step 5: Verify your drivers loaded
 docker logs ojp-server | grep "driver"
 # Expected: Only your specified drivers appear
 ```
 
-**Key benefits**:
+**Key points**:
+- **Always required**: Download drivers before running Docker (v0.4.0-beta+)
 - Full control over which drivers are loaded
 - Easy driver version updates without rebuilding images
 - Standard method for adding proprietary database drivers
-- Reduces memory footprint by loading only required drivers
-- Maintains consistent driver versions across environments
 
 **Common use cases**:
 - **Proprietary databases**: Add Oracle, SQL Server, or DB2 drivers
@@ -165,6 +183,8 @@ Files appearing in ojp-libs directory
 Success confirmation with checksums
 Use terminal screenshot style with clear file operations
 Professional script execution guide
+
+> **⚠️ Required for v0.4.0-beta and later:** When running ojp-server from the JAR (not Docker), you must download JDBC drivers before starting the server.
 
 For runnable JAR deployments, OJP provides a convenient script:
 

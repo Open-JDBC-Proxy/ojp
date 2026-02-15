@@ -1,8 +1,6 @@
 package org.openjproxy.grpc.server;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.ConnectionDetails;
-import com.zaxxer.hikari.HikariConfig;
 import org.junit.jupiter.api.Test;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
@@ -13,13 +11,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Test for server-side connection pool configuration.
  * Tests that client properties are correctly parsed and applied to pool configuration.
  */
-public class ConnectionPoolServerConfigurationTest {
+class ConnectionPoolServerConfigurationTest {
+    private static final int TWENTY_FIVE = 25;
+    private static final int SEVEN = 7;
 
     @Test
     void testHikariConfigurationWithClientProperties() throws Exception {
@@ -33,7 +33,7 @@ public class ConnectionPoolServerConfigurationTest {
         for (String key : clientProperties.stringPropertyNames()) {
             propertiesMap.put(key, clientProperties.getProperty(key));
         }
-        
+
         // Create ConnectionDetails with properties
         ConnectionDetails connectionDetails = ConnectionDetails.newBuilder()
                 .setUrl("jdbc:h2:mem:testdb")
@@ -42,15 +42,15 @@ public class ConnectionPoolServerConfigurationTest {
                 .setClientUUID("test-client")
                 .addAllProperties(ProtoConverter.propertiesToProto(propertiesMap))
                 .build();
-        
+
         // Extract client properties and get configuration
         Properties extractedProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-        DataSourceConfigurationManager.DataSourceConfiguration dsConfig = 
+        DataSourceConfigurationManager.DataSourceConfiguration dsConfig =
                 DataSourceConfigurationManager.getConfiguration(extractedProperties);
-        
+
         // Verify that client properties were applied
-        assertEquals(25, dsConfig.getMaximumPoolSize());
-        assertEquals(7, dsConfig.getMinimumIdle());
+        assertEquals(TWENTY_FIVE, dsConfig.getMaximumPoolSize());
+        assertEquals(SEVEN, dsConfig.getMinimumIdle());
 
         // Verify that properties not provided use defaults
         assertEquals(CommonConstants.DEFAULT_IDLE_TIMEOUT, dsConfig.getIdleTimeout());
@@ -67,12 +67,12 @@ public class ConnectionPoolServerConfigurationTest {
                 .setPassword("test")
                 .setClientUUID("test-client")
                 .build();
-        
+
         // Extract client properties (will be null)
         Properties extractedProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-        DataSourceConfigurationManager.DataSourceConfiguration dsConfig = 
+        DataSourceConfigurationManager.DataSourceConfiguration dsConfig =
                 DataSourceConfigurationManager.getConfiguration(extractedProperties);
-        
+
         // Verify that all default values are applied
         assertEquals(CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE, dsConfig.getMaximumPoolSize());
         assertEquals(CommonConstants.DEFAULT_MINIMUM_IDLE, dsConfig.getMinimumIdle());
@@ -93,7 +93,7 @@ public class ConnectionPoolServerConfigurationTest {
         for (String key : clientProperties.stringPropertyNames()) {
             propertiesMap.put(key, clientProperties.getProperty(key));
         }
-        
+
         // Create ConnectionDetails with properties
         ConnectionDetails connectionDetails = ConnectionDetails.newBuilder()
                 .setUrl("jdbc:h2:mem:testdb")
@@ -102,12 +102,12 @@ public class ConnectionPoolServerConfigurationTest {
                 .setClientUUID("test-client")
                 .addAllProperties(ProtoConverter.propertiesToProto(propertiesMap))
                 .build();
-        
+
         // Extract client properties and get configuration
         Properties extractedProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-        DataSourceConfigurationManager.DataSourceConfiguration dsConfig = 
+        DataSourceConfigurationManager.DataSourceConfiguration dsConfig =
                 DataSourceConfigurationManager.getConfiguration(extractedProperties);
-        
+
         // Verify that invalid values fall back to defaults
         assertEquals(CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE, dsConfig.getMaximumPoolSize()); // Falls back to default
         assertEquals(CommonConstants.DEFAULT_MINIMUM_IDLE, dsConfig.getMinimumIdle()); // Falls back to default

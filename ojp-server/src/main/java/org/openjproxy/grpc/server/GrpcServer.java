@@ -62,17 +62,18 @@ public class GrpcServer {
 
         // Build server with configuration
         SessionManagerImpl sessionManager = new SessionManagerImpl();
+        final StatementServiceImpl statementService = new StatementServiceImpl(
+                sessionManager,
+                new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
+                config
+        );
         
         NettyServerBuilder serverBuilder = NettyServerBuilder
                 .forPort(config.getServerPort())
                 .executor(Executors.newFixedThreadPool(config.getThreadPoolSize()))
                 .maxInboundMessageSize(config.getMaxRequestSize())
                 .keepAliveTime(config.getConnectionIdleTimeout(), TimeUnit.MILLISECONDS)
-                .addService(new StatementServiceImpl(
-                        sessionManager,
-                        new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
-                        config
-                ))
+                .addService(statementService)
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
                 .intercept(new IpWhitelistingInterceptor(config.getAllowedIps()))
                 .intercept(grpcTelemetry.newServerInterceptor());
@@ -133,7 +134,11 @@ public class GrpcServer {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutting down OJP gRPC Server...");
             
-            // Shutdown session cleanup task first
+            // Shutdown SQL enhancer engine first
+            logger.info("Shutting down SQL enhancer engine...");
+            statementService.shutdown();
+            
+            // Shutdown session cleanup task
             if (finalSessionCleanupExecutor != null) {
                 logger.info("Shutting down session cleanup executor...");
                 finalSessionCleanupExecutor.shutdown();

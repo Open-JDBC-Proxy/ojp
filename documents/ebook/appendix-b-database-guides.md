@@ -2,13 +2,16 @@
 
 Different databases have unique characteristics, configuration requirements, and quirks when used with OJP. This appendix provides database-specific guidance to help you get the best performance and reliability from each supported database system.
 
+> **🚨 Important for Version 0.4.0-beta and Later:**  
+> JDBC drivers must be downloaded before running ojp-server. See [Chapter 4: Database Drivers](part2-chapter4-database-drivers.md) for complete setup instructions for both JAR and Docker deployments.
+
 ## PostgreSQL
 
 PostgreSQL is one of the most popular open-source databases and works exceptionally well with OJP. Its robust connection handling and standards compliance make it a natural fit.
 
 ### Driver Configuration
 
-PostgreSQL drivers are included by default in OJP. No additional setup is required.
+PostgreSQL driver setup is covered in [Chapter 4: Database Drivers](part2-chapter4-database-drivers.md#using-docker-with-open-source-drivers).
 
 **JDBC URL Format:**
 ```

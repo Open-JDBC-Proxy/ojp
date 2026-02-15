@@ -21,13 +21,13 @@ class ProtoTypeConvertersTest {
     // ===== UUID Tests =====
 
     @Test
-    void testUuidToProto_Null() {
+    void testUuidToProtoNull() {
         Optional<StringValue> result = ProtoTypeConverters.uuidToProto(null);
         assertFalse(result.isPresent(), "Null UUID should result in absent Optional");
     }
 
     @Test
-    void testUuidToProto_ValidUuid() {
+    void testUuidToProtoValidUuid() {
         UUID uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         Optional<StringValue> result = ProtoTypeConverters.uuidToProto(uuid);
         
@@ -36,13 +36,13 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testUuidFromProto_Null() {
+    void testUuidFromProtoNull() {
         UUID result = ProtoTypeConverters.uuidFromProto(null);
         assertNull(result, "Null StringValue should result in null UUID");
     }
 
     @Test
-    void testUuidFromProto_ValidUuid() {
+    void testUuidFromProtoValidUuid() {
         StringValue wrapper = StringValue.of("550e8400-e29b-41d4-a716-446655440000");
         UUID result = ProtoTypeConverters.uuidFromProto(wrapper);
         
@@ -51,7 +51,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testUuidFromProto_EmptyString() {
+    void testUuidFromProtoEmptyString() {
         StringValue wrapper = StringValue.of("");
         assertThrows(IllegalArgumentException.class, () -> {
             ProtoTypeConverters.uuidFromProto(wrapper);
@@ -59,7 +59,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testUuidFromProto_InvalidFormat() {
+    void testUuidFromProtoInvalidFormat() {
         StringValue wrapper = StringValue.of("not-a-uuid");
         assertThrows(IllegalArgumentException.class, () -> {
             ProtoTypeConverters.uuidFromProto(wrapper);
@@ -78,13 +78,13 @@ class ProtoTypeConvertersTest {
     // ===== URL Tests =====
 
     @Test
-    void testUrlToProto_Null() {
+    void testUrlToProtoNull() {
         Optional<StringValue> result = ProtoTypeConverters.urlToProto(null);
         assertFalse(result.isPresent(), "Null URL should result in absent Optional");
     }
 
     @Test
-    void testUrlToProto_ValidUrl() throws MalformedURLException {
+    void testUrlToProtoValidUrl() throws MalformedURLException {
         URL url = new URL("https://example.com:8080/path?query=value#fragment");
         Optional<StringValue> result = ProtoTypeConverters.urlToProto(url);
         
@@ -93,13 +93,13 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testUrlFromProto_Null() {
+    void testUrlFromProtoNull() {
         URL result = ProtoTypeConverters.urlFromProto(null);
         assertNull(result, "Null StringValue should result in null URL");
     }
 
     @Test
-    void testUrlFromProto_ValidUrl() {
+    void testUrlFromProtoValidUrl() {
         StringValue wrapper = StringValue.of("https://example.com/path");
         URL result = ProtoTypeConverters.urlFromProto(wrapper);
         
@@ -108,7 +108,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testUrlFromProto_InvalidUrl() {
+    void testUrlFromProtoInvalidUrl() {
         StringValue wrapper = StringValue.of("not a valid url");
         assertThrows(IllegalArgumentException.class, () -> {
             ProtoTypeConverters.urlFromProto(wrapper);
@@ -116,7 +116,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testUrlFromProto_EmptyString() {
+    void testUrlFromProtoEmptyString() {
         StringValue wrapper = StringValue.of("");
         assertThrows(IllegalArgumentException.class, () -> {
             ProtoTypeConverters.urlFromProto(wrapper);
@@ -167,13 +167,13 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testRowIdToProto_Null() {
+    void testRowIdToProtoNull() {
         Optional<StringValue> result = ProtoTypeConverters.rowIdToProto(null);
         assertFalse(result.isPresent(), "Null RowId should result in absent Optional");
     }
 
     @Test
-    void testRowIdToProto_ValidRowId() {
+    void testRowIdToProtoValidRowId() {
         byte[] rowIdBytes = new byte[]{1, 2, 3, 4, 5};
         RowId rowId = new MockRowId(rowIdBytes);
         Optional<StringValue> result = ProtoTypeConverters.rowIdToProto(rowId);
@@ -184,7 +184,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testRowIdToProto_EmptyBytes() {
+    void testRowIdToProtoEmptyBytes() {
         byte[] rowIdBytes = new byte[0];
         RowId rowId = new MockRowId(rowIdBytes);
         Optional<StringValue> result = ProtoTypeConverters.rowIdToProto(rowId);
@@ -194,13 +194,13 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testRowIdBytesFromProto_Null() {
+    void testRowIdBytesFromProtoNull() {
         byte[] result = ProtoTypeConverters.rowIdBytesFromProto(null);
         assertNull(result, "Null StringValue should result in null bytes");
     }
 
     @Test
-    void testRowIdBytesFromProto_ValidBase64() {
+    void testRowIdBytesFromProtoValidBase64() {
         byte[] originalBytes = new byte[]{1, 2, 3, 4, 5};
         String base64 = Base64.getEncoder().encodeToString(originalBytes);
         StringValue wrapper = StringValue.of(base64);
@@ -212,7 +212,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testRowIdBytesFromProto_EmptyString() {
+    void testRowIdBytesFromProtoEmptyString() {
         StringValue wrapper = StringValue.of("");
         byte[] result = ProtoTypeConverters.rowIdBytesFromProto(wrapper);
         
@@ -221,7 +221,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testRowIdBytesFromProto_InvalidBase64() {
+    void testRowIdBytesFromProtoInvalidBase64() {
         StringValue wrapper = StringValue.of("not-valid-base64!");
         assertThrows(IllegalArgumentException.class, () -> {
             ProtoTypeConverters.rowIdBytesFromProto(wrapper);
@@ -240,7 +240,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testRowIdRoundtrip_LargeBytes() {
+    void testRowIdRoundtripLargeBytes() {
         // Test with larger byte array to ensure Base64 encoding handles it
         byte[] originalBytes = new byte[256];
         for (int i = 0; i < 256; i++) {
@@ -257,7 +257,7 @@ class ProtoTypeConvertersTest {
     // ===== Null vs Empty Semantics Tests =====
 
     @Test
-    void testNullVsEmptySemantics_UUID() {
+    void testNullVsEmptySemanticsUuid() {
         // Null → absent wrapper
         Optional<StringValue> nullResult = ProtoTypeConverters.uuidToProto(null);
         assertFalse(nullResult.isPresent(), "Null UUID should be absent");
@@ -268,7 +268,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testNullVsEmptySemantics_URL() {
+    void testNullVsEmptySemanticsUrl() {
         // Null → absent wrapper
         Optional<StringValue> nullResult = ProtoTypeConverters.urlToProto(null);
         assertFalse(nullResult.isPresent(), "Null URL should be absent");
@@ -279,7 +279,7 @@ class ProtoTypeConvertersTest {
     }
 
     @Test
-    void testNullVsEmptySemantics_RowId() {
+    void testNullVsEmptySemanticsRowId() {
         // Null → absent wrapper
         Optional<StringValue> nullResult = ProtoTypeConverters.rowIdToProto(null);
         assertFalse(nullResult.isPresent(), "Null RowId should be absent");

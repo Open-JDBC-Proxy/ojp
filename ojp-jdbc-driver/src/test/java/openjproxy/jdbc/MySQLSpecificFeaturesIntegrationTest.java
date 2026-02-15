@@ -1,6 +1,6 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -11,13 +11,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Tests for MySQL-specific functionality that is not covered by database-agnostic tests.
  * Includes features like ON DUPLICATE KEY UPDATE, SELECT ... FOR UPDATE, SHOW commands, etc.
  */
-public class MySQLSpecificFeaturesIntegrationTest {
+class MySQLSpecificFeaturesIntegrationTest {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
@@ -69,10 +70,10 @@ public class MySQLSpecificFeaturesIntegrationTest {
 
             // Verify the upsert worked correctly
             ResultSet rs = stmt.executeQuery("SELECT id, name, count_val FROM mysql_upsert_test WHERE id = 1");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(1, rs.getInt("id"));
-            Assert.assertEquals("Updated Item", rs.getString("name"));
-            Assert.assertEquals(3, rs.getInt("count_val")); // 1 + 2
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt("id"));
+            assertEquals("Updated Item", rs.getString("name"));
+            assertEquals(3, rs.getInt("count_val")); // 1 + 2
 
             rs.close();
         }
@@ -119,9 +120,9 @@ public class MySQLSpecificFeaturesIntegrationTest {
 
             // Test SELECT ... FOR UPDATE
             ResultSet rs = stmt.executeQuery("SELECT id, balance FROM mysql_lock_test WHERE id = 1 FOR UPDATE");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(1, rs.getInt("id"));
-            Assert.assertEquals(100.00, rs.getDouble("balance"), 0.01);
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt("id"));
+            assertEquals(100.00, rs.getDouble("balance"), 0.01);
 
             // Update the locked row
             stmt.executeUpdate("UPDATE mysql_lock_test SET balance = balance - 50.00 WHERE id = 1");
@@ -131,8 +132,8 @@ public class MySQLSpecificFeaturesIntegrationTest {
 
             // Verify the update
             rs = stmt.executeQuery("SELECT balance FROM mysql_lock_test WHERE id = 1");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(50.00, rs.getDouble("balance"), 0.01);
+            assertTrue(rs.next());
+            assertEquals(50.00, rs.getDouble("balance"), 0.01);
 
             rs.close();
         }
@@ -177,7 +178,8 @@ public class MySQLSpecificFeaturesIntegrationTest {
                     break;
                 }
             }
-            Assert.assertTrue("Table mysql_show_test should be found in SHOW TABLES", foundTable);
+            //"Table mysql_show_test should be found in SHOW TABLES",
+            Assertions.assertTrue( foundTable);
 
             rs.close();
         }
@@ -219,26 +221,26 @@ public class MySQLSpecificFeaturesIntegrationTest {
             // Insert data and test LAST_INSERT_ID()
             stmt.execute("INSERT INTO mysql_auto_increment_test (name) VALUES ('First Item')");
             ResultSet rs = stmt.executeQuery("SELECT LAST_INSERT_ID()");
-            Assert.assertTrue(rs.next());
+            assertTrue(rs.next());
             long firstId = rs.getLong(1);
-            Assert.assertTrue(firstId > 0);
+            assertTrue(firstId > 0);
 
             // Insert another item
             stmt.execute("INSERT INTO mysql_auto_increment_test (name) VALUES ('Second Item')");
             rs = stmt.executeQuery("SELECT LAST_INSERT_ID()");
-            Assert.assertTrue(rs.next());
+            assertTrue(rs.next());
             long secondId = rs.getLong(1);
-            Assert.assertEquals(firstId + 1, secondId);
+            assertEquals(firstId + 1, secondId);
 
             // Verify the data
             rs = stmt.executeQuery("SELECT id, name FROM mysql_auto_increment_test ORDER BY id");
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(firstId, rs.getLong("id"));
-            Assert.assertEquals("First Item", rs.getString("name"));
+            assertTrue(rs.next());
+            assertEquals(firstId, rs.getLong("id"));
+            assertEquals("First Item", rs.getString("name"));
             
-            Assert.assertTrue(rs.next());
-            Assert.assertEquals(secondId, rs.getLong("id"));
-            Assert.assertEquals("Second Item", rs.getString("name"));
+            assertTrue(rs.next());
+            assertEquals(secondId, rs.getLong("id"));
+            assertEquals("Second Item", rs.getString("name"));
 
             rs.close();
         }
@@ -276,8 +278,8 @@ public class MySQLSpecificFeaturesIntegrationTest {
                 hasResults = true;
                 String tableName = rs.getString("TABLE_NAME");
                 String tableType = rs.getString("TABLE_TYPE");
-                Assert.assertNotNull(tableName);
-                Assert.assertNotNull(tableType);
+                assertNotNull(tableName);
+                assertNotNull(tableType);
             }
             // Note: We can't assert hasResults because the database might be empty in tests
             
@@ -294,8 +296,8 @@ public class MySQLSpecificFeaturesIntegrationTest {
                 String columnName = rs.getString("COLUMN_NAME");
                 String dataType = rs.getString("DATA_TYPE");
                 // Just verify these can be read without error
-                Assert.assertNotNull(columnName);
-                Assert.assertNotNull(dataType);
+                assertNotNull(columnName);
+                assertNotNull(dataType);
             }
 
             rs.close();

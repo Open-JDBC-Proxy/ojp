@@ -1,16 +1,16 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,6 +19,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -63,7 +64,7 @@ public class SQLServerBlobIntegrationTest {
         System.out.println("Testing SQL Server BLOB creation and retrieval for url -> " + url);
 
         String testData = "SQL Server BLOB test data - special characters: äöü ñ 中文 🚀";
-        byte[] dataBytes = testData.getBytes("UTF-8");
+        byte[] dataBytes = testData.getBytes(StandardCharsets.UTF_8);
 
         // Insert BLOB data
         PreparedStatement psInsert = conn.prepareStatement(
@@ -80,16 +81,16 @@ public class SQLServerBlobIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         Blob blob = rs.getBlob(1);
-        Assert.assertNotNull(blob);
+        assertNotNull(blob);
         
         byte[] retrievedBytes = blob.getBytes(1, (int) blob.length());
-        String retrievedData = new String(retrievedBytes, "UTF-8");
+        String retrievedData = new String(retrievedBytes, StandardCharsets.UTF_8);
         
-        Assert.assertEquals(testData, retrievedData);
-        Assert.assertEquals(dataBytes.length, blob.length());
+        assertEquals(testData, retrievedData);
+        assertEquals(dataBytes.length, blob.length());
 
         psInsert.close();
         psSelect.close();
@@ -111,7 +112,7 @@ public class SQLServerBlobIntegrationTest {
             sb.append(pattern).append(i).append("\n");
         }
         String largeTestData = sb.toString();
-        byte[] largeDataBytes = largeTestData.getBytes("UTF-8");
+        byte[] largeDataBytes = largeTestData.getBytes(StandardCharsets.UTF_8);
 
         // Insert large BLOB data
         PreparedStatement psInsert = conn.prepareStatement(
@@ -128,16 +129,16 @@ public class SQLServerBlobIntegrationTest {
         psSelect.setInt(1, 2);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         Blob blob = rs.getBlob(1);
-        Assert.assertNotNull(blob);
-        Assert.assertTrue(blob.length() > 1000000); // Should be > 1MB
+        assertNotNull(blob);
+        assertTrue(blob.length() > 1000000); // Should be > 1MB
         
         // Read first chunk to verify
         byte[] firstChunk = blob.getBytes(1, 1000);
-        String firstChunkStr = new String(firstChunk, "UTF-8");
-        Assert.assertTrue(firstChunkStr.contains("SQL Server large BLOB test pattern 0"));
+        String firstChunkStr = new String(firstChunk, StandardCharsets.UTF_8);
+        assertTrue(firstChunkStr.contains("SQL Server large BLOB test pattern 0"));
 
         psInsert.close();
         psSelect.close();
@@ -173,17 +174,17 @@ public class SQLServerBlobIntegrationTest {
         psSelect.setInt(1, 3);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         InputStream binaryStream = rs.getBinaryStream(1);
-        Assert.assertNotNull(binaryStream);
+        assertNotNull(binaryStream);
         
         byte[] retrievedData = binaryStream.readAllBytes();
-        Assert.assertEquals(binaryData.length, retrievedData.length);
+        assertEquals(binaryData.length, retrievedData.length);
         
         // Verify each byte
         for (int i = 0; i < binaryData.length; i++) {
-            Assert.assertEquals("Byte mismatch at position " + i, binaryData[i], retrievedData[i]);
+            assertEquals(binaryData[i], retrievedData[i], "Byte mismatch at position " + i);
         }
 
         psInsert.close();
@@ -208,14 +209,14 @@ public class SQLServerBlobIntegrationTest {
                 "INSERT INTO " + tableName + " (id, data_blob) VALUES (?, ?)"
         );
         psInsert.setInt(1, 4);
-        psInsert.setBinaryStream(2, new ByteArrayInputStream(originalData.getBytes("UTF-8")));
+        psInsert.setBinaryStream(2, new ByteArrayInputStream(originalData.getBytes(StandardCharsets.UTF_8)));
         psInsert.executeUpdate();
 
         // Update the BLOB data
         PreparedStatement psUpdate = conn.prepareStatement(
                 "UPDATE " + tableName + " SET data_blob = ? WHERE id = ?"
         );
-        psUpdate.setBinaryStream(1, new ByteArrayInputStream(updatedData.getBytes("UTF-8")));
+        psUpdate.setBinaryStream(1, new ByteArrayInputStream(updatedData.getBytes(StandardCharsets.UTF_8)));
         psUpdate.setInt(2, 4);
         psUpdate.executeUpdate();
 
@@ -226,15 +227,15 @@ public class SQLServerBlobIntegrationTest {
         psSelect.setInt(1, 4);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         Blob blob = rs.getBlob(1);
-        Assert.assertNotNull(blob);
+        assertNotNull(blob);
         
         byte[] retrievedBytes = blob.getBytes(1, (int) blob.length());
-        String retrievedData = new String(retrievedBytes, "UTF-8");
+        String retrievedData = new String(retrievedBytes, StandardCharsets.UTF_8);
         
-        Assert.assertEquals(updatedData, retrievedData);
+        assertEquals(updatedData, retrievedData);
         Assert.assertNotEquals(originalData, retrievedData);
 
         psInsert.close();
@@ -266,13 +267,13 @@ public class SQLServerBlobIntegrationTest {
         psSelect.setInt(1, 5);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         Blob blob = rs.getBlob(1);
-        Assert.assertNull(blob);
+        assertNull(blob);
         
         InputStream binaryStream = rs.getBinaryStream(1);
-        Assert.assertNull(binaryStream);
+        assertNull(binaryStream);
 
         psInsert.close();
         psSelect.close();
@@ -302,14 +303,14 @@ public class SQLServerBlobIntegrationTest {
         psSelect.setInt(1, 6);
         ResultSet rs = psSelect.executeQuery();
         
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         Blob blob = rs.getBlob(1);
-        Assert.assertNotNull(blob);
-        Assert.assertEquals(0, blob.length());
+        assertNotNull(blob);
+        assertEquals(0, blob.length());
         
         byte[] retrievedBytes = blob.getBytes(1, (int) blob.length());
-        Assert.assertEquals(0, retrievedBytes.length);
+        assertEquals(0, retrievedBytes.length);
 
         psInsert.close();
         psSelect.close();

@@ -16,7 +16,7 @@ import java.sql.Statement;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class Db2SavepointTests {
+class Db2SavepointTests {
 
     private static boolean isTestDisabled;
     private Connection connection;
@@ -29,25 +29,25 @@ public class Db2SavepointTests {
     @SneakyThrows
     public void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-        
+
         connection = DriverManager.getConnection(url, user, pwd);
         connection.setAutoCommit(false);
-        
+
         // Set schema explicitly to avoid "object not found" errors
         try (Statement schemaStmt = connection.createStatement()) {
             schemaStmt.execute("SET SCHEMA DB2INST1");
         }
-        
+
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE DB2INST1.savepoint_test_table");
         } catch (SQLException e) {
             // Table might not exist
         }
-        
+
         // DB2-specific CREATE TABLE syntax
         stmt.execute(
-            "CREATE TABLE DB2INST1.savepoint_test_table (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(255))"
+                "CREATE TABLE DB2INST1.savepoint_test_table (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(255))"
         );
         stmt.close();
     }

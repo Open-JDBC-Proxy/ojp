@@ -8,9 +8,8 @@ import com.openjproxy.grpc.TemporalType;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Time;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
@@ -22,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class TemporalConverterTest {
 
     @Test
-    void testTimestampWithZone_roundTrip() {
+    void testTimestampWithZoneRoundTrip() {
         // Test with a timestamp and UTC timezone
         java.sql.Timestamp timestamp = java.sql.Timestamp.valueOf("2024-11-02 14:30:45.123456789");
         ZoneId zoneId = ZoneId.of("UTC");
@@ -38,7 +37,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_withOffset() {
+    void testTimestampWithZoneWithOffset() {
         // Test with an offset timezone
         java.sql.Timestamp timestamp = java.sql.Timestamp.valueOf("2024-11-02 14:30:45.123456789");
         ZoneId zoneId = ZoneId.of("+02:00");
@@ -53,7 +52,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_withIANAZone() {
+    void testTimestampWithZoneWithIanaZone() {
         // Test with IANA timezone
         java.sql.Timestamp timestamp = java.sql.Timestamp.valueOf("2024-11-02 14:30:45.123456789");
         ZoneId zoneId = ZoneId.of("Europe/Rome");
@@ -68,7 +67,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_preservesNanos() {
+    void testTimestampWithZonePreservesNanos() {
         // Test that nanoseconds are preserved
         java.sql.Timestamp timestamp = new java.sql.Timestamp(System.currentTimeMillis());
         timestamp.setNanos(123456789);
@@ -82,7 +81,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_nullTimestamp() {
+    void testTimestampWithZoneNullTimestamp() {
         TimestampWithZone proto = TemporalConverter.toTimestampWithZone(null, ZoneId.of("UTC"));
         assertNull(proto);
         
@@ -91,7 +90,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_nullZoneId_throwsException() {
+    void testTimestampWithZoneNullZoneIdThrowsException() {
         java.sql.Timestamp timestamp = new java.sql.Timestamp(System.currentTimeMillis());
         
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
@@ -102,7 +101,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_missingTimezone_throwsException() {
+    void testTimestampWithZoneMissingTimezoneThrowsException() {
         // Create a TimestampWithZone with empty timezone
         TimestampWithZone proto = TimestampWithZone.newBuilder()
             .setInstant(Timestamp.newBuilder().setSeconds(1000).setNanos(0).build())
@@ -117,7 +116,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_invalidTimezone_throwsException() {
+    void testTimestampWithZoneInvalidTimezoneThrowsException() {
         // Create a TimestampWithZone with invalid timezone
         TimestampWithZone proto = TimestampWithZone.newBuilder()
             .setInstant(Timestamp.newBuilder().setSeconds(1000).setNanos(0).build())
@@ -156,7 +155,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testDate_roundTrip() {
+    void testDateRoundTrip() {
         // Test date conversion
         java.sql.Date date = java.sql.Date.valueOf("2024-11-02");
         
@@ -172,7 +171,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testDate_null() {
+    void testDateNull() {
         Date proto = TemporalConverter.toProtoDate(null);
         assertNull(proto);
         
@@ -181,7 +180,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTime_roundTrip() {
+    void testTimeRoundTrip() {
         // Test time conversion
         Time time = Time.valueOf("14:30:45");
         
@@ -197,7 +196,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTime_preservesNanos() {
+    void testTimePreservesNanos() {
         // Test that nanoseconds are preserved through proto format
         // Note: java.sql.Time has millisecond precision only, but the proto format supports nanos
         // We test that nanos are preserved in the proto and can be reconstructed in LocalTime
@@ -229,7 +228,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTime_null() {
+    void testTimeNull() {
         TimeOfDay proto = TemporalConverter.toProtoTimeOfDay(null);
         assertNull(proto);
         
@@ -238,7 +237,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_epochBoundaries() {
+    void testTimestampWithZoneEpochBoundaries() {
         // Test edge cases around epoch
         java.sql.Timestamp epoch = new java.sql.Timestamp(0);
         ZoneId zoneId = ZoneId.of("UTC");
@@ -250,7 +249,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testTimestampWithZone_systemDefaultZone() {
+    void testTimestampWithZoneSystemDefaultZone() {
         // Test with system default zone
         java.sql.Timestamp timestamp = new java.sql.Timestamp(System.currentTimeMillis());
         ZoneId systemDefault = ZoneId.systemDefault();
@@ -263,7 +262,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testOffsetDateTimeToTimestampWithZone_roundTrip() {
+    void testOffsetDateTimeToTimestampWithZoneRoundTrip() {
         // Test with OffsetDateTime and UTC offset
         java.time.OffsetDateTime offsetDateTime = java.time.OffsetDateTime.parse("2024-11-02T14:30:45.123456789Z");
         
@@ -278,7 +277,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testOffsetDateTimeToTimestampWithZone_withOffset() {
+    void testOffsetDateTimeToTimestampWithZoneWithOffset() {
         // Test with a specific offset
         java.time.OffsetDateTime offsetDateTime = java.time.OffsetDateTime.parse("2024-11-02T14:30:45.123+02:00");
         
@@ -293,7 +292,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testOffsetDateTimeToTimestampWithZone_null() {
+    void testOffsetDateTimeToTimestampWithZoneNull() {
         TimestampWithZone proto = TemporalConverter.offsetDateTimeToTimestampWithZone(null);
         assertNull(proto);
         
@@ -302,7 +301,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testOffsetDateTimeToTimestampWithZone_preservesNanos() {
+    void testOffsetDateTimeToTimestampWithZonePreservesNanos() {
         // Test that nanoseconds are preserved
         java.time.OffsetDateTime offsetDateTime = java.time.OffsetDateTime.parse("2024-11-02T14:30:45.123456789+05:30");
         
@@ -314,7 +313,7 @@ class TemporalConverterTest {
     }
     
     @Test
-    void testFromTimestampWithZoneToObject_withOffsetDateTime() {
+    void testFromTimestampWithZoneToObjectWithOffsetDateTime() {
         // Test that fromTimestampWithZoneToObject correctly returns OffsetDateTime
         // when original_type is TEMPORAL_TYPE_OFFSET_DATE_TIME
         java.time.OffsetDateTime offsetDateTime = java.time.OffsetDateTime.parse("2024-11-02T14:30:45.123+02:00");
@@ -323,7 +322,204 @@ class TemporalConverterTest {
         Object result = TemporalConverter.fromTimestampWithZoneToObject(proto);
         
         assertNotNull(result);
-        assertTrue(result instanceof java.time.OffsetDateTime);
+        assertInstanceOf(OffsetDateTime.class, result);
         assertEquals(offsetDateTime.toInstant(), ((java.time.OffsetDateTime) result).toInstant());
+    }
+    
+    @Test
+    void testLocalDateTimeToTimestampWithZoneRoundTrip() {
+        // Test with LocalDateTime
+        java.time.LocalDateTime localDateTime = java.time.LocalDateTime.of(2024, 11, 2, 14, 30, 45, 123456789);
+        
+        TimestampWithZone proto = TemporalConverter.localDateTimeToTimestampWithZone(localDateTime);
+        assertNotNull(proto);
+        assertEquals(TemporalType.TEMPORAL_TYPE_LOCAL_DATE_TIME, proto.getOriginalType());
+        
+        java.time.LocalDateTime result = TemporalConverter.timestampWithZoneToLocalDateTime(proto);
+        assertNotNull(result);
+        assertEquals(localDateTime, result);
+    }
+    
+    @Test
+    void testLocalDateTimeToTimestampWithZoneNull() {
+        TimestampWithZone proto = TemporalConverter.localDateTimeToTimestampWithZone(null);
+        assertNull(proto);
+        
+        java.time.LocalDateTime result = TemporalConverter.timestampWithZoneToLocalDateTime(null);
+        assertNull(result);
+    }
+    
+    @Test
+    void testLocalDateTimeToTimestampWithZonePreservesNanos() {
+        // Test that nanoseconds are preserved
+        java.time.LocalDateTime localDateTime = java.time.LocalDateTime.of(2024, 11, 2, 14, 30, 45, 987654321);
+        
+        TimestampWithZone proto = TemporalConverter.localDateTimeToTimestampWithZone(localDateTime);
+        java.time.LocalDateTime result = TemporalConverter.timestampWithZoneToLocalDateTime(proto);
+        
+        assertEquals(localDateTime.getNano(), result.getNano());
+        assertEquals(localDateTime, result);
+    }
+    
+    @Test
+    void testFromTimestampWithZoneToObjectWithLocalDateTime() {
+        // Test that fromTimestampWithZoneToObject correctly returns LocalDateTime
+        // when original_type is TEMPORAL_TYPE_LOCAL_DATE_TIME
+        java.time.LocalDateTime localDateTime = java.time.LocalDateTime.of(2024, 11, 2, 14, 30, 45, 123456789);
+        
+        TimestampWithZone proto = TemporalConverter.localDateTimeToTimestampWithZone(localDateTime);
+        Object result = TemporalConverter.fromTimestampWithZoneToObject(proto);
+        
+        assertNotNull(result);
+        assertInstanceOf(java.time.LocalDateTime.class, result);
+        assertEquals(localDateTime, result);
+    }
+    
+    @Test
+    void testInstantToTimestampWithZoneRoundTrip() {
+        // Test with Instant
+        java.time.Instant instant = java.time.Instant.now();
+        
+        TimestampWithZone proto = TemporalConverter.instantToTimestampWithZone(instant);
+        assertNotNull(proto);
+        assertEquals("UTC", proto.getTimezone());
+        assertEquals(TemporalType.TEMPORAL_TYPE_INSTANT, proto.getOriginalType());
+        
+        java.time.Instant result = TemporalConverter.timestampWithZoneToInstant(proto);
+        assertNotNull(result);
+        assertEquals(instant, result);
+    }
+    
+    @Test
+    void testInstantToTimestampWithZoneNull() {
+        TimestampWithZone proto = TemporalConverter.instantToTimestampWithZone(null);
+        assertNull(proto);
+        
+        java.time.Instant result = TemporalConverter.timestampWithZoneToInstant(null);
+        assertNull(result);
+    }
+    
+    @Test
+    void testInstantToTimestampWithZonePreservesNanos() {
+        // Test that nanoseconds are preserved
+        java.time.Instant instant = java.time.Instant.ofEpochSecond(1609459200, 987654321);
+        
+        TimestampWithZone proto = TemporalConverter.instantToTimestampWithZone(instant);
+        java.time.Instant result = TemporalConverter.timestampWithZoneToInstant(proto);
+        
+        assertEquals(instant.getEpochSecond(), result.getEpochSecond());
+        assertEquals(instant.getNano(), result.getNano());
+    }
+    
+    @Test
+    void testFromTimestampWithZoneToObjectWithInstant() {
+        // Test that fromTimestampWithZoneToObject correctly returns Instant
+        // when original_type is TEMPORAL_TYPE_INSTANT
+        java.time.Instant instant = java.time.Instant.now();
+        
+        TimestampWithZone proto = TemporalConverter.instantToTimestampWithZone(instant);
+        Object result = TemporalConverter.fromTimestampWithZoneToObject(proto);
+        
+        assertNotNull(result);
+        assertInstanceOf(java.time.Instant.class, result);
+        assertEquals(instant, result);
+    }
+    
+    @Test
+    void testLocalDateToProtoDateRoundTrip() {
+        // Test LocalDate conversion
+        java.time.LocalDate localDate = java.time.LocalDate.of(2024, 11, 2);
+        
+        Date proto = TemporalConverter.localDateToProtoDate(localDate);
+        assertNotNull(proto);
+        assertEquals(2024, proto.getYear());
+        assertEquals(11, proto.getMonth());
+        assertEquals(2, proto.getDay());
+        
+        java.time.LocalDate result = TemporalConverter.protoDateToLocalDate(proto);
+        assertNotNull(result);
+        assertEquals(localDate, result);
+    }
+    
+    @Test
+    void testLocalDateToProtoDateNull() {
+        Date proto = TemporalConverter.localDateToProtoDate(null);
+        assertNull(proto);
+        
+        java.time.LocalDate result = TemporalConverter.protoDateToLocalDate(null);
+        assertNull(result);
+    }
+    
+    @Test
+    void testLocalTimeToProtoTimeOfDayRoundTrip() {
+        // Test LocalTime conversion
+        java.time.LocalTime localTime = java.time.LocalTime.of(14, 30, 45, 123456789);
+        
+        TimeOfDay proto = TemporalConverter.localTimeToProtoTimeOfDay(localTime);
+        assertNotNull(proto);
+        assertEquals(14, proto.getHours());
+        assertEquals(30, proto.getMinutes());
+        assertEquals(45, proto.getSeconds());
+        assertEquals(123456789, proto.getNanos());
+        
+        java.time.LocalTime result = TemporalConverter.protoTimeOfDayToLocalTime(proto);
+        assertNotNull(result);
+        assertEquals(localTime, result);
+    }
+    
+    @Test
+    void testLocalTimeToProtoTimeOfDayNull() {
+        TimeOfDay proto = TemporalConverter.localTimeToProtoTimeOfDay(null);
+        assertNull(proto);
+        
+        java.time.LocalTime result = TemporalConverter.protoTimeOfDayToLocalTime(null);
+        assertNull(result);
+    }
+    
+    @Test
+    void testOffsetTimeToTimestampWithZoneRoundTrip() {
+        // Test with OffsetTime
+        java.time.OffsetTime offsetTime = java.time.OffsetTime.of(14, 30, 45, 123456789, java.time.ZoneOffset.ofHours(2));
+        
+        TimestampWithZone proto = TemporalConverter.offsetTimeToTimestampWithZone(offsetTime);
+        assertNotNull(proto);
+        assertEquals("+02:00", proto.getTimezone());
+        assertEquals(TemporalType.TEMPORAL_TYPE_OFFSET_TIME, proto.getOriginalType());
+        
+        java.time.OffsetTime result = TemporalConverter.timestampWithZoneToOffsetTime(proto);
+        assertNotNull(result);
+        assertEquals(offsetTime.getHour(), result.getHour());
+        assertEquals(offsetTime.getMinute(), result.getMinute());
+        assertEquals(offsetTime.getSecond(), result.getSecond());
+        assertEquals(offsetTime.getNano(), result.getNano());
+        assertEquals(offsetTime.getOffset(), result.getOffset());
+    }
+    
+    @Test
+    void testOffsetTimeToTimestampWithZoneNull() {
+        TimestampWithZone proto = TemporalConverter.offsetTimeToTimestampWithZone(null);
+        assertNull(proto);
+        
+        java.time.OffsetTime result = TemporalConverter.timestampWithZoneToOffsetTime(null);
+        assertNull(result);
+    }
+    
+    @Test
+    void testFromTimestampWithZoneToObjectWithOffsetTime() {
+        // Test that fromTimestampWithZoneToObject correctly returns OffsetTime
+        // when original_type is TEMPORAL_TYPE_OFFSET_TIME
+        java.time.OffsetTime offsetTime = java.time.OffsetTime.of(14, 30, 45, 123456789, java.time.ZoneOffset.ofHours(2));
+        
+        TimestampWithZone proto = TemporalConverter.offsetTimeToTimestampWithZone(offsetTime);
+        Object result = TemporalConverter.fromTimestampWithZoneToObject(proto);
+        
+        assertNotNull(result);
+        assertInstanceOf(java.time.OffsetTime.class, result);
+        java.time.OffsetTime resultOt = (java.time.OffsetTime) result;
+        assertEquals(offsetTime.getHour(), resultOt.getHour());
+        assertEquals(offsetTime.getMinute(), resultOt.getMinute());
+        assertEquals(offsetTime.getSecond(), resultOt.getSecond());
+        assertEquals(offsetTime.getNano(), resultOt.getNano());
+        assertEquals(offsetTime.getOffset(), resultOt.getOffset());
     }
 }

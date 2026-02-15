@@ -18,7 +18,7 @@ public class SQLServerTestContainer {
     private static boolean isStarted = false;
     private static boolean shutdownHookRegistered = false;
 
-    private static ReentrantLock initLock = new ReentrantLock();
+    private static final ReentrantLock initLock = new ReentrantLock();
     /**
      * Gets or creates the shared SQL Server test container instance.
      * The container is automatically started on first access.

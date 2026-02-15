@@ -1,7 +1,24 @@
 # Database Schema Loader - Implementation Plan
 
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> **IMPORTANT:** This implementation plan describes the Schema Loader for the SQL Enhancer with Apache Calcite, which is now **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use.
+>
+> - **Status**: Experimental / Not Production Ready
+> - **Default**: Disabled by default (SQL enhancer must be explicitly enabled)
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases
+> - **Recommendation**: **Do NOT enable in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases.
+>
+> **We strongly discourage using this feature in its current state.**
+>
+> This document remains for reference purposes.
+
 ## Overview
 Implement an asynchronous database schema loader that dynamically loads table and column metadata from actual database connections, replacing the current static GenericTable approach with real schema information for accurate SQL query optimization.
+
+**Note:** Implementation complete but feature has known limitations with traditional JDBC databases.
 
 ## Objectives
 - Load real database schema metadata at connection pool initialization

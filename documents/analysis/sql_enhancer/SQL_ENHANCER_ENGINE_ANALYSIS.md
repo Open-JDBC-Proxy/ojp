@@ -1,8 +1,23 @@
 # SQL Enhancer Engine Implementation Analysis - Apache Calcite Integration
 
+> **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
+>
+> **IMPORTANT:** This analysis document describes the SQL Enhancer implementation with Apache Calcite, which is now **EXPERIMENTAL** and **NOT YET SUPPORTED** for production use.
+>
+> - **Status**: Experimental / Not Production Ready
+> - **Default**: Disabled by default (opt-in only via configuration)
+> - **Known Issues**: Substantial type system incompatibilities with PostgreSQL, MySQL, Oracle, SQL Server, and other traditional JDBC databases discovered during testing
+> - **Recommendation**: **Do NOT enable in production environments**
+>
+> Apache Calcite is designed for big data systems (Apache Hive, Drill, Phoenix, Druid, Flink, BigQuery, Elasticsearch, MongoDB) and has significant limitations with traditional relational databases that were not apparent during initial analysis.
+>
+> **We strongly discourage using this feature in its current state.**
+>
+> This document remains for reference and future development purposes.
+
 **Author:** GitHub Copilot  
 **Date:** January 8, 2026  
-**Status:** 📋 ANALYSIS - For Review and Discussion
+**Status:** 📋 ANALYSIS - For Review and Discussion (Feature Now Experimental)
 
 ---
 
@@ -10,7 +25,7 @@
 
 This document analyzes the feasibility, benefits, risks, and implementation approach for integrating an **Apache Calcite-based SQL enhancer engine** within the OJP (Open J Proxy) server. The proposed feature would provide SQL query optimization and enhancement capabilities, controlled via a configuration flag in `ojp.properties`, and disabled by default.
 
-**Recommendation:** ✅ **Proceed with aggressive implementation** - The integration is technically feasible and provides significant value. Given OJP is in beta, we can move quickly with proper testing and monitoring.
+**Updated Recommendation:** ⚠️ **Feature is EXPERIMENTAL** - While the integration was implemented, subsequent testing revealed substantial type system incompatibilities with traditional JDBC databases (PostgreSQL, MySQL, Oracle, SQL Server). The feature is disabled by default and not recommended for production use.
 
 ---
 

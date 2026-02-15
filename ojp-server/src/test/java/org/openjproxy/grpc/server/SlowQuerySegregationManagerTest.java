@@ -2,12 +2,18 @@ package org.openjproxy.grpc.server;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for SlowQuerySegregationManager functionality.
  */
-public class SlowQuerySegregationManagerTest {
+class SlowQuerySegregationManagerTest {
 
     private SlowQuerySegregationManager segregationManager;
 
@@ -28,7 +34,7 @@ public class SlowQuerySegregationManagerTest {
     @Test
     void testDisabledManager() {
         SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 5000, 1000, false);
-        
+
         assertFalse(disabledManager.isEnabled());
         assertNotNull(disabledManager.getPerformanceMonitor());
         assertNull(disabledManager.getSlotManager());
@@ -38,16 +44,16 @@ public class SlowQuerySegregationManagerTest {
     void testExecuteWithSegregationEnabled() throws Exception {
         String operationHash = "test-operation";
         String expectedResult = "operation-result";
-        
+
         // Execute an operation
         String result = segregationManager.executeWithSegregation(operationHash, () -> {
             // Simulate some work
-            Thread.sleep(50);
+            Thread.sleep(50); //NOSONAR
             return expectedResult;
         });
-        
+
         assertEquals(expectedResult, result);
-        
+
         // Check that performance was recorded
         assertTrue(segregationManager.getOperationAverageTime(operationHash) > 0);
         assertEquals(1, segregationManager.getPerformanceMonitor().getTrackedOperationCount());
@@ -59,15 +65,15 @@ public class SlowQuerySegregationManagerTest {
         SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 5000, 1000, false);
         String operationHash = "test-operation";
         String expectedResult = "operation-result";
-        
+
         // Execute an operation
         String result = disabledManager.executeWithSegregation(operationHash, () -> {
-            Thread.sleep(50);
+            Thread.sleep(50); //NOSONAR
             return expectedResult;
         });
-        
+
         assertEquals(expectedResult, result);
-        
+
         // Check that performance was still recorded
         assertTrue(disabledManager.getOperationAverageTime(operationHash) > 0);
     }
@@ -76,38 +82,38 @@ public class SlowQuerySegregationManagerTest {
     void testSlowOperationClassification() throws Exception {
         String fastOp = "fast-operation";
         String slowOp = "slow-operation";
-        
+
         // Execute fast operations to establish baseline
         segregationManager.executeWithSegregation(fastOp, () -> {
-            Thread.sleep(10);
+            Thread.sleep(10); //NOSONAR
             return "fast";
         });
-        
+
         segregationManager.executeWithSegregation("another-fast", () -> {
-            Thread.sleep(10);
+            Thread.sleep(10); //NOSONAR
             return "fast";
         });
-        
+
         // Initially, operations should be classified as fast
         assertFalse(segregationManager.isSlowOperation(fastOp));
-        
+
         // Execute a slow operation multiple times to make it clearly slow
         for (int i = 0; i < 3; i++) {
             segregationManager.executeWithSegregation(slowOp, () -> {
-                Thread.sleep(100);
+                Thread.sleep(100); //NOSONAR
                 return "slow";
             });
         }
-        
+
         // The slow operation should now be classified differently
         // Note: Due to the 2x threshold and averaging, we might need more executions or longer delays
         // to trigger the slow classification
         double slowAvg = segregationManager.getOperationAverageTime(slowOp);
         double overallAvg = segregationManager.getOverallAverageExecutionTime();
-        
+
         assertTrue(slowAvg > 0);
         assertTrue(overallAvg > 0);
-        
+
         // At minimum, verify the performance tracking is working
         assertTrue(segregationManager.getPerformanceMonitor().getTrackedOperationCount() >= 3);
     }
@@ -116,17 +122,15 @@ public class SlowQuerySegregationManagerTest {
     void testExceptionHandling() {
         String operationHash = "failing-operation";
         RuntimeException expectedException = new RuntimeException("Test exception");
-        
+
         // Verify that exceptions are propagated
-        Exception thrownException = assertThrows(RuntimeException.class, () -> {
-            segregationManager.executeWithSegregation(operationHash, () -> {
-                Thread.sleep(50);
-                throw expectedException;
-            });
-        });
-        
+        Exception thrownException = assertThrows(RuntimeException.class, () -> segregationManager.executeWithSegregation(operationHash, () -> {
+            Thread.sleep(50); //NOSONAR
+            throw expectedException;
+        }));
+
         assertEquals(expectedException, thrownException);
-        
+
         // Check that performance was still recorded even for failed operations
         assertTrue(segregationManager.getOperationAverageTime(operationHash) > 0);
     }
@@ -144,11 +148,11 @@ public class SlowQuerySegregationManagerTest {
             threads[i] = new Thread(() -> {
                 try {
                     results[threadIndex] = segregationManager.executeWithSegregation(
-                        "concurrent-op-" + threadIndex, 
-                        () -> {
-                            Thread.sleep(50);
-                            return "result-" + threadIndex;
-                        }
+                            "concurrent-op-" + threadIndex,
+                            () -> {
+                                Thread.sleep(50); //NOSONAR
+                                return "result-" + threadIndex;
+                            }
                     );
                 } catch (Exception e) {
                     exceptions[threadIndex] = e;
@@ -192,26 +196,27 @@ public class SlowQuerySegregationManagerTest {
     void testSlotExhaustion() throws Exception {
         // Fill up slow slots by executing operations that will be classified as slow
         String slowOp = "resource-intensive-op";
-        
+
         // First, establish a baseline with some fast operations
         segregationManager.executeWithSegregation("fast-1", () -> {
-            Thread.sleep(5);
+            Thread.sleep(5); //NOSONAR
             return "fast";
         });
-        
+
         segregationManager.executeWithSegregation("fast-2", () -> {
-            Thread.sleep(5); 
+            Thread.sleep(5);  //NOSONAR
             return "fast";
         });
-        
+
         // Now try to make the operation clearly slow
         for (int i = 0; i < 5; i++) {
             segregationManager.executeWithSegregation(slowOp, () -> {
-                Thread.sleep(200); // Much longer than fast operations
+                // Much longer than fast operations
+                Thread.sleep(200);  //NOSONAR
                 return "slow";
             });
         }
-        
+
         // The operation should have been tracked and executed
         assertTrue(segregationManager.getOperationAverageTime(slowOp) > 0);
         assertTrue(segregationManager.getPerformanceMonitor().getTotalExecutionCount() >= 7);
@@ -221,14 +226,14 @@ public class SlowQuerySegregationManagerTest {
     void testVoidOperations() throws Exception {
         String operationHash = "void-operation";
         final boolean[] executed = {false};
-        
+
         // Test with void operations (like those used in executeQuery)
         Object result = segregationManager.executeWithSegregation(operationHash, () -> {
             executed[0] = true;
-            Thread.sleep(30);
+            Thread.sleep(30); //NOSONAR
             return null;
         });
-        
+
         assertNull(result);
         assertTrue(executed[0]);
         assertTrue(segregationManager.getOperationAverageTime(operationHash) > 0);

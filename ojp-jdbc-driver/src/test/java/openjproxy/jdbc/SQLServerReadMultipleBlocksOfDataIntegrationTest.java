@@ -1,19 +1,23 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -80,12 +84,12 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
             String textData = rs.getString("text_data");
             int numberData = rs.getInt("number_data");
             
-            Assert.assertEquals(rowCount, id);
-            Assert.assertEquals("Row " + rowCount + " data", textData);
-            Assert.assertEquals(rowCount * 10, numberData);
+            assertEquals(rowCount, id);
+            assertEquals("Row " + rowCount + " data", textData);
+            assertEquals(rowCount * 10, numberData);
         }
 
-        Assert.assertEquals(TOTAL_ROWS, rowCount);
+        assertEquals(TOTAL_ROWS, rowCount);
 
         rs.close();
         stmt.close();
@@ -141,24 +145,24 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
 
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         
         // Verify large text
         String retrievedText = rs.getString("large_text");
-        Assert.assertEquals(largeTextStr.length(), retrievedText.length());
-        Assert.assertTrue(retrievedText.contains("This is line 0 of the large text data."));
-        Assert.assertTrue(retrievedText.contains("This is line 9999 of the large text data."));
+        assertEquals(largeTextStr.length(), retrievedText.length());
+        assertTrue(retrievedText.contains("This is line 0 of the large text data."));
+        assertTrue(retrievedText.contains("This is line 9999 of the large text data."));
 
         // Verify large binary using stream
         InputStream binaryStream = rs.getBinaryStream("large_binary");
-        Assert.assertNotNull(binaryStream);
+        assertNotNull(binaryStream);
         
         byte[] retrievedBinary = binaryStream.readAllBytes();
-        Assert.assertEquals(largeBinary.length, retrievedBinary.length);
+        assertEquals(largeBinary.length, retrievedBinary.length);
         
         // Verify binary data integrity (sample check)
         for (int i = 0; i < 1000; i += 100) {
-            Assert.assertEquals(largeBinary[i], retrievedBinary[i]);
+            assertEquals(largeBinary[i], retrievedBinary[i]);
         }
 
         binaryStream.close();
@@ -214,16 +218,16 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
                 totalRetrieved++;
                 
                 int expectedId = offset + pageCount;
-                Assert.assertEquals(expectedId, rs.getInt("id"));
-                Assert.assertEquals("Name " + expectedId, rs.getString("name"));
+                assertEquals(expectedId, rs.getInt("id"));
+                assertEquals("Name " + expectedId, rs.getString("name"));
             }
             
-            Assert.assertEquals(PAGE_SIZE, pageCount);
+            assertEquals(PAGE_SIZE, pageCount);
             rs.close();
             psSelect.close();
         }
 
-        Assert.assertEquals(TOTAL_ROWS, totalRetrieved);
+        assertEquals(TOTAL_ROWS, totalRetrieved);
         TestDBUtils.cleanupTestTables(conn, "sqlserver_pagination_test");
         conn.close();
     }
@@ -261,11 +265,11 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
         int rowCount = 0;
         while (rs.next()) {
             rowCount++;
-            Assert.assertEquals(rowCount, rs.getInt("id"));
-            Assert.assertEquals("Cursor Test " + rowCount, rs.getString("name"));
+            assertEquals(rowCount, rs.getInt("id"));
+            assertEquals("Cursor Test " + rowCount, rs.getString("name"));
         }
 
-        Assert.assertEquals(TOTAL_ROWS, rowCount);
+        assertEquals(TOTAL_ROWS, rowCount);
 
         rs.close();
         stmt.close();
@@ -312,19 +316,19 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
         while (hasNext1 || hasNext2) {
             if (hasNext1) {
                 count1++;
-                Assert.assertEquals(count1, rs1.getInt("id"));
+                assertEquals(count1, rs1.getInt("id"));
                 hasNext1 = rs1.next();
             }
             
             if (hasNext2) {
                 count2++;
-                Assert.assertEquals(10 + count2, rs2.getInt("id"));
+                assertEquals(10 + count2, rs2.getInt("id"));
                 hasNext2 = rs2.next();
             }
         }
 
-        Assert.assertEquals(10, count1);
-        Assert.assertEquals(10, count2);
+        assertEquals(10, count1);
+        assertEquals(10, count2);
 
         rs1.close();
         rs2.close();

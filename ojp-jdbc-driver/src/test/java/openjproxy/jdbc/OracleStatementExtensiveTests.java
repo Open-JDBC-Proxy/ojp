@@ -319,7 +319,7 @@ public class OracleStatementExtensiveTests {
         statement.setPoolable(true);
         // Oracle behavior: supports statement pooling
         boolean isPoolable = statement.isPoolable();
-        assertTrue(isPoolable == true || isPoolable == false, "isPoolable should return a boolean");
+        assertTrue(isPoolable || !isPoolable, "isPoolable should return a boolean");
         statement.setPoolable(false);
         // Just verify the method works, don't enforce specific behavior
         statement.isPoolable(); // Should not throw

@@ -1,10 +1,11 @@
 package openjproxy.jdbc;
 
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -15,17 +16,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-@Slf4j
-public class ConcurrencyTimeoutTest {
+
+class ConcurrencyTimeoutTest {
+    private static final Logger logger = LoggerFactory.getLogger(ConcurrencyTimeoutTest.class);
+
     private static final int THREADS = 50; // Smaller number for quick testing
     private static final int OPERATIONS_PER_THREAD = 5;
 
     private static boolean isH2TestEnabled;
-    private static AtomicInteger successfulOperations = new AtomicInteger(0);
-    private static AtomicInteger failedOperations = new AtomicInteger(0);
+    private static final AtomicInteger successfulOperations = new AtomicInteger(0);
+    private static final AtomicInteger failedOperations = new AtomicInteger(0);
 
     @BeforeAll
     static void setupClass() {
@@ -35,12 +38,12 @@ public class ConcurrencyTimeoutTest {
     @SneakyThrows
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testConcurrencyWithTimeout(String driverClass, String url, String user, String password) throws SQLException {
+    void testConcurrencyWithTimeout(String driverClass, String url, String user, String password) {
         assumeFalse(!isH2TestEnabled, "H2 tests are disabled");
 
         successfulOperations.set(0);
         failedOperations.set(0);
-        
+
         // Setup a simple table
         try (Connection conn = getConnection(driverClass, url, user, password)) {
             conn.createStatement().execute("DROP TABLE IF EXISTS concurrency_test");
@@ -61,30 +64,30 @@ public class ConcurrencyTimeoutTest {
                             successfulOperations.incrementAndGet();
                         }
                     } catch (Exception e) {
-                        log.warn("Operation failed for thread {}, operation {}: {}", threadNum, i, e.getMessage());
+                        logger.warn("Operation failed for thread {}, operation {}: {}", threadNum, i, e.getMessage());
                         failedOperations.incrementAndGet();
                     }
                 }
             });
         }
-        
+
         executor.shutdown();
-        
+
         // The key test: this should complete in reasonable time instead of hanging indefinitely
         boolean finished = executor.awaitTermination(60, TimeUnit.SECONDS);
-        
+
         int successful = successfulOperations.get();
         int failed = failedOperations.get();
         int total = successful + failed;
         int expected = THREADS * OPERATIONS_PER_THREAD;
-        
-        log.info("Test completed - Finished: {}, Successful: {}, Failed: {}, Total: {}, Expected: {}", 
+
+        logger.info("Test completed - Finished: {}, Successful: {}, Failed: {}, Total: {}, Expected: {}",
                 finished, successful, failed, total, expected);
-        
+
         // Assertions
-        assertTrue("Test should complete without hanging indefinitely", finished);
-        assertTrue("Some operations should succeed", successful > 0);
-        assertTrue("Most operations should complete (success or controlled failure)", total >= expected * 0.8);
+        assertTrue(finished, "Test should complete without hanging indefinitely");
+        assertTrue(successful > 0, "Some operations should succeed");
+        assertTrue(total >= expected * 0.8, "Most operations should complete (success or controlled failure)");
     }
 
     private static Connection getConnection(String driverClass, String url, String user, String password) throws SQLException {

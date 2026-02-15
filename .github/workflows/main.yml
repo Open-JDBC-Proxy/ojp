@@ -198,12 +198,14 @@ jobs:
           nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
-      # Start second OJP server WITH SQL enhancer enabled
+      # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
       # Tests will run against this server via postgres_connection.csv (port 10593)
+      # OPTIMIZE mode enables conversion and optimization with schema loading support
+      # PostgreSQL dialect ensures proper SQL parsing and validation
       # This ensures all PostgreSQL tests validate both configurations
       - name: Test and Run (ojp-server-enhancer on port 10593)
         run: |
-          nohup java -Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.sql.enhancer.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-enhancer.log 2>&1 &
+          nohup java -Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-enhancer.log 2>&1 &
           echo $! > /tmp/ojp-server-enhancer.pid
 
       - name: Wait for ojp-server to start
@@ -222,6 +224,28 @@ jobs:
       # Run PostgreSQL-specific tests with -DenablePostgresTests flag
       - name: Test (ojp-jdbc-driver) with PostgreSQL enabled
         run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenablePostgresTests=true
+
+      # ===================================================================
+      # SQL Enhancer Integration Test
+      # ===================================================================
+      # This test validates the SQL enhancer functionality by:
+      # 1. Setting up test data in PostgreSQL
+      # 2. Starting two OJP servers on random ports (one with SQL enhancer enabled, one without)
+      # 3. Running a complex query on both servers
+      # 4. Verifying identical results and comparing performance
+      # 5. Stopping both test servers after completion
+      # ===================================================================
+
+      - name: Run SQL Enhancer Integration Test
+        run: |
+          mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
+            -Dtest=PostgresSqlEnhancerIntegrationTest \
+            -DenableSqlEnhancerIntegrationTest=true \
+            -Dpostgres.host=localhost \
+            -Dpostgres.port=5432 \
+            -Dpostgres.db=defaultdb \
+            -Dpostgres.user=testuser \
+            -Dpostgres.password=testpassword
 
       - name: Show ojp-server.log
         if: always()
@@ -677,11 +701,15 @@ jobs:
   #
   # ===========================================================================
   multinode-test:
-    name: Multinode Integration Test
+    name: Multinode Integration Test (Run ${{ matrix.run }})
     runs-on: ubuntu-latest
     # DEPENDENCY: This job only runs if build-test succeeds
     # This ensures we don't waste resources on multinode tests if H2 tests fail
     needs: [build-test]
+    strategy:
+      max-parallel: 1
+      matrix:
+        run: [1, 2, 3, 4, 5]
 
     steps:
       - name: Git checkout
@@ -1056,11 +1084,15 @@ jobs:
   #
   # ===========================================================================
   multinode-xa-test:
-    name: Multinode XA Integration Test
+    name: Multinode XA Integration Test (Run ${{ matrix.run }})
     runs-on: ubuntu-latest
     # DEPENDENCY: This job only runs if build-test succeeds
     # This ensures we don't waste resources on multinode XA tests if H2 tests fail
     needs: [build-test]
+    strategy:
+      max-parallel: 1
+      matrix:
+        run: [1, 2, 3, 4, 5]
 
     steps:
       - name: Git checkout

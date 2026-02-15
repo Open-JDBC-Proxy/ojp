@@ -1,8 +1,6 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
@@ -17,9 +15,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-public class BlobIntegrationTest {
+ class BlobIntegrationTest {
 
     private static boolean isH2TestEnabled;
     private static boolean isMySQLTestEnabled;
@@ -29,14 +29,14 @@ public class BlobIntegrationTest {
     private Connection conn;
 
     @BeforeAll
-    static void checkTestConfiguration() {
+     static void checkTestConfiguration() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
         isMySQLTestEnabled = Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+     void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
 
         this.tableName = "blob_test_blob";
         if (url.toLowerCase().contains("mysql")) {
@@ -58,7 +58,7 @@ public class BlobIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+     void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         this.setUp(driverClass, url, user, pwd);
         System.out.println("Testing for url -> " + url);
 
@@ -108,20 +108,20 @@ public class BlobIntegrationTest {
             countReads++;
             Blob blobResult = resultSet.getBlob(1);
 
-            Assert.assertEquals(binaryData.length, blobResult.getBinaryStream().readAllBytes().length);
+            assertEquals(binaryData.length, blobResult.getBinaryStream().readAllBytes().length);
 
             Blob blobResultByName = resultSet.getBlob("val_blob");
-            Assert.assertEquals(binaryData.length, blobResultByName.getBinaryStream().readAllBytes().length);
+            assertEquals(binaryData.length, blobResultByName.getBinaryStream().readAllBytes().length);
 
             Blob blobResult2 = resultSet.getBlob(2);
             String fromBlobByIdx2 = new String(blobResult2.getBinaryStream().readAllBytes());
-            Assert.assertEquals(testString2, fromBlobByIdx2);
+            assertEquals(testString2, fromBlobByIdx2);
 
             Blob blobResult3 = resultSet.getBlob(3);
             String fromBlobByIdx3 = new String(blobResult3.getBinaryStream().readAllBytes());
-            Assert.assertEquals(testString2.substring(0, 5), fromBlobByIdx3);
+            assertEquals(testString2.substring(0, 5), fromBlobByIdx3);
         }
-        Assert.assertEquals(5, countReads);
+        assertEquals(5, countReads);
 
         executeUpdate(conn, "delete from " + tableName);
 
@@ -132,7 +132,7 @@ public class BlobIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException, ClassNotFoundException {
+     void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException, ClassNotFoundException {
         this.setUp(driverClass, url, user, pwd);
         System.out.println("Testing for url -> " + url);
 
@@ -165,13 +165,13 @@ public class BlobIntegrationTest {
         InputStream inputStreamTestFile = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
         InputStream inputStreamBlob = blobResult.getBinaryStream();
 
+        assertNotNull(inputStreamTestFile);
         int byteFile = inputStreamTestFile.read();
-        int count = 0;
+
         while (byteFile != -1) {
-            count++;
             int blobByte = inputStreamBlob.read();
 
-            Assert.assertEquals(byteFile, blobByte);
+            assertEquals(byteFile, blobByte);
             byteFile = inputStreamTestFile.read();
         }
 

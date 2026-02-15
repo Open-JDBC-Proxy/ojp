@@ -1,10 +1,8 @@
 package openjproxy.jdbc;
 
-import lombok.extern.slf4j.Slf4j;
 import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
 import openjproxy.jdbc.testutil.TestDBUtils;
 import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
-import org.junit.Assert;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,9 +13,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
-@Slf4j
-public class BasicCrudIntegrationTest {
+class BasicCrudIntegrationTest {
 
     private static boolean isH2TestEnabled;
     private static boolean isPostgresTestEnabled;
@@ -30,7 +29,7 @@ public class BasicCrudIntegrationTest {
     private static String tablePrefix = "";
 
     @BeforeAll
-    static void setup() {
+     static void setup() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
         isPostgresTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
         isMySQLTestEnabled = Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
@@ -43,7 +42,7 @@ public class BasicCrudIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_mysql_mariadb_oracle_sqlserver_connections.csv")
-    void crudTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
+     void crudTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // Skip H2 tests if not enabled
         if (url.toLowerCase().contains("_h2:") && !isH2TestEnabled) {
             Assumptions.assumeFalse(true, "Skipping H2 tests");
@@ -53,7 +52,7 @@ public class BasicCrudIntegrationTest {
         if (url.toLowerCase().contains("postgresql") && !isPostgresTestEnabled) {
             Assumptions.assumeFalse(true, "Skipping Postgres tests");
         }
-        
+
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             Assumptions.assumeFalse(true, "Skipping MySQL tests");
@@ -95,7 +94,7 @@ public class BasicCrudIntegrationTest {
             tablePrefix = "oracle_";
         } else if (url.toLowerCase().contains("sqlserver")) {
             url = SQLServerConnectionProvider.getOjpProxyAddress();
-            tablePrefix = "sqlserver_" +  (isXA ? "xa_" : "nonxa_");
+            tablePrefix = "sqlserver_" + (isXA ? "xa_" : "nonxa_");
         } else if (url.toLowerCase().contains("db2")) {
             tablePrefix = "db2_";
         } else if (url.toLowerCase().contains("26257")) {
@@ -138,7 +137,7 @@ public class BasicCrudIntegrationTest {
                 // Ignore rollback errors
             }
         }
-        
+
         // Start new transaction for next operation
         connResult.startXATransactionIfNeeded();
 
@@ -147,13 +146,13 @@ public class BasicCrudIntegrationTest {
                 "title VARCHAR(50) NOT NULL" +
                 ")");
         connResult.commit();
-        
+
         // Start new transaction for next operation
         connResult.startXATransactionIfNeeded();
 
         executeUpdate(conn, " insert into " + tableName + " (id, title) values (1, 'TITLE_1')");
         connResult.commit();
-        
+
         // Start new transaction for next operation
         connResult.startXATransactionIfNeeded();
 
@@ -163,12 +162,12 @@ public class BasicCrudIntegrationTest {
         resultSet.next();
         int id = resultSet.getInt(1);
         String title = resultSet.getString(2);
-        Assert.assertEquals(1, id);
-        Assert.assertEquals("TITLE_1", title);
+        assertEquals(1, id);
+        assertEquals("TITLE_1", title);
 
         executeUpdate(conn, "update " + tableName + " set title='TITLE_1_UPDATED'");
         connResult.commit();
-        
+
         // Start new transaction for next operation
         connResult.startXATransactionIfNeeded();
 
@@ -176,21 +175,21 @@ public class BasicCrudIntegrationTest {
         resultSetUpdated.next();
         int idUpdated = resultSetUpdated.getInt(1);
         String titleUpdated = resultSetUpdated.getString(2);
-        Assert.assertEquals(1, idUpdated);
-        Assert.assertEquals("TITLE_1_UPDATED", titleUpdated);
+        assertEquals(1, idUpdated);
+        assertEquals("TITLE_1_UPDATED", titleUpdated);
 
         executeUpdate(conn, " delete from " + tableName + " where id=1 and title='TITLE_1_UPDATED'");
         connResult.commit();
-        
+
         // Start new transaction for next operation
         connResult.startXATransactionIfNeeded();
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
-        
+
         // Clean up - drop the test table
         try {
             executeUpdate(conn, "drop table " + tableName);
@@ -198,7 +197,7 @@ public class BasicCrudIntegrationTest {
         } catch (Exception e) {
             // Ignore cleanup errors
         }
-        
+
         connResult.close();
     }
 

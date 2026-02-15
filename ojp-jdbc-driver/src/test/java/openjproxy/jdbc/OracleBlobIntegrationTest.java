@@ -1,13 +1,15 @@
 package openjproxy.jdbc;
 
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -16,14 +18,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static openjproxy.helpers.SqlHelper.executeUpdate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Oracle-specific BLOB integration tests.
  * Tests Oracle BLOB functionality and performance.
  */
-public class OracleBlobIntegrationTest {
-
+class OracleBlobIntegrationTest {
+    private static final Logger logger = LoggerFactory.getLogger(OracleBlobIntegrationTest.class);
     private static boolean isTestDisabled;
     private String tableName;
     private Connection conn;
@@ -33,18 +39,18 @@ public class OracleBlobIntegrationTest {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
-        
+
         this.tableName = "oracle_blob_test";
         conn = DriverManager.getConnection(url, user, pwd);
-        
+
         try {
             executeUpdate(conn, "DROP TABLE " + tableName);
         } catch (Exception e) {
             // Ignore if table doesn't exist
         }
-        
+
         // Create table with Oracle BLOB type
         executeUpdate(conn, "CREATE TABLE " + tableName + " (" +
                 "id NUMBER(10) PRIMARY KEY, " +
@@ -59,7 +65,7 @@ public class OracleBlobIntegrationTest {
         System.out.println("Testing Oracle BLOB creation and retrieval for url -> " + url);
 
         String testData = "Oracle BLOB test data - special characters: äöü ñ 中文 🚀";
-        byte[] dataBytes = testData.getBytes("UTF-8");
+        byte[] dataBytes = testData.getBytes(StandardCharsets.UTF_8);
 
         // Insert BLOB data
         PreparedStatement psInsert = conn.prepareStatement(
@@ -75,17 +81,17 @@ public class OracleBlobIntegrationTest {
         );
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
-        
-        Assert.assertTrue(rs.next());
-        
+
+        assertTrue(rs.next());
+
         Blob blob = rs.getBlob(1);
-        Assert.assertNotNull(blob);
-        
+        assertNotNull(blob);
+
         byte[] retrievedBytes = blob.getBytes(1, (int) blob.length());
-        String retrievedData = new String(retrievedBytes, "UTF-8");
-        
-        Assert.assertEquals(testData, retrievedData);
-        Assert.assertEquals(dataBytes.length, blob.length());
+        String retrievedData = new String(retrievedBytes, StandardCharsets.UTF_8);
+
+        assertEquals(testData, retrievedData);
+        assertEquals(dataBytes.length, blob.length());
 
         psInsert.close();
         psSelect.close();
@@ -107,7 +113,7 @@ public class OracleBlobIntegrationTest {
             sb.append(pattern).append(i).append("\n");
         }
         String largeTestData = sb.toString();
-        byte[] largeDataBytes = largeTestData.getBytes("UTF-8");
+        byte[] largeDataBytes = largeTestData.getBytes(StandardCharsets.UTF_8);
 
         // Insert large BLOB data
         PreparedStatement psInsert = conn.prepareStatement(
@@ -123,17 +129,17 @@ public class OracleBlobIntegrationTest {
         );
         psSelect.setInt(1, 2);
         ResultSet rs = psSelect.executeQuery();
-        
-        Assert.assertTrue(rs.next());
-        
+
+        assertTrue(rs.next());
+
         Blob blob = rs.getBlob(1);
-        Assert.assertNotNull(blob);
-        Assert.assertTrue(blob.length() > 1000000); // Should be > 1MB
-        
+        assertNotNull(blob);
+        assertTrue(blob.length() > 1000000); // Should be > 1MB
+
         // Read first chunk to verify
         byte[] firstChunk = blob.getBytes(1, 1000);
-        String firstChunkStr = new String(firstChunk, "UTF-8");
-        Assert.assertTrue(firstChunkStr.contains("Oracle large BLOB test pattern 0"));
+        String firstChunkStr = new String(firstChunk, StandardCharsets.UTF_8);
+        assertTrue(firstChunkStr.contains("Oracle large BLOB test pattern 0"));
 
         psInsert.close();
         psSelect.close();
@@ -168,18 +174,19 @@ public class OracleBlobIntegrationTest {
         );
         psSelect.setInt(1, 3);
         ResultSet rs = psSelect.executeQuery();
-        
-        Assert.assertTrue(rs.next());
-        
+
+        assertTrue(rs.next());
+
         InputStream binaryStream = rs.getBinaryStream(1);
-        Assert.assertNotNull(binaryStream);
-        
+        assertNotNull(binaryStream);
+
         byte[] retrievedData = binaryStream.readAllBytes();
-        Assert.assertEquals(binaryData.length, retrievedData.length);
-        
+        assertEquals(binaryData.length, retrievedData.length);
+
         // Verify each byte
         for (int i = 0; i < binaryData.length; i++) {
-            Assert.assertEquals("Byte mismatch at position " + i, binaryData[i], retrievedData[i]);
+            logger.info("Byte mismatch at position " + i);
+            assertEquals(binaryData[i], retrievedData[i]);
         }
 
         psInsert.close();
@@ -204,14 +211,14 @@ public class OracleBlobIntegrationTest {
                 "INSERT INTO " + tableName + " (id, data_blob) VALUES (?, ?)"
         );
         psInsert.setInt(1, 4);
-        psInsert.setBinaryStream(2, new ByteArrayInputStream(originalData.getBytes("UTF-8")));
+        psInsert.setBinaryStream(2, new ByteArrayInputStream(originalData.getBytes(StandardCharsets.UTF_8)));
         psInsert.executeUpdate();
 
         // Update BLOB data
         PreparedStatement psUpdate = conn.prepareStatement(
                 "UPDATE " + tableName + " SET data_blob = ? WHERE id = ?"
         );
-        psUpdate.setBinaryStream(1, new ByteArrayInputStream(updatedData.getBytes("UTF-8")));
+        psUpdate.setBinaryStream(1, new ByteArrayInputStream(updatedData.getBytes(StandardCharsets.UTF_8)));
         psUpdate.setInt(2, 4);
         psUpdate.executeUpdate();
 
@@ -221,13 +228,13 @@ public class OracleBlobIntegrationTest {
         );
         psSelect.setInt(1, 4);
         ResultSet rs = psSelect.executeQuery();
-        
-        Assert.assertTrue(rs.next());
-        
+
+        assertTrue(rs.next());
+
         Blob blob = rs.getBlob(1);
-        String retrievedData = new String(blob.getBytes(1, (int) blob.length()), "UTF-8");
-        
-        Assert.assertEquals(updatedData, retrievedData);
+        String retrievedData = new String(blob.getBytes(1, (int) blob.length()), StandardCharsets.UTF_8);
+
+        assertEquals(updatedData, retrievedData);
 
         psInsert.close();
         psUpdate.close();
@@ -262,17 +269,17 @@ public class OracleBlobIntegrationTest {
         );
         psSelect.setInt(1, 5);
         ResultSet rs = psSelect.executeQuery();
-        
-        Assert.assertTrue(rs.next());
+
+        assertTrue(rs.next());
         Blob blob = rs.getBlob(1);
-        Assert.assertNull(blob);
+        assertNull(blob);
 
         // Verify NULL BLOB
         psSelect.setInt(1, 6);
         rs = psSelect.executeQuery();
-        Assert.assertTrue(rs.next());
+        assertTrue(rs.next());
         blob = rs.getBlob(1);
-        Assert.assertNull(blob);
+        assertNull(blob);
 
         psInsert.close();
         psSelect.close();
