@@ -1,16 +1,16 @@
 # OJP Server Complete Configuration Guide
 
-The OJP Server supports comprehensive configuration through YAML files, properties files, JVM system properties, and environment variables. This document covers all available configuration options including server settings, connection pools, slow query segregation, and client-side configuration.
+The OJP Server supports comprehensive configuration through YAML files, JVM system properties, and environment variables. This document covers all available configuration options including server settings, connection pools, slow query segregation, and client-side configuration.
+
+> **Note**: While YAML format (`.yaml`, `.yml`) is shown in all examples throughout this guide, properties files (`.properties`) are also fully supported for backward compatibility. Both formats use identical property names and values.
 
 ## Server Configuration
 
 The server supports multiple configuration methods with the following precedence (highest to lowest):
 1. **JVM system properties** (`-Dojp.server.port=1059`)
 2. **Environment variables** (`OJP_SERVER_PORT=1059`)
-3. **Configuration files** (YAML or properties format)
+3. **Configuration files** (YAML format shown in examples; properties format also supported)
 4. **Default values**
-
-**Recommended**: Use YAML configuration files (`ojp.yaml` or `ojp-{environment}.yaml`) for modern deployments. Properties files (`ojp.properties`) are also supported for backward compatibility.
 
 ### Core Server Settings
 
@@ -37,7 +37,7 @@ OJP Server uses Logback for logging with fully configurable options. All logging
 
 #### Logging Configuration Examples
 
-**Using YAML configuration file (recommended):**
+**Using YAML configuration file:**
 ```yaml
 # ojp.yaml
 ojp:
@@ -47,15 +47,6 @@ ojp:
       file: /var/log/ojp/server.log
       maxHistory: 60
       totalSizeCap: 5GB
-```
-
-**Using properties file (alternative):**
-```properties
-# ojp.properties
-ojp.server.logLevel=DEBUG
-ojp.server.log.file=/var/log/ojp/server.log
-ojp.server.log.maxHistory=60
-ojp.server.log.totalSizeCap=5GB
 ```
 
 **Using JVM system properties (for Docker/startup scripts):**
@@ -323,24 +314,7 @@ java -Dojp.environment=prod -jar ojp-server.jar
 export OJP_ENVIRONMENT=prod
 ```
 
-### 2. Properties Files (Alternative)
-
-For backward compatibility, you can use properties files:
-
-```properties
-# ojp.properties
-ojp.server.port=8080
-ojp.prometheus.port=9091
-ojp.opentelemetry.enabled=false
-ojp.server.threadPoolSize=100
-ojp.server.circuitBreakerTimeout=120000
-ojp.server.circuitBreakerThreshold=3
-ojp.server.slowQuerySegregation.enabled=true
-ojp.server.slowQuerySegregation.slowSlotPercentage=25
-ojp.server.allowedIps=192.168.1.0/24,10.0.0.1
-```
-
-### 3. JVM System Properties
+### 2. JVM System Properties
 
 Override configuration using JVM system properties when starting the server:
 
@@ -357,7 +331,7 @@ java -Dojp.server.port=8080 \
      -jar ojp-server.jar
 ```
 
-### 4. Environment Variables
+### 3. Environment Variables
 
 Set configuration using environment variables:
 
@@ -374,9 +348,9 @@ export OJP_SERVER_ALLOWEDIPS="192.168.1.0/24,10.0.0.1"
 java -jar ojp-server.jar
 ```
 
-### 5. Docker with Configuration Files
+### 4. Docker with Configuration Files
 
-Mount a YAML or properties configuration file:
+Mount a YAML configuration file:
 
 ```bash
 # Using YAML configuration file
@@ -384,15 +358,9 @@ docker run -v /path/to/ojp.yaml:/app/resources/ojp.yaml \
            -p 1059:1059 \
            -p 9159:9159 \
            rrobetti/ojp:latest
-
-# Using properties file
-docker run -v /path/to/ojp.properties:/app/resources/ojp.properties \
-           -p 1059:1059 \
-           -p 9159:9159 \
-           rrobetti/ojp:latest
 ```
 
-### 6. Docker with Environment Variables
+### 5. Docker with Environment Variables
 
 ```bash
 docker run -e OJP_SERVER_PORT=8080 \
@@ -438,21 +406,6 @@ ojp:
       - 192.168.1.0/24
       - 10.0.0.0/8
       - 127.0.0.1
-```
-
-**Using properties file:**
-```properties
-# Allow only specific IPs
-ojp.server.allowedIps=192.168.1.100,192.168.1.101
-
-# Allow a subnet range
-ojp.server.allowedIps=192.168.1.0/24
-
-# Allow multiple subnets and specific IPs
-ojp.server.allowedIps=192.168.1.0/24,10.0.0.0/8,127.0.0.1
-
-# Allow all (default)
-ojp.server.allowedIps=0.0.0.0/0
 ```
 
 **Using JVM properties:**
@@ -510,15 +463,18 @@ The Slow Query Segregation feature monitors all database operations and classifi
 
 ### Configuration
 
-```properties
+```yaml
 # Enable/disable the feature
-ojp.server.slowQuerySegregation.enabled=true
-
-# Percentage of slots for slow operations (0-100)
-ojp.server.slowQuerySegregation.slowSlotPercentage=20
-
-# Idle timeout for slot borrowing (milliseconds)
-ojp.server.slowQuerySegregation.idleTimeout=10000
+ojp:
+  server:
+    slowQuerySegregation:
+      enabled: true
+      
+      # Percentage of slots for slow operations (0-100)
+      slowSlotPercentage: 20
+      
+      # Idle timeout for slot borrowing (milliseconds)
+      idleTimeout: 10000
 
 # Timeout for acquiring slow operation slots (milliseconds)
 ojp.server.slowQuerySegregation.slowSlotTimeout=120000
