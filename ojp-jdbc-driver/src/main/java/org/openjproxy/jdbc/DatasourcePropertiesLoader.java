@@ -20,7 +20,10 @@ public class DatasourcePropertiesLoader {
      * Property precedence (highest to lowest):
      * 1. Environment variables (e.g., MULTINODE_OJP_CONNECTION_POOL_ENABLED=false)
      * 2. System properties (e.g., -Dmultinode.ojp.connection.pool.enabled=false)
-     * 3. Properties file (ojp.properties)
+     * 3. Configuration files (ojp.yaml, ojp.properties)
+     * 
+     * Note: This precedence differs from ServerConfiguration where system properties
+     * take precedence over environment variables.
      * 
      * @param dataSourceName The datasource name to load properties for
      * @return Properties for the specified datasource, or null if none found

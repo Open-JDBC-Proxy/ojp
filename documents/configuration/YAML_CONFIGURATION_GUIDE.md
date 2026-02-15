@@ -72,12 +72,14 @@ If you set `-Dojp.environment=prod`:
 
 Configuration values are resolved in the following order (highest to lowest priority):
 
-1. **Environment variables** (e.g., `OJP_SERVER_PORT=1059`)
+### Server Configuration
+
+1. **JVM System properties** (e.g., `-Dojp.server.port=1059`)
+   - Passed via command line arguments to the JVM
+
+2. **Environment variables** (e.g., `OJP_SERVER_PORT=1059`)
    - Convert property names: dots to underscores, lowercase to uppercase
    - Example: `ojp.server.port` → `OJP_SERVER_PORT`
-
-2. **System properties** (e.g., `-Dojp.server.port=1059`)
-   - Passed via JVM arguments
 
 3. **Configuration files** (YAML or Properties)
    - Loaded from classpath
@@ -85,14 +87,32 @@ Configuration values are resolved in the following order (highest to lowest prio
 4. **Default values**
    - Hard-coded defaults in the application
 
-### Precedence Example
+### Client/Driver Configuration
 
+**Note:** The JDBC driver uses a different precedence order for backward compatibility:
+
+1. **Environment variables** (highest priority)
+2. **JVM System properties**
+3. **Configuration files** (YAML or Properties)
+4. **Default values** (lowest priority)
+
+### Precedence Examples
+
+**Server Configuration:**
 Given the following:
 - File `ojp.yaml`: `ojp.server.port: 1059`
-- System property: `-Dojp.server.port=2059`
-- Environment variable: `OJP_SERVER_PORT=3059`
+- Environment variable: `OJP_SERVER_PORT=2059`
+- System property: `-Dojp.server.port=3059`
 
-The actual value used will be `3059` (environment variable wins).
+The actual value used will be `3059` (system property wins).
+
+**Client Configuration:**
+Given the following:
+- File `ojp.yaml`: `ojp.connection.pool.enabled: true`
+- System property: `-Dojp.connection.pool.enabled=false`
+- Environment variable: `OJP_CONNECTION_POOL_ENABLED=true`
+
+The actual value used will be `true` (environment variable wins).
 
 ## YAML Syntax and Structure
 
