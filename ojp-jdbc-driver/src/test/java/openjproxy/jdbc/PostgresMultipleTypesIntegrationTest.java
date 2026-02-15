@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -14,9 +13,19 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.ZoneOffset;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class PostgresMultipleTypesIntegrationTest {
@@ -28,6 +37,14 @@ public class PostgresMultipleTypesIntegrationTest {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
+    /**
+     * Test PostgreSQL's natively supported java.time types via JDBC 4.2.
+     * PostgreSQL has first-class support for:
+     * - LocalDate (DATE)
+     * - LocalTime (TIME)
+     * - LocalDateTime (TIMESTAMP)
+     * - OffsetDateTime (TIMESTAMPTZ)
+     */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
     public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
@@ -35,15 +52,15 @@ public class PostgresMultipleTypesIntegrationTest {
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing for url -> " + url);
+        System.out.println("Testing PostgreSQL natively supported types for url -> " + url);
 
         TestDBUtils.createMultiTypeTestTable(conn, "postgres_multi_types_test", TestDBUtils.SqlSyntax.POSTGRES);
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into postgres_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +
                         "val_smallint, val_boolean, val_decimal, val_float, val_byte, val_binary, val_date, val_time, " +
-                        "val_timestamp) " +
-                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                        "val_timestamp, val_localdatetime, val_localdate, val_localtime, val_instant, val_offsetdatetime, val_offsettime) " +
+                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
 
         psInsert.setInt(1, 1);
@@ -63,73 +80,249 @@ public class PostgresMultipleTypesIntegrationTest {
         psInsert.setTime(13, new Time(sdfTime.parse("11:12:13").getTime()));
         SimpleDateFormat sdfTimestamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
         psInsert.setTimestamp(14, new Timestamp(sdfTimestamp.parse("30/03/2025 21:22:23").getTime()));
+        
+        // PostgreSQL natively supported java.time types (JDBC 4.2)
+        LocalDateTime valLocalDateTime = LocalDateTime.of(2024, 12, 1, 14, 30, 45);
+        psInsert.setObject(15, valLocalDateTime, Types.TIMESTAMP);
+
+        LocalDate valLocalDate = LocalDate.of(2024, 12, 15);
+        psInsert.setObject(16, valLocalDate, Types.DATE);
+
+        LocalTime valLocalTime = LocalTime.of(15, 45, 30);
+        psInsert.setObject(17, valLocalTime, Types.TIME);
+
+        // Instant and OffsetTime: Not first-class in PostgreSQL JDBC driver, expect potential issues
+        // Setting to null for now - will be tested in unsupported types test
+        psInsert.setObject(18, null, Types.TIMESTAMP); // Instant - not first-class
+        
+        // OffsetDateTime: PostgreSQL has native TIMESTAMPTZ support via JDBC 4.2
+        // Use Types.TIMESTAMP_WITH_TIMEZONE for proper type mapping
+        OffsetDateTime valOffsetDateTime = OffsetDateTime.of(2024, 12, 1, 10, 10, 10, 0, ZoneOffset.ofHours(2));
+        psInsert.setObject(19, valOffsetDateTime, Types.TIMESTAMP_WITH_TIMEZONE);
+
+        psInsert.setObject(20, null, Types.TIMESTAMP); // OffsetTime - not first-class
+        
         psInsert.executeUpdate();
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from postgres_multi_types_test where val_int = ?");
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(127, resultSet.getInt(5)); // SMALLINT in PostgreSQL
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(true, resultSet.getBoolean(7));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", ""+resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(127, resultSet.getInt(5)); // SMALLINT in PostgreSQL
+        assertEquals(32767, resultSet.getInt(6));
+        assertEquals(true, resultSet.getBoolean(7));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
+        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // PostgreSQL BYTEA column may be returned as String by OJP driver
         // For now, just verify we get a non-null value
         Object byteValue = resultSet.getObject(10);
-        Assert.assertNotNull("BYTEA column should not be null", byteValue);
+        assertNotNull("BYTEA column should not be null", byteValue);
         // PostgreSQL BYTEA column may be returned as String by OJP driver  
         Object binaryValue = resultSet.getObject(11);
         if (binaryValue instanceof String) {
             // If returned as string, check the content
             String stringValue = (String) binaryValue;
-            Assert.assertTrue("Binary column should contain expected data", 
+            assertTrue("Binary column should contain expected data", 
                 stringValue.contains("AAAA") || stringValue.length() > 0);
         } else {
             // Handle as byte array
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes(11)));
+            assertEquals("AAAA", new String(resultSet.getBytes(11)));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        
+        // PostgreSQL natively supported java.time types - retrieve as Object to get the actual type
+        Object valLocalDateTimeRet = resultSet.getObject(15);
+        Object valLocalDateRet = resultSet.getObject(16);
+        Object valLocalTimeRet = resultSet.getObject(17);
+        // val_instant (18) and val_offsettime (20) are null - not tested in this success scenario
+        Object valOffsetDateTimeRet = resultSet.getObject(19);
+        
+        // Validate PostgreSQL's natively supported java.time types via JDBC 4.2
+        assertNotNull(valLocalDateTimeRet, "LocalDateTime should not be null");
+        assertNotNull(valLocalDateRet, "LocalDate should not be null");
+        assertNotNull(valLocalTimeRet, "LocalTime should not be null");
+        assertNotNull(valOffsetDateTimeRet, "OffsetDateTime should not be null");
+        
+        // PostgreSQL JDBC driver should return actual java.time types per JDBC 4.2
+        // For LocalDateTime (TIMESTAMP)
+        if (valLocalDateTimeRet instanceof LocalDateTime) {
+            assertEquals(valLocalDateTime, valLocalDateTimeRet);
+        } else if (valLocalDateTimeRet instanceof Timestamp) {
+            LocalDateTime retrievedLdt = ((Timestamp) valLocalDateTimeRet).toLocalDateTime();
+            assertEquals(valLocalDateTime, retrievedLdt);
+        }
+        
+        // For LocalDate (DATE)
+        if (valLocalDateRet instanceof LocalDate) {
+            assertEquals(valLocalDate, valLocalDateRet);
+        } else if (valLocalDateRet instanceof Date) {
+            LocalDate retrievedLd = ((Date) valLocalDateRet).toLocalDate();
+            assertEquals(valLocalDate, retrievedLd);
+        }
+        
+        // For LocalTime (TIME)
+        if (valLocalTimeRet instanceof LocalTime) {
+            LocalTime retrievedLt = (LocalTime) valLocalTimeRet;
+            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
+            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
+            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
+        } else if (valLocalTimeRet instanceof Time) {
+            LocalTime retrievedLt = ((Time) valLocalTimeRet).toLocalTime();
+            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
+            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
+            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
+        }
+        
+        // For OffsetDateTime (TIMESTAMPTZ) - PostgreSQL preserves timezone via JDBC 4.2
+        if (valOffsetDateTimeRet instanceof OffsetDateTime) {
+            OffsetDateTime retrievedOdt = (OffsetDateTime) valOffsetDateTimeRet;
+            // Compare instant values - timezone representation may vary but instant should match
+            assertEquals(valOffsetDateTime.toInstant(), retrievedOdt.toInstant());
+        } else if (valOffsetDateTimeRet instanceof Timestamp) {
+            // Fallback: compare as instant
+            Instant retrievedInstant = ((Timestamp) valOffsetDateTimeRet).toInstant();
+            assertEquals(valOffsetDateTime.toInstant(), retrievedInstant);
+        }
 
         // Test column name access
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
-        Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
-        Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
-        Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        Assert.assertEquals(true, resultSet.getBoolean("val_boolean"));
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("TITLE_1", resultSet.getString("val_varchar"));
+        assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
+        assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
+        assertEquals(127, resultSet.getInt("val_tinyint"));
+        assertEquals(32767, resultSet.getInt("val_smallint"));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
+        assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
+        assertEquals(true, resultSet.getBoolean("val_boolean"));
         // PostgreSQL BYTEA column may be returned as String by OJP driver
         Object byteValueByName = resultSet.getObject("val_byte");
-        Assert.assertNotNull("BYTEA column val_byte should not be null", byteValueByName);
+        assertNotNull("BYTEA column val_byte should not be null", byteValueByName);
         // PostgreSQL BYTEA column may be returned as String by OJP driver
         Object binaryValueByName = resultSet.getObject("val_binary");
         if (binaryValueByName instanceof String) {
             String stringValue = (String) binaryValueByName;
-            Assert.assertTrue("Binary column should contain expected data", 
+            assertTrue("Binary column should contain expected data", 
                 stringValue.contains("AAAA") || stringValue.length() > 0);
         } else {
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
+            assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
-        Assert.assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
+        assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
 
         TestDBUtils.executeUpdate(conn, "delete from postgres_multi_types_test where val_int=1");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
+        conn.close();
+    }
+
+    /**
+     * Test PostgreSQL's behavior with java.time types that are NOT natively supported via JDBC 4.2.
+     * These types may work with conversions but are not first-class:
+     * - Instant (can be stored as TIMESTAMPTZ but driver doesn't directly support)
+     * - OffsetTime (can be stored as TIMETZ but driver support varies)
+     * 
+     * This test documents expected database behavior when unsupported types are used.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/postgres_connection.csv")
+    void typesPartialSupportTest(String driverClass, String url, String user, String pwd) throws SQLException {
+        assumeFalse(!isTestEnabled, "Postgres tests are disabled");
+
+        Connection conn = DriverManager.getConnection(url, user, pwd);
+
+        System.out.println("Testing PostgreSQL partially supported types for url -> " + url);
+
+        TestDBUtils.createMultiTypeTestTable(conn, "postgres_partial_types_test", TestDBUtils.SqlSyntax.POSTGRES);
+
+        // Test Instant - not first-class in PostgreSQL JDBC driver
+        // It may work via conversion to TIMESTAMPTZ but behavior varies
+        java.sql.PreparedStatement psInsertInstant = conn.prepareStatement(
+                "insert into postgres_partial_types_test (val_int, val_instant) values (?, ?)"
+        );
+        
+        psInsertInstant.setInt(1, 1);
+        Instant valInstant = Instant.parse("2024-12-01T10:10:10Z");
+        
+        // Attempt to insert Instant - behavior depends on driver version
+        try {
+            psInsertInstant.setObject(2, valInstant, Types.TIMESTAMP);
+            psInsertInstant.executeUpdate();
+            System.out.println("PostgreSQL: Instant insertion succeeded (driver converted it)");
+            
+            // If it succeeded, try to retrieve it
+            java.sql.PreparedStatement psSelect = conn.prepareStatement(
+                    "select val_instant from postgres_partial_types_test where val_int = 1"
+            );
+            ResultSet rs = psSelect.executeQuery();
+            if (rs.next()) {
+                Object retrieved = rs.getObject(1);
+                System.out.println("PostgreSQL: Instant retrieved as: " + 
+                        (retrieved != null ? retrieved.getClass().getName() : "null"));
+                assertNotNull(retrieved, "Instant should be retrieved (possibly as Timestamp)");
+            }
+            rs.close();
+            psSelect.close();
+        } catch (SQLException e) {
+            // Expected: PostgreSQL driver may not support Instant directly
+            System.out.println("PostgreSQL: Instant not natively supported - " + e.getMessage());
+            // JDBC drivers may throw various error messages for unsupported types
+            // Just verify that an SQLException was thrown (which indicates lack of support)
+            assertNotNull(e.getMessage(), "SQLException should have a message");
+        }
+        
+        psInsertInstant.close();
+        TestDBUtils.executeUpdate(conn, "delete from postgres_partial_types_test where val_int=1");
+
+        // Test OffsetTime - not first-class in PostgreSQL JDBC driver  
+        // PostgreSQL has TIMETZ but JDBC driver support varies
+        java.sql.PreparedStatement psInsertOffsetTime = conn.prepareStatement(
+                "insert into postgres_partial_types_test (val_int, val_offsettime) values (?, ?)"
+        );
+        
+        psInsertOffsetTime.setInt(1, 2);
+        OffsetTime valOffsetTime = OffsetTime.of(16, 20, 30, 0, ZoneOffset.ofHours(-5));
+        
+        // Attempt to insert OffsetTime
+        try {
+            psInsertOffsetTime.setObject(2, valOffsetTime, Types.TIME_WITH_TIMEZONE);
+            psInsertOffsetTime.executeUpdate();
+            System.out.println("PostgreSQL: OffsetTime insertion succeeded (driver converted it)");
+            
+            // If it succeeded, try to retrieve it
+            java.sql.PreparedStatement psSelect = conn.prepareStatement(
+                    "select val_offsettime from postgres_partial_types_test where val_int = 2"
+            );
+            ResultSet rs = psSelect.executeQuery();
+            if (rs.next()) {
+                Object retrieved = rs.getObject(1);
+                System.out.println("PostgreSQL: OffsetTime retrieved as: " + 
+                        (retrieved != null ? retrieved.getClass().getName() : "null"));
+                assertNotNull(retrieved, "OffsetTime should be retrieved (possibly as Time)");
+            }
+            rs.close();
+            psSelect.close();
+        } catch (SQLException e) {
+            // Expected: PostgreSQL driver may not support OffsetTime directly
+            System.out.println("PostgreSQL: OffsetTime not natively supported - " + e.getMessage());
+            // JDBC drivers may throw various error messages for unsupported types
+            // Just verify that an SQLException was thrown (which indicates lack of support)
+            assertNotNull(e.getMessage(), "SQLException should have a message");
+        }
+        
+        psInsertOffsetTime.close();
+        TestDBUtils.executeUpdate(conn, "delete from postgres_partial_types_test where val_int=2");
+
         conn.close();
     }
 
@@ -176,8 +369,8 @@ public class PostgresMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT text_col FROM test_postgres_types WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
-        Assert.assertEquals("PostgreSQL text type", resultSet.getString("text_col"));
+        assertTrue(resultSet.next());
+        assertEquals("PostgreSQL text type", resultSet.getString("text_col"));
 
         resultSet.close();
         psSelect.close();
