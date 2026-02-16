@@ -27,8 +27,10 @@ import java.time.OffsetTime;
 import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import org.junit.jupiter.api.Assertions;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 @EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
@@ -384,10 +386,10 @@ public class SQLServerMultipleTypesIntegrationTest {
         assertEquals(0L, resultSet.getLong("val_bigint"));
         assertTrue(resultSet.wasNull());
         
-        Assert.assertNull(resultSet.getBytes("val_byte"));
-        Assert.assertNull(resultSet.getDate("val_date"));
-        Assert.assertNull(resultSet.getTime("val_time"));
-        Assert.assertNull(resultSet.getTimestamp("val_timestamp"));
+        assertNull(resultSet.getBytes("val_byte"));
+        assertNull(resultSet.getDate("val_date"));
+        assertNull(resultSet.getTime("val_time"));
+        assertNull(resultSet.getTimestamp("val_timestamp"));
 
         resultSet.close();
         psSelect.close();
@@ -482,12 +484,12 @@ public class SQLServerMultipleTypesIntegrationTest {
      */
     private void validateSQLServerBinaryColumns(ResultSet resultSet) throws SQLException {
         byte[] byteValue = resultSet.getBytes(10);
-        Assertions.assertNotNull(byteValue, "VARBINARY column should not be null");
+        assertNotNull(byteValue, "VARBINARY column should not be null");
         assertEquals(1, byteValue.length);
         assertEquals((byte) 1, byteValue[0]);
         
         byte[] binaryValue = resultSet.getBytes(11);
-        Assertions.assertNotNull(binaryValue, "VARBINARY column should not be null");
+        assertNotNull(binaryValue, "VARBINARY column should not be null");
         assertEquals("AAAA", new String(binaryValue));
     }
     

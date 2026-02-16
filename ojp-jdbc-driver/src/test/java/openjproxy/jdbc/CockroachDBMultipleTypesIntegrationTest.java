@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class CockroachDBMultipleTypesIntegrationTest {
     private static final Logger logger = LoggerFactory.getLogger(CockroachDBMultipleTypesIntegrationTest.class);
@@ -123,13 +124,13 @@ class CockroachDBMultipleTypesIntegrationTest {
         assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // CockroachDB BYTEA column may be returned as String by OJP driver
         Object byteValue = resultSet.getObject(10);
-        assertNotNull("BYTEA column should not be null", byteValue);
+        assertNotNull(byteValue, "BYTEA column should not be null");
         // CockroachDB BYTEA column may be returned as String by OJP driver  
         Object binaryValue = resultSet.getObject(11);
         if (binaryValue instanceof String) {
             String stringValue = (String) binaryValue;
-            assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            assertTrue(stringValue.contains("AAAA") || stringValue.length() > 0,
+                "Binary column should contain expected data");
         } else {
             assertEquals("AAAA", new String(resultSet.getBytes(11)));
         }
@@ -203,13 +204,13 @@ class CockroachDBMultipleTypesIntegrationTest {
         assertEquals(true, resultSet.getBoolean("val_boolean"));
         // CockroachDB BYTEA column may be returned as String by OJP driver
         Object byteValueByName = resultSet.getObject("val_byte");
-        assertNotNull("BYTEA column val_byte should not be null", byteValueByName);
+        assertNotNull(byteValueByName, "BYTEA column val_byte should not be null");
         // CockroachDB BYTEA column may be returned as String by OJP driver
         Object binaryValueByName = resultSet.getObject("val_binary");
         if (binaryValueByName instanceof String) {
             String stringValue = (String) binaryValueByName;
-            assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            assertTrue(stringValue.contains("AAAA") || stringValue.length() > 0,
+                "Binary column should contain expected data");
         } else {
             assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
         }

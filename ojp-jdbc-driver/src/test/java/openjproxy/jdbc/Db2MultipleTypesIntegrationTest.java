@@ -26,7 +26,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class Db2MultipleTypesIntegrationTest {
@@ -126,7 +128,7 @@ class Db2MultipleTypesIntegrationTest {
         assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // DB2 VARBINARY column
         byte[] byteValue = resultSet.getBytes(10);
-        assertNotNull("VARBINARY column should not be null", byteValue);
+        assertNotNull(byteValue, "VARBINARY column should not be null");
         assertEquals(1, byteValue.length);
         assertEquals(1, byteValue[0]);
         // DB2 VARBINARY column
@@ -188,7 +190,7 @@ class Db2MultipleTypesIntegrationTest {
         assertEquals(true, resultSet.getBoolean("val_boolean")); // DB2 native boolean
         // DB2 VARBINARY column
         byte[] byteValueByName = resultSet.getBytes("val_byte");
-        assertNotNull("VARBINARY column val_byte should not be null", byteValueByName);
+        assertNotNull(byteValueByName, "VARBINARY column val_byte should not be null");
         assertEquals(1, byteValueByName.length);
         assertEquals(1, byteValueByName[0]);
         assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
