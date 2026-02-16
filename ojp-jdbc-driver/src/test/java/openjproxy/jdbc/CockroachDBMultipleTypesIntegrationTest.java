@@ -31,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class CockroachDBMultipleTypesIntegrationTest {
     private static final Logger logger = LoggerFactory.getLogger(CockroachDBMultipleTypesIntegrationTest.class);
