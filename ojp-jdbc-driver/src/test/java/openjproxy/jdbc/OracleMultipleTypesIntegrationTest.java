@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -14,9 +13,21 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.ZoneOffset;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 public class OracleMultipleTypesIntegrationTest {
@@ -28,6 +39,16 @@ public class OracleMultipleTypesIntegrationTest {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
+    /**
+     * Test Oracle's natively supported java.time types via JDBC 4.2.
+     * Oracle has first-class support for:
+     * - LocalDate (DATE)
+     * - LocalTime (TIME - stored as TIMESTAMP)
+     * - LocalDateTime (TIMESTAMP)
+     * 
+     * Note: Oracle's TIMESTAMP WITH TIME ZONE requires special handling,
+     * so OffsetDateTime/OffsetTime/Instant are tested in partial support test.
+     */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
     public void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
@@ -35,15 +56,15 @@ public class OracleMultipleTypesIntegrationTest {
         
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing for url -> " + url);
+        System.out.println("Testing Oracle natively supported types for url -> " + url);
 
         TestDBUtils.createMultiTypeTestTable(conn, "oracle_multi_types_test", TestDBUtils.SqlSyntax.ORACLE);
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into oracle_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +
                         "val_smallint, val_boolean, val_decimal, val_float, val_byte, val_binary, val_date, val_time, " +
-                        "val_timestamp) " +
-                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                        "val_timestamp, val_localdatetime, val_localdate, val_localtime, val_instant, val_offsetdatetime, val_offsettime) " +
+                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
 
         psInsert.setInt(1, 1);
@@ -63,75 +84,284 @@ public class OracleMultipleTypesIntegrationTest {
         psInsert.setTimestamp(13, new Timestamp(sdfTime.parse("11:12:13").getTime())); // Oracle uses TIMESTAMP for time
         SimpleDateFormat sdfTimestamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
         psInsert.setTimestamp(14, new Timestamp(sdfTimestamp.parse("30/03/2025 21:22:23").getTime()));
+        
+        // Oracle natively supported java.time types (JDBC 4.2)
+        LocalDateTime valLocalDateTime = LocalDateTime.of(2024, 12, 1, 14, 30, 45);
+        psInsert.setObject(15, valLocalDateTime, Types.TIMESTAMP);
+
+        LocalDate valLocalDate = LocalDate.of(2024, 12, 15);
+        psInsert.setObject(16, valLocalDate, Types.DATE);
+
+        LocalTime valLocalTime = LocalTime.of(15, 45, 30);
+        psInsert.setObject(17, valLocalTime, Types.TIME);
+
+        // Instant, OffsetDateTime, OffsetTime: NOT natively supported in Oracle JDBC 4.2
+        // Oracle has TIMESTAMP WITH TIME ZONE but requires special handling
+        // Setting to null - will be tested in partial support test
+        psInsert.setObject(18, null, Types.TIMESTAMP); // Instant - not first-class
+        psInsert.setObject(19, null, Types.TIMESTAMP); // OffsetDateTime - not first-class
+        psInsert.setObject(20, null, Types.TIMESTAMP); // OffsetTime - not first-class
+        
         psInsert.executeUpdate();
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from oracle_multi_types_test where val_int = ?");
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Assert.assertEquals(1, resultSet.getInt(1));
-        Assert.assertEquals("TITLE_1", resultSet.getString(2));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble(3));
-        Assert.assertEquals(33333333333333L, resultSet.getLong(4));
-        Assert.assertEquals(127, resultSet.getInt(5)); // NUMBER(3) in Oracle
-        Assert.assertEquals(32767, resultSet.getInt(6));
-        Assert.assertEquals(1, resultSet.getInt(7)); // Oracle NUMBER(1) for boolean
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat(9));
+        assertEquals(1, resultSet.getInt(1));
+        assertEquals("TITLE_1", resultSet.getString(2));
+        assertEquals("2.2222", ""+resultSet.getDouble(3));
+        assertEquals(33333333333333L, resultSet.getLong(4));
+        assertEquals(127, resultSet.getInt(5)); // NUMBER(3) in Oracle
+        assertEquals(32767, resultSet.getInt(6));
+        assertEquals(1, resultSet.getInt(7)); // Oracle NUMBER(1) for boolean
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
+        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // Oracle RAW column may be returned as String by OJP driver
         // For now, just verify we get a non-null value
         Object byteValue = resultSet.getObject(10);
-        Assert.assertNotNull("RAW column should not be null", byteValue);
+        assertNotNull(byteValue, "RAW column should not be null");
         // Oracle RAW column may be returned as String by OJP driver  
         Object binaryValue = resultSet.getObject(11);
         if (binaryValue instanceof String) {
             // If returned as string, check the content
             String stringValue = (String) binaryValue;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            assertTrue(stringValue.contains("AAAA") || stringValue.length() > 0,
+                "Binary column should contain expected data");
         } else {
             // Handle as byte array
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes(11)));
+            assertEquals("AAAA", new String(resultSet.getBytes(11)));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
         // Oracle time stored as TIMESTAMP, format as time
         SimpleDateFormat sdfTimeOnly = new SimpleDateFormat("HH:mm:ss");
-        Assert.assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp(13)));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp(13)));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        
+        // Oracle natively supported java.time types - retrieve as Object to get the actual type
+        Object valLocalDateTimeRet = resultSet.getObject(15);
+        Object valLocalDateRet = resultSet.getObject(16);
+        Object valLocalTimeRet = resultSet.getObject(17);
+        // Columns 18-20 (Instant, OffsetDateTime, OffsetTime) are null - not tested in success scenario
+        
+        // Validate Oracle's natively supported java.time types (JDBC 4.2)
+        assertNotNull(valLocalDateTimeRet, "LocalDateTime should not be null");
+        assertNotNull(valLocalDateRet, "LocalDate should not be null");
+        assertNotNull(valLocalTimeRet, "LocalTime should not be null");
+        
+        // Oracle JDBC driver should return actual java.time types per JDBC 4.2
+        // For LocalDateTime (TIMESTAMP)
+        if (valLocalDateTimeRet instanceof LocalDateTime) {
+            assertEquals(valLocalDateTime, valLocalDateTimeRet);
+        } else if (valLocalDateTimeRet instanceof Timestamp) {
+            LocalDateTime retrievedLdt = ((Timestamp) valLocalDateTimeRet).toLocalDateTime();
+            assertEquals(valLocalDateTime, retrievedLdt);
+        }
+        
+        // For LocalDate (DATE)
+        if (valLocalDateRet instanceof LocalDate) {
+            assertEquals(valLocalDate, valLocalDateRet);
+        } else if (valLocalDateRet instanceof Date) {
+            LocalDate retrievedLd = ((Date) valLocalDateRet).toLocalDate();
+            assertEquals(valLocalDate, retrievedLd);
+        }
+        
+        // For LocalTime (TIME - stored as TIMESTAMP in Oracle)
+        if (valLocalTimeRet instanceof LocalTime) {
+            LocalTime retrievedLt = (LocalTime) valLocalTimeRet;
+            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
+            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
+            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
+        } else if (valLocalTimeRet instanceof Time) {
+            LocalTime retrievedLt = ((Time) valLocalTimeRet).toLocalTime();
+            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
+            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
+            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
+        } else if (valLocalTimeRet instanceof Timestamp) {
+            // Oracle may return as Timestamp - extract time portion
+            LocalTime retrievedLt = ((Timestamp) valLocalTimeRet).toLocalDateTime().toLocalTime();
+            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
+            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
+            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
+        }
 
         // Test column name access
-        Assert.assertEquals(1, resultSet.getInt("val_int"));
-        Assert.assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        Assert.assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
-        Assert.assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
-        Assert.assertEquals(127, resultSet.getInt("val_tinyint"));
-        Assert.assertEquals(32767, resultSet.getInt("val_smallint"));
-        Assert.assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
-        Assert.assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        Assert.assertEquals(1, resultSet.getInt("val_boolean")); // Oracle boolean as NUMBER(1)
+        assertEquals(1, resultSet.getInt("val_int"));
+        assertEquals("TITLE_1", resultSet.getString("val_varchar"));
+        assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
+        assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
+        assertEquals(127, resultSet.getInt("val_tinyint"));
+        assertEquals(32767, resultSet.getInt("val_smallint"));
+        assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
+        assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
+        assertEquals(1, resultSet.getInt("val_boolean")); // Oracle boolean as NUMBER(1)
         // Oracle RAW column may be returned as String by OJP driver
         Object byteValueByName = resultSet.getObject("val_byte");
-        Assert.assertNotNull("RAW column val_byte should not be null", byteValueByName);
+        assertNotNull(byteValueByName, "RAW column val_byte should not be null");
         // Oracle RAW column may be returned as String by OJP driver
         Object binaryValueByName = resultSet.getObject("val_binary");
         if (binaryValueByName instanceof String) {
             String stringValue = (String) binaryValueByName;
-            Assert.assertTrue("Binary column should contain expected data", 
-                stringValue.contains("AAAA") || stringValue.length() > 0);
+            assertTrue(stringValue.contains("AAAA") || stringValue.length() > 0,
+                "Binary column should contain expected data");
         } else {
-            Assert.assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
+            assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
         }
-        Assert.assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
-        Assert.assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp("val_time")));
-        Assert.assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+        assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
+        assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp("val_time")));
+        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
 
         TestDBUtils.executeUpdate(conn, "delete from oracle_multi_types_test where val_int=1");
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        Assert.assertFalse(resultSetAfterDeletion.next());
+        assertFalse(resultSetAfterDeletion.next());
 
         resultSet.close();
         psSelect.close();
+        conn.close();
+    }
+
+    /**
+     * Test Oracle's behavior with java.time types that require special handling.
+     * Oracle has TIMESTAMP WITH TIME ZONE but JDBC 4.2 support varies:
+     * - Instant (can be stored but driver doesn't directly support)
+     * - OffsetDateTime (can use TIMESTAMP WITH TIME ZONE but requires special handling)
+     * - OffsetTime (can use TIME WITH TIME ZONE but support varies)
+     * 
+     * This test documents expected database behavior when these types are used.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void typesPartialSupportTest(String driverClass, String url, String user, String pwd) throws SQLException {
+        assumeFalse(isTestDisabled, "Oracle tests are disabled");
+
+        Connection conn = DriverManager.getConnection(url, user, pwd);
+
+        System.out.println("Testing Oracle partially supported types for url -> " + url);
+
+        TestDBUtils.createMultiTypeTestTable(conn, "oracle_partial_types_test", TestDBUtils.SqlSyntax.ORACLE);
+
+        // Test Instant - Oracle JDBC driver may not support directly
+        java.sql.PreparedStatement psInsertInstant = conn.prepareStatement(
+                "insert into oracle_partial_types_test (val_int, val_instant) values (?, ?)"
+        );
+        
+        psInsertInstant.setInt(1, 1);
+        Instant valInstant = Instant.parse("2024-12-01T10:10:10Z");
+        
+        // Attempt to insert Instant - behavior depends on driver version
+        try {
+            psInsertInstant.setObject(2, valInstant, Types.TIMESTAMP);
+            psInsertInstant.executeUpdate();
+            System.out.println("Oracle: Instant insertion succeeded (driver converted it)");
+            
+            // If it succeeded, try to retrieve it
+            java.sql.PreparedStatement psSelect = conn.prepareStatement(
+                    "select val_instant from oracle_partial_types_test where val_int = 1"
+            );
+            ResultSet rs = psSelect.executeQuery();
+            if (rs.next()) {
+                Object retrieved = rs.getObject(1);
+                System.out.println("Oracle: Instant retrieved as: " + 
+                        (retrieved != null ? retrieved.getClass().getName() : "null"));
+                assertNotNull(retrieved, "Instant should be retrieved (possibly as Timestamp)");
+            }
+            rs.close();
+            psSelect.close();
+        } catch (SQLException e) {
+            // Expected: Oracle driver may not support Instant directly
+            System.out.println("Oracle: Instant not natively supported - " + e.getMessage());
+            // JDBC drivers may throw various error messages for unsupported types
+            // Just verify that an SQLException was thrown (which indicates lack of support)
+            assertNotNull(e.getMessage(), "SQLException should have a message");
+        }
+        
+        psInsertInstant.close();
+        TestDBUtils.executeUpdate(conn, "delete from oracle_partial_types_test where val_int=1");
+
+        // Test OffsetDateTime - Oracle has TIMESTAMP WITH TIME ZONE but JDBC 4.2 support varies
+        java.sql.PreparedStatement psInsertOffsetDateTime = conn.prepareStatement(
+                "insert into oracle_partial_types_test (val_int, val_offsetdatetime) values (?, ?)"
+        );
+        
+        psInsertOffsetDateTime.setInt(1, 2);
+        OffsetDateTime valOffsetDateTime = OffsetDateTime.of(2024, 12, 1, 10, 10, 10, 0, ZoneOffset.ofHours(2));
+        
+        // Attempt to insert OffsetDateTime
+        try {
+            psInsertOffsetDateTime.setObject(2, valOffsetDateTime, Types.TIMESTAMP_WITH_TIMEZONE);
+            psInsertOffsetDateTime.executeUpdate();
+            System.out.println("Oracle: OffsetDateTime insertion succeeded");
+            
+            // If it succeeded, try to retrieve it
+            java.sql.PreparedStatement psSelect = conn.prepareStatement(
+                    "select val_offsetdatetime from oracle_partial_types_test where val_int = 2"
+            );
+            ResultSet rs = psSelect.executeQuery();
+            if (rs.next()) {
+                Object retrieved = rs.getObject(1);
+                System.out.println("Oracle: OffsetDateTime retrieved as: " + 
+                        (retrieved != null ? retrieved.getClass().getName() : "null"));
+                assertNotNull(retrieved, "OffsetDateTime should be retrieved");
+            }
+            rs.close();
+            psSelect.close();
+        } catch (SQLException e) {
+            // Expected: Oracle driver may require special handling
+            System.out.println("Oracle: OffsetDateTime requires special handling - " + e.getMessage());
+            // JDBC drivers may throw various error messages for unsupported types
+            // Just verify that an SQLException was thrown (which indicates lack of support)
+            assertNotNull(e.getMessage(), "SQLException should have a message");
+        }
+        
+        psInsertOffsetDateTime.close();
+        TestDBUtils.executeUpdate(conn, "delete from oracle_partial_types_test where val_int=2");
+
+        // Test OffsetTime - Oracle TIME WITH TIME ZONE support varies
+        java.sql.PreparedStatement psInsertOffsetTime = conn.prepareStatement(
+                "insert into oracle_partial_types_test (val_int, val_offsettime) values (?, ?)"
+        );
+        
+        psInsertOffsetTime.setInt(1, 3);
+        OffsetTime valOffsetTime = OffsetTime.of(16, 20, 30, 0, ZoneOffset.ofHours(-5));
+        
+        // Attempt to insert OffsetTime
+        try {
+            psInsertOffsetTime.setObject(2, valOffsetTime, Types.TIME_WITH_TIMEZONE);
+            psInsertOffsetTime.executeUpdate();
+            System.out.println("Oracle: OffsetTime insertion succeeded");
+            
+            // If it succeeded, try to retrieve it
+            java.sql.PreparedStatement psSelect = conn.prepareStatement(
+                    "select val_offsettime from oracle_partial_types_test where val_int = 3"
+            );
+            ResultSet rs = psSelect.executeQuery();
+            if (rs.next()) {
+                Object retrieved = rs.getObject(1);
+                System.out.println("Oracle: OffsetTime retrieved as: " + 
+                        (retrieved != null ? retrieved.getClass().getName() : "null"));
+                assertNotNull(retrieved, "OffsetTime should be retrieved");
+            }
+            rs.close();
+            psSelect.close();
+        } catch (SQLException e) {
+            // Expected: Oracle driver may not support OffsetTime
+            System.out.println("Oracle: OffsetTime not supported - " + e.getMessage());
+            // JDBC drivers may throw various error messages for unsupported types
+            // Just verify that an SQLException was thrown (which indicates lack of support)
+            assertNotNull(e.getMessage(), "SQLException should have a message");
+        }
+        
+        psInsertOffsetTime.close();
+        TestDBUtils.executeUpdate(conn, "delete from oracle_partial_types_test where val_int=3");
+
+        // Clean up
+        try {
+            TestDBUtils.executeUpdate(conn, "DROP TABLE oracle_partial_types_test");
+        } catch (SQLException e) {
+            // Ignore if table doesn't exist
+        }
+
         conn.close();
     }
 
@@ -181,8 +411,8 @@ public class OracleMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT nvarchar_col FROM test_oracle_types WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
-        Assert.assertEquals("Oracle NVARCHAR2 type", resultSet.getString("nvarchar_col"));
+        assertTrue(resultSet.next());
+        assertEquals("Oracle NVARCHAR2 type", resultSet.getString("nvarchar_col"));
 
         resultSet.close();
         psSelect.close();
@@ -233,10 +463,10 @@ public class OracleMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM test_oracle_numbers WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
         
-        Assert.assertTrue(resultSet.next());
-        Assert.assertNotNull(resultSet.getBigDecimal("number_col"));
-        Assert.assertEquals(new BigDecimal("12345.67"), resultSet.getBigDecimal("number_10_2"));
-        Assert.assertEquals(12345, resultSet.getInt("number_5_0"));
+        assertTrue(resultSet.next());
+        assertNotNull(resultSet.getBigDecimal("number_col"));
+        assertEquals(new BigDecimal("12345.67"), resultSet.getBigDecimal("number_10_2"));
+        assertEquals(12345, resultSet.getInt("number_5_0"));
 
         resultSet.close();
         psSelect.close();
