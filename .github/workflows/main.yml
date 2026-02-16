@@ -86,7 +86,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -176,7 +176,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -264,7 +264,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -352,7 +352,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -430,7 +430,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -590,7 +590,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -680,7 +680,7 @@ jobs:
       - name: Start OJP Server 1 on port 10591
         run: |
           # Start first server on port 10591 with Prometheus on 9159
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
           echo $! > /tmp/ojp-server-1.pid
           echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9159 with PID $(cat /tmp/ojp-server-1.pid)"
 
@@ -688,7 +688,7 @@ jobs:
       - name: Start OJP Server 2 on port 10592
         run: |
           # Start second server on port 10592 with Prometheus on 9160
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
           echo $! > /tmp/ojp-server-2.pid
           echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9160 with PID $(cat /tmp/ojp-server-2.pid)"
 
@@ -795,7 +795,7 @@ jobs:
       - name: Restart OJP Server 1
         run: |
           echo "Restarting OJP Server 1..."
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-1-restart.pid
           echo "OJP Server 1 restarted with PID $(cat /tmp/ojp-server-1-restart.pid)"
           sleep 10
@@ -878,7 +878,7 @@ jobs:
       - name: Restart OJP Server 2
         run: |
           echo "Restarting OJP Server 2..."
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-2-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-2-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-2-restart.pid
           echo "OJP Server 2 restarted with PID $(cat /tmp/ojp-server-2-restart.pid)"
           sleep 10
@@ -981,7 +981,7 @@ jobs:
         if: always()
         run: |
           # Kill any remaining OJP server processes
-          pkill -f "ojp-server-0.3.1-beta-shaded.jar" || true
+          pkill -f "ojp-server-0.3.2-beta-shaded.jar" || true
           # Stop Postgres container
           docker stop ojp-postgres-multinode || true
           docker rm ojp-postgres-multinode || true
@@ -1056,7 +1056,7 @@ jobs:
       - name: Start OJP Server 1 on port 10591
         run: |
           # Start first server on port 10591 with Prometheus on 9159
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-xa-1.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-xa-1.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-1.pid
           echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9159 with PID $(cat /tmp/ojp-server-xa-1.pid)"
 
@@ -1064,7 +1064,7 @@ jobs:
       - name: Start OJP Server 2 on port 10592
         run: |
           # Start second server on port 10592 with Prometheus on 9160
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-xa-2.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-xa-2.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-2.pid
           echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9160 with PID $(cat /tmp/ojp-server-xa-2.pid)"
 
@@ -1179,7 +1179,7 @@ jobs:
       - name: Restart OJP Server 1
         run: |
           echo "Restarting OJP Server 1..."
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-xa-1-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-xa-1-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-1-restart.pid
           echo "OJP Server 1 restarted with PID $(cat /tmp/ojp-server-xa-1-restart.pid)"
           sleep 10
@@ -1268,7 +1268,7 @@ jobs:
       - name: Restart OJP Server 2
         run: |
           echo "Restarting OJP Server 2..."
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server-xa-2-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server-xa-2-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-2-restart.pid
           echo "OJP Server 2 restarted with PID $(cat /tmp/ojp-server-xa-2-restart.pid)"
           sleep 10
@@ -1374,7 +1374,7 @@ jobs:
         if: always()
         run: |
           # Kill any remaining OJP server processes
-          pkill -f "ojp-server-0.3.1-beta-shaded.jar" || true
+          pkill -f "ojp-server-0.3.2-beta-shaded.jar" || true
           # Stop Postgres container
           docker stop ojp-postgres-multinode-xa || true
           docker rm ojp-postgres-multinode-xa || true
@@ -1518,7 +1518,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -1615,7 +1615,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start

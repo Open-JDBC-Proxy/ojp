@@ -38,7 +38,7 @@ All SQL Server test classes have been updated:
 #### Local Execution
 ```bash
 # Start OJP server first (requires Java 21+)
-java -jar ojp-server/target/ojp-server-0.3.1-beta-shaded.jar &
+java -jar ojp-server/target/ojp-server-0.3.2-beta-shaded.jar &
 
 # Run SQL Server tests
 mvn test -pl ojp-jdbc-driver -DenableSqlServerTests=true -Dtest="SQLServer*"
