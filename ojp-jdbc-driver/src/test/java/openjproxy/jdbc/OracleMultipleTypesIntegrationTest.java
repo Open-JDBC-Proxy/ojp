@@ -78,12 +78,17 @@ public class OracleMultipleTypesIntegrationTest {
         psInsert.setFloat(9, 20.20f);
         psInsert.setBytes(10, new byte[]{(byte) 1}); // Oracle RAW expects byte array
         psInsert.setBytes(11, "AAAA".getBytes()); // Oracle RAW
-        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-        psInsert.setDate(12, new Date(sdf.parse("29/03/2025").getTime()));
-        SimpleDateFormat sdfTime = new SimpleDateFormat("hh:mm:ss");
-        psInsert.setTimestamp(13, new Timestamp(sdfTime.parse("11:12:13").getTime())); // Oracle uses TIMESTAMP for time
-        SimpleDateFormat sdfTimestamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-        psInsert.setTimestamp(14, new Timestamp(sdfTimestamp.parse("30/03/2025 21:22:23").getTime()));
+        
+        // Using java.time types with setObject instead of java.sql types
+        LocalDate valDate = LocalDate.of(2025, 3, 29);
+        psInsert.setObject(12, valDate, Types.DATE);
+        
+        // Oracle uses TIMESTAMP for time - using LocalTime but stored as TIMESTAMP
+        LocalTime valTime = LocalTime.of(11, 12, 13);
+        psInsert.setObject(13, valTime, Types.TIME);
+        
+        LocalDateTime valTimestamp = LocalDateTime.of(2025, 3, 30, 21, 22, 23);
+        psInsert.setObject(14, valTimestamp, Types.TIMESTAMP);
         
         // Oracle natively supported java.time types (JDBC 4.2)
         LocalDateTime valLocalDateTime = LocalDateTime.of(2024, 12, 1, 14, 30, 45);
@@ -132,11 +137,50 @@ public class OracleMultipleTypesIntegrationTest {
             // Handle as byte array
             assertEquals("AAAA", new String(resultSet.getBytes(11)));
         }
-        assertEquals("29/03/2025", sdf.format(resultSet.getDate(12)));
-        // Oracle time stored as TIMESTAMP, format as time
-        SimpleDateFormat sdfTimeOnly = new SimpleDateFormat("HH:mm:ss");
-        assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp(13)));
-        assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp(14)));
+        
+        // Validate columns 12, 13, 14 using getObject with java.time types
+        Object valDateRet = resultSet.getObject(12);
+        Object valTimeRet = resultSet.getObject(13);
+        Object valTimestampRet = resultSet.getObject(14);
+        
+        assertNotNull(valDateRet, "Date column should not be null");
+        assertNotNull(valTimeRet, "Time column should not be null");
+        assertNotNull(valTimestampRet, "Timestamp column should not be null");
+        
+        // Validate date (column 12)
+        if (valDateRet instanceof LocalDate) {
+            assertEquals(valDate, valDateRet);
+        } else if (valDateRet instanceof Date) {
+            LocalDate retrievedDate = ((Date) valDateRet).toLocalDate();
+            assertEquals(valDate, retrievedDate);
+        }
+        
+        // Validate time (column 13) - Oracle stores as TIMESTAMP
+        if (valTimeRet instanceof LocalTime) {
+            LocalTime retrievedTime = (LocalTime) valTimeRet;
+            assertEquals(valTime.getHour(), retrievedTime.getHour());
+            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
+            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
+        } else if (valTimeRet instanceof Time) {
+            LocalTime retrievedTime = ((Time) valTimeRet).toLocalTime();
+            assertEquals(valTime.getHour(), retrievedTime.getHour());
+            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
+            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
+        } else if (valTimeRet instanceof Timestamp) {
+            // Oracle stores TIME as TIMESTAMP, extract time portion
+            LocalTime retrievedTime = ((Timestamp) valTimeRet).toLocalDateTime().toLocalTime();
+            assertEquals(valTime.getHour(), retrievedTime.getHour());
+            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
+            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
+        }
+        
+        // Validate timestamp (column 14)
+        if (valTimestampRet instanceof LocalDateTime) {
+            assertEquals(valTimestamp, valTimestampRet);
+        } else if (valTimestampRet instanceof Timestamp) {
+            LocalDateTime retrievedTimestamp = ((Timestamp) valTimestampRet).toLocalDateTime();
+            assertEquals(valTimestamp, retrievedTimestamp);
+        }
         
         // Oracle natively supported java.time types - retrieve as Object to get the actual type
         Object valLocalDateTimeRet = resultSet.getObject(15);
@@ -207,6 +251,12 @@ public class OracleMultipleTypesIntegrationTest {
         } else {
             assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
         }
+        
+        // SimpleDateFormat variables for validation using column names (lines 252-254)
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+        SimpleDateFormat sdfTimeOnly = new SimpleDateFormat("HH:mm:ss");
+        SimpleDateFormat sdfTimestamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+        
         assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
         assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp("val_time")));
         assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
