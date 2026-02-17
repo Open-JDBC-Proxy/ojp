@@ -2,6 +2,7 @@ package openjproxy.jdbc;
 
 import lombok.SneakyThrows;
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -25,11 +26,12 @@ import java.util.Properties;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
- class MySQLMariaDBConnectionExtensiveTests {
+class MySQLMariaDBConnectionExtensiveTests {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
     private Connection connection;
+    private ConnectionResult connectionResult;
 
     @BeforeAll
     static void checkTestConfiguration() {
@@ -38,21 +40,25 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
     }
 
     @SneakyThrows
-    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
-        assumeFalse(!isMySQLTestEnabled, "MySQL tests are not enabled");
-        assumeFalse(!isMariaDBTestEnabled, "MariaDB tests are not enabled");
-        connection = DriverManager.getConnection(url, user, password);
+    public void setUp(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        assumeFalse(!isMySQLTestEnabled && url.toLowerCase().contains("mysql"), "MySQL tests are not enabled");
+        assumeFalse(!isMariaDBTestEnabled && url.toLowerCase().contains("mariadb"), "MariaDB tests are not enabled");
+        connectionResult = TestDBUtils.createConnection(url, user, password, isXA);
+        connection = connectionResult.getConnection();
     }
 
     @AfterEach
     void tearDown() {
-        TestDBUtils.closeQuietly(connection);
+        if (connectionResult != null) {
+            connectionResult.close();
+        }
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testCreateStatement(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testCreateStatement(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         Statement statement = connection.createStatement();
         assertNotNull(statement);
@@ -61,8 +67,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testPrepareStatement(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testPrepareStatement(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1");
         assertNotNull(preparedStatement);
@@ -71,8 +78,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testPrepareCall(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testPrepareCall(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         // MySQL supports callable statements, though syntax may differ
         try {
@@ -87,8 +95,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testNativeSQL(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testNativeSQL(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         String nativeSQL = connection.nativeSQL("SELECT {fn NOW()}");
         assertNotNull(nativeSQL);
@@ -98,8 +106,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testAutoCommit(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testAutoCommit(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         // Test getting and setting auto-commit
         boolean originalAutoCommit = connection.getAutoCommit();
@@ -116,8 +125,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testCommitAndRollback(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testCommitAndRollback(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         // Test commit and rollback operations
         connection.setAutoCommit(false);
@@ -131,8 +141,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testIsClosed(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testIsClosed(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         assertFalse(connection.isClosed());
 
@@ -142,8 +152,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testGetMetaData(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testGetMetaData(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         DatabaseMetaData metaData = connection.getMetaData();
         assertNotNull(metaData);
@@ -158,8 +169,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testReadOnly(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testReadOnly(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         // Test read-only mode
         boolean originalReadOnly = connection.isReadOnly();
@@ -179,8 +190,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testCatalog(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testCatalog(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         String catalog = connection.getCatalog();
         // Catalog might be null or the database name
@@ -194,11 +205,13 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testTransactionIsolation(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         int isolationLevel = connection.getTransactionIsolation();
-        assertTrue(isolationLevel >= Connection.TRANSACTION_NONE && isolationLevel <= Connection.TRANSACTION_SERIALIZABLE);
+        assertTrue(
+                isolationLevel >= Connection.TRANSACTION_NONE && isolationLevel <= Connection.TRANSACTION_SERIALIZABLE);
 
         // Test setting transaction isolation level
         connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
@@ -210,8 +223,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testWarnings(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testWarnings(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         // Test warning operations
         SQLWarning warnings = connection.getWarnings();
@@ -223,8 +236,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testCreateStatementWithParameters(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testCreateStatementWithParameters(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
         assertNotNull(statement);
@@ -237,10 +251,12 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testPrepareStatementWithParameters(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testPrepareStatementWithParameters(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
-        PreparedStatement ps = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+        PreparedStatement ps = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
+                ResultSet.CONCUR_READ_ONLY);
         assertNotNull(ps);
         ps.close();
 
@@ -251,11 +267,13 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testHoldability(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testHoldability(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         int holdability = connection.getHoldability();
-        assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
+        assertTrue(
+                holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
 
         // Test setting holdability
         connection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
@@ -264,8 +282,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testSavepoints(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testSavepoints(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         connection.setAutoCommit(false);
 
@@ -290,8 +309,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testClientInfo(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testClientInfo(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         Properties clientInfo = connection.getClientInfo();
         assertNotNull(clientInfo);
@@ -307,8 +327,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testValid(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testValid(String driverClass, String url, String user, String password, boolean isXA) throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         boolean isValid = connection.isValid(5);
         assertTrue(isValid);
@@ -321,16 +341,17 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testUnsupportedOperations(String driverClass, String url, String user, String password) throws SQLException {
-        setUp(driverClass, url, user, password);
+    void testUnsupportedOperations(String driverClass, String url, String user, String password, boolean isXA)
+            throws SQLException {
+        setUp(driverClass, url, user, password, isXA);
 
         // Test operations that might not be supported
         Assert.assertThrows(SQLException.class, () -> {
-            connection.createArrayOf("VARCHAR", new String[]{"test"});
+            connection.createArrayOf("VARCHAR", new String[] { "test" });
         });
 
         Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> {
-            connection.createStruct("test_type", new Object[]{});
+            connection.createStruct("test_type", new Object[] {});
         });
     }
 }
