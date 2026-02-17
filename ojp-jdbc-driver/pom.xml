@@ -136,7 +136,7 @@
                     <!--Without order the multiple drivers used in tests will conflict (mostly for tests), if moved to use only OJP no longer needed-->
                     <runOrder>alphabetical</runOrder>
 
-                    <argLine>-Dfile.encoding=UTF-8</argLine>
+                    <argLine>-Dfile.encoding=UTF-8 -Duser.timezone=UTC</argLine>
                 </configuration>
                 <version>3.2.5</version>
             </plugin>

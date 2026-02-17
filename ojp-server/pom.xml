@@ -251,6 +251,8 @@
                         </ports>
                         <jvmFlags>
                             <jvmFlag>-Dorg.slf4j.simpleLogger.defaultLogLevel=error</jvmFlag>
+                            <jvmFlag>-Dfile.encoding=UTF-8</jvmFlag>
+                            <jvmFlag>-Duser.timezone=UTC</jvmFlag>
                         </jvmFlags>
                     </container>
                 </configuration>
