@@ -90,17 +90,15 @@ public class MySQLMultipleTypesIntegrationTest {
         psInsert.setByte(10, (byte) 1);
         psInsert.setBytes(11, "AAAA".getBytes());
 
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        Date valDate = new Date(sdf.parse("2024-12-01").getTime());
-        psInsert.setDate(12, valDate);
+        // Using java.time types with setObject instead of java.sql types
+        LocalDate valDate = LocalDate.of(2024, 12, 1);
+        psInsert.setObject(12, valDate, Types.DATE);
 
-        SimpleDateFormat sdfTime = new SimpleDateFormat("HH:mm:ss");
-        Time valTime = new Time(sdfTime.parse("10:10:10").getTime());
-        psInsert.setTime(13, valTime);
+        LocalTime valTime = LocalTime.of(10, 10, 10);
+        psInsert.setObject(13, valTime, Types.TIME);
 
-        SimpleDateFormat sdfTimestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        Timestamp valTimestamp = new Timestamp(sdfTimestamp.parse("2024-12-01 10:10:10").getTime());
-        psInsert.setTimestamp(14, valTimestamp);
+        LocalDateTime valTimestamp = LocalDateTime.of(2024, 12, 1, 10, 10, 10);
+        psInsert.setObject(14, valTimestamp, Types.TIMESTAMP);
 
         // MySQL/MariaDB natively supported java.time types (JDBC 4.2)
         LocalDateTime valLocalDateTime = LocalDateTime.of(2024, 12, 1, 14, 30, 45);
@@ -125,6 +123,44 @@ public class MySQLMultipleTypesIntegrationTest {
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
+
+        // Validate columns 12, 13, 14 using getObject with java.time types
+        Object valDateRet = resultSet.getObject(12);
+        Object valTimeRet = resultSet.getObject(13);
+        Object valTimestampRet = resultSet.getObject(14);
+        
+        assertNotNull(valDateRet, "Date column should not be null");
+        assertNotNull(valTimeRet, "Time column should not be null");
+        assertNotNull(valTimestampRet, "Timestamp column should not be null");
+        
+        // Validate date (column 12)
+        if (valDateRet instanceof LocalDate) {
+            assertEquals(valDate, valDateRet);
+        } else if (valDateRet instanceof Date) {
+            LocalDate retrievedDate = ((Date) valDateRet).toLocalDate();
+            assertEquals(valDate, retrievedDate);
+        }
+        
+        // Validate time (column 13)
+        if (valTimeRet instanceof LocalTime) {
+            LocalTime retrievedTime = (LocalTime) valTimeRet;
+            assertEquals(valTime.getHour(), retrievedTime.getHour());
+            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
+            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
+        } else if (valTimeRet instanceof Time) {
+            LocalTime retrievedTime = ((Time) valTimeRet).toLocalTime();
+            assertEquals(valTime.getHour(), retrievedTime.getHour());
+            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
+            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
+        }
+        
+        // Validate timestamp (column 14)
+        if (valTimestampRet instanceof LocalDateTime) {
+            assertEquals(valTimestamp, valTimestampRet);
+        } else if (valTimestampRet instanceof Timestamp) {
+            LocalDateTime retrievedTimestamp = ((Timestamp) valTimestampRet).toLocalDateTime();
+            assertEquals(valTimestamp, retrievedTimestamp);
+        }
 
         // New java.time types - retrieve as Object to get the actual type
         // MySQL/MariaDB natively supported java.time types - retrieve and validate
