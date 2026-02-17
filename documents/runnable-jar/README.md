@@ -56,7 +56,7 @@ ojp-server/target/ojp-server-<version>-shaded.jar
 
 For example: `ojp-server/target/ojp-server-0.3.0-beta-shaded.jar`
 
-The runnable JAR size is approximately **27MB** and contains all required dependencies.
+The runnable JAR size is approximately **20MB** and contains all required dependencies except database JDBC drivers (see Troubleshooting section for adding drivers).
 
 ## Running the OJP Server JAR
 
@@ -212,12 +212,24 @@ java -Xmx2g -jar ojp-server/target/ojp-server-0.3.0-beta-shaded.jar
 
 **Problem**: Missing database drivers
 
-**Solution**: The runnable JAR includes drivers for H2, PostgreSQL, MySQL, and MariaDB. For Oracle, DB2, SQL Server or other proprietary database, you need to add the respective JDBC drivers to the classpath:
+**Solution**: The runnable JAR does NOT include database JDBC drivers to keep the JAR size minimal and avoid licensing issues. You need to add the required JDBC drivers for your database to the classpath:
 
 ```bash
-java -cp "oracle-driver.jar:ojp-server-0.3.0-beta-shaded.jar" \
+# For a single database driver
+java -cp "postgresql-42.7.8.jar:ojp-server-0.3.0-beta-shaded.jar" \
+     org.openjproxy.grpc.server.GrpcServer
+
+# For multiple database drivers
+java -cp "h2-2.3.232.jar:postgresql-42.7.8.jar:mysql-connector-j-9.5.0.jar:ojp-server-0.3.0-beta-shaded.jar" \
      org.openjproxy.grpc.server.GrpcServer
 ```
+
+Download the required JDBC drivers from:
+- **H2**: [Maven Central - com.h2database:h2](https://repo1.maven.org/maven2/com/h2database/h2/)
+- **PostgreSQL**: [Maven Central - org.postgresql:postgresql](https://repo1.maven.org/maven2/org/postgresql/postgresql/)
+- **MySQL**: [Maven Central - com.mysql:mysql-connector-j](https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/)
+- **MariaDB**: [Maven Central - org.mariadb.jdbc:mariadb-java-client](https://repo1.maven.org/maven2/org/mariadb/jdbc/mariadb-java-client/)
+- **Oracle**, **DB2**, **SQL Server**: Download from respective vendor websites
 
 ### Performance Tuning
 
