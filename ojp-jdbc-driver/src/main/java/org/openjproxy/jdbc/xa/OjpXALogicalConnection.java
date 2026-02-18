@@ -52,6 +52,7 @@ class OjpXALogicalConnection extends Connection {
                se.getAddress().equalsIgnoreCase(serverAddress)
             ).findFirst().orElse(null);
             log.debug("Server endpoint for address {} found {}", serverAddress, serverEndpoint != null ? "successfully" : "not found");
+            return serverEndpoint;
         } catch (Exception e) {
             log.warn("Failed to find server endpoint for {}: {}", serverAddress, e.getMessage());
             return null;
