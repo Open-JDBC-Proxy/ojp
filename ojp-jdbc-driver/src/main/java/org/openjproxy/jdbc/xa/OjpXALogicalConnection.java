@@ -19,13 +19,11 @@ import java.sql.SQLException;
 class OjpXALogicalConnection extends Connection {
 
     private final OjpXAConnection xaConnection;
-    private boolean closed = false;
 
     OjpXALogicalConnection(OjpXAConnection xaConnection, SessionInfo sessionInfo, String url, String boundServerAddress) throws SQLException {
         // Pass the statementService and dbName to the parent Connection class
         super(sessionInfo, xaConnection.getStatementService(), DatabaseUtils.resolveDbName(url));
         this.xaConnection = xaConnection;
-        
         // Register with ConnectionTracker if using multinode - this ensures XAConnectionRedistributor
         // can find and invalidate this connection when the bound server fails
         if (xaConnection.getStatementService() instanceof MultinodeStatementService) {
@@ -42,21 +40,18 @@ class OjpXALogicalConnection extends Connection {
                 }
             }
         }
-        
         log.debug("Created logical connection using XA session: {}", sessionInfo.getSessionUUID());
     }
-    
     /**
      * Find the ServerEndpoint matching the bound server address.
      */
     private ServerEndpoint findServerEndpoint(MultinodeConnectionManager connectionManager, String serverAddress) {
         try {
             log.debug("Finding server endpoint for address: {}", serverAddress);
-            ServerEndpoint serverEndpoint = connectionManager.getServerEndpoints().stream().filter(se ->
-                se.getAddress().equalsIgnoreCase(serverAddress)
+            ServerEndpoint serverEndpoint = connectionManager.getServerEndpoints().stream().filter(se -> 
+               se.getAddress().equalsIgnoreCase(serverAddress)
             ).findFirst().orElse(null);
             log.debug("Server endpoint for address {} found {}", serverAddress, serverEndpoint != null ? "successfully" : "not found");
-            return serverEndpoint;
         } catch (Exception e) {
             log.warn("Failed to find server endpoint for {}: {}", serverAddress, e.getMessage());
             return null;
@@ -66,16 +61,7 @@ class OjpXALogicalConnection extends Connection {
     @Override
     public void close() throws SQLException {
         log.debug("Logical connection close called");
-        if (!closed) {
-            closed = true;
-            // Don't close the underlying XA connection - just mark this logical connection as closed
-            // The actual XA connection will be closed when XAConnection.close() is called
-        }
-    }
-
-    @Override
-    public boolean isClosed() throws SQLException {
-        return closed;
+        super.close();
     }
 
     @Override
@@ -102,5 +88,15 @@ class OjpXALogicalConnection extends Connection {
     public boolean getAutoCommit() throws SQLException {
         // XA connections are always non-auto-commit
         return false;
+    }
+
+    @Override
+    public org.openjproxy.jdbc.Savepoint setSavepoint() throws SQLException {
+        throw new java.sql.SQLFeatureNotSupportedException("Savepoints are not supported in XA transactions.");
+    }
+
+    @Override
+    public org.openjproxy.jdbc.Savepoint setSavepoint(String name) throws SQLException {
+        throw new java.sql.SQLFeatureNotSupportedException("Savepoints are not supported in XA transactions.");
     }
 }

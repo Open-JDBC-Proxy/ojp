@@ -12,7 +12,6 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLClientInfoException;
@@ -117,7 +116,12 @@ class MySQLMariaDBConnectionExtensiveTests {
         assertFalse(connection.getAutoCommit());
 
         connection.setAutoCommit(true);
-        assertTrue(connection.getAutoCommit());
+        if (!isXA) {
+            assertTrue(connection.getAutoCommit());
+        } else {
+            // XA connections ignore setAutoCommit(true) and always return false
+            assertFalse(connection.getAutoCommit());
+        }
 
         // Restore original state
         connection.setAutoCommit(originalAutoCommit);
@@ -132,9 +136,14 @@ class MySQLMariaDBConnectionExtensiveTests {
         // Test commit and rollback operations
         connection.setAutoCommit(false);
 
-        // These should not throw exceptions
-        connection.commit();
-        connection.rollback();
+        // In XA mode, connection.commit() and rollback() are not allowed
+        if (isXA) {
+            assertThrows(SQLException.class, () -> connection.commit());
+            assertThrows(SQLException.class, () -> connection.rollback());
+        } else {
+            connection.commit();
+            connection.rollback();
+        }
 
         connection.setAutoCommit(true);
     }
@@ -287,6 +296,12 @@ class MySQLMariaDBConnectionExtensiveTests {
         setUp(driverClass, url, user, password, isXA);
 
         connection.setAutoCommit(false);
+
+        if (isXA) {
+            assertThrows(SQLFeatureNotSupportedException.class, () -> connection.setSavepoint());
+            assertThrows(SQLFeatureNotSupportedException.class, () -> connection.setSavepoint("test_savepoint"));
+            return;
+        }
 
         // Test unnamed savepoint
         Savepoint savepoint1 = connection.setSavepoint();

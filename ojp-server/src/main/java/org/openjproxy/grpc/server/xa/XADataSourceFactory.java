@@ -56,10 +56,11 @@ public class XADataSourceFactory {
      */
     private static XADataSource createPostgreSQLXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if PostgreSQL driver is available
-            Class.forName("org.postgresql.xa.PGXADataSource");
+            Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader);
             // Use reflection to create and configure PGXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("org.postgresql.xa.PGXADataSource")
+            XADataSource xaDS = (XADataSource) Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             // Parse connection URL to extract host, port, database
@@ -105,10 +106,11 @@ public class XADataSourceFactory {
      */
     private static XADataSource createMySQLXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if MySQL driver is available
-            Class.forName("com.mysql.cj.jdbc.MysqlXADataSource");
+            Class.forName("com.mysql.cj.jdbc.MysqlXADataSource", true, classLoader);
             // Use reflection to create and configure MysqlXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("com.mysql.cj.jdbc.MysqlXADataSource")
+            XADataSource xaDS = (XADataSource) Class.forName("com.mysql.cj.jdbc.MysqlXADataSource", true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             xaDS.getClass().getMethod("setUrl", String.class).invoke(xaDS, url);
@@ -129,11 +131,12 @@ public class XADataSourceFactory {
     private static XADataSource createMariaDBXADataSource(String url, ConnectionDetails connectionDetails)
             throws SQLException {
         try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if MariaDB driver is available
-            Class.forName("org.mariadb.jdbc.MariaDbDataSource");
+            Class.forName("org.mariadb.jdbc.MariaDbDataSource", true, classLoader);
 
             // Use reflection to create and configure MariaDbDataSource
-            XADataSource xaDS = (XADataSource) Class.forName("org.mariadb.jdbc.MariaDbDataSource")
+            XADataSource xaDS = (XADataSource) Class.forName("org.mariadb.jdbc.MariaDbDataSource", true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
 
@@ -166,10 +169,11 @@ public class XADataSourceFactory {
      */
     private static XADataSource createOracleXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if Oracle driver is available
-            Class.forName("oracle.jdbc.xa.client.OracleXADataSource");
+            Class.forName("oracle.jdbc.xa.client.OracleXADataSource", true, classLoader);
             // Use reflection to create and configure OracleXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("oracle.jdbc.xa.client.OracleXADataSource")
+            XADataSource xaDS = (XADataSource) Class.forName("oracle.jdbc.xa.client.OracleXADataSource", true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             // Clean the URL - remove OJP wrapper if present
@@ -177,7 +181,7 @@ public class XADataSourceFactory {
             if (cleanUrl.toLowerCase().contains("_oracle:")) {
                 cleanUrl = "jdbc:oracle:" + cleanUrl.substring(cleanUrl.toLowerCase().indexOf("_oracle:") + 8);
             }
-            // Parse Oracle connection URL to extract components 
+            // Parse Oracle connection URL to extract components
             // Format: jdbc:oracle:thin:@host:port/service or jdbc:oracle:thin:@host:port:sid
             if (cleanUrl.toLowerCase().startsWith("jdbc:oracle:thin:@")) {
                 String connectionPart = cleanUrl.substring("jdbc:oracle:thin:@".length());
@@ -255,10 +259,11 @@ public class XADataSourceFactory {
      */
     private static XADataSource createSQLServerXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if SQL Server driver is available
-            Class.forName("com.microsoft.sqlserver.jdbc.SQLServerXADataSource");
+            Class.forName("com.microsoft.sqlserver.jdbc.SQLServerXADataSource", true, classLoader);
             // Use reflection to create and configure SQLServerXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("com.microsoft.sqlserver.jdbc.SQLServerXADataSource")
+            XADataSource xaDS = (XADataSource) Class.forName("com.microsoft.sqlserver.jdbc.SQLServerXADataSource", true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             // Set URL using reflection
@@ -279,10 +284,11 @@ public class XADataSourceFactory {
      */
     private static XADataSource createDB2XADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if DB2 driver is available
-            Class.forName("com.ibm.db2.jcc.DB2XADataSource");
+            Class.forName("com.ibm.db2.jcc.DB2XADataSource", true, classLoader);
             // Use reflection to create and configure DB2XADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("com.ibm.db2.jcc.DB2XADataSource")
+            XADataSource xaDS = (XADataSource) Class.forName("com.ibm.db2.jcc.DB2XADataSource", true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             // Parse DB2 URL: jdbc:db2://host:port/database
@@ -326,10 +332,11 @@ public class XADataSourceFactory {
      */
     private static XADataSource createCockroachDBXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if PostgreSQL driver is available (CockroachDB uses PostgreSQL protocol)
-            Class.forName("org.postgresql.xa.PGXADataSource");
+            Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader);
             // Use reflection to create and configure PGXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("org.postgresql.xa.PGXADataSource")
+            XADataSource xaDS = (XADataSource) Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             // Parse connection URL to extract host, port, database
