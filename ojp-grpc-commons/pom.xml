@@ -107,14 +107,18 @@
         </dependency>
         
         <!-- Jackson YAML for YAML configuration support -->
+        <!-- Marked optional to prevent version conflicts when consumed by frameworks
+             like Spring Boot that manage their own Jackson version via BOM -->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
+            <optional>true</optional>
         </dependency>
         
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 
