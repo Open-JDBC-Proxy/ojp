@@ -1,6 +1,7 @@
 package org.openjproxy.jdbc;
 
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.config.ConfigurationLoader;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +20,10 @@ public class DatasourcePropertiesLoader {
      * Property precedence (highest to lowest):
      * 1. Environment variables (e.g., MULTINODE_OJP_CONNECTION_POOL_ENABLED=false)
      * 2. System properties (e.g., -Dmultinode.ojp.connection.pool.enabled=false)
-     * 3. Properties file (ojp.properties)
+     * 3. Configuration files (ojp.yaml, ojp.properties)
+     * 
+     * Note: This precedence differs from ServerConfiguration where system properties
+     * take precedence over environment variables.
      * 
      * @param dataSourceName The datasource name to load properties for
      * @return Properties for the specified datasource, or null if none found
@@ -138,55 +142,33 @@ public class DatasourcePropertiesLoader {
     }
 
     /**
-     * Load the raw ojp.properties file from classpath.
+     * Load the raw ojp.properties or ojp.yaml file from classpath.
      * 
-     * Supports environment-specific properties files using the naming pattern:
-     * ojp-{environment}.properties (e.g., ojp-dev.properties, ojp-prod.properties)
+     * Supports environment-specific configuration files using the naming pattern:
+     * - ojp-{environment}.yaml or ojp.yaml (YAML format)
+     * - ojp-{environment}.properties or ojp.properties (Properties format)
      * 
      * The environment is determined by (in order of precedence):
      * 1. System property: -Dojp.environment=dev
      * 2. Environment variable: OJP_ENVIRONMENT=dev
      * 
-     * If environment is specified, attempts to load ojp-{environment}.properties first.
-     * Falls back to ojp.properties if environment-specific file not found.
+     * Loading order (first found wins):
+     * 1. ojp-{environment}.yaml
+     * 2. ojp.yaml
+     * 3. ojp-{environment}.properties
+     * 4. ojp.properties
      * 
-     * @return All properties from ojp.properties file, or null if not found
+     * @return All properties from configuration file, or null if not found
      */
     public static Properties loadOjpProperties() {
-        Properties properties = new Properties();
+        // Use the new ConfigurationLoader which supports both YAML and Properties
+        Properties properties = ConfigurationLoader.loadConfiguration();
         
-        // Determine environment from system property or environment variable
-        String environment = getEnvironmentName();
-        
-        // Try to load environment-specific properties file first
-        if (environment != null && !environment.isEmpty()) {
-            String envPropertiesFile = "ojp-" + environment + ".properties";
-            try (InputStream is = DatasourcePropertiesLoader.class.getClassLoader().getResourceAsStream(envPropertiesFile)) {
-                if (is != null) {
-                    properties.load(is);
-                    log.info("Loaded environment-specific properties from {} for environment: {}", envPropertiesFile, environment);
-                    return properties;
-                }
-            } catch (IOException e) {
-                log.debug("Could not load {} from resources folder: {}", envPropertiesFile, e.getMessage());
-            }
-            
-            // Log that we're falling back
-            log.debug("Environment-specific file {} not found, falling back to ojp.properties", envPropertiesFile);
+        if (properties != null && !properties.isEmpty()) {
+            return properties;
         }
         
-        // Fall back to ojp.properties in the classpath
-        try (InputStream is = DatasourcePropertiesLoader.class.getClassLoader().getResourceAsStream("ojp.properties")) {
-            if (is != null) {
-                properties.load(is);
-                log.debug("Loaded ojp.properties from resources folder");
-                return properties;
-            }
-        } catch (IOException e) {
-            log.debug("Could not load ojp.properties from resources folder: {}", e.getMessage());
-        }
-        
-        log.debug("No ojp.properties file found, using server defaults");
+        log.debug("No configuration file found, using server defaults");
         return null;
     }
 

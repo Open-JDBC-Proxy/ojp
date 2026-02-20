@@ -1,0 +1,163 @@
+# Example OJP Server Configuration with Slow Query Segregation
+# This file shows how to configure the slow query segregation feature using YAML format
+
+# Basic server settings
+ojp:
+  server:
+    port: 1059
+    threadPoolSize: 200
+    
+    # Logging Configuration
+    # Root log level (DEBUG, INFO, WARN, ERROR) - affects all loggers unless overridden
+    logLevel: INFO
+    
+    # Log file location (default: logs/ojp-server.log)
+    # log:
+    #   file: logs/ojp-server.log
+    #   fileNamePattern: logs/ojp-server.%d{yyyy-MM-dd}.log
+    #   maxHistory: 30
+    #   totalSizeCap: 1GB
+    #   pattern: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    
+    # Circuit Breaker settings
+    circuitBreakerTimeout: 60000
+    circuitBreakerThreshold: 3
+    
+    # Slow Query Segregation Configuration
+    slowQuerySegregation:
+      # Enable or disable the slow query segregation feature
+      enabled: true
+      
+      # Percentage of execution slots allocated to slow operations (0-100)
+      # Default: 20% for slow, 80% for fast operations
+      slowSlotPercentage: 20
+      
+      # Idle timeout before slots can be borrowed between pools (milliseconds)
+      # Default: 10 seconds
+      idleTimeout: 10000
+      
+      # Timeout for acquiring slow operation slots (milliseconds)
+      # Default: 120 seconds
+      slowSlotTimeout: 120000
+      
+      # Timeout for acquiring fast operation slots (milliseconds)
+      # Default: 60 seconds
+      fastSlotTimeout: 60000
+      
+      # Interval for updating global average in seconds (0 = update on every query)
+      # Default: 300 seconds (5 minutes)
+      updateGlobalAvgInterval: 300
+    
+    # Session cleanup configuration
+    sessionCleanup:
+      enabled: true
+      timeoutMinutes: 30
+      intervalMinutes: 5
+    
+    # TLS/mTLS Configuration
+    # Configure TLS (Transport Layer Security) for secure, encrypted communication
+    # between OJP clients and server. Supports both server-only TLS and mutual TLS
+    # (mTLS) where both client and server authenticate each other.
+    #
+    # For detailed configuration guide, see: documents/configuration/mtls-configuration-guide.md
+    
+    # Enable TLS (default: false)
+    # When true, the server will use TLS for all client connections
+    tls:
+      enabled: false
+      
+      # Path to server's keystore file containing the server certificate and private key
+      # Required when TLS is enabled
+      # keystore:
+      #   path: /etc/ojp/ssl/server-keystore.jks
+      #   password: changeit
+      #   type: JKS  # Supported types: JKS, PKCS12, JCEKS
+      
+      # Path to truststore file for verifying client certificates (optional)
+      # Only needed if client authentication is required (mTLS)
+      # truststore:
+      #   path: /etc/ojp/ssl/server-truststore.jks
+      #   password: changeit
+      #   type: JKS
+      
+      # Require client certificate authentication - mTLS (default: false)
+      # When true, all clients must present a valid certificate
+      # clientAuthRequired: true
+    
+    # Example Production Configuration with mTLS:
+    # ojp:
+    #   server:
+    #     tls:
+    #       enabled: true
+    #       keystore:
+    #         path: /etc/ojp/ssl/server.jks
+    #         password: ${SERVER_KEYSTORE_PASSWORD}
+    #       truststore:
+    #         path: /etc/ojp/ssl/truststore.jks
+    #         password: ${TRUSTSTORE_PASSWORD}
+    #       clientAuthRequired: true
+
+  # Prometheus monitoring configuration
+  prometheus:
+    port: 9159
+    # allowedIps:
+    #   - 192.168.1.0/24
+    #   - 10.0.0.0/8
+  
+  # OpenTelemetry configuration
+  opentelemetry:
+    enabled: true
+    # endpoint: http://otel-collector:4317
+  
+  # Transaction Isolation Configuration
+  # Configure the default transaction isolation level for connection pools.
+  # If not specified, OJP will use READ_COMMITTED as the default.
+  # 
+  # Valid values (case-insensitive):
+  #   - NONE / TRANSACTION_NONE
+  #   - READ_UNCOMMITTED / TRANSACTION_READ_UNCOMMITTED
+  #   - READ_COMMITTED / TRANSACTION_READ_COMMITTED (default)
+  #   - REPEATABLE_READ / TRANSACTION_REPEATABLE_READ
+  #   - SERIALIZABLE / TRANSACTION_SERIALIZABLE
+  #
+  # Examples:
+  # connection:
+  #   pool:
+  #     defaultTransactionIsolation: READ_COMMITTED
+  #
+  # For XA connections (distributed transactions):
+  # xa:
+  #   connection:
+  #     pool:
+  #       defaultTransactionIsolation: READ_COMMITTED
+  #
+  # When configured, all connections in the pool will be reset to this isolation
+  # level when returned to the pool, preventing isolation level pollution between
+  # different client sessions.
+  
+  # SQL Enhancer Configuration (Advanced)
+  # sql:
+  #   enhancer:
+  #     enabled: false
+  #     mode: VALIDATE  # VALIDATE, OPTIMIZE, TRANSLATE, ANALYZE
+  #     dialect: GENERIC  # GENERIC, POSTGRESQL, MYSQL, ORACLE, SQL_SERVER, H2
+  #     targetDialect: ""  # Empty = no translation
+  #     logOptimizations: true
+  #     optimizationTimeout: 100  # milliseconds
+  #     cacheEnabled: true
+  #     cacheSize: 1000
+  #     failOnValidationError: true
+  #     schema:
+  #       refresh:
+  #         enabled: true
+  #         interval:
+  #           hours: 24
+  #       load:
+  #         timeout:
+  #           seconds: 30
+  #       fallback:
+  #         enabled: true
+  
+  # External JDBC drivers path
+  # libs:
+  #   path: ./ojp-libs

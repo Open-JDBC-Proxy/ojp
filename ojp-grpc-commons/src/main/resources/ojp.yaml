@@ -1,0 +1,4 @@
+# 16MB is the default max inbound message size
+ojp:
+  grpc:
+    maxInboundMessageSize: 16777216

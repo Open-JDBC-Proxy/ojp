@@ -1,0 +1,127 @@
+# OJP Production Environment Configuration
+# File: ojp-prod.yaml
+#
+# This configuration is optimized for production environments with:
+# - Larger connection pools for high concurrency
+# - Optimized timeouts for performance
+# - Production-grade settings for reliability and scalability
+
+# ============================================================================
+# Connection Pool Configuration (Non-XA)
+# ============================================================================
+
+ojp:
+  connection:
+    pool:
+      # Large pool size for production - handles high concurrent load
+      maximumPoolSize: 50
+      minimumIdle: 10
+      
+      # Production-optimized timeouts
+      connectionTimeout: 15000
+      idleTimeout: 600000
+      maxLifetime: 1800000
+      
+      # Transaction isolation level
+      defaultTransactionIsolation: READ_COMMITTED
+  
+  # ============================================================================
+  # XA Connection Pool Configuration
+  # ============================================================================
+  
+  # XA pool settings for production - larger pools for distributed transactions
+  xa:
+    connection:
+      pool:
+        maxTotal: 40
+        minIdle: 8
+        connectionTimeout: 25000
+        idleTimeout: 600000
+        maxLifetime: 1800000
+        timeBetweenEvictionRuns: 30000
+        numTestsPerEvictionRun: 10
+        softMinEvictableIdleTime: 60000
+  
+  # ============================================================================
+  # gRPC Configuration
+  # ============================================================================
+  
+  # Maximum inbound message size (32MB for production - handles larger result sets)
+  grpc:
+    maxInboundMessageSize: 33554432
+
+# ============================================================================
+# Named DataSource Configurations
+# ============================================================================
+
+# Web application datasource - highest concurrency requirements
+webapp:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 60
+        minimumIdle: 15
+        connectionTimeout: 10000
+        idleTimeout: 600000
+    
+    # Web application XA pool
+    xa:
+      connection:
+        pool:
+          maxTotal: 50
+          minIdle: 10
+          connectionTimeout: 20000
+
+# API service datasource - high concurrency with shorter timeouts
+api:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 40
+        minimumIdle: 10
+        connectionTimeout: 8000
+        idleTimeout: 300000
+    
+    # API service XA pool
+    xa:
+      connection:
+        pool:
+          maxTotal: 30
+          minIdle: 8
+          connectionTimeout: 15000
+
+# Batch processing datasource - moderate concurrency, longer timeouts
+batchJob:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 20
+        minimumIdle: 5
+        connectionTimeout: 30000
+        maxLifetime: 3600000
+    
+    # Batch processing XA pool
+    xa:
+      connection:
+        pool:
+          maxTotal: 15
+          minIdle: 3
+          connectionTimeout: 30000
+
+# Reporting/Analytics datasource - read-heavy, lower concurrency
+reporting:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 15
+        minimumIdle: 3
+        connectionTimeout: 20000
+        idleTimeout: 900000
+    
+    # Reporting XA pool
+    xa:
+      connection:
+        pool:
+          maxTotal: 10
+          minIdle: 2
+          connectionTimeout: 25000

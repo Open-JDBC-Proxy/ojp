@@ -2,6 +2,8 @@
 
 > **Chapter Overview**: Configure the OJP JDBC driver on the client side with connection pool settings, multi-datasource support, and framework integration. This chapter covers advanced configuration patterns that optimize performance for different application workloads.
 
+> **Note**: While YAML format (`.yaml`, `.yml`) is shown in all examples throughout this chapter, properties files (`.properties`) are also fully supported for backward compatibility. Both formats use identical property names and values.
+
 ---
 
 ## 5.1 JDBC URL Format
@@ -184,31 +186,31 @@ OJP Server supports multiple connection pool implementations:
 - **Apache DBCP** (alternative for non-XA connections) - Traditional pooling implementation  
 - **Custom XA Implementation** (for XA transactions) - Uses Apache Commons Pool 2 for backend session pooling (see Chapter 10 for details)
 
-These pools run on the OJP Server side, but you configure them from the client side via the `ojp.properties` file in your application. This allows you to tune the server-side connection pool behavior without modifying server configuration files. For XA-specific pooling architecture, refer to Chapter 10 which explains the dual-condition lifecycle and backend session management.
+These pools run on the OJP Server side, but you configure them from the client side via an `ojp.yaml` configuration file in your application. This allows you to tune the server-side connection pool behavior without modifying server configuration files. For XA-specific pooling architecture, refer to Chapter 10 which explains the dual-condition lifecycle and backend session management.
 
 ### Configuration File Location
 
 **[IMAGE PROMPT 4]**: Create a file location diagram showing:
 - Classpath root (src/main/resources)
-- ojp.properties file
+- ojp.yaml configuration file
 - Application loading configuration
 - Multiple datasource configs in one file
 Use file system and classpath visualization
 Professional configuration management guide
 
-The `ojp.properties` file should be placed in your application's classpath root:
+Configuration files should be placed in your application's classpath root:
 
 ```
 src/
 └── main/
     └── resources/
-        └── ojp.properties   ← Place here
+        └── ojp.yaml   ← Place configuration here
 ```
 
 **Alternative locations**:
-- JAR root: `/ojp.properties` (inside the JAR)
-- Working directory: `./ojp.properties` (for quick testing)
-- Custom location: Use system property `-Dojp.config.file=/path/to/ojp.properties`
+- JAR root: `/ojp.yaml` (inside the JAR)
+- Working directory: `./ojp.yaml` (for quick testing)
+- Custom location: Use system property `-Dojp.config.file=/path/to/ojp.yaml`
 
 ### Basic Configuration
 
@@ -218,32 +220,35 @@ Side annotations explaining each property
 Use code editor style with syntax highlighting
 Professional configuration guide
 
-**Example `ojp.properties`**:
+**Example configuration (`ojp.yaml`):**
 
-```properties
-# Default DataSource Configuration (backward compatible)
+```yaml
+# Default DataSource Configuration
 # These settings apply when no datasource name is specified in the URL
 
-# Maximum pool size - max concurrent connections
-ojp.connection.pool.maximumPoolSize=20
-
-# Minimum idle connections - kept ready for use
-ojp.connection.pool.minimumIdle=5
-
-# Connection timeout - max wait for connection (milliseconds)
-ojp.connection.pool.connectionTimeout=30000
-
-# Idle timeout - close unused connections after this time (milliseconds)
-ojp.connection.pool.idleTimeout=600000
-
-# Max lifetime - maximum time a connection can exist (milliseconds)
-ojp.connection.pool.maxLifetime=1800000
-
-# Connection test query (optional, auto-detected if not set)
-ojp.connection.pool.connectionTestQuery=SELECT 1
-
-# Leak detection threshold - warn if connection held too long (milliseconds)
-ojp.connection.pool.leakDetectionThreshold=60000
+ojp:
+  connection:
+    pool:
+      # Maximum pool size - max concurrent connections
+      maximumPoolSize: 20
+      
+      # Minimum idle connections - kept ready for use
+      minimumIdle: 5
+      
+      # Connection timeout - max wait for connection (milliseconds)
+      connectionTimeout: 30000
+      
+      # Idle timeout - close unused connections after this time (milliseconds)
+      idleTimeout: 600000
+      
+      # Max lifetime - maximum time a connection can exist (milliseconds)
+      maxLifetime: 1800000
+      
+      # Connection test query (optional, auto-detected if not set)
+      connectionTestQuery: "SELECT 1"
+      
+      # Leak detection threshold - warn if connection held too long (milliseconds)
+      leakDetectionThreshold: 60000
 ```
 
 ### Configuration Reference

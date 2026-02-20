@@ -4,7 +4,9 @@ This document covers configuration options for the OJP JDBC driver, including cl
 
 ## Overview
 
-The OJP JDBC driver supports configurable connection pool settings via an `ojp.properties` file with advanced multi-datasource capabilities. This allows customization of HikariCP connection pool behavior on a per-client basis with support for multiple named datasources for enhanced flexibility.
+The OJP JDBC driver supports configurable connection pool settings via YAML configuration files with advanced multi-datasource capabilities. This allows customization of HikariCP connection pool behavior on a per-client basis with support for multiple named datasources for enhanced flexibility.
+
+> **Note**: While YAML format (`.yaml`, `.yml`) is shown in all examples throughout this guide, properties files (`.properties`) are also fully supported for backward compatibility. Both formats use identical property names and values.
 
 ## Multi-DataSource Configuration
 
@@ -20,40 +22,59 @@ The multi-datasource configuration approach provides several operational benefit
 
 #### Named DataSource Configuration
 
-Configure pool settings for specific datasources using the format `{dataSourceName}.ojp.connection.pool.*`:
+Configure pool settings for specific datasources:
 
-```properties
+```yaml
+# ojp.yaml
 # Main application datasource - high concurrency
-mainApp.ojp.connection.pool.maximumPoolSize=50
-mainApp.ojp.connection.pool.minimumIdle=10
-mainApp.ojp.connection.pool.connectionTimeout=15000
+mainApp:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 50
+        minimumIdle: 10
+        connectionTimeout: 15000
 
 # Read-only reporting datasource - smaller pool
-reporting.ojp.connection.pool.maximumPoolSize=8
-reporting.ojp.connection.pool.minimumIdle=2
-reporting.ojp.connection.pool.idleTimeout=300000
+reporting:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 8
+        minimumIdle: 2
+        idleTimeout: 300000
 
 # Batch processing datasource - medium pool with longer timeouts
-batchJob.ojp.connection.pool.maximumPoolSize=15
-batchJob.ojp.connection.pool.minimumIdle=3
-batchJob.ojp.connection.pool.maxLifetime=1800000
+batchJob:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 15
+        minimumIdle: 3
+        maxLifetime: 1800000
 ```
 
 #### Default DataSource Configuration (Backward Compatibility)
 
 For backward compatibility, properties without a datasource prefix are treated as the "default" datasource:
 
-```properties
-# Default datasource configuration (backward compatible)
-ojp.connection.pool.maximumPoolSize=20
-ojp.connection.pool.minimumIdle=5
-ojp.connection.pool.idleTimeout=600000
+```yaml
+# ojp.yaml
+ojp:
+  connection:
+    pool:
+      maximumPoolSize: 20
+      minimumIdle: 5
+      idleTimeout: 600000
 ```
+
 #### Default Maximum Inbound Message Size Configuration 
 
-```properties
-# Default Maximum Inbound Message Size Configuration 
-ojp.grpc.maxInboundMessageSize=16777216  
+```yaml
+# ojp.yaml
+ojp:
+  grpc:
+    maxInboundMessageSize: 16777216  # 16 MB
 ```
 
 ### How to Use DataSources
@@ -80,14 +101,24 @@ Connection defaultConn = DriverManager.getConnection(defaultUrl, "user", "passwo
 
 Multiple datasources can point to the same database connection parameters while using different pool configurations:
 
-```properties
+**Using YAML:**
+```yaml
+# ojp.yaml
 # Primary application pool - high capacity
-primary.ojp.connection.pool.maximumPoolSize=40
-primary.ojp.connection.pool.minimumIdle=8
+primary:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 40
+        minimumIdle: 8
 
 # Background tasks pool - smaller capacity
-background.ojp.connection.pool.maximumPoolSize=10
-background.ojp.connection.pool.minimumIdle=2
+background:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 10
+        minimumIdle: 2
 ```
 
 Both can connect to the same database:
@@ -103,24 +134,24 @@ Connection backgroundConn = DriverManager.getConnection(
 
 ### How to Configure
 
-1. Create an `ojp.properties` file in your application's classpath (either in the root or in the `resources` folder)
+1. Create an `ojp.yaml` configuration file in your application's classpath (either in the root or in the `resources` folder)
 2. Add any of the supported properties (all are optional)
 3. Use either named datasource configuration or default configuration format
 4. The driver will automatically load and send these properties to the server when establishing a connection
 
 ### Environment-Specific Configuration
 
-OJP supports environment-specific properties files, allowing you to maintain separate configurations for different environments (development, staging, production, etc.) **without requiring any custom code**.
+OJP supports environment-specific configuration files, allowing you to maintain separate configurations for different environments (development, staging, production, etc.) **without requiring any custom code**.
 
 #### Naming Convention
 
-Use the following naming pattern for environment-specific properties files:
+Use the following naming pattern for environment-specific configuration files:
 
-- `ojp-dev.properties` - Development environment
-- `ojp-staging.properties` - Staging environment
-- `ojp-prod.properties` - Production environment
-- `ojp-test.properties` - Testing environment
-- `ojp-{environment}.properties` - Any custom environment name
+- `ojp-dev.yaml` - Development environment
+- `ojp-staging.yaml` - Staging environment
+- `ojp-prod.yaml` - Production environment
+- `ojp-test.yaml` - Testing environment
+- `ojp-{environment}.yaml` - Any custom environment name
 
 #### Environment Selection
 
@@ -129,61 +160,88 @@ The environment is automatically determined by (in order of precedence):
 1. **System property**: `-Dojp.environment=dev`
 2. **Environment variable**: `OJP_ENVIRONMENT=dev`
 
-If no environment is specified, OJP loads the default `ojp.properties` file.
+If no environment is specified, OJP loads the default `ojp.yaml` file.
 
 #### Fallback Behavior
 
-- If an environment is specified but the environment-specific file doesn't exist, OJP automatically falls back to `ojp.properties`
+- If an environment is specified but the environment-specific file doesn't exist, OJP automatically falls back to the default `ojp.yaml` file
 - This ensures backward compatibility and provides a safe default configuration
+- Loading order: `ojp-{env}.yaml` → `ojp.yaml` → `ojp-{env}.properties` → `ojp.properties`
 
 #### Configuration Examples
 
-**Development Environment (`ojp-dev.properties`):**
-```properties
+**Development Environment (`ojp-dev.yaml`):**
+```yaml
 # Development configuration - smaller pools, more logging
-ojp.connection.pool.maximumPoolSize=10
-ojp.connection.pool.minimumIdle=2
-ojp.connection.pool.connectionTimeout=30000
-ojp.connection.pool.idleTimeout=300000
-
-# XA settings for development
-ojp.xa.connection.pool.maxTotal=5
-ojp.xa.connection.pool.minIdle=1
+ojp:
+  connection:
+    pool:
+      maximumPoolSize: 10
+      minimumIdle: 2
+      connectionTimeout: 30000
+      idleTimeout: 300000
+  
+  # XA settings for development
+  xa:
+    connection:
+      pool:
+        maxTotal: 5
+        minIdle: 1
 ```
 
-**Staging Environment (`ojp-staging.properties`):**
-```properties
+**Staging Environment (`ojp-staging.yaml`):**
+```yaml
 # Staging configuration - moderate pools, production-like
-ojp.connection.pool.maximumPoolSize=20
-ojp.connection.pool.minimumIdle=5
-ojp.connection.pool.connectionTimeout=20000
-ojp.connection.pool.idleTimeout=600000
-
-# XA settings for staging
-ojp.xa.connection.pool.maxTotal=15
-ojp.xa.connection.pool.minIdle=3
+ojp:
+  connection:
+    pool:
+      maximumPoolSize: 20
+      minimumIdle: 5
+      connectionTimeout: 20000
+      idleTimeout: 600000
+  
+  # XA settings for staging
+  xa:
+    connection:
+      pool:
+        maxTotal: 15
+        minIdle: 3
 ```
 
-**Production Environment (`ojp-prod.properties`):**
-```properties
+**Production Environment (`ojp-prod.yaml`):**
+```yaml
 # Production configuration - optimized for high load
-ojp.connection.pool.maximumPoolSize=50
-ojp.connection.pool.minimumIdle=10
-ojp.connection.pool.connectionTimeout=15000
-ojp.connection.pool.idleTimeout=600000
-ojp.connection.pool.maxLifetime=1800000
-
-# XA settings for production
-ojp.xa.connection.pool.maxTotal=40
-ojp.xa.connection.pool.minIdle=8
-ojp.xa.connection.pool.connectionTimeout=25000
+ojp:
+  connection:
+    pool:
+      maximumPoolSize: 50
+      minimumIdle: 10
+      connectionTimeout: 15000
+      idleTimeout: 600000
+      maxLifetime: 1800000
+  
+  # XA settings for production
+  xa:
+    connection:
+      pool:
+        maxTotal: 40
+        minIdle: 8
+        connectionTimeout: 25000
 
 # Production-specific datasources
-webapp.ojp.connection.pool.maximumPoolSize=60
-webapp.ojp.connection.pool.minimumIdle=15
+webapp:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 60
+        minimumIdle: 15
 
-api.ojp.connection.pool.maximumPoolSize=40
-api.ojp.connection.pool.minimumIdle=10
+api:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 40
+        minimumIdle: 10
 ```
 
 #### Running with Environment-Specific Configuration

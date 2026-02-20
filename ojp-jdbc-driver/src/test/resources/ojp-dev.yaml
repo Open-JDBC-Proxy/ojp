@@ -1,0 +1,70 @@
+# OJP Development Environment Configuration
+# File: ojp-dev.yaml
+#
+# This configuration is optimized for development environments with:
+# - Smaller connection pools to reduce resource usage
+# - Shorter timeouts for faster feedback
+# - Debugging-friendly settings
+
+# ============================================================================
+# Connection Pool Configuration (Non-XA)
+# ============================================================================
+
+ojp:
+  connection:
+    pool:
+      # Smaller pool size for development - sufficient for local testing
+      maximumPoolSize: 10
+      minimumIdle: 2
+      
+      # Shorter timeouts for faster feedback during development
+      connectionTimeout: 30000
+      idleTimeout: 300000
+      maxLifetime: 900000
+      
+      # Transaction isolation level
+      defaultTransactionIsolation: READ_COMMITTED
+  
+  # ============================================================================
+  # XA Connection Pool Configuration
+  # ============================================================================
+  
+  # XA pool settings for development - smaller pools
+  xa:
+    connection:
+      pool:
+        maxTotal: 5
+        minIdle: 1
+        connectionTimeout: 15000
+        idleTimeout: 300000
+        maxLifetime: 900000
+  
+  # ============================================================================
+  # gRPC Configuration
+  # ============================================================================
+  
+  # Maximum inbound message size (16MB - default is sufficient for dev)
+  grpc:
+    maxInboundMessageSize: 16777216
+
+# ============================================================================
+# Named DataSource Configurations
+# ============================================================================
+
+# Main application datasource for development
+webapp:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 8
+        minimumIdle: 2
+        connectionTimeout: 20000
+
+# Batch job datasource for development
+batchJob:
+  ojp:
+    connection:
+      pool:
+        maximumPoolSize: 5
+        minimumIdle: 1
+        maxLifetime: 600000

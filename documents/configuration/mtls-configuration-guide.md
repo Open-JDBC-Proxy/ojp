@@ -2,6 +2,8 @@
 
 This guide explains how to configure mutual TLS (mTLS) for secure communication between OJP JDBC driver (client) and OJP Server.
 
+> **Note**: While YAML format (`.yaml`, `.yml`) is shown in all examples throughout this guide, properties files (`.properties`) are also fully supported for backward compatibility. Both formats use identical property names and values.
+
 ## Table of Contents
 - [Overview](#overview)
 - [Configuration Approaches](#configuration-approaches)
@@ -86,35 +88,40 @@ public class DataSourceConfig {
 }
 ```
 
-### Using ojp.properties File
+### Using Configuration File (Recommended)
 
-Create a file named `ojp.properties` in your application's classpath:
+```yaml
+# ojp.yaml - Client mTLS configuration with explicit paths
+ojp:
+  client:
+    tls:
+      enabled: true
+      keystore:
+        path: /etc/app/tls/ojp-client-keystore.jks
+        password: changeit
+        type: JKS  # Optional: default is JKS
+      truststore:
+        path: /etc/app/tls/ojp-client-truststore.jks
+        password: changeit
+        type: JKS  # Optional: default is JKS
 
-```properties
-# Client mTLS configuration with explicit paths
-ojp.client.tls.enabled=true
-ojp.client.tls.keystore.path=/etc/app/tls/ojp-client-keystore.jks
-ojp.client.tls.keystore.password=changeit
-ojp.client.tls.truststore.path=/etc/app/tls/ojp-client-truststore.jks
-ojp.client.tls.truststore.password=changeit
-
-# Optional: Keystore types (default: JKS)
-ojp.client.tls.keystore.type=JKS
-ojp.client.tls.truststore.type=JKS
-
-# Connection settings
-ojp.connection.url=jdbc:ojp://ojp-server.internal.company.com:1059/postgresql://dbhost:5432/mydb
+  # Connection settings
+  connection:
+    url: jdbc:ojp://ojp-server.internal.company.com:1059/postgresql://dbhost:5432/mydb
 ```
 
 ### Using JVM Default Truststore
 
 For server TLS only (no client certificate):
 
-```properties
-# Enable TLS but rely on JVM default truststore
-ojp.client.tls.enabled=true
-# Don't specify keystore path - no client certificate
-# Don't specify truststore path - use JVM default
+```yaml
+# ojp.yaml - Enable TLS but rely on JVM default truststore
+ojp:
+  client:
+    tls:
+      enabled: true
+      # Don't specify keystore - no client certificate
+      # Don't specify truststore - use JVM default
 ```
 
 The client will use the JVM's default truststore (typically `$JAVA_HOME/lib/security/cacerts`) to verify the server certificate.
@@ -133,14 +140,35 @@ The client will use the JVM's default truststore (typically `$JAVA_HOME/lib/secu
 
 ## Server Configuration
 
+### Using Configuration File (Recommended)
+
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    tls:
+      enabled: true
+      keystore:
+        path: /etc/ojp/tls/server-keystore.jks
+        password: changeit
+        type: JKS  # Optional: default is JKS
+      truststore:
+        path: /etc/ojp/tls/server-truststore.jks
+        password: changeit
+        type: JKS  # Optional: default is JKS
+      clientAuthRequired: true  # Enable mTLS
+```
+
 ### Using JVM System Properties
+
+You can also override configuration using JVM system properties:
 
 ```bash
 java -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/etc/ojp/tls/server-keystore.jks \
-     -Dojp.server.tls.keystore.password=changeit \
+     -Dojp.server.tls.keystore.******* \
      -Dojp.server.tls.truststore.path=/etc/ojp/tls/server-truststore.jks \
-     -Dojp.server.tls.truststore.password=changeit \
+     -Dojp.server.tls.truststore.******* \
      -Dojp.server.tls.clientAuthRequired=true \
      -jar ojp-server.jar
 ```
@@ -273,7 +301,18 @@ keytool -importcert -alias ojp-server \
 
 ### Example 1: Development Environment (Server TLS Only)
 
-**Server:**
+**Server configuration (`ojp.yaml`):**
+```yaml
+ojp:
+  server:
+    tls:
+      enabled: true
+      keystore:
+        path: /opt/ojp/certs/server-keystore.jks
+        password: devpassword
+```
+
+**Or using JVM properties:**
 ```bash
 java -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/opt/ojp/certs/server-keystore.jks \
@@ -281,16 +320,43 @@ java -Dojp.server.tls.enabled=true \
      -jar ojp-server.jar
 ```
 
-**Client (ojp.properties):**
-```properties
-ojp.client.tls.enabled=true
-ojp.client.tls.truststore.path=/opt/app/certs/client-truststore.jks
-ojp.client.tls.truststore.password=devpassword
+**Client configuration (`ojp.yaml`):**
+```yaml
+ojp:
+  client:
+    tls:
+      enabled: true
+      truststore:
+        path: /opt/app/certs/client-truststore.jks
+        password: devpassword
 ```
 
 ### Example 2: Production Environment (Full mTLS)
 
-**Server:**
+**Server configuration (`ojp-prod.yaml`):**
+```yaml
+ojp:
+  server:
+    tls:
+      enabled: true
+      keystore:
+        path: /etc/ojp/ssl/server.jks
+        password: ${SERVER_KEYSTORE_PASSWORD}  # Use environment variable
+      truststore:
+        path: /etc/ojp/ssl/truststore.jks
+        password: ${SERVER_TRUSTSTORE_PASSWORD}  # Use environment variable
+      clientAuthRequired: true  # Require client certificates
+```
+
+**Note**: Set environment variables for passwords:
+```bash
+export SERVER_KEYSTORE_PASSWORD=$(vault read -field=password secret/ojp/server)
+export SERVER_TRUSTSTORE_PASSWORD=$(vault read -field=password secret/ojp/truststore)
+export OJP_SERVER_TLS_KEYSTORE_PASSWORD=$SERVER_KEYSTORE_PASSWORD
+export OJP_SERVER_TLS_TRUSTSTORE_PASSWORD=$SERVER_TRUSTSTORE_PASSWORD
+```
+
+**Or using JVM properties:**
 ```bash
 java -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/etc/ojp/ssl/server.jks \
@@ -301,7 +367,21 @@ java -Dojp.server.tls.enabled=true \
      -jar ojp-server.jar
 ```
 
-**Client (System Properties):**
+**Client configuration (`ojp.yaml`):**
+```yaml
+ojp:
+  client:
+    tls:
+      enabled: true
+      keystore:
+        path: /etc/app/ssl/client.jks
+        password: ${CLIENT_KEYSTORE_PASSWORD}  # Use environment variable
+      truststore:
+        path: /etc/app/ssl/truststore.jks
+        password: ${CLIENT_TRUSTSTORE_PASSWORD}  # Use environment variable
+```
+
+**Or using System Properties in Java:**
 ```java
 System.setProperty("ojp.client.tls.enabled", "true");
 System.setProperty("ojp.client.tls.keystore.path", "/etc/app/ssl/client.jks");
@@ -327,11 +407,14 @@ java -Dojp.server.tls.enabled=true \
      -jar ojp-server.jar
 ```
 
-**Client:**
-```properties
+**Client configuration (`ojp.yaml`):**
+```yaml
 # Client trusts server via JVM default truststore
-ojp.client.tls.enabled=true
-# No explicit truststore path - uses JVM default
+ojp:
+  client:
+    tls:
+      enabled: true
+      # No explicit truststore - uses JVM default
 ```
 
 ## Troubleshooting

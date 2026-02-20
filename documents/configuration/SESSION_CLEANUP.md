@@ -1,5 +1,7 @@
 # Session Cleanup and Timeout Management
 
+> **Note**: While YAML format (`.yaml`, `.yml`) is shown in all examples throughout this guide, properties files (`.properties`) are also fully supported for backward compatibility. Both formats use identical property names and values.
+
 ## Overview
 
 OJP (Open J Proxy) now includes automatic session cleanup functionality to handle abandoned sessions. This feature prevents memory leaks and resource exhaustion when clients disconnect without properly calling `terminateSession()`.
@@ -67,19 +69,18 @@ OJP session timeouts complement the existing connection pool timeouts:
 
 ## Configuration
 
-### Server Configuration Properties
+### Server Configuration
 
-Configure session cleanup using JVM system properties or environment variables:
+Configure session cleanup using YAML configuration files, JVM system properties, or environment variables:
 
-```properties
-# Enable/disable session cleanup (default: true)
-ojp.server.sessionCleanup.enabled=true
-
-# Session timeout in minutes (default: 30)
-ojp.server.sessionCleanup.timeoutMinutes=30
-
-# Cleanup task interval in minutes (default: 5)
-ojp.server.sessionCleanup.intervalMinutes=5
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    sessionCleanup:
+      enabled: true  # Enable/disable session cleanup (default: true)
+      timeoutMinutes: 30  # Session timeout in minutes (default: 30)
+      intervalMinutes: 5  # Cleanup task interval in minutes (default: 5)
 ```
 
 ### Environment Variables
@@ -163,57 +164,65 @@ ERROR o.o.grpc.server.SessionCleanupTask - Unexpected error during session clean
 
 For production environments:
 
-```properties
-# Match or slightly exceed connection pool maxLifetime
-ojp.server.sessionCleanup.timeoutMinutes=30
-
-# Run cleanup frequently enough to catch abandoned sessions quickly
-# but not so frequently that it impacts performance
-ojp.server.sessionCleanup.intervalMinutes=5
+**Using YAML:**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    sessionCleanup:
+      # Match or slightly exceed connection pool maxLifetime
+      timeoutMinutes: 30
+      # Run cleanup frequently enough to catch abandoned sessions quickly
+      # but not so frequently that it impacts performance
+      intervalMinutes: 5
 ```
 
 ### High-Traffic Environments
 
 For high-traffic environments with many short-lived sessions:
 
-```properties
-# Shorter timeout for faster cleanup
-ojp.server.sessionCleanup.timeoutMinutes=15
-
-# More frequent cleanup
-ojp.server.sessionCleanup.intervalMinutes=2
+```yaml
+ojp:
+  server:
+    sessionCleanup:
+      timeoutMinutes: 15  # Shorter timeout for faster cleanup
+      intervalMinutes: 2  # More frequent cleanup
 ```
 
 ### Low-Traffic Environments
 
 For low-traffic environments or development:
 
-```properties
-# Longer timeout
-ojp.server.sessionCleanup.timeoutMinutes=60
-
-# Less frequent cleanup
-ojp.server.sessionCleanup.intervalMinutes=10
+```yaml
+ojp:
+  server:
+    sessionCleanup:
+      timeoutMinutes: 60  # Longer timeout
+      intervalMinutes: 10  # Less frequent cleanup
 ```
 
 ### Long-Running Operations
 
 If your application performs long-running operations (>30 minutes):
 
-```properties
-# Increase timeout to accommodate long operations
-ojp.server.sessionCleanup.timeoutMinutes=120
-
-# Adjust interval accordingly
-ojp.server.sessionCleanup.intervalMinutes=15
+```yaml
+ojp:
+  server:
+    sessionCleanup:
+      timeoutMinutes: 120  # Increase timeout to accommodate long operations
+      intervalMinutes: 15  # Adjust interval accordingly
 ```
 
 ## Disabling Session Cleanup
 
 To disable automatic session cleanup:
 
-```properties
-ojp.server.sessionCleanup.enabled=false
+```yaml
+ojp:
+  server:
+    sessionCleanup:
+      enabled: false
+```
 ```
 
 **Warning**: Disabling session cleanup means you rely entirely on:

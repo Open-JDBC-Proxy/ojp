@@ -1,10 +1,16 @@
 # OJP Server Complete Configuration Guide
 
-The OJP Server supports comprehensive configuration through both JVM system properties and environment variables. This document covers all available configuration options including server settings, connection pools, slow query segregation, and client-side configuration.
+The OJP Server supports comprehensive configuration through YAML files, JVM system properties, and environment variables. This document covers all available configuration options including server settings, connection pools, slow query segregation, and client-side configuration.
+
+> **Note**: While YAML format (`.yaml`, `.yml`) is shown in all examples throughout this guide, properties files (`.properties`) are also fully supported for backward compatibility. Both formats use identical property names and values.
 
 ## Server Configuration
 
-The server supports configuration through both JVM system properties and environment variables. JVM system properties take precedence over environment variables when both are specified.
+The server supports multiple configuration methods with the following precedence (highest to lowest):
+1. **JVM system properties** (`-Dojp.server.port=1059`)
+2. **Environment variables** (`OJP_SERVER_PORT=1059`)
+3. **Configuration files** (YAML format shown in examples; properties format also supported)
+4. **Default values**
 
 ### Core Server Settings
 
@@ -31,7 +37,19 @@ OJP Server uses Logback for logging with fully configurable options. All logging
 
 #### Logging Configuration Examples
 
-**Basic logging configuration:**
+**Using YAML configuration file:**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    logLevel: DEBUG
+    log:
+      file: /var/log/ojp/server.log
+      maxHistory: 60
+      totalSizeCap: 5GB
+```
+
+**Using JVM system properties (for Docker/startup scripts):**
 ```bash
 # Set log level to DEBUG
 -Dojp.server.logLevel=DEBUG
@@ -46,7 +64,19 @@ OJP Server uses Logback for logging with fully configurable options. All logging
 -Dojp.server.log.totalSizeCap=5GB
 ```
 
-**Production logging setup:**
+**Production logging setup with YAML:**
+```yaml
+# ojp-prod.yaml
+ojp:
+  server:
+    logLevel: INFO
+    log:
+      file: /var/log/ojp/server.log
+      maxHistory: 90
+      totalSizeCap: 10GB
+```
+
+Or using JVM properties:
 ```bash
 java -Dojp.server.logLevel=INFO \
      -Dojp.server.log.file=/var/log/ojp/server.log \
@@ -246,9 +276,47 @@ For JDBC driver and client-side connection pool configuration, see:
 
 ## Configuration Methods
 
-### 1. JVM System Properties
+### 1. YAML Configuration Files (Recommended)
 
-Set configuration using JVM system properties when starting the server:
+Create an `ojp.yaml` file in your classpath (e.g., `src/main/resources/` or mounted in Docker):
+
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    port: 8080
+    threadPoolSize: 100
+    allowedIps:
+      - 192.168.1.0/24
+      - 10.0.0.1
+    circuitBreakerTimeout: 120000
+    circuitBreakerThreshold: 3
+    slowQuerySegregation:
+      enabled: true
+      slowSlotPercentage: 25
+  
+  prometheus:
+    port: 9091
+  
+  opentelemetry:
+    enabled: false
+```
+
+**Environment-specific configuration** is also supported:
+- `ojp-dev.yaml` - Development settings
+- `ojp-prod.yaml` - Production settings
+- `ojp-staging.yaml` - Staging settings
+
+Specify the environment using:
+```bash
+java -Dojp.environment=prod -jar ojp-server.jar
+# or
+export OJP_ENVIRONMENT=prod
+```
+
+### 2. JVM System Properties
+
+Override configuration using JVM system properties when starting the server:
 
 ```bash
 java -Dojp.server.port=8080 \
@@ -263,7 +331,7 @@ java -Dojp.server.port=8080 \
      -jar ojp-server.jar
 ```
 
-### 2. Environment Variables
+### 3. Environment Variables
 
 Set configuration using environment variables:
 
@@ -280,7 +348,19 @@ export OJP_SERVER_ALLOWEDIPS="192.168.1.0/24,10.0.0.1"
 java -jar ojp-server.jar
 ```
 
-### 3. Docker Environment Variables
+### 4. Docker with Configuration Files
+
+Mount a YAML configuration file:
+
+```bash
+# Using YAML configuration file
+docker run -v /path/to/ojp.yaml:/app/resources/ojp.yaml \
+           -p 1059:1059 \
+           -p 9159:9159 \
+           rrobetti/ojp:latest
+```
+
+### 5. Docker with Environment Variables
 
 ```bash
 docker run -e OJP_SERVER_PORT=8080 \
@@ -328,6 +408,28 @@ The server supports IP-based access control for both the gRPC server and Prometh
 
 ### Examples
 
+**Using YAML (recommended):**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    # Allow only specific IPs
+    allowedIps:
+      - 192.168.1.100
+      - 192.168.1.101
+    
+    # Or allow a subnet range
+    allowedIps:
+      - 192.168.1.0/24
+    
+    # Or allow multiple subnets and specific IPs
+    allowedIps:
+      - 192.168.1.0/24
+      - 10.0.0.0/8
+      - 127.0.0.1
+```
+
+**Using JVM properties:**
 ```bash
 # Allow only specific IPs
 -Dojp.server.allowedIps="192.168.1.100,192.168.1.101"
@@ -346,6 +448,22 @@ The server supports IP-based access control for both the gRPC server and Prometh
 
 You can configure different IP restrictions for the Prometheus metrics endpoint:
 
+**Using YAML:**
+```yaml
+# ojp.yaml
+ojp:
+  server:
+    # Allow gRPC from internal network
+    allowedIps:
+      - 10.0.0.0/8
+  
+  prometheus:
+    # Prometheus from monitoring subnet only
+    allowedIps:
+      - 192.168.100.0/24
+```
+
+**Using JVM properties:**
 ```bash
 # Allow gRPC from internal network, Prometheus from monitoring subnet only
 -Dojp.server.allowedIps="10.0.0.0/8" \
@@ -366,21 +484,24 @@ The Slow Query Segregation feature monitors all database operations and classifi
 
 ### Configuration
 
-```properties
+```yaml
 # Enable/disable the feature
-ojp.server.slowQuerySegregation.enabled=true
-
-# Percentage of slots for slow operations (0-100)
-ojp.server.slowQuerySegregation.slowSlotPercentage=20
-
-# Idle timeout for slot borrowing (milliseconds)
-ojp.server.slowQuerySegregation.idleTimeout=10000
-
-# Timeout for acquiring slow operation slots (milliseconds)
-ojp.server.slowQuerySegregation.slowSlotTimeout=120000
-
-# Timeout for acquiring fast operation slots (milliseconds)
-ojp.server.slowQuerySegregation.fastSlotTimeout=60000
+ojp:
+  server:
+    slowQuerySegregation:
+      enabled: true
+      
+      # Percentage of slots for slow operations (0-100)
+      slowSlotPercentage: 20
+      
+      # Idle timeout for slot borrowing (milliseconds)
+      idleTimeout: 10000
+      
+      # Timeout for acquiring slow operation slots (milliseconds)
+      slowSlotTimeout: 120000
+      
+      # Timeout for acquiring fast operation slots (milliseconds)
+      fastSlotTimeout: 60000
 ```
 
 ### Benefits
