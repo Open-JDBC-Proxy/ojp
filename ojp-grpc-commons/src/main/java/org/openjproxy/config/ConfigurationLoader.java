@@ -142,7 +142,7 @@ public class ConfigurationLoader {
             return properties;
         } catch (LinkageError e) {
             logger.debug("jackson-dataformat-yaml is not available or incompatible; YAML file {} will not be processed", filename);
-            return null;
+            return new Properties();
         } catch (IOException e) {
             logger.warn("Failed to load YAML file {}: {}", filename, e.getMessage());
             return null;
