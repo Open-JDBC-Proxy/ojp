@@ -212,6 +212,15 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <!-- Exclude Jackson from the shaded JAR so Spring Boot consumers use their
+                                 own BOM-managed Jackson version, preventing jackson-core version
+                                 mismatch errors (e.g. NoSuchMethodError: YAMLParser._updateToken). -->
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>com.fasterxml.jackson.core:*</exclude>
+                                    <exclude>com.fasterxml.jackson.dataformat:*</exclude>
+                                </excludes>
+                            </artifactSet>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"/>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>

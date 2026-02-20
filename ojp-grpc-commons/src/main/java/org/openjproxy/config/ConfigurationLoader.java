@@ -27,8 +27,6 @@ import java.util.Properties;
 public class ConfigurationLoader {
     private static final Logger logger = LoggerFactory.getLogger(ConfigurationLoader.class);
     
-    private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-    
     /**
      * Load configuration properties from YAML or Properties files.
      * 
@@ -128,15 +126,23 @@ public class ConfigurationLoader {
                 return null;
             }
             
+            // Create mapper and parse YAML. A LinkageError (NoClassDefFoundError,
+            // NoSuchMethodError, etc.) here means jackson-dataformat-yaml is either
+            // absent or at a version incompatible with the runtime jackson-core.
+            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+            
             // Parse YAML into a Map
             @SuppressWarnings("unchecked")
-            Map<String, Object> yamlMap = yamlMapper.readValue(is, Map.class);
+            Map<String, Object> yamlMap = mapper.readValue(is, Map.class);
             
             // Convert to flat Properties
             Properties properties = new Properties();
             flattenYamlMap("", yamlMap, properties);
             
             return properties;
+        } catch (LinkageError e) {
+            logger.debug("jackson-dataformat-yaml is not available or incompatible; YAML file {} will not be processed", filename);
+            return null;
         } catch (IOException e) {
             logger.warn("Failed to load YAML file {}: {}", filename, e.getMessage());
             return null;
