@@ -137,6 +137,21 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Jackson YAML required by ConfigurationLoader (from ojp-grpc-commons).
+             Marked optional so it does not propagate to framework consumers
+             (e.g. Spring Boot) that manage their own Jackson version via BOM. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <optional>true</optional>
+        </dependency>
+
     </dependencies>
 
     <build>
