@@ -183,13 +183,9 @@
             <version>0.16.0</version>
         </dependency>
 
-        <!-- Apache Calcite SQL Parser and Optimizer -->
-        <!-- https://mvnrepository.com/artifact/org.apache.calcite/calcite-core -->
-        <dependency>
-            <groupId>org.apache.calcite</groupId>
-            <artifactId>calcite-core</artifactId>
-            <version>1.41.0</version>
-        </dependency>
+        <!-- Apache Calcite has been moved to ojp-sql-enhancer-interceptor module -->
+        <!-- It can be loaded as an external interceptor from ojp-libs/ directory -->
+        <!-- See: documents/guides/SQL_ENHANCER_DEPLOYMENT.md -->
 
         <!-- https://mvnrepository.com/artifact/junit/junit -->
         <dependency>

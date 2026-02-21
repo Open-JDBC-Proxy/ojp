@@ -151,24 +151,45 @@ public class ServerConfiguration {
     private final long slowQueryFastSlotTimeout;
     private final long slowQueryUpdateGlobalAvgInterval;
     private final String driversPath;
+    
+    // DEPRECATED: SQL Enhancer properties have moved to ojp-sql-enhancer-interceptor module
+    // These are kept for backward compatibility but are no longer used by ojp-server
+    // Configure SQL Enhancer through system properties: ojp.sql.enhancer.* properties
+    // See: documents/guides/SQL_ENHANCER_DEPLOYMENT.md
+    @Deprecated
     private final boolean sqlEnhancerEnabled;
+    @Deprecated
     private final String sqlEnhancerMode;
+    @Deprecated
     private final String sqlEnhancerDialect;
+    @Deprecated
     private final String sqlEnhancerTargetDialect;
+    @Deprecated
     private final boolean sqlEnhancerLogOptimizations;
+    @Deprecated
     private final String sqlEnhancerRules;
+    @Deprecated
     private final int sqlEnhancerOptimizationTimeout;
+    @Deprecated
     private final boolean sqlEnhancerCacheEnabled;
+    @Deprecated
     private final int sqlEnhancerCacheSize;
+    @Deprecated
     private final boolean sqlEnhancerFailOnValidationError;
     
     // Interceptor configuration
     private final boolean interceptorEnabled;
     
-    // Schema loader configuration
+    // DEPRECATED: Schema loader properties have moved to ojp-sql-enhancer-interceptor module
+    // These are kept for backward compatibility but are no longer used by ojp-server
+    // Configure through system properties: ojp.sql.enhancer.schema.* properties
+    @Deprecated
     private final boolean schemaRefreshEnabled;
+    @Deprecated
     private final long schemaRefreshIntervalHours;
+    @Deprecated
     private final long schemaLoadTimeoutSeconds;
+    @Deprecated
     private final boolean schemaFallbackEnabled;
     
     // Session cleanup configuration
@@ -340,16 +361,9 @@ public class ServerConfiguration {
         logger.info("  Slow Query Fast Slot Timeout: {} ms", slowQueryFastSlotTimeout);
         logger.info("  Slow Query Update Global Avg Interval: {} seconds", slowQueryUpdateGlobalAvgInterval);
         logger.info("  External Libraries Path: {}", driversPath);
-        logger.info("  SQL Enhancer Enabled: {}", sqlEnhancerEnabled);
-        logger.info("  SQL Enhancer Mode: {}", sqlEnhancerMode);
-        logger.info("  SQL Enhancer Dialect: {}", sqlEnhancerDialect);
-        logger.info("  SQL Enhancer Target Dialect: {}", sqlEnhancerTargetDialect.isEmpty() ? "none (no translation)" : sqlEnhancerTargetDialect);
-        logger.info("  SQL Enhancer Log Optimizations: {}", sqlEnhancerLogOptimizations);
-        logger.info("  SQL Enhancer Rules: {}", sqlEnhancerRules.isEmpty() ? "default (safe rules)" : sqlEnhancerRules);
-        logger.info("  SQL Enhancer Optimization Timeout: {} ms", sqlEnhancerOptimizationTimeout);
-        logger.info("  SQL Enhancer Cache Enabled: {}", sqlEnhancerCacheEnabled);
-        logger.info("  SQL Enhancer Cache Size: {}", sqlEnhancerCacheSize);
-        logger.info("  SQL Enhancer Fail On Validation Error: {}", sqlEnhancerFailOnValidationError);
+        logger.info("  Interceptor Pattern Enabled: {}", interceptorEnabled);
+        logger.info("  [DEPRECATED] SQL Enhancer properties moved to ojp-sql-enhancer-interceptor module");
+        logger.info("  [DEPRECATED] SQL Enhancer Enabled: {} (configure via interceptor)", sqlEnhancerEnabled);
         logger.info("Session Cleanup Configuration:");
         logger.info("  Session Cleanup Enabled: {}", sessionCleanupEnabled);
         logger.info("  Session Timeout: {} minutes", sessionTimeoutMinutes);
@@ -461,42 +475,84 @@ public class ServerConfiguration {
         return driversPath;
     }
 
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     * Configure via system properties and load as external interceptor.
+     * See: documents/guides/SQL_ENHANCER_DEPLOYMENT.md
+     */
+    @Deprecated
     public boolean isSqlEnhancerEnabled() {
         return sqlEnhancerEnabled;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public String getSqlEnhancerMode() {
         return sqlEnhancerMode;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public String getSqlEnhancerDialect() {
         return sqlEnhancerDialect;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public String getSqlEnhancerTargetDialect() {
         return sqlEnhancerTargetDialect;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public boolean isSqlEnhancerLogOptimizations() {
         return sqlEnhancerLogOptimizations;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public String getSqlEnhancerRules() {
         return sqlEnhancerRules;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public int getSqlEnhancerOptimizationTimeout() {
         return sqlEnhancerOptimizationTimeout;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public boolean isSqlEnhancerCacheEnabled() {
         return sqlEnhancerCacheEnabled;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public int getSqlEnhancerCacheSize() {
         return sqlEnhancerCacheSize;
     }
     
+    /**
+     * @deprecated SQL Enhancer has moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public boolean isSqlEnhancerFailOnValidationError() {
         return sqlEnhancerFailOnValidationError;
     }
@@ -505,18 +561,34 @@ public class ServerConfiguration {
         return interceptorEnabled;
     }
     
+    /**
+     * @deprecated Schema refresh properties have moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public boolean isSchemaRefreshEnabled() {
         return schemaRefreshEnabled;
     }
     
+    /**
+     * @deprecated Schema refresh properties have moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public long getSchemaRefreshIntervalHours() {
         return schemaRefreshIntervalHours;
     }
     
+    /**
+     * @deprecated Schema refresh properties have moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public long getSchemaLoadTimeoutSeconds() {
         return schemaLoadTimeoutSeconds;
     }
     
+    /**
+     * @deprecated Schema refresh properties have moved to ojp-sql-enhancer-interceptor module.
+     */
+    @Deprecated
     public boolean isSchemaFallbackEnabled() {
         return schemaFallbackEnabled;
     }
