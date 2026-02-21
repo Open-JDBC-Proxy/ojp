@@ -2,7 +2,12 @@
 
 ## Introduction
 
-Open-J-Proxy (OJP) introduces a powerful plugin architecture through two Service Provider Interfaces (SPIs) that allow Java developers to extend and customize connection pooling behavior. This article explains what these SPIs are, why they matter, and how you can implement your own providers.
+Open-J-Proxy (OJP) introduces a powerful plugin architecture through Service Provider Interfaces (SPIs) that allow Java developers to extend and customize OJP behavior. This article explains what these SPIs are, why they matter, and how you can implement your own providers.
+
+OJP currently provides three categories of SPIs:
+1. **Connection Pool Providers** - For customizing connection pooling
+2. **XA Connection Pool Providers** - For distributed transaction support
+3. **Request Interceptors** - For extending request processing lifecycle (NEW in 0.3.2)
 
 ## What is a Service Provider Interface (SPI)?
 
@@ -13,9 +18,9 @@ Think of it as a "plugin system" where:
 - The **implementation** provides the actual functionality
 - The **ServiceLoader** automatically discovers and loads implementations without hardcoding dependencies
 
-## The Two SPIs in OJP
+## The Three SPI Categories in OJP
 
-OJP provides two SPIs for different connection pooling needs:
+OJP provides three categories of SPIs for different extensibility needs:
 
 ### 1. ConnectionPoolProvider - For Standard JDBC Connections
 
@@ -39,6 +44,30 @@ OJP provides two SPIs for different connection pooling needs:
 
 **Built-in Implementation**:
 - **CommonsPool2XAProvider** (priority 100) - Universal provider that works with all databases supporting XA
+
+### 3. RequestInterceptor - For Request Lifecycle Extension (NEW in 0.3.2)
+
+**Purpose**: Intercepts and modifies requests as they flow through OJP's request processing lifecycle.
+
+**Location**: `org.openjproxy.interceptor.RequestInterceptor`
+
+**When to use**: When you need to:
+- Transform SQL statements (optimization, validation, dialect translation)
+- Apply policies (security, rate limiting, circuit breaking)
+- Collect metrics and monitoring data
+- Add custom business logic to request processing
+
+**Built-in Implementations**:
+- **SqlEnhancerInterceptor** (priority 600) - SQL optimization and enhancement via Apache Calcite (external module)
+
+**Key Features**:
+- **8 Lifecycle Phases**: PRE_REQUEST, PRE_EXECUTION, RESOURCE_ACQUISITION, EXECUTION, POST_EXECUTION, RESOURCE_RELEASE, POST_REQUEST, EXCEPTION_HANDLING
+- **Priority-based Ordering**: Higher priority interceptors execute first
+- **Type Filtering**: Filter by request type (QUERY, UPDATE, BATCH, etc.)
+- **Phase Filtering**: Only execute in specific lifecycle phases
+- **Chain of Responsibility**: Each interceptor can modify context and pass to next
+
+For detailed information, see [Understanding OJP Interceptors](Understanding-OJP-Interceptors.md).
 
 ## Why Use These SPIs?
 
@@ -72,7 +101,7 @@ OJP uses Java's `URLClassLoader` to dynamically load JARs from the external dire
 1. **At Startup**: OJP scans the `ojp-libs` directory for JAR files
 2. **Class Loading**: All JARs are added to the classpath using `URLClassLoader`
 3. **Driver Discovery**: JDBC drivers are discovered via `ServiceLoader<Driver>`
-4. **SPI Discovery**: Connection pool providers are discovered via `ServiceLoader<ConnectionPoolProvider>` and `ServiceLoader<XAConnectionPoolProvider>`
+4. **SPI Discovery**: Connection pool providers are discovered via `ServiceLoader<ConnectionPoolProvider>`, `ServiceLoader<XAConnectionPoolProvider>`, and `ServiceLoader<RequestInterceptor>`
 
 ### Configuration
 
