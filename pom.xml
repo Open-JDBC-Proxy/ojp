@@ -15,6 +15,7 @@
     <modules>
         <module>ojp-grpc-commons</module>
         <module>ojp-interceptor-api</module>
+        <module>ojp-sql-enhancer-interceptor</module>
         <module>ojp-jdbc-driver</module>
         <module>ojp-server</module>
         <module>ojp-datasource-api</module>
