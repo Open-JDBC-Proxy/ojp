@@ -46,6 +46,9 @@ public class ServerConfiguration {
     private static final String SQL_ENHANCER_CACHE_SIZE_KEY = "ojp.sql.enhancer.cacheSize";
     private static final String SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR_KEY = "ojp.sql.enhancer.failOnValidationError";
     
+    // Interceptor configuration keys
+    private static final String INTERCEPTOR_ENABLED_KEY = "ojp.interceptor.enabled";
+    
     // Schema loader configuration keys
     private static final String SCHEMA_REFRESH_ENABLED_KEY = "ojp.sql.enhancer.schema.refresh.enabled";
     private static final String SCHEMA_REFRESH_INTERVAL_HOURS_KEY = "ojp.sql.enhancer.schema.refresh.interval.hours";
@@ -102,6 +105,9 @@ public class ServerConfiguration {
     public static final int DEFAULT_SQL_ENHANCER_CACHE_SIZE = 1000;
     public static final boolean DEFAULT_SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR = true;
     
+    // Interceptor default values
+    public static final boolean DEFAULT_INTERCEPTOR_ENABLED = false; // Disabled by default for backward compatibility
+    
     // Schema loader default values
     public static final boolean DEFAULT_SCHEMA_REFRESH_ENABLED = true;
     public static final long DEFAULT_SCHEMA_REFRESH_INTERVAL_HOURS = 24;
@@ -156,6 +162,9 @@ public class ServerConfiguration {
     private final int sqlEnhancerCacheSize;
     private final boolean sqlEnhancerFailOnValidationError;
     
+    // Interceptor configuration
+    private final boolean interceptorEnabled;
+    
     // Schema loader configuration
     private final boolean schemaRefreshEnabled;
     private final long schemaRefreshIntervalHours;
@@ -208,6 +217,9 @@ public class ServerConfiguration {
         this.sqlEnhancerCacheEnabled = getBooleanProperty(SQL_ENHANCER_CACHE_ENABLED_KEY, DEFAULT_SQL_ENHANCER_CACHE_ENABLED);
         this.sqlEnhancerCacheSize = getIntProperty(SQL_ENHANCER_CACHE_SIZE_KEY, DEFAULT_SQL_ENHANCER_CACHE_SIZE);
         this.sqlEnhancerFailOnValidationError = getBooleanProperty(SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR_KEY, DEFAULT_SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR);
+        
+        // Interceptor configuration
+        this.interceptorEnabled = getBooleanProperty(INTERCEPTOR_ENABLED_KEY, DEFAULT_INTERCEPTOR_ENABLED);
         
         // Schema loader configuration
         this.schemaRefreshEnabled = getBooleanProperty(SCHEMA_REFRESH_ENABLED_KEY, DEFAULT_SCHEMA_REFRESH_ENABLED);
@@ -487,6 +499,10 @@ public class ServerConfiguration {
     
     public boolean isSqlEnhancerFailOnValidationError() {
         return sqlEnhancerFailOnValidationError;
+    }
+    
+    public boolean isInterceptorEnabled() {
+        return interceptorEnabled;
     }
     
     public boolean isSchemaRefreshEnabled() {

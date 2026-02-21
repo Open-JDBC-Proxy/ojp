@@ -41,6 +41,13 @@
             <version>0.3.2-snapshot</version>
         </dependency>
 
+        <!-- OJP Interceptor API -->
+        <dependency>
+            <groupId>org.openjproxy</groupId>
+            <artifactId>ojp-interceptor-api</artifactId>
+            <version>0.3.2-snapshot</version>
+        </dependency>
+
         <!-- OJP Datasource API and default HikariCP provider -->
         <dependency>
             <groupId>org.openjproxy</groupId>
@@ -54,11 +61,14 @@
         </dependency>
         
         <!-- OJP XA Pool Commons (Phase 1 integration) -->
+        <!-- Temporarily commented out due to Java 21 requirement -->
+        <!--
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-xa-pool-commons</artifactId>
             <version>0.3.2-snapshot</version>
         </dependency>
+        -->
 
         <dependency>
             <groupId>io.grpc</groupId>
