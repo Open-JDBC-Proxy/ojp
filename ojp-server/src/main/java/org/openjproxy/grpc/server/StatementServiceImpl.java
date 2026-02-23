@@ -11,10 +11,8 @@ import com.openjproxy.grpc.OpResult;
 import com.openjproxy.grpc.ReadLobRequest;
 import com.openjproxy.grpc.ResourceType;
 import com.openjproxy.grpc.ResultSetFetchRequest;
-import com.openjproxy.grpc.ResultType;
 import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.SessionTerminationStatus;
-import com.openjproxy.grpc.SqlErrorType;
 import com.openjproxy.grpc.StatementRequest;
 import com.openjproxy.grpc.StatementServiceGrpc;
 import io.grpc.stub.StreamObserver;
@@ -33,12 +31,10 @@ import org.openjproxy.grpc.server.action.transaction.StartTransactionAction;
 import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import org.openjproxy.grpc.server.lob.LobProcessor;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
-import org.openjproxy.grpc.server.statement.ParameterHandler;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
 import org.openjproxy.grpc.server.utils.MethodNameGenerator;
 import org.openjproxy.grpc.server.utils.MethodReflectionUtils;
-import org.openjproxy.grpc.server.utils.StatementRequestValidator;
 import org.openjproxy.grpc.server.sql.SqlSessionAffinityDetector;
 import org.openjproxy.grpc.server.action.xa.XaStartAction;
 import org.openjproxy.xa.pool.XATransactionRegistry;
@@ -55,13 +51,11 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
-import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -224,147 +218,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     @SneakyThrows
     @Override
     public void executeUpdate(StatementRequest request, StreamObserver<OpResult> responseObserver) {
-        log.info("Executing update {}", request.getSql());
-        
-        // Update session activity
-        updateSessionActivity(request.getSession());
-        
-        String stmtHash = SqlStatementXXHash.hashSqlQuery(request.getSql());
-
-        // Process cluster health from the request
-        ProcessClusterHealthAction.getInstance().execute(actionContext, request.getSession());
-
-        try {
-            circuitBreaker.preCheck(stmtHash);
-
-            // Get the appropriate slow query segregation manager for this datasource
-            String connHash = request.getSession().getConnHash();
-            SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(connHash);
-
-            // Execute with slow query segregation
-            OpResult result = manager.executeWithSegregation(stmtHash, () -> executeUpdateInternal(request));
-
-            responseObserver.onNext(result);
-            responseObserver.onCompleted();
-            circuitBreaker.onSuccess(stmtHash);
-
-        } catch (SQLDataException e) {
-            circuitBreaker.onFailure(stmtHash, e);
-            log.error("SQL data failure during update execution: " + e.getMessage(), e);
-            sendSQLExceptionMetadata(e, responseObserver, SqlErrorType.SQL_DATA_EXCEPTION);
-        } catch (SQLException e) {
-            circuitBreaker.onFailure(stmtHash, e);
-            log.error("Failure during update execution: " + e.getMessage(), e);
-            sendSQLExceptionMetadata(e, responseObserver);
-        } catch (Exception e) {
-            log.error("Unexpected failure during update execution: " + e.getMessage(), e);
-            if (e.getCause() instanceof SQLException sqlException) {
-                circuitBreaker.onFailure(stmtHash, sqlException);
-                sendSQLExceptionMetadata(sqlException, responseObserver);
-            } else {
-                SQLException sqlException = new SQLException("Unexpected error: " + e.getMessage(), e);
-                circuitBreaker.onFailure(stmtHash, sqlException);
-                sendSQLExceptionMetadata(sqlException, responseObserver);
-            }
-        }
-    }
-
-    /**
-     * Internal method for executing updates without segregation logic.
-     */
-    private OpResult executeUpdateInternal(StatementRequest request) throws SQLException {
-        int updated = 0;
-        SessionInfo returnSessionInfo = request.getSession();
-        ConnectionSessionDTO dto = ConnectionSessionDTO.builder().build();
-
-        Statement stmt = null;
-        String psUUID = "";
-        OpResult.Builder opResultBuilder = OpResult.newBuilder();
-
-        try {
-            // Check if SQL requires session affinity (temporary tables, session variables, etc.)
-            boolean requiresSessionAffinity = SqlSessionAffinityDetector.requiresSessionAffinity(request.getSql());
-            
-            dto = sessionConnection(request.getSession(), StatementRequestValidator.isAddBatchOperation(request)
-                    || StatementRequestValidator.hasAutoGeneratedKeysFlag(request)
-                    || requiresSessionAffinity);
-            returnSessionInfo = dto.getSession();
-
-            List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
-            PreparedStatement ps = dto.getSession() != null && StringUtils.isNotBlank(dto.getSession().getSessionUUID())
-                    && StringUtils.isNoneBlank(request.getStatementUUID())
-                            ? sessionManager.getPreparedStatement(dto.getSession(), request.getStatementUUID())
-                            : null;
-            if (CollectionUtils.isNotEmpty(params) || ps != null) {
-                if (StringUtils.isNotEmpty(request.getStatementUUID())) {
-                    Collection<Object> lobs = sessionManager.getLobs(dto.getSession());
-                    for (Object o : lobs) {
-                        LobDataBlocksInputStream lobIS = (LobDataBlocksInputStream) o;
-                        Map<String, Object> metadata = (Map<String, Object>) sessionManager.getAttr(dto.getSession(),
-                                lobIS.getUuid());
-                        Integer parameterIndex = (Integer) metadata
-                                .get(CommonConstants.PREPARED_STATEMENT_BINARY_STREAM_INDEX);
-                        ps.setBinaryStream(parameterIndex, lobIS);
-                    }
-                    if (DbName.POSTGRES.equals(dto.getDbName())) {// Postgres requires check if the lob streams are
-                                                                  // fully consumed.
-                        sessionManager.waitLobStreamsConsumption(dto.getSession());
-                    }
-                    if (ps != null) {
-                        ParameterHandler.addParametersPreparedStatement(sessionManager, dto.getSession(), ps, params);
-                    }
-                } else {
-                    ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
-                            request);
-                    if (StatementRequestValidator.hasAutoGeneratedKeysFlag(request)) {
-                        String psNewUUID = sessionManager.registerPreparedStatement(dto.getSession(), ps);
-                        opResultBuilder.setUuid(psNewUUID);
-                    }
-                }
-                if (StatementRequestValidator.isAddBatchOperation(request)) {
-                    ps.addBatch();
-                    if (request.getStatementUUID().isBlank()) {
-                        psUUID = sessionManager.registerPreparedStatement(dto.getSession(), ps);
-                    } else {
-                        psUUID = request.getStatementUUID();
-                    }
-                } else {
-                    updated = ps.executeUpdate();
-                }
-                stmt = ps;
-            } else {
-                stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
-                updated = stmt.executeUpdate(request.getSql());
-            }
-
-            if (StatementRequestValidator.isAddBatchOperation(request)) {
-                return opResultBuilder
-                        .setType(ResultType.UUID_STRING)
-                        .setSession(returnSessionInfo)
-                        .setUuidValue(psUUID).build();
-            } else {
-                return opResultBuilder
-                        .setType(ResultType.INTEGER)
-                        .setSession(returnSessionInfo)
-                        .setIntValue(updated).build();
-            }
-        } finally {
-            // If there is no session, close statement and connection
-            if (dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) {
-                if (stmt != null) {
-                    try {
-                        stmt.close();
-                    } catch (SQLException e) {
-                        log.error("Failure closing statement: " + e.getMessage(), e);
-                    }
-                    try {
-                        stmt.getConnection().close();
-                    } catch (SQLException e) {
-                        log.error("Failure closing connection: " + e.getMessage(), e);
-                    }
-                }
-            }
-        }
+        org.openjproxy.grpc.server.action.transaction.ExecuteUpdateAction.getInstance()
+                .execute(actionContext, request, responseObserver);
     }
 
     @Override
