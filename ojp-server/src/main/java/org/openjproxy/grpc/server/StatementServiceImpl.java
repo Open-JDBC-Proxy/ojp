@@ -119,10 +119,19 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // ActionContext for refactored actions
     private final org.openjproxy.grpc.server.action.ActionContext actionContext;
 
+    // Optional custom metrics (null when OpenTelemetry is disabled)
+    private final OjpMetrics ojpMetrics;
+
     public StatementServiceImpl(SessionManager sessionManager, CircuitBreaker circuitBreaker,
             ServerConfiguration serverConfiguration) {
+        this(sessionManager, circuitBreaker, serverConfiguration, null);
+    }
+
+    public StatementServiceImpl(SessionManager sessionManager, CircuitBreaker circuitBreaker,
+            ServerConfiguration serverConfiguration, OjpMetrics ojpMetrics) {
         this.sessionManager = sessionManager;
         this.circuitBreaker = circuitBreaker;
+        this.ojpMetrics = ojpMetrics;
         // Server configuration for creating segregation managers
         this.sqlEnhancerEngine = new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(
                 serverConfiguration.isSqlEnhancerEnabled());
@@ -141,7 +150,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 clusterHealthTracker,
                 sessionManager,
                 circuitBreaker,
-                serverConfiguration);
+                serverConfiguration,
+                ojpMetrics);
     }
 
     /**
@@ -681,7 +691,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
                     try {
                         // Use enhanced connection acquisition with timeout protection
-                        conn = ConnectionAcquisitionManager.acquireConnection(dataSource, connHash);
+                        conn = ConnectionAcquisitionManager.acquireConnection(dataSource, connHash, ojpMetrics);
                         log.debug("Successfully acquired connection from pool for hash: {}", connHash);
                     } catch (SQLException e) {
                         log.error("Failed to acquire connection from pool for hash: {}. Error: {}",

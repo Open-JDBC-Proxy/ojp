@@ -4,6 +4,7 @@ import com.openjproxy.grpc.DbName;
 import org.openjproxy.grpc.server.CircuitBreaker;
 import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.MultinodeXaCoordinator;
+import org.openjproxy.grpc.server.OjpMetrics;
 import org.openjproxy.grpc.server.ServerConfiguration;
 import org.openjproxy.grpc.server.SessionManager;
 import org.openjproxy.grpc.server.SlowQuerySegregationManager;
@@ -116,6 +117,11 @@ public class ActionContext {
      * Immutable after construction.
      */
     private final ServerConfiguration serverConfiguration;
+
+    /**
+     * Optional custom metrics recorder.  {@code null} when OpenTelemetry is disabled.
+     */
+    private final OjpMetrics ojpMetrics;
     
     // ========== Constructor ==========
     
@@ -132,6 +138,25 @@ public class ActionContext {
             SessionManager sessionManager,
             CircuitBreaker circuitBreaker,
             ServerConfiguration serverConfiguration) {
+        this(datasourceMap, xaDataSourceMap, xaRegistries, unpooledConnectionDetailsMap, dbNameMap,
+                slowQuerySegregationManagers, xaPoolProvider, xaCoordinator, clusterHealthTracker,
+                sessionManager, circuitBreaker, serverConfiguration, null);
+    }
+
+    public ActionContext(
+            Map<String, DataSource> datasourceMap,
+            Map<String, XADataSource> xaDataSourceMap,
+            Map<String, XATransactionRegistry> xaRegistries,
+            Map<String, UnpooledConnectionDetails> unpooledConnectionDetailsMap,
+            Map<String, DbName> dbNameMap,
+            Map<String, SlowQuerySegregationManager> slowQuerySegregationManagers,
+            XAConnectionPoolProvider xaPoolProvider,
+            MultinodeXaCoordinator xaCoordinator,
+            ClusterHealthTracker clusterHealthTracker,
+            SessionManager sessionManager,
+            CircuitBreaker circuitBreaker,
+            ServerConfiguration serverConfiguration,
+            OjpMetrics ojpMetrics) {
         
         this.datasourceMap = datasourceMap;
         this.xaDataSourceMap = xaDataSourceMap;
@@ -145,6 +170,7 @@ public class ActionContext {
         this.sessionManager = sessionManager;
         this.circuitBreaker = circuitBreaker;
         this.serverConfiguration = serverConfiguration;
+        this.ojpMetrics = ojpMetrics;
     }
     
     // ========== Getters ==========
@@ -199,5 +225,12 @@ public class ActionContext {
     
     public ServerConfiguration getServerConfiguration() {
         return serverConfiguration;
+    }
+
+    /**
+     * Returns the optional custom metrics recorder, or {@code null} when metrics are disabled.
+     */
+    public OjpMetrics getOjpMetrics() {
+        return ojpMetrics;
     }
 }

@@ -36,6 +36,23 @@ public class ConnectionAcquisitionManager {
      * @throws SQLException if connection acquisition fails or times out
      */
     public static Connection acquireConnection(DataSource dataSource, String connectionHash) throws SQLException {
+        return acquireConnection(dataSource, connectionHash, null);
+    }
+
+    /**
+     * Acquires a connection from the given datasource with enhanced error reporting and metrics recording.
+     * This method relies on the pool implementation's built-in connection timeout mechanism
+     * to prevent indefinite blocking, while providing detailed error messages with pool statistics.
+     * 
+     * @param dataSource the datasource (supports HikariCP for enhanced statistics)
+     * @param connectionHash the connection hash for logging purposes
+     * @param metrics optional {@link OjpMetrics} instance for recording queue depth and wait time;
+     *                pass {@code null} to skip metric recording
+     * @return a database connection
+     * @throws SQLException if connection acquisition fails or times out
+     */
+    public static Connection acquireConnection(DataSource dataSource, String connectionHash, OjpMetrics metrics)
+            throws SQLException {
         if (dataSource == null) {
             throw new SQLException("DataSource is null for connection hash: " + connectionHash);
         }
@@ -57,15 +74,29 @@ public class ConnectionAcquisitionManager {
             log.debug("Connection acquisition attempt for hash: {} using {}", 
                 connectionHash, dataSource.getClass().getSimpleName());
         }
-        
+
+        // Record that this thread is now waiting for a connection
+        if (metrics != null) {
+            metrics.connectionWaitStarted(connectionHash);
+        }
+        long waitStart = System.currentTimeMillis();
+
         try {
             // Use pool's built-in connection timeout - this prevents indefinite blocking
             Connection connection = dataSource.getConnection();
-            log.debug("Successfully acquired connection for hash: {} in thread: {}", 
-                connectionHash, Thread.currentThread().getName());
+            long waitTimeMs = System.currentTimeMillis() - waitStart;
+            log.debug("Successfully acquired connection for hash: {} in thread: {} (waited {}ms)",
+                connectionHash, Thread.currentThread().getName(), waitTimeMs);
+            if (metrics != null) {
+                metrics.connectionAcquired(connectionHash, waitTimeMs, true);
+            }
             return connection;
             
         } catch (SQLException e) {
+            long waitTimeMs = System.currentTimeMillis() - waitStart;
+            if (metrics != null) {
+                metrics.connectionAcquired(connectionHash, waitTimeMs, false);
+            }
             // Enhanced error message with pool statistics (HikariCP-specific)
             String enhancedMessage;
             if (dataSource instanceof HikariDataSource) {

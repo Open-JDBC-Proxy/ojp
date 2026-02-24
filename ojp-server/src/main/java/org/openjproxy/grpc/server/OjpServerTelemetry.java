@@ -13,10 +13,23 @@ import java.util.List;
 /**
  * OJP Server Telemetry Configuration for OpenTelemetry with Prometheus Exporter.
  * This class provides methods to create a GrpcTelemetry instance with Prometheus metrics.
+ * It also exposes the underlying {@link OpenTelemetry} instance so that {@link OjpMetrics}
+ * can register additional custom instruments against the same Prometheus endpoint.
  */
 public class OjpServerTelemetry {
 	private static final Logger logger = LoggerFactory.getLogger(OjpServerTelemetry.class);
 	private static final int DEFAULT_PROMETHEUS_PORT = 9159;
+
+	/** The OpenTelemetry instance created by this class; {@code null} when no-op. */
+	private OpenTelemetry openTelemetry;
+
+	/**
+	 * Returns the {@link OpenTelemetry} instance configured by the most recent call to
+	 * {@link #createGrpcTelemetry(int, List)}.  Returns {@code null} before any call has been made.
+	 */
+	public OpenTelemetry getOpenTelemetry() {
+		return openTelemetry;
+	}
 
 	/**
 	 * Creates GrpcTelemetry with default configuration.
@@ -49,7 +62,7 @@ public class OjpServerTelemetry {
 				.setPort(prometheusPort)
 				.build();
 
-		OpenTelemetry openTelemetry = OpenTelemetrySdk.builder()
+		openTelemetry = OpenTelemetrySdk.builder()
 				.setMeterProvider(
 						SdkMeterProvider.builder()
 								.registerMetricReader(prometheusServer)
@@ -61,9 +74,27 @@ public class OjpServerTelemetry {
 
 	/**
 	 * Creates a no-op GrpcTelemetry when OpenTelemetry is disabled.
+	 * The {@link OpenTelemetry} instance will be a no-op as well.
 	 */
 	public GrpcTelemetry createNoOpGrpcTelemetry() {
 		logger.info("OpenTelemetry disabled, using no-op implementation");
-		return GrpcTelemetry.create(OpenTelemetry.noop());
+		openTelemetry = OpenTelemetry.noop();
+		return GrpcTelemetry.create(openTelemetry);
+	}
+
+	/**
+	 * Creates an {@link OjpMetrics} instance bound to the same {@link OpenTelemetry} backend
+	 * that was configured by the most recent {@code createGrpcTelemetry} call.
+	 *
+	 * <p>Must be called <em>after</em> one of the {@code createGrpcTelemetry} methods.
+	 *
+	 * @return a new {@link OjpMetrics} sharing the Prometheus endpoint
+	 * @throws IllegalStateException if called before any {@code createGrpcTelemetry} method
+	 */
+	public OjpMetrics createOjpMetrics() {
+		if (openTelemetry == null) {
+			throw new IllegalStateException("createGrpcTelemetry() must be called before createOjpMetrics()");
+		}
+		return new OjpMetrics(openTelemetry);
 	}
 }

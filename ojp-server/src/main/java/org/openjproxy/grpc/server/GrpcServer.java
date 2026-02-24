@@ -47,17 +47,20 @@ public class GrpcServer {
         // Initialize telemetry based on configuration
         OjpServerTelemetry ojpServerTelemetry = new OjpServerTelemetry();
         GrpcTelemetry grpcTelemetry;
+        OjpMetrics ojpMetrics;
         
         if (config.isOpenTelemetryEnabled()) {
             grpcTelemetry = ojpServerTelemetry.createGrpcTelemetry(
                 config.getPrometheusPort(), 
                 config.getPrometheusAllowedIps()
             );
+            ojpMetrics = ojpServerTelemetry.createOjpMetrics();
 
             OjpHealthManager.setServiceStatus(OjpHealthManager.Services.OPENTELEMETRY_SERVICE,
                     HealthCheckResponse.ServingStatus.SERVING);
         } else {
             grpcTelemetry = ojpServerTelemetry.createNoOpGrpcTelemetry();
+            ojpMetrics = null;
         }
 
         // Build server with configuration
@@ -65,7 +68,8 @@ public class GrpcServer {
         final StatementServiceImpl statementService = new StatementServiceImpl(
                 sessionManager,
                 new CircuitBreaker(config.getCircuitBreakerTimeout(), config.getCircuitBreakerThreshold()),
-                config
+                config,
+                ojpMetrics
         );
         
         NettyServerBuilder serverBuilder = NettyServerBuilder

@@ -197,6 +197,11 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                     
                     context.getDatasourceMap().put(connHash, ds);
                     
+                    // Register datasource with metrics for pool statistics
+                    if (context.getOjpMetrics() != null) {
+                        context.getOjpMetrics().registerDatasource(connHash, ds);
+                    }
+                    
                     // Create a slow query segregation manager for this datasource
                     CreateSlowQuerySegregationManagerAction.getInstance().execute(context, connHash, maxPoolSize);
                     

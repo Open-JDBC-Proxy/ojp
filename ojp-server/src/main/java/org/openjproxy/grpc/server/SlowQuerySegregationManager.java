@@ -20,6 +20,41 @@ public class SlowQuerySegregationManager {
     private final long slowSlotTimeoutMs;
     private final long fastSlotTimeoutMs;
 
+    /** Optional metrics recorder; {@code null} when metrics are disabled. */
+    private final OjpMetrics ojpMetrics;
+
+    /**
+     * Creates a new SlowQuerySegregationManager with custom metrics support.
+     * 
+     * @param totalSlots The maximum total number of concurrent operations (from HikariCP max pool size)
+     * @param slowSlotPercentage The percentage of slots allocated to slow operations (0-100)
+     * @param idleTimeoutMs The time in milliseconds before a slot is considered idle and eligible for borrowing
+     * @param slowSlotTimeoutMs The timeout in milliseconds for acquiring slow operation slots
+     * @param fastSlotTimeoutMs The timeout in milliseconds for acquiring fast operation slots
+     * @param updateGlobalAvgIntervalSeconds The interval in seconds for updating global average (0 = update every query)
+     * @param enabled Whether the slow query segregation feature is enabled
+     * @param ojpMetrics optional {@link OjpMetrics} for emitting slot and SQL execution metrics;
+     *                   pass {@code null} to disable metric emission
+     */
+    public SlowQuerySegregationManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
+                                     long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds,
+                                     boolean enabled, OjpMetrics ojpMetrics) {
+        this.enabled = enabled;
+        this.slowSlotTimeoutMs = slowSlotTimeoutMs;
+        this.fastSlotTimeoutMs = fastSlotTimeoutMs;
+        this.performanceMonitor = new QueryPerformanceMonitor(updateGlobalAvgIntervalSeconds);
+        this.ojpMetrics = ojpMetrics;
+        
+        if (enabled) {
+            this.slotManager = new SlotManager(totalSlots, slowSlotPercentage, idleTimeoutMs);
+            logger.info("SlowQuerySegregationManager initialized: enabled={}, totalSlots={}, slowSlotPercentage={}%, idleTimeout={}ms, slowSlotTimeout={}ms, fastSlotTimeout={}ms, updateGlobalAvgInterval={}s",
+                    enabled, totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs, updateGlobalAvgIntervalSeconds);
+        } else {
+            this.slotManager = null;
+            logger.info("SlowQuerySegregationManager initialized: enabled={}, updateGlobalAvgInterval={}s", enabled, updateGlobalAvgIntervalSeconds);
+        }
+    }
+
     /**
      * Creates a new SlowQuerySegregationManager.
      * 
@@ -33,19 +68,8 @@ public class SlowQuerySegregationManager {
      */
     public SlowQuerySegregationManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
                                      long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds, boolean enabled) {
-        this.enabled = enabled;
-        this.slowSlotTimeoutMs = slowSlotTimeoutMs;
-        this.fastSlotTimeoutMs = fastSlotTimeoutMs;
-        this.performanceMonitor = new QueryPerformanceMonitor(updateGlobalAvgIntervalSeconds);
-        
-        if (enabled) {
-            this.slotManager = new SlotManager(totalSlots, slowSlotPercentage, idleTimeoutMs);
-            logger.info("SlowQuerySegregationManager initialized: enabled={}, totalSlots={}, slowSlotPercentage={}%, idleTimeout={}ms, slowSlotTimeout={}ms, fastSlotTimeout={}ms, updateGlobalAvgInterval={}s",
-                    enabled, totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs, updateGlobalAvgIntervalSeconds);
-        } else {
-            this.slotManager = null;
-            logger.info("SlowQuerySegregationManager initialized: enabled={}, updateGlobalAvgInterval={}s", enabled, updateGlobalAvgIntervalSeconds);
-        }
+        this(totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs,
+                updateGlobalAvgIntervalSeconds, enabled, null);
     }
     
     /**
@@ -61,7 +85,7 @@ public class SlowQuerySegregationManager {
      */
     public SlowQuerySegregationManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
                                      long slowSlotTimeoutMs, long fastSlotTimeoutMs, boolean enabled) {
-        this(totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs, 0L, enabled);
+        this(totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs, 0L, enabled, null);
     }
     
     /**
@@ -85,7 +109,6 @@ public class SlowQuerySegregationManager {
         
         // Acquire appropriate slot
         boolean slotAcquired = false;
-        long startTime = System.currentTimeMillis();
         
         try {
             if (isSlowOperation) {
@@ -93,11 +116,17 @@ public class SlowQuerySegregationManager {
                 if (!slotAcquired) {
                     throw new RuntimeException("Timeout waiting for slow operation slot for operation: " + operationHash);
                 }
+                if (ojpMetrics != null) {
+                    ojpMetrics.slowSlotAcquired();
+                }
                 logger.debug("Acquired slow slot for operation: {}", operationHash);
             } else {
                 slotAcquired = slotManager.acquireFastSlot(fastSlotTimeoutMs);
                 if (!slotAcquired) {
                     throw new RuntimeException("Timeout waiting for fast operation slot for operation: " + operationHash);
+                }
+                if (ojpMetrics != null) {
+                    ojpMetrics.fastSlotAcquired();
                 }
                 logger.debug("Acquired fast slot for operation: {}", operationHash);
             }
@@ -110,9 +139,15 @@ public class SlowQuerySegregationManager {
             if (slotAcquired) {
                 if (isSlowOperation) {
                     slotManager.releaseSlowSlot();
+                    if (ojpMetrics != null) {
+                        ojpMetrics.slowSlotReleased();
+                    }
                     logger.debug("Released slow slot for operation: {}", operationHash);
                 } else {
                     slotManager.releaseFastSlot();
+                    if (ojpMetrics != null) {
+                        ojpMetrics.fastSlotReleased();
+                    }
                     logger.debug("Released fast slot for operation: {}", operationHash);
                 }
             }
@@ -131,12 +166,18 @@ public class SlowQuerySegregationManager {
             // Record successful execution time
             long executionTime = System.currentTimeMillis() - startTime;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
+            if (ojpMetrics != null) {
+                ojpMetrics.sqlExecuted(operationHash, executionTime);
+            }
             
             return result;
         } catch (Exception e) {
             // Still record execution time even for failed operations for monitoring purposes
             long executionTime = System.currentTimeMillis() - startTime;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
+            if (ojpMetrics != null) {
+                ojpMetrics.sqlExecuted(operationHash, executionTime);
+            }
             throw e;
         }
     }
