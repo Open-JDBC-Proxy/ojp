@@ -92,16 +92,17 @@ public class SlowQuerySegregationManager {
      * Executes an operation with slow query segregation.
      * This method handles slot acquisition, performance monitoring, and slot release.
      * 
-     * @param operationHash The hash of the SQL operation
-     * @param operation The operation to execute
-     * @param <T> The return type of the operation
+     * @param operationHash The hash of the SQL operation (used internally by the performance monitor)
+     * @param sql           The original SQL text (used as the human-readable metrics label)
+     * @param operation     The operation to execute
+     * @param <T>           The return type of the operation
      * @return The result of the operation
      * @throws Exception if the operation fails or slot acquisition times out
      */
-    public <T> T executeWithSegregation(String operationHash, SegregatedOperation<T> operation) throws Exception {
+    public <T> T executeWithSegregation(String operationHash, String sql, SegregatedOperation<T> operation) throws Exception {
         if (!enabled) {
             // If segregation is disabled, just execute and monitor performance
-            return executeAndMonitor(operationHash, operation);
+            return executeAndMonitor(operationHash, sql, operation);
         }
         
         // Determine if this is a slow or fast operation
@@ -132,7 +133,7 @@ public class SlowQuerySegregationManager {
             }
             
             // Execute the operation and monitor its performance
-            return executeAndMonitor(operationHash, operation);
+            return executeAndMonitor(operationHash, sql, operation);
             
         } finally {
             // Always release the slot
@@ -153,11 +154,27 @@ public class SlowQuerySegregationManager {
             }
         }
     }
+
+    /**
+     * Executes an operation with slow query segregation.
+     * This overload is provided for callers that do not have access to the original SQL text;
+     * the metric label will be {@code "[hash:<operationHash>]"} to make it clear that no SQL text
+     * was available, while still uniquely identifying the operation.
+     *
+     * @param operationHash The hash of the SQL operation
+     * @param operation     The operation to execute
+     * @param <T>           The return type of the operation
+     * @return The result of the operation
+     * @throws Exception if the operation fails or slot acquisition times out
+     */
+    public <T> T executeWithSegregation(String operationHash, SegregatedOperation<T> operation) throws Exception {
+        return executeWithSegregation(operationHash, "[hash:" + operationHash + "]", operation);
+    }
     
     /**
      * Executes an operation and monitors its performance without slot management.
      */
-    private <T> T executeAndMonitor(String operationHash, SegregatedOperation<T> operation) throws Exception {
+    private <T> T executeAndMonitor(String operationHash, String sql, SegregatedOperation<T> operation) throws Exception {
         long startTime = System.currentTimeMillis();
         
         try {
@@ -167,7 +184,7 @@ public class SlowQuerySegregationManager {
             long executionTime = System.currentTimeMillis() - startTime;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
             if (ojpMetrics != null) {
-                ojpMetrics.sqlExecuted(operationHash, executionTime);
+                ojpMetrics.sqlExecuted(sql, executionTime);
             }
             
             return result;
@@ -176,7 +193,7 @@ public class SlowQuerySegregationManager {
             long executionTime = System.currentTimeMillis() - startTime;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
             if (ojpMetrics != null) {
-                ojpMetrics.sqlExecuted(operationHash, executionTime);
+                ojpMetrics.sqlExecuted(sql, executionTime);
             }
             throw e;
         }

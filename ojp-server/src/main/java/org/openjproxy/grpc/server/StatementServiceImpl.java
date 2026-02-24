@@ -252,7 +252,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(connHash);
 
             // Execute with slow query segregation
-            OpResult result = manager.executeWithSegregation(stmtHash, () -> executeUpdateInternal(request));
+            OpResult result = manager.executeWithSegregation(stmtHash, request.getSql(), () -> executeUpdateInternal(request));
 
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -397,7 +397,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(connHash);
 
             // Execute with slow query segregation
-            manager.executeWithSegregation(stmtHash, () -> {
+            manager.executeWithSegregation(stmtHash, request.getSql(), () -> {
                 executeQueryInternal(request, responseObserver);
                 return null; // Void return for query execution
             });

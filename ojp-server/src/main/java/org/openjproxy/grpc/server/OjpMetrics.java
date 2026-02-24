@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li>{@code ojp_connection_queue_depth} – threads currently waiting to acquire a pooled connection</li>
  *   <li>{@code ojp_connection_wait_time_ms} – histogram of connection acquisition wait times (ms)</li>
- *   <li>{@code ojp_sql_execution_time_ms} – histogram of SQL execution times, labelled by {@code sql_hash}</li>
+ *   <li>{@code ojp_sql_execution_time_ms} – histogram of SQL execution times, labelled by {@code sql} (truncated SQL text)</li>
  *   <li>{@code ojp_pool_active_connections} – gauge of active connections per datasource</li>
  *   <li>{@code ojp_pool_idle_connections} – gauge of idle connections per datasource</li>
  *   <li>{@code ojp_pool_pending_threads} – gauge of threads awaiting a connection per datasource</li>
@@ -34,12 +34,18 @@ public class OjpMetrics {
 
     private static final Logger logger = LoggerFactory.getLogger(OjpMetrics.class);
 
+    /** Pre-compiled pattern for collapsing whitespace runs used by {@link #toSqlSnippet}. */
+    private static final java.util.regex.Pattern WHITESPACE_PATTERN = java.util.regex.Pattern.compile("\\s+");
+
     static final String INSTRUMENTATION_SCOPE = "ojp";
 
     // Attribute keys
-    static final AttributeKey<String> SQL_HASH_KEY = AttributeKey.stringKey("sql_hash");
+    static final AttributeKey<String> SQL_KEY = AttributeKey.stringKey("sql");
     static final AttributeKey<String> CONN_HASH_KEY = AttributeKey.stringKey("conn_hash");
     static final AttributeKey<String> OUTCOME_KEY = AttributeKey.stringKey("outcome");
+
+    /** Maximum length of the {@code sql} label value to keep Prometheus cardinality bounded. */
+    static final int SQL_SNIPPET_MAX_LENGTH = 100;
 
     // Metric names
     static final String METRIC_CONNECTION_QUEUE_DEPTH = "ojp.connection.queue_depth";
@@ -89,7 +95,7 @@ public class OjpMetrics {
                 .build();
 
         sqlExecutionTimeMs = meter.histogramBuilder(METRIC_SQL_EXECUTION_TIME_MS)
-                .setDescription("SQL statement execution time, labelled by sql_hash")
+                .setDescription("SQL statement execution time, labelled by sql (truncated SQL text)")
                 .setUnit("ms")
                 .ofLongs()
                 .build();
@@ -191,11 +197,34 @@ public class OjpMetrics {
     /**
      * Records the execution time of a SQL statement.
      *
-     * @param sqlHash       the xxHash of the normalised SQL string (see {@code SqlStatementXXHash})
+     * <p>The {@code sql} Prometheus label is set to the first {@value #SQL_SNIPPET_MAX_LENGTH}
+     * characters of the normalised (lower-cased, whitespace-collapsed) SQL text, giving
+     * human-readable metric labels while bounding Prometheus cardinality.
+     *
+     * @param sql             the original SQL string (will be normalised and truncated internally)
      * @param executionTimeMs elapsed execution time in milliseconds
      */
-    public void sqlExecuted(String sqlHash, long executionTimeMs) {
-        sqlExecutionTimeMs.record(executionTimeMs, Attributes.of(SQL_HASH_KEY, sqlHash));
+    public void sqlExecuted(String sql, long executionTimeMs) {
+        sqlExecutionTimeMs.record(executionTimeMs, Attributes.of(SQL_KEY, toSqlSnippet(sql)));
+    }
+
+    /**
+     * Normalises and truncates a SQL string to produce a bounded Prometheus label value.
+     *
+     * <p>The result is lower-cased and has all runs of whitespace collapsed to a single space,
+     * then truncated to {@value #SQL_SNIPPET_MAX_LENGTH} characters.
+     *
+     * @param sql raw SQL text; {@code null} is treated as an empty string
+     * @return normalised, truncated SQL snippet
+     */
+    static String toSqlSnippet(String sql) {
+        if (sql == null || sql.isEmpty()) {
+            return "";
+        }
+        String normalised = WHITESPACE_PATTERN.matcher(sql.trim()).replaceAll(" ").toLowerCase();
+        return normalised.length() <= SQL_SNIPPET_MAX_LENGTH
+                ? normalised
+                : normalised.substring(0, SQL_SNIPPET_MAX_LENGTH);
     }
 
     // -------------------------------------------------------------------------

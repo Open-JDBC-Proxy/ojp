@@ -42,7 +42,27 @@ class OjpMetricsTest {
 
     @Test
     void shouldRecordSqlExecutionWithoutErrors() {
-        assertDoesNotThrow(() -> metrics.sqlExecuted("abcdef01", 150L));
+        // sqlExecuted now accepts the raw SQL text (not the hash)
+        assertDoesNotThrow(() -> metrics.sqlExecuted("SELECT 1 FROM dual", 150L));
+    }
+
+    @Test
+    void toSqlSnippetShouldNormaliseAndTruncate() {
+        // normalises whitespace and case
+        assertEquals("select 1", OjpMetrics.toSqlSnippet("  SELECT   1  "));
+
+        // truncates to SQL_SNIPPET_MAX_LENGTH
+        String longSql = "select " + "a".repeat(200);
+        String snippet = OjpMetrics.toSqlSnippet(longSql);
+        assertEquals(OjpMetrics.SQL_SNIPPET_MAX_LENGTH, snippet.length());
+
+        // exactly at the limit — must not truncate
+        String exactSql = "select " + "a".repeat(OjpMetrics.SQL_SNIPPET_MAX_LENGTH - 7);
+        assertEquals(OjpMetrics.SQL_SNIPPET_MAX_LENGTH, OjpMetrics.toSqlSnippet(exactSql).length());
+
+        // null / empty
+        assertEquals("", OjpMetrics.toSqlSnippet(null));
+        assertEquals("", OjpMetrics.toSqlSnippet(""));
     }
 
     @Test
