@@ -33,8 +33,9 @@ public class SlowQuerySegregationManager {
      * @param fastSlotTimeoutMs The timeout in milliseconds for acquiring fast operation slots
      * @param updateGlobalAvgIntervalSeconds The interval in seconds for updating global average (0 = update every query)
      * @param enabled Whether the slow query segregation feature is enabled
-     * @param ojpMetrics optional {@link OjpMetrics} for emitting slot and SQL execution metrics;
-     *                   pass {@code null} to disable metric emission
+     * @param ojpMetrics optional {@link OjpMetrics} for emitting slot metrics (slow/fast slot acquired/released);
+     *                   pass {@code null} to disable slot metric emission.
+     *                   SQL execution time is NOT recorded here; it is recorded by the calling layer.
      */
     public SlowQuerySegregationManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
                                      long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds,
@@ -91,18 +92,18 @@ public class SlowQuerySegregationManager {
     /**
      * Executes an operation with slow query segregation.
      * This method handles slot acquisition, performance monitoring, and slot release.
+     * SQL execution time metrics are recorded by the caller ({@code StatementServiceImpl}).
      * 
-     * @param operationHash The hash of the SQL operation (used internally by the performance monitor)
-     * @param sql           The original SQL text (used as the human-readable metrics label)
+     * @param operationHash The hash of the SQL operation
      * @param operation     The operation to execute
      * @param <T>           The return type of the operation
      * @return The result of the operation
      * @throws Exception if the operation fails or slot acquisition times out
      */
-    public <T> T executeWithSegregation(String operationHash, String sql, SegregatedOperation<T> operation) throws Exception {
+    public <T> T executeWithSegregation(String operationHash, SegregatedOperation<T> operation) throws Exception {
         if (!enabled) {
             // If segregation is disabled, just execute and monitor performance
-            return executeAndMonitor(operationHash, sql, operation);
+            return executeAndMonitor(operationHash, operation);
         }
         
         // Determine if this is a slow or fast operation
@@ -133,7 +134,7 @@ public class SlowQuerySegregationManager {
             }
             
             // Execute the operation and monitor its performance
-            return executeAndMonitor(operationHash, sql, operation);
+            return executeAndMonitor(operationHash, operation);
             
         } finally {
             // Always release the slot
@@ -154,47 +155,27 @@ public class SlowQuerySegregationManager {
             }
         }
     }
-
-    /**
-     * Executes an operation with slow query segregation.
-     * This overload is provided for callers that do not have access to the original SQL text;
-     * the metric label will be {@code "[hash:<operationHash>]"} to make it clear that no SQL text
-     * was available, while still uniquely identifying the operation.
-     *
-     * @param operationHash The hash of the SQL operation
-     * @param operation     The operation to execute
-     * @param <T>           The return type of the operation
-     * @return The result of the operation
-     * @throws Exception if the operation fails or slot acquisition times out
-     */
-    public <T> T executeWithSegregation(String operationHash, SegregatedOperation<T> operation) throws Exception {
-        return executeWithSegregation(operationHash, "[hash:" + operationHash + "]", operation);
-    }
     
     /**
      * Executes an operation and monitors its performance without slot management.
+     * Records execution time in the internal performance monitor (used for slow/fast classification).
+     * SQL execution time metrics are emitted by the caller, not here.
      */
-    private <T> T executeAndMonitor(String operationHash, String sql, SegregatedOperation<T> operation) throws Exception {
+    private <T> T executeAndMonitor(String operationHash, SegregatedOperation<T> operation) throws Exception {
         long startTime = System.currentTimeMillis();
         
         try {
             T result = operation.execute();
             
-            // Record successful execution time
+            // Record execution time for internal slow/fast classification
             long executionTime = System.currentTimeMillis() - startTime;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
-            if (ojpMetrics != null) {
-                ojpMetrics.sqlExecuted(sql, executionTime);
-            }
             
             return result;
         } catch (Exception e) {
             // Still record execution time even for failed operations for monitoring purposes
             long executionTime = System.currentTimeMillis() - startTime;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
-            if (ojpMetrics != null) {
-                ojpMetrics.sqlExecuted(sql, executionTime);
-            }
             throw e;
         }
     }

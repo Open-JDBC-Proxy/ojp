@@ -251,8 +251,16 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             String connHash = request.getSession().getConnHash();
             SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(connHash);
 
-            // Execute with slow query segregation
-            OpResult result = manager.executeWithSegregation(stmtHash, request.getSql(), () -> executeUpdateInternal(request));
+            // Execute with slow query segregation; record SQL execution time unconditionally
+            long execStart = System.nanoTime();
+            OpResult result;
+            try {
+                result = manager.executeWithSegregation(stmtHash, () -> executeUpdateInternal(request));
+            } finally {
+                if (ojpMetrics != null) {
+                    ojpMetrics.sqlExecuted(request.getSql(), (System.nanoTime() - execStart) / 1_000_000L);
+                }
+            }
 
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -396,11 +404,18 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             String connHash = request.getSession().getConnHash();
             SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(connHash);
 
-            // Execute with slow query segregation
-            manager.executeWithSegregation(stmtHash, request.getSql(), () -> {
-                executeQueryInternal(request, responseObserver);
-                return null; // Void return for query execution
-            });
+            // Execute with slow query segregation; record SQL execution time unconditionally
+            long execStart = System.nanoTime();
+            try {
+                manager.executeWithSegregation(stmtHash, () -> {
+                    executeQueryInternal(request, responseObserver);
+                    return null; // Void return for query execution
+                });
+            } finally {
+                if (ojpMetrics != null) {
+                    ojpMetrics.sqlExecuted(request.getSql(), (System.nanoTime() - execStart) / 1_000_000L);
+                }
+            }
 
             circuitBreaker.onSuccess(stmtHash);
         } catch (SQLException e) {
