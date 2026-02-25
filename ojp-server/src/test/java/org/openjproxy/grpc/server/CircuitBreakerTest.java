@@ -14,16 +14,18 @@ class CircuitBreakerTest {
     private static final int THREE_HUNDRED = 300;
     private static final int FOUR_HUNDRED = 400;
     private static final int FIVE_HUNDRED = 500;
+    private static final String DATA_SOURCE = "Test-DS";
+    
 
     @Test
     void testAllowsWhenNoFailures() {
-        CircuitBreaker breaker = new CircuitBreaker(THOUSAND, FAILURE_THRESHOLD);
+        CircuitBreaker breaker = new CircuitBreaker(THOUSAND, FAILURE_THRESHOLD, DATA_SOURCE);
         assertDoesNotThrow(() -> breaker.preCheck("SELECT 1"));
     }
 
     @Test
     void testBlocksAfterThreeFailures() {
-        CircuitBreaker breaker = new CircuitBreaker(5000, 3);
+        CircuitBreaker breaker = new CircuitBreaker(5000, FAILURE_THRESHOLD, DATA_SOURCE);
         String sql = "SELECT * FROM test";
         SQLException ex = new SQLException("fail");
         // Fail three times
@@ -37,7 +39,7 @@ class CircuitBreakerTest {
 
     @Test
     void testAllowsAgainAfterOpenTimeoutAndSuccessResets() throws InterruptedException, SQLException {
-        CircuitBreaker breaker = new CircuitBreaker(THREE_HUNDRED, FAILURE_THRESHOLD);
+        CircuitBreaker breaker = new CircuitBreaker(THREE_HUNDRED, FAILURE_THRESHOLD, DATA_SOURCE);
         String sql = "UPDATE X SET Y=1";
         SQLException ex = new SQLException("fail");
 
@@ -58,7 +60,7 @@ class CircuitBreakerTest {
 
     @Test
     void testResetsOnSuccess() throws SQLException {
-        CircuitBreaker breaker = new CircuitBreaker(THOUSAND, FAILURE_THRESHOLD);
+        CircuitBreaker breaker = new CircuitBreaker(THOUSAND, FAILURE_THRESHOLD, DATA_SOURCE);
         String sql = "INSERT X";
         SQLException ex = new SQLException("fail2");
         breaker.onFailure(sql, ex);
@@ -71,7 +73,7 @@ class CircuitBreakerTest {
 
     @Test
     void testOnFailureIsNoOpWhenAlreadyOpen() {
-        CircuitBreaker breaker = new CircuitBreaker(FIVE_HUNDRED, FAILURE_THRESHOLD);
+        CircuitBreaker breaker = new CircuitBreaker(FIVE_HUNDRED, FAILURE_THRESHOLD, DATA_SOURCE);
         String sql = "SELECT fail";
         SQLException ex1 = new SQLException("fail1");
         SQLException ex2 = new SQLException("fail2");

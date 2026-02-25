@@ -93,7 +93,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -195,7 +195,7 @@ jobs:
       # Tests will run against this server via postgres_connection.csv (port 1059)
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
@@ -205,7 +205,7 @@ jobs:
       # This ensures all PostgreSQL tests validate both configurations
       - name: Test and Run (ojp-server-enhancer on port 10593)
         run: |
-          nohup java -Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-enhancer.log 2>&1 &
+          nohup java -Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-enhancer.log 2>&1 &
           echo $! > /tmp/ojp-server-enhancer.pid
 
       - name: Wait for ojp-server to start
@@ -324,7 +324,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -416,7 +416,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -498,7 +498,7 @@ jobs:
 
       - name: Test and Run (ojp-server)
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -661,7 +661,7 @@ jobs:
 
       - name: Test and Run (ojp-server) with DB2 driver from ojp-libs
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -759,7 +759,7 @@ jobs:
       - name: Start OJP Server 1 on port 10591
         run: |
           # Start first server on port 10591 with Prometheus on 9159
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
           echo $! > /tmp/ojp-server-1.pid
           echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9159 with PID $(cat /tmp/ojp-server-1.pid)"
 
@@ -767,7 +767,7 @@ jobs:
       - name: Start OJP Server 2 on port 10592
         run: |
           # Start second server on port 10592 with Prometheus on 9160
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
           echo $! > /tmp/ojp-server-2.pid
           echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9160 with PID $(cat /tmp/ojp-server-2.pid)"
 
@@ -874,7 +874,7 @@ jobs:
       - name: Restart OJP Server 1
         run: |
           echo "Restarting OJP Server 1..."
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-1-restart.pid
           echo "OJP Server 1 restarted with PID $(cat /tmp/ojp-server-1-restart.pid)"
           sleep 10
@@ -957,7 +957,7 @@ jobs:
       - name: Restart OJP Server 2
         run: |
           echo "Restarting OJP Server 2..."
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-2-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-2-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-2-restart.pid
           echo "OJP Server 2 restarted with PID $(cat /tmp/ojp-server-2-restart.pid)"
           sleep 10
@@ -1143,7 +1143,7 @@ jobs:
         run: |
           # Start first server on port 10591 with Prometheus on 9161 (different from multinode-test to avoid conflicts)
           # Enable DEBUG logging for XA pool operations
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-1.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-1.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-1.pid
           echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9161 with DEBUG logging, PID $(cat /tmp/ojp-server-xa-1.pid)"
 
@@ -1152,7 +1152,7 @@ jobs:
         run: |
           # Start second server on port 10592 with Prometheus on 9162 (different from multinode-test to avoid conflicts)
           # Enable DEBUG logging for XA pool operations
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-2.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-2.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-2.pid
           echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9162 with DEBUG logging, PID $(cat /tmp/ojp-server-xa-2.pid)"
 
@@ -1312,7 +1312,7 @@ jobs:
           fi
           
           # Start server
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9161 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-1-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-1-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-1-restart.pid
           echo "OJP Server 1 restarted with PID $(cat /tmp/ojp-server-xa-1-restart.pid)"
           
@@ -1455,7 +1455,7 @@ jobs:
           fi
           
           # Start server
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9162 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-2-restart.log 2>&1 &
+          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-2-restart.log 2>&1 &
           echo $! > /tmp/ojp-server-xa-2-restart.pid
           echo "OJP Server 2 restarted with PID $(cat /tmp/ojp-server-xa-2-restart.pid)"
           
@@ -1716,7 +1716,7 @@ jobs:
 
       - name: Test and Run (ojp-server) with Oracle driver from ojp-libs
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start
@@ -1814,7 +1814,7 @@ jobs:
 
       - name: Test and Run (ojp-server) with SQL Server driver from ojp-libs
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
+          nohup java -Dojp.server.slowQuerySegregation.enabled=true -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
           echo $! > /tmp/ojp-server.pid
 
       - name: Wait for ojp-server to start

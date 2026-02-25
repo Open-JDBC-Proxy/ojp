@@ -289,7 +289,7 @@ Slow query segregation can be beneficial because it provides advantages with min
 # Transactional workload: fewer slow slots
 -Dojp.server.slowQuerySegregation.slowSlotPercentage=10
 
-# Disable for consistent behavior (not recommended)
+# Disable (default behavior)
 -Dojp.server.slowQuerySegregation.enabled=false
 ```
 

@@ -32,7 +32,7 @@ Add these properties to your server configuration:
 
 ```properties
 # Enable/disable the feature
-ojp.server.slowQuerySegregation.enabled=true
+ojp.server.slowQuerySegregation.enabled=false
 
 # Percentage of slots for slow operations (0-100)
 ojp.server.slowQuerySegregation.slowSlotPercentage=20

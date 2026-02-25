@@ -152,10 +152,10 @@ The feature is controlled by a single enable/disable flag. When enabled, OJP per
 
 ```properties
 # Enable or disable slow query segregation
-ojp.server.slowQuerySegregation.enabled=true
+ojp.server.slowQuerySegregation.enabled=false
 ```
 
-Starting with the feature enabled is generally recommended. If you need to disable it for troubleshooting, you can do so without restarting the server by updating the property and reloading configuration.
+Starting with the feature disabled is the default. Enable it explicitly when you have a mixed workload of fast and slow queries that would benefit from segregation. If you need to disable it for troubleshooting after enabling, you can do so without restarting the server by updating the property and reloading configuration.
 
 ### Slot Allocation Percentage
 
@@ -204,7 +204,7 @@ Here's a complete example showing all settings with explanatory comments:
 ```properties
 # === Slow Query Segregation Configuration ===
 
-# Enable the feature (default: true)
+# Enable the feature (default: false)
 ojp.server.slowQuerySegregation.enabled=true
 
 # Allocate 25% of slots to slow operations (default: 20)
@@ -324,7 +324,7 @@ When you enable the feature, it activates smoothly without requiring application
 
 Based on our experience, here are some best practices for using Slow Query Segregation effectively.
 
-**Start with defaults**: The default configuration (enabled, 20% slow slots) works well for most applications. Start there and only tune if you observe specific issues or have special requirements.
+**Start with defaults**: The default configuration (disabled) means no segregation overhead out of the box. Enable it and start with 20% slow slots when you observe mixed workloads causing performance issues. Only tune further if you have specific requirements.
 
 **Monitor before tuning**: Run with default settings for a few days while collecting metrics. Understand your actual workload before making configuration changes. You might be surprised by which queries are classified as slow.
 

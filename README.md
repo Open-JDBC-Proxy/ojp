@@ -151,6 +151,12 @@ Provide a free and open-source solution for a relational database-agnostic proxy
 
 ---
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned releases and upcoming features, including the path to 1.0.0 (production ready).
+
+---
+
 ## Contributing & Developer Guide
 
 Welcome to OJP! We appreciate your interest in contributing. This guide will help you get started with development.

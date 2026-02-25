@@ -5,31 +5,33 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import lombok.extern.slf4j.Slf4j;
 /**
  * Implements a basic circuit breaker that counts failures and return the latest error if a threshold is exceeded.
  */
+@Slf4j
 public class CircuitBreaker {
     private static class FailureRecord {
         private volatile SQLException lastError;
         private final AtomicInteger failureCount = new AtomicInteger(0);
         private final AtomicLong openUntil = new AtomicLong(0);
-        private final int failureThreashold;
+        private final int failureThreshold;
 
-        public FailureRecord(int failureThreashold) {
-            this.failureThreashold = failureThreashold;
+        public FailureRecord(int failureThreshold) {
+            this.failureThreshold = failureThreshold;
         }
 
         public void recordFailure(SQLException error, long openMs) {
             lastError = error;
             int failures = failureCount.incrementAndGet();
-            if (failures >= failureThreashold) {
+            if (failures >= failureThreshold) {
                 openUntil.updateAndGet(prev -> Math.max(prev, System.currentTimeMillis() + openMs));
             }
         }
 
         public boolean isOpen() {
             long until = openUntil.get();
-            if (failureCount.get() < failureThreashold) return false;
+            if (failureCount.get() < failureThreshold) return false;
             if (System.currentTimeMillis() > until) {
                 return false;
             }
@@ -38,7 +40,7 @@ public class CircuitBreaker {
 
         public boolean tryReset() {
             long until = openUntil.get();
-            if (System.currentTimeMillis() > until && failureCount.get() >= failureThreashold) {
+            if (System.currentTimeMillis() > until && failureCount.get() >= failureThreshold) {
                 return true;
             }
             return false;
@@ -61,11 +63,12 @@ public class CircuitBreaker {
 
     private final ConcurrentHashMap<String, FailureRecord> state = new ConcurrentHashMap<>();
     private final long openMs;
-    private final int failureThreashold;
-
-    public CircuitBreaker(long openMs, int failureThreashold) {
+    private final int failureThreshold;
+    private final String resourceId;
+    public CircuitBreaker(long openMs, int failureThreshold, String resourceId) {
         this.openMs = openMs;
-        this.failureThreashold = failureThreashold;
+        this.failureThreshold = failureThreshold;
+        this.resourceId = resourceId;
     }
 
     /**
@@ -104,9 +107,12 @@ public class CircuitBreaker {
      * @param error The exception.
      */
     public void onFailure(String sql, SQLException error) {
-        FailureRecord rec = state.computeIfAbsent(sql, s -> new FailureRecord(this.failureThreashold));
+        FailureRecord rec = state.computeIfAbsent(sql, s -> new FailureRecord(this.failureThreshold));
         if (!rec.isOpen()) {
             rec.recordFailure(error, openMs);
+            if (rec.isOpen()){
+                log.warn("Circuit Breaker TRIP: Resource Id [{}] is now OPEN for query key: {}", this.resourceId, sql);
+            }
         }
     }
 }

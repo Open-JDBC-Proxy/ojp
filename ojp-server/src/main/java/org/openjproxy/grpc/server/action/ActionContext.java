@@ -1,12 +1,13 @@
 package org.openjproxy.grpc.server.action;
 
 import com.openjproxy.grpc.DbName;
-import org.openjproxy.grpc.server.CircuitBreaker;
-import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.MultinodeXaCoordinator;
 import org.openjproxy.grpc.server.OjpMetrics;
 import org.openjproxy.grpc.server.ServerConfiguration;
+import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.SessionManager;
+import org.openjproxy.grpc.server.CircuitBreakerRegistry;
+import org.openjproxy.grpc.server.ServerConfiguration;
 import org.openjproxy.grpc.server.SlowQuerySegregationManager;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.xa.pool.XATransactionRegistry;
@@ -105,12 +106,13 @@ public class ActionContext {
      * Thread-safe, shared across all actions.
      */
     private final SessionManager sessionManager;
-    
+
     /**
-     * Circuit breaker for protecting against cascading failures.
-     * Thread-safe, shared across all actions.
+     * Registry of circuit breakers providing isolated protection against cascading failures
+     * per datasource. Thread-safe and shared across all actions to ensure consistent
+     * state management.
      */
-    private final CircuitBreaker circuitBreaker;
+    private final CircuitBreakerRegistry circuitBreakerRegistry;
     
     /**
      * Server-wide configuration.
@@ -136,7 +138,7 @@ public class ActionContext {
             MultinodeXaCoordinator xaCoordinator,
             ClusterHealthTracker clusterHealthTracker,
             SessionManager sessionManager,
-            CircuitBreaker circuitBreaker,
+            CircuitBreakerRegistry circuitBreakerRegistry,
             ServerConfiguration serverConfiguration) {
         this(datasourceMap, xaDataSourceMap, xaRegistries, unpooledConnectionDetailsMap, dbNameMap,
                 slowQuerySegregationManagers, xaPoolProvider, xaCoordinator, clusterHealthTracker,
@@ -168,7 +170,7 @@ public class ActionContext {
         this.xaCoordinator = xaCoordinator;
         this.clusterHealthTracker = clusterHealthTracker;
         this.sessionManager = sessionManager;
-        this.circuitBreaker = circuitBreaker;
+        this.circuitBreakerRegistry = circuitBreakerRegistry;
         this.serverConfiguration = serverConfiguration;
         this.ojpMetrics = ojpMetrics;
     }
@@ -219,8 +221,9 @@ public class ActionContext {
         return sessionManager;
     }
     
-    public CircuitBreaker getCircuitBreaker() {
-        return circuitBreaker;
+
+    public CircuitBreakerRegistry getCircuitBreakerRegistry() {
+        return circuitBreakerRegistry;
     }
     
     public ServerConfiguration getServerConfiguration() {

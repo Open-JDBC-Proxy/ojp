@@ -114,7 +114,7 @@ For detailed configuration examples for each database, see [SSL/TLS Certificate 
 
 | Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |
 |----------------------------------------------------|----------------------------------------------------|---------|----------|--------------------------------------------------|-------|
-| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | true     | Enable/disable slow query segregation feature   | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | false    | Enable/disable slow query segregation feature   | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotPercentage` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTPERCENTAGE` | int     | 20       | Percentage of slots for slow operations (0-100) | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.idleTimeout`     | `OJP_SERVER_SLOWQUERYSEGREGATION_IDLETIMEOUT`     | long    | 10000    | Idle timeout for slot borrowing (milliseconds)  | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Timeout for acquiring slow operation slots (ms) | 0.2.0-beta |
@@ -368,7 +368,7 @@ The Slow Query Segregation feature monitors all database operations and classifi
 
 ```properties
 # Enable/disable the feature
-ojp.server.slowQuerySegregation.enabled=true
+ojp.server.slowQuerySegregation.enabled=false
 
 # Percentage of slots for slow operations (0-100)
 ojp.server.slowQuerySegregation.slowSlotPercentage=20
@@ -497,7 +497,7 @@ INFO org.openjproxy.grpc.server.ServerConfiguration - OJP Server Configuration:
 INFO org.openjproxy.grpc.server.ServerConfiguration -   Server Port: 1059
 INFO org.openjproxy.grpc.server.ServerConfiguration -   Prometheus Port: 9159
 INFO org.openjproxy.grpc.server.ServerConfiguration -   OpenTelemetry Enabled: true
-INFO org.openjproxy.grpc.server.ServerConfiguration -   Slow Query Segregation Enabled: true
+INFO org.openjproxy.grpc.server.ServerConfiguration -   Slow Query Segregation Enabled: false
 INFO org.openjproxy.grpc.server.ServerConfiguration -   Slow Query Slot Percentage: 20%
 ...
 ```
