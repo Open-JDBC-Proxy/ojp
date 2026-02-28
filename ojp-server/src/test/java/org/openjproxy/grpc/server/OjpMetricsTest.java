@@ -85,6 +85,17 @@ class OjpMetricsTest {
     }
 
     @Test
+    void shouldRegisterAndDeregisterXaPoolWithoutErrors() {
+        assertDoesNotThrow(() -> {
+            // non-CommonsPool2XADataSource is silently ignored
+            metrics.registerXaPool("hash-xa-1", new Object());
+            metrics.deregisterXaPool("hash-xa-1");
+            // deregister a hash that was never registered is a no-op
+            metrics.deregisterXaPool("hash-xa-never-registered");
+        });
+    }
+
+    @Test
     void shouldHandleMultipleConcurrentConnectionsWithoutErrors() {
         assertDoesNotThrow(() -> {
             for (int i = 0; i < 10; i++) {

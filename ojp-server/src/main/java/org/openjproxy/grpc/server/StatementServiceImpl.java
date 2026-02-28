@@ -117,10 +117,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
   
     public StatementServiceImpl(SessionManager sessionManager, CircuitBreakerRegistry circuitBreakerRegistry,
             ServerConfiguration serverConfiguration) {
-        this(sessionManager, circuitBreaker, serverConfiguration, null);
+        this(sessionManager, circuitBreakerRegistry, serverConfiguration, null);
     }
 
-    public StatementServiceImpl(SessionManager sessionManager, CircuitBreaker circuitBreaker,
+    public StatementServiceImpl(SessionManager sessionManager, CircuitBreakerRegistry circuitBreakerRegistry,
             ServerConfiguration serverConfiguration, OjpMetrics ojpMetrics) {
         this.sessionManager = sessionManager;
         this.ojpMetrics = ojpMetrics;

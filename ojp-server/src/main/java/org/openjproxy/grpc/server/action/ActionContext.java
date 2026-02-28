@@ -1,13 +1,12 @@
 package org.openjproxy.grpc.server.action;
 
 import com.openjproxy.grpc.DbName;
+import org.openjproxy.grpc.server.CircuitBreakerRegistry;
+import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.MultinodeXaCoordinator;
 import org.openjproxy.grpc.server.OjpMetrics;
 import org.openjproxy.grpc.server.ServerConfiguration;
-import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.SessionManager;
-import org.openjproxy.grpc.server.CircuitBreakerRegistry;
-import org.openjproxy.grpc.server.ServerConfiguration;
 import org.openjproxy.grpc.server.SlowQuerySegregationManager;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.xa.pool.XATransactionRegistry;
@@ -142,7 +141,7 @@ public class ActionContext {
             ServerConfiguration serverConfiguration) {
         this(datasourceMap, xaDataSourceMap, xaRegistries, unpooledConnectionDetailsMap, dbNameMap,
                 slowQuerySegregationManagers, xaPoolProvider, xaCoordinator, clusterHealthTracker,
-                sessionManager, circuitBreaker, serverConfiguration, null);
+                sessionManager, circuitBreakerRegistry, serverConfiguration, null);
     }
 
     public ActionContext(
@@ -156,7 +155,7 @@ public class ActionContext {
             MultinodeXaCoordinator xaCoordinator,
             ClusterHealthTracker clusterHealthTracker,
             SessionManager sessionManager,
-            CircuitBreaker circuitBreaker,
+            CircuitBreakerRegistry circuitBreakerRegistry,
             ServerConfiguration serverConfiguration,
             OjpMetrics ojpMetrics) {
         

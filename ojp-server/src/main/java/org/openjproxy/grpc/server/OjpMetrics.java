@@ -8,6 +8,7 @@ import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.LongUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongGauge;
+import org.openjproxy.xa.pool.commons.CommonsPool2XADataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,9 +24,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code ojp_connection_queue_depth} – threads currently waiting to acquire a pooled connection</li>
  *   <li>{@code ojp_connection_wait_time_ms} – histogram of connection acquisition wait times (ms)</li>
  *   <li>{@code ojp_sql_execution_time_ms} – histogram of SQL execution times, labelled by {@code sql} (truncated SQL text)</li>
- *   <li>{@code ojp_pool_active_connections} – gauge of active connections per datasource</li>
- *   <li>{@code ojp_pool_idle_connections} – gauge of idle connections per datasource</li>
- *   <li>{@code ojp_pool_pending_threads} – gauge of threads awaiting a connection per datasource</li>
+ *   <li>{@code ojp_pool_active_connections} – gauge of active connections per datasource (HikariCP)</li>
+ *   <li>{@code ojp_pool_idle_connections} – gauge of idle connections per datasource (HikariCP)</li>
+ *   <li>{@code ojp_pool_pending_threads} – gauge of threads awaiting a connection per datasource (HikariCP)</li>
+ *   <li>{@code ojp_xa_pool_active_sessions} – gauge of active XA sessions per datasource</li>
+ *   <li>{@code ojp_xa_pool_idle_sessions} – gauge of idle XA sessions per datasource</li>
+ *   <li>{@code ojp_xa_pool_pending_threads} – gauge of threads awaiting an XA session per datasource</li>
  *   <li>{@code ojp_slot_active_slow} – active slow-query execution slots</li>
  *   <li>{@code ojp_slot_active_fast} – active fast-query execution slots</li>
  * </ul>
@@ -56,6 +60,9 @@ public class OjpMetrics {
     static final String METRIC_POOL_PENDING_THREADS = "ojp.pool.pending_threads";
     static final String METRIC_SLOT_ACTIVE_SLOW = "ojp.slot.active_slow";
     static final String METRIC_SLOT_ACTIVE_FAST = "ojp.slot.active_fast";
+    static final String METRIC_XA_POOL_ACTIVE_SESSIONS = "ojp.xa_pool.active_sessions";
+    static final String METRIC_XA_POOL_IDLE_SESSIONS = "ojp.xa_pool.idle_sessions";
+    static final String METRIC_XA_POOL_PENDING_THREADS = "ojp.xa_pool.pending_threads";
 
     // Instruments
     private final LongUpDownCounter connectionQueueDepth;
@@ -72,8 +79,19 @@ public class OjpMetrics {
     @SuppressWarnings("unused")
     private final ObservableLongGauge poolPendingThreads;
 
-    // Datasource registry for pool gauges
+    // XA pool gauge references
+    @SuppressWarnings("unused")
+    private final ObservableLongGauge xaPoolActiveSessions;
+    @SuppressWarnings("unused")
+    private final ObservableLongGauge xaPoolIdleSessions;
+    @SuppressWarnings("unused")
+    private final ObservableLongGauge xaPoolPendingThreads;
+
+    // Datasource registry for HikariCP pool gauges
     private final Map<String, DataSource> datasourceRegistry = new ConcurrentHashMap<>();
+
+    // XA pool datasource registry (CommonsPool2XADataSource instances)
+    private final Map<String, CommonsPool2XADataSource> xaPoolRegistry = new ConcurrentHashMap<>();
 
     /**
      * Creates OJP metrics bound to the given {@link OpenTelemetry} instance.
@@ -159,7 +177,44 @@ public class OjpMetrics {
                     }
                 }));
 
-        logger.info("OjpMetrics initialized with {} custom metrics", 8);
+        // XA pool gauges: read from registered CommonsPool2XADataSource instances on each scrape
+        xaPoolActiveSessions = meter.gaugeBuilder(METRIC_XA_POOL_ACTIVE_SESSIONS)
+                .setDescription("Number of active XA sessions in the pool")
+                .setUnit("{sessions}")
+                .ofLongs()
+                .buildWithCallback(measurement -> xaPoolRegistry.forEach((connHash, xaPool) -> {
+                    try {
+                        measurement.record(xaPool.getNumActive(), Attributes.of(CONN_HASH_KEY, connHash));
+                    } catch (Exception e) {
+                        logger.trace("Could not read active XA sessions for {}", connHash);
+                    }
+                }));
+
+        xaPoolIdleSessions = meter.gaugeBuilder(METRIC_XA_POOL_IDLE_SESSIONS)
+                .setDescription("Number of idle XA sessions in the pool")
+                .setUnit("{sessions}")
+                .ofLongs()
+                .buildWithCallback(measurement -> xaPoolRegistry.forEach((connHash, xaPool) -> {
+                    try {
+                        measurement.record(xaPool.getNumIdle(), Attributes.of(CONN_HASH_KEY, connHash));
+                    } catch (Exception e) {
+                        logger.trace("Could not read idle XA sessions for {}", connHash);
+                    }
+                }));
+
+        xaPoolPendingThreads = meter.gaugeBuilder(METRIC_XA_POOL_PENDING_THREADS)
+                .setDescription("Number of threads awaiting an XA session from the pool")
+                .setUnit("{threads}")
+                .ofLongs()
+                .buildWithCallback(measurement -> xaPoolRegistry.forEach((connHash, xaPool) -> {
+                    try {
+                        measurement.record(xaPool.getNumWaiters(), Attributes.of(CONN_HASH_KEY, connHash));
+                    } catch (Exception e) {
+                        logger.trace("Could not read pending threads for XA pool {}", connHash);
+                    }
+                }));
+
+        logger.info("OjpMetrics initialized with all custom metrics");
     }
 
     // -------------------------------------------------------------------------
@@ -274,5 +329,34 @@ public class OjpMetrics {
     public void deregisterDatasource(String connHash) {
         datasourceRegistry.remove(connHash);
         logger.debug("Deregistered datasource for metrics: {}", connHash);
+    }
+
+    // -------------------------------------------------------------------------
+    // XA pool registration for pool gauges
+    // -------------------------------------------------------------------------
+
+    /**
+     * Registers an XA pool datasource so that XA pool gauges include its statistics.
+     *
+     * @param connHash       the connection hash used as Prometheus label
+     * @param xaPoolDataSource the pooled XA datasource (non-CommonsPool2 sources are silently ignored)
+     */
+    public void registerXaPool(String connHash, Object xaPoolDataSource) {
+        if (xaPoolDataSource instanceof CommonsPool2XADataSource pool) {
+            xaPoolRegistry.put(connHash, pool);
+            logger.debug("Registered XA pool for metrics: {}", connHash);
+        } else {
+            logger.debug("XA pool datasource for {} is not a CommonsPool2XADataSource, skipping registration", connHash);
+        }
+    }
+
+    /**
+     * De-registers a previously registered XA pool datasource.
+     *
+     * @param connHash the connection hash to remove
+     */
+    public void deregisterXaPool(String connHash) {
+        xaPoolRegistry.remove(connHash);
+        logger.debug("Deregistered XA pool for metrics: {}", connHash);
     }
 }

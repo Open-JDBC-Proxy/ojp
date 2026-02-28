@@ -262,6 +262,11 @@ public class HandleXAConnectionWithPoolingAction {
                 
                 // Create slow query segregation manager for XA
                 CreateSlowQuerySegregationManagerAction.getInstance().execute(context, connHash, actualMaxXaTransactions, true, xaStartTimeoutMillis);
+
+                // Register XA pool with metrics for pool statistics gauges
+                if (context.getOjpMetrics() != null) {
+                    context.getOjpMetrics().registerXaPool(connHash, pooledXADataSource);
+                }
                 
                 log.info("[XA-POOL-CREATE] Successfully created XA pool for connHash={} - maxPoolSize={}, minIdle={}, multinode={}, poolObject={}", 
                         connHash, maxPoolSize, minIdle, serverEndpoints != null && !serverEndpoints.isEmpty(), 
@@ -322,9 +327,15 @@ public class HandleXAConnectionWithPoolingAction {
         // Note: Unlike the original "deferred" approach, we allocate eagerly because
         // XA applications expect getConnection() to work immediately, before xaStart()
         XABackendSession backendSession = null;
+        boolean borrowSuccess = false;
+        long borrowStart = System.nanoTime();
         try {
+            if (context.getOjpMetrics() != null) {
+                context.getOjpMetrics().connectionWaitStarted(connHash);
+            }
             backendSession = 
                     (XABackendSession) context.getXaPoolProvider().borrowSession(registry.getPooledXADataSource());
+            borrowSuccess = true;
             
             XAConnection xaConnection = backendSession.getXAConnection();
             Connection connection = backendSession.getConnection();
@@ -373,7 +384,11 @@ public class HandleXAConnectionWithPoolingAction {
             
             SQLException sqlException = new SQLException("Failed to allocate XA session from pool: " + e.getMessage(), e);
             sendSQLExceptionMetadata(sqlException, responseObserver);
-            return;
+            // finally block below always runs to record metrics regardless of outcome
+        } finally {
+            if (context.getOjpMetrics() != null) {
+                context.getOjpMetrics().connectionAcquired(connHash, (System.nanoTime() - borrowStart) / 1_000_000L, borrowSuccess);
+            }
         }
     }
     
