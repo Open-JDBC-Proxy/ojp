@@ -201,7 +201,7 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                     // Register datasource with metrics for pool statistics
                     if (context.getOjpMetrics() != null) {
                         String poolLabel = OjpMetrics.buildPoolLabel(
-                                UrlParser.parseUrl(connectionDetails.getUrl()), connHash, false);
+                                dsConfig.getDataSourceName(), connHash, false);
                         context.getOjpMetrics().registerDatasource(connHash, poolLabel, ds);
                     }
                     

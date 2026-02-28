@@ -236,11 +236,11 @@ public class HandleXAConnectionWithPoolingAction {
                 xaPoolConfig.put("xa.url", parsedUrl);
                 xaPoolConfig.put("xa.username", connectionDetails.getUser());
                 xaPoolConfig.put("xa.password", connectionDetails.getPassword());
-                // Use a human-readable pool name (<dbname>_xa_<first4 of connHash>) so that
+                // Use a human-readable pool name (<dsName>_xa_<first4 of connHash>) so that
                 // pool.name labels in Prometheus are readable and unique per connection.
                 // This also prevents DuplicateLabelsException when a pool is recreated, because
                 // OpenTelemetryPoolMetrics.close() now properly unregisters the old gauge callbacks.
-                String xaPoolLabel = OjpMetrics.buildPoolLabel(parsedUrl, connHash, true);
+                String xaPoolLabel = OjpMetrics.buildPoolLabel(xaConfig.getDataSourceName(), connHash, true);
                 xaPoolConfig.put("xa.poolName", xaPoolLabel);
                 // Use calculated pool sizes (with multinode coordination if applicable)
                 xaPoolConfig.put("xa.maxPoolSize", String.valueOf(maxPoolSize));

@@ -97,25 +97,17 @@ class OjpMetricsTest {
 
     @Test
     void buildPoolLabelShouldProduceReadableLabel() {
-        assertEquals("mydb_a1b2",    OjpMetrics.buildPoolLabel("jdbc:postgresql://host:5432/mydb",   "a1b2c3d4", false));
-        assertEquals("mydb_xa_a1b2", OjpMetrics.buildPoolLabel("jdbc:postgresql://host:5432/mydb",   "a1b2c3d4", true));
-        assertEquals("mydb_a1b2",    OjpMetrics.buildPoolLabel("jdbc:mysql://host:3306/mydb?ssl=true","a1b2c3d4", false));
-        // URL without DB segment falls back to "pool"
-        assertEquals("pool_a1b2",    OjpMetrics.buildPoolLabel("jdbc:postgresql://host:5432",        "a1b2c3d4", false));
-        // null URL falls back to "pool"
-        assertEquals("pool_xa_a1b2", OjpMetrics.buildPoolLabel(null,                                 "a1b2c3d4", true));
+        // OJP datasource name + hash suffix
+        assertEquals("mydb_a1b2",       OjpMetrics.buildPoolLabel("mydb",    "a1b2c3d4", false));
+        assertEquals("mydb_xa_a1b2",    OjpMetrics.buildPoolLabel("mydb",    "a1b2c3d4", true));
+        assertEquals("orders_a1b2",     OjpMetrics.buildPoolLabel("orders",  "a1b2c3d4", false));
+        assertEquals("orders_xa_a1b2",  OjpMetrics.buildPoolLabel("orders",  "a1b2c3d4", true));
+        // null/blank dsName falls back to "default"
+        assertEquals("default_a1b2",    OjpMetrics.buildPoolLabel(null,      "a1b2c3d4", false));
+        assertEquals("default_xa_a1b2", OjpMetrics.buildPoolLabel("",        "a1b2c3d4", true));
+        assertEquals("default_a1b2",    OjpMetrics.buildPoolLabel("   ",     "a1b2c3d4", false));
         // short hash uses whatever is available
-        assertEquals("mydb_a1",      OjpMetrics.buildPoolLabel("jdbc:postgresql://host:5432/mydb",   "a1",       false));
-    }
-
-    @Test
-    void extractDbNameShouldParseStandardJdbcUrls() {
-        assertEquals("mydb",   OjpMetrics.extractDbName("jdbc:postgresql://host:5432/mydb"));
-        assertEquals("mydb",   OjpMetrics.extractDbName("jdbc:postgresql://host:5432/mydb?ssl=true"));
-        assertEquals("mydb",   OjpMetrics.extractDbName("jdbc:mysql://host:3306/mydb"));
-        assertNull(             OjpMetrics.extractDbName("jdbc:postgresql://host:5432"));
-        assertNull(             OjpMetrics.extractDbName(null));
-        assertNull(             OjpMetrics.extractDbName(""));
+        assertEquals("mydb_a1",         OjpMetrics.buildPoolLabel("mydb",    "a1",       false));
     }
 
     @Test

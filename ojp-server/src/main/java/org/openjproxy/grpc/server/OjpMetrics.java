@@ -382,7 +382,10 @@ public class OjpMetrics {
     // -------------------------------------------------------------------------
 
     /**
-     * Builds a human-readable pool label in the form {@code <dbname>[_xa]_<4-char-hash>}.
+     * Builds a human-readable pool label in the form {@code <dsName>[_xa]_<4-char-hash>}.
+     *
+     * <p>The datasource name is the OJP-configured name ({@code ojp.datasource.name} property);
+     * if absent or blank, {@code "default"} is used.
      *
      * <p>Examples:
      * <ul>
@@ -390,50 +393,16 @@ public class OjpMetrics {
      *   <li>XA:      {@code mydb_xa_a1b2}</li>
      * </ul>
      *
-     * @param jdbcUrl  JDBC URL used to extract the database name (may be {@code null})
+     * @param dsName   OJP datasource name (may be {@code null} or blank — falls back to {@code "default"})
      * @param connHash full connection hash (only first 4 chars are used)
      * @param xa       whether this is an XA pool
      * @return a bounded, human-readable pool label
      */
-    public static String buildPoolLabel(String jdbcUrl, String connHash, boolean xa) {
-        String dbName = extractDbName(jdbcUrl);
+    public static String buildPoolLabel(String dsName, String connHash, boolean xa) {
+        String base = (dsName != null && !dsName.isBlank()) ? dsName : "default";
         String hashSuffix = (connHash != null && connHash.length() >= 4)
                 ? connHash.substring(0, 4)
                 : (connHash != null ? connHash : "");
-        String base = (dbName != null && !dbName.isBlank()) ? dbName : "pool";
         return xa ? base + "_xa_" + hashSuffix : base + "_" + hashSuffix;
-    }
-
-    /**
-     * Extracts the database name from a JDBC URL (the last path segment before any query string).
-     *
-     * <p>Examples:
-     * <ul>
-     *   <li>{@code jdbc:postgresql://host:5432/mydb?sslmode=require} → {@code mydb}</li>
-     *   <li>{@code jdbc:mysql://host:3306/mydb} → {@code mydb}</li>
-     * </ul>
-     *
-     * @param jdbcUrl the JDBC URL to parse (may be {@code null})
-     * @return the lower-cased database name, or {@code null} if it cannot be extracted
-     */
-    public static String extractDbName(String jdbcUrl) {
-        if (jdbcUrl == null || jdbcUrl.isBlank()) {
-            return null;
-        }
-        try {
-            // strip query/option string: everything after '?' or ';'
-            String withoutQuery = jdbcUrl.split("[?;]")[0];
-            int lastSlash = withoutQuery.lastIndexOf('/');
-            if (lastSlash >= 0 && lastSlash < withoutQuery.length() - 1) {
-                String candidate = withoutQuery.substring(lastSlash + 1).toLowerCase();
-                // Reject empty strings and host:port fragments (contain ':')
-                if (!candidate.isBlank() && !candidate.contains(":")) {
-                    return candidate;
-                }
-            }
-        } catch (Exception e) {
-            logger.trace("Could not extract database name from URL: {}", jdbcUrl);
-        }
-        return null;
     }
 }
