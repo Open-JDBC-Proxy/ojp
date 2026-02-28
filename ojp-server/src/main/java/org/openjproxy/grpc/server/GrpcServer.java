@@ -76,7 +76,8 @@ public class GrpcServer {
         final StatementServiceImpl statementService = new StatementServiceImpl(
                 sessionManager,
                 circuitBreakerRegistry,
-                config
+                config,
+                ojpMetrics
         );
 
         NettyServerBuilder serverBuilder = NettyServerBuilder

@@ -153,7 +153,7 @@ public class OjpServerTelemetry {
 			sdkBuilder.setTracerProvider(tracerProvider);
 		}
 
-		OpenTelemetry openTelemetry = sdkBuilder.build();
+		this.openTelemetry = sdkBuilder.build();
 		
 		// Register OpenTelemetry instance for pool metrics if enabled
 		if (poolMetricsEnabled) {
