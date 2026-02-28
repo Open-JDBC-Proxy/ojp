@@ -235,6 +235,9 @@ public class HandleXAConnectionWithPoolingAction {
                 xaPoolConfig.put("xa.url", parsedUrl);
                 xaPoolConfig.put("xa.username", connectionDetails.getUser());
                 xaPoolConfig.put("xa.password", connectionDetails.getPassword());
+                // Use connHash as pool name so each distinct XA connection gets a unique name —
+                // prevents DuplicateLabelsException when multiple XA connections are open concurrently
+                xaPoolConfig.put("xa.poolName", connHash);
                 // Use calculated pool sizes (with multinode coordination if applicable)
                 xaPoolConfig.put("xa.maxPoolSize", String.valueOf(maxPoolSize));
                 xaPoolConfig.put("xa.minIdle", String.valueOf(minIdle));

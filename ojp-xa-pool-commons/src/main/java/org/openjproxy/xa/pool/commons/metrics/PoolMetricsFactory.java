@@ -22,7 +22,7 @@ public class PoolMetricsFactory {
     
     // Configuration keys
     private static final String METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
-    private static final String POOL_NAME_KEY = "ojp.xa.poolName";
+    private static final String POOL_NAME_KEY = "xa.poolName";
     private static final String DEFAULT_POOL_NAME = "ojp-xa-pool";
     
     /**
