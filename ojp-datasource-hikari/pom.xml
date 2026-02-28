@@ -45,6 +45,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- OpenTelemetry API for metrics -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <version>1.44.1</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- JUnit 5 for testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

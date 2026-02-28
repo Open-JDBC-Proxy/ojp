@@ -52,8 +52,15 @@ public class GrpcServer {
         
         if (config.isOpenTelemetryEnabled()) {
             grpcTelemetry = ojpServerTelemetry.createGrpcTelemetry(
-                config.getPrometheusPort(), 
-                config.getPrometheusAllowedIps()
+                config.getPrometheusPort(),
+                config.getPrometheusAllowedIps(),
+                config.isTracingEnabled(),
+                config.getTracingExporter(),
+                config.getTracingEndpoint(),
+                config.getTracingServiceName(),
+                config.getTracingSampleRate(),
+                config.isTelemetryGrpcMetricsEnabled(),
+                config.isTelemetryPoolMetricsEnabled()
             );
             ojpMetrics = ojpServerTelemetry.createOjpMetrics();
 

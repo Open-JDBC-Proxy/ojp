@@ -100,8 +100,41 @@ For detailed configuration examples for each database, see [SSL/TLS Certificate 
 
 | Property                      | Environment Variable          | Type    | Default | Description                                    | Since |
 |-------------------------------|-------------------------------|---------|---------|------------------------------------------------|-------|
-| `ojp.opentelemetry.enabled`   | `OJP_OPENTELEMETRY_ENABLED`   | boolean | true    | Enable/disable OpenTelemetry instrumentation  | 0.2.0-beta |
+| `ojp.telemetry.enabled`   | `OJP_TELEMETRY_ENABLED`   | boolean | true    | Master switch: Enable/disable OpenTelemetry infrastructure (Prometheus server, MeterProvider, TracerProvider)  | 0.2.0-beta |
 | `ojp.opentelemetry.endpoint`  | `OJP_OPENTELEMETRY_ENDPOINT`  | string  | ""      | OpenTelemetry exporter endpoint (empty = default) | 0.2.0-beta |
+
+### Tracing Settings
+
+Distributed tracing is **disabled by default**. When enabled, OJP emits OpenTelemetry spans for all gRPC calls to a Zipkin or OTLP-compatible backend (e.g. Jaeger, Grafana Tempo).
+
+| Property                    | Environment Variable        | Type    | Default                                   | Description                                                   | Since          |
+|-----------------------------|-----------------------------|---------|-------------------------------------------|---------------------------------------------------------------|----------------|
+| `ojp.tracing.enabled`       | `OJP_TRACING_ENABLED`       | boolean | false                                     | Enable/disable distributed tracing (disabled by default)      | 0.3.2-snapshot |
+| `ojp.tracing.exporter`      | `OJP_TRACING_EXPORTER`      | string  | zipkin                                    | Trace exporter type: `zipkin` or `otlp`                      | 0.3.2-snapshot |
+| `ojp.tracing.endpoint`      | `OJP_TRACING_ENDPOINT`      | string  | http://localhost:9411/api/v2/spans        | Exporter endpoint URL                                         | 0.3.2-snapshot |
+| `ojp.tracing.serviceName`   | `OJP_TRACING_SERVICENAME`   | string  | ojp-server                                | Service name attached to all spans                           | 0.3.2-snapshot |
+| `ojp.tracing.sampleRate`    | `OJP_TRACING_SAMPLERATE`    | double  | 1.0                                       | Fraction of requests to sample (0.0–1.0)                     | 0.3.2-snapshot |
+
+#### Tracing Configuration Examples
+
+**Enable Zipkin tracing:**
+```bash
+java -jar ojp-server.jar \
+  -Dojp.tracing.enabled=true \
+  -Dojp.tracing.endpoint=http://zipkin:9411/api/v2/spans \
+  -Dojp.tracing.serviceName=my-ojp-server
+```
+
+**Enable OTLP tracing (Jaeger / Grafana Tempo / OpenTelemetry Collector):**
+```bash
+java -jar ojp-server.jar \
+  -Dojp.tracing.enabled=true \
+  -Dojp.tracing.exporter=otlp \
+  -Dojp.tracing.endpoint=http://jaeger:4317 \
+  -Dojp.tracing.sampleRate=0.1
+```
+
+For full integration examples including Docker Compose setups, see the **[Telemetry Documentation](../telemetry/README.md)**.
 
 ### Circuit Breaker Settings
 
@@ -253,7 +286,7 @@ Set configuration using JVM system properties when starting the server:
 ```bash
 java -Dojp.server.port=8080 \
      -Dojp.prometheus.port=9091 \
-     -Dojp.opentelemetry.enabled=false \
+     -Dojp.telemetry.enabled=false \
      -Dojp.server.threadPoolSize=100 \
      -Dojp.server.circuitBreakerTimeout=120000 \
      -Dojp.server.circuitBreakerThreshold=3 \

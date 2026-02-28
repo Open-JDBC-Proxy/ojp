@@ -35,7 +35,7 @@ Honesty about limitations is crucial for making informed technical decisions. OJ
 
 **Single Point of Failure (Mitigated)**: In single-server deployments, OJP becomes a potential single point of failure. If the OJP server crashes, all database connectivity fails until it recovers. The multinode feature addresses this limitation—multiple OJP servers provide redundancy, with automatic failover if a server becomes unavailable. For production deployments, running 2-3 OJP servers in a highly-available configuration is recommended standard practice.
 
-**Observability Gaps**: Current telemetry provides metrics and basic health information but lacks distributed tracing export. You can see connection pool metrics and gRPC server statistics, but end-to-end trace visualization through systems like Zipkin or Jaeger isn't yet available. SQL-level instrumentation—seeing individual queries and their performance characteristics—isn't currently implemented. These observability features are on the roadmap but represent current limitations for teams requiring comprehensive tracing.
+**Observability Gaps**: Current telemetry provides metrics and distributed tracing, but SQL-level instrumentation—seeing individual queries and their performance characteristics—isn't currently implemented. This observability feature is on the roadmap and represents a current limitation for teams requiring per-query visibility.
 
 **Manual Server Discovery**: In multinode configurations, you must explicitly list servers in your JDBC URL. Automatic service discovery through systems like Consul, etcd, or Kubernetes Service Discovery isn't yet supported. This manual approach works reliably but requires updating configurations when the server pool changes. Dynamic discovery would enable true elastic scaling of the OJP server layer.
 
@@ -48,7 +48,7 @@ graph TD
     B -->|Operational| D[Additional Service<br/>Monitoring required]
     B -->|Availability| E[Single Point of Failure<br/>Mitigated by Multinode]
     B -->|Functional| F[Session Affinity<br/>Required for XA/Temp Tables]
-    B -->|Observability| G[No Distributed Tracing<br/>Basic metrics only]
+    B -->|Observability| G[SQL-Level Instrumentation<br/>Not yet implemented]
     B -->|Deployment| H[Manual Discovery<br/>Explicit server list]
     style C fill:#ffe6e6
     style D fill:#ffe6e6
@@ -61,13 +61,13 @@ graph TD
 Understanding these limitations helps set appropriate expectations. OJP isn't a universal solution for every database connectivity scenario. It shines in cloud-native environments with elastic scaling, variable load patterns, and heterogeneous database estates. It might be overkill for monolithic applications with stable instance counts and single databases. The key is matching the tool to the problem.
 
 **[IMAGE PROMPT: Limitations vs Solutions Matrix]**
-Create a table-style infographic showing current limitations and their solutions/mitigations. Four columns: "Limitation", "Impact", "Mitigation", "Roadmap Status". Rows include: Network Latency (Impact: 1-3ms, Mitigation: Accept for non-latency-critical apps, Status: Inherent trade-off), Single Point of Failure (Impact: Total outage, Mitigation: Deploy multinode, Status: Solved), Observability Gaps (Impact: Limited tracing, Mitigation: Use Prometheus metrics, Status: Planned), Manual Discovery (Impact: Manual updates, Mitigation: Use ConfigMaps, Status: Planned). Use color coding: red for high impact, yellow for medium, green for mitigated.
+Create a table-style infographic showing current limitations and their solutions/mitigations. Four columns: "Limitation", "Impact", "Mitigation", "Roadmap Status". Rows include: Network Latency (Impact: 1-3ms, Mitigation: Accept for non-latency-critical apps, Status: Inherent trade-off), Single Point of Failure (Impact: Total outage, Mitigation: Deploy multinode, Status: Solved), Observability Gaps (Impact: No SQL-level instrumentation, Mitigation: Use Prometheus metrics + distributed traces, Status: Planned), Manual Discovery (Impact: Manual updates, Mitigation: Use ConfigMaps, Status: Planned). Use color coding: red for high impact, yellow for medium, green for mitigated.
 
 ## 21.3 Future Enhancements and Roadmap
 
 OJP's roadmap reflects both user requests and the maintainers' vision for enhancing core capabilities. These enhancements will arrive progressively as the project matures and community contributions accelerate.
 
-**Distributed Tracing Export**: OpenTelemetry integration currently collects metrics but doesn't export distributed traces. Future versions will add trace exporters for Zipkin, Jaeger, OTLP, and cloud-provider tracing systems (AWS X-Ray, Google Cloud Trace, Azure Monitor). This will enable end-to-end request tracing from application through OJP to the database, providing visibility into complete request flows. Imagine seeing a single trace that shows application processing time, OJP proxy time, network time, and database execution time—debugging performance issues becomes dramatically simpler.
+**Distributed Tracing (Implemented)**: OJP now supports distributed tracing through OpenTelemetry. Trace exporters for Zipkin and OTLP-compatible backends (Jaeger, Grafana Tempo, AWS X-Ray via OTLP, and cloud-provider tracing systems) are available. End-to-end request tracing from application through OJP to the database is possible, providing visibility into complete request flows. You can see a single trace that shows application processing time, OJP proxy time, network time, and database execution time—simplifying performance issue diagnosis. Enable tracing via `ojp.tracing.enabled=true` and configure your preferred exporter (see Chapter 13 for details).
 
 **SQL-Level Instrumentation**: Current observability operates at the connection and transaction level. Future enhancements will add SQL statement-level tracking: which queries execute most frequently, which consume the most time, which cause the most waits. This query intelligence enables sophisticated optimizations—perhaps automatically routing certain query patterns to read replicas, or flagging problematic queries for developer review.
 
@@ -84,9 +84,9 @@ OJP's roadmap reflects both user requests and the maintainers' vision for enhanc
 **Query Result Caching**: For queries that fetch relatively static data (configuration tables, reference data), an optional caching layer could cache results directly in OJP. Subsequent identical queries would return cached results without hitting the database. This capability requires careful cache invalidation strategies but could dramatically reduce database load for certain access patterns.
 
 **[IMAGE PROMPT: Roadmap Timeline]**
-Create a roadmap visualization showing enhancement phases. Display a horizontal timeline with three phases: "Near Term (6-12 months)", "Mid Term (1-2 years)", "Long Term (2+ years)". Near Term shows: Distributed Tracing Export, Enhanced Health Checks. Mid Term shows: Dynamic Server Discovery, Configuration Sync, SQL-Level Instrumentation. Long Term shows: Read Replica Routing, Connection Pool Autoscaling, Query Caching. Use different colors for observability (blue), operational (green), and performance (orange) enhancements. Add icons representing each feature.
+Create a roadmap visualization showing enhancement phases. Display a horizontal timeline with three phases: "Near Term (6-12 months)", "Mid Term (1-2 years)", "Long Term (2+ years)". Near Term shows: Enhanced Health Checks, SQL-Level Instrumentation. Mid Term shows: Dynamic Server Discovery, Configuration Sync. Long Term shows: Read Replica Routing, Connection Pool Autoscaling, Query Caching. Use different colors for observability (blue), operational (green), and performance (orange) enhancements. Add icons representing each feature.
 
-The roadmap remains intentionally flexible. Community priorities help shape which enhancements arrive first. If multiple users request dynamic discovery, it jumps in priority. If distributed tracing emerges as a critical need, it accelerates. Open-source projects thrive on this feedback loop—users identifying needs, contributors implementing solutions, and the maintainers integrating improvements into the core.
+The roadmap remains intentionally flexible. Community priorities help shape which enhancements arrive first. If multiple users request dynamic discovery, it jumps in priority. Open-source projects thrive on this feedback loop—users identifying needs, contributors implementing solutions, and the maintainers integrating improvements into the core.
 
 ## 21.4 Community and Ecosystem
 
@@ -125,9 +125,9 @@ The future of OJP depends on community engagement. Open-source projects thrive n
 
 Open J Proxy represents a specific solution to a specific problem: managing database connections in cloud-native architectures where elastic scaling creates database pressure. Its vision—database-agnostic, open-source, intelligent connection management—addresses real pain points that traditional JDBC drivers weren't designed to solve.
 
-Current limitations exist and should be understood when evaluating fit. The additional network hop, operational complexity, and observability gaps represent trade-offs made to achieve the core benefits. For many architectures, these trade-offs are worthwhile; for others, they might not be.
+Current limitations exist and should be understood when evaluating fit. The additional network hop, operational complexity, and the absence of SQL-level instrumentation represent trade-offs made to achieve the core benefits. For many architectures, these trade-offs are worthwhile; for others, they might not be.
 
-The roadmap points toward a more capable, more observable, more operationally simple future. Distributed tracing, dynamic discovery, and advanced load balancing will arrive progressively. Community input influences priorities, and contributions accelerate delivery.
+The roadmap points toward a more capable, more observable, more operationally simple future. SQL-level instrumentation, dynamic discovery, and advanced load balancing will arrive progressively. Community input influences priorities, and contributions accelerate delivery.
 
 Most importantly, OJP remains open-source, free to use, modify, and distribute. Commercial database proxies serve their purpose, but lock you into specific vendors or platforms. OJP's open nature ensures you control your database connectivity layer, adapt it to your needs, and avoid vendor lock-in.
 

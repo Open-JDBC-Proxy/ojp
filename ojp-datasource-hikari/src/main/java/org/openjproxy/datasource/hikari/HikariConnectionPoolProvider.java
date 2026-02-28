@@ -2,6 +2,12 @@ package org.openjproxy.datasource.hikari;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.metrics.MetricsTrackerFactory;
+import com.zaxxer.hikari.metrics.PoolStats;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.Meter;
 import org.openjproxy.datasource.ConnectionPoolProvider;
 import org.openjproxy.datasource.PoolConfig;
 import org.slf4j.Logger;
@@ -44,6 +50,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
     
     public static final String PROVIDER_ID = "hikari";
     private static final int PRIORITY = 100; // Highest priority - default provider
+    private static final String METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
 
     @Override
     public String id() {
@@ -110,6 +117,23 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
         hikariConfig.setInitializationFailTimeout(10000); // 10 seconds
         hikariConfig.setRegisterMbeans(true);
 
+        // Configure OpenTelemetry metrics if enabled
+        String metricsEnabled = config.getProperties().get(METRICS_ENABLED_KEY);
+        if (metricsEnabled == null) {
+            metricsEnabled = System.getProperty(METRICS_ENABLED_KEY);
+        }
+        if (metricsEnabled == null || Boolean.parseBoolean(metricsEnabled)) {
+            try {
+                OpenTelemetry openTelemetry = getOpenTelemetryInstance();
+                if (openTelemetry != null) {
+                    hikariConfig.setMetricsTrackerFactory(new HikariOpenTelemetryMetricsTrackerFactory(openTelemetry, poolName));
+                    log.info("OpenTelemetry metrics enabled for HikariCP pool '{}'", poolName);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to enable OpenTelemetry metrics for HikariCP: {}", e.getMessage());
+            }
+        }
+
         // Connection properties
         for (Map.Entry<String, String> entry : config.getProperties().entrySet()) {
             hikariConfig.addDataSourceProperty(entry.getKey(), entry.getValue());
@@ -124,6 +148,128 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
         } catch (Exception e) {
             log.error("Failed to create HikariCP DataSource: {}", e.getMessage(), e);
             throw new SQLException("Failed to create HikariCP DataSource: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Gets OpenTelemetry instance using reflection to avoid compile-time dependency.
+     */
+    private OpenTelemetry getOpenTelemetryInstance() {
+        try {
+            Class<?> holderClass = Class.forName("org.openjproxy.xa.pool.commons.metrics.OpenTelemetryHolder");
+            java.lang.reflect.Method getInstanceMethod = holderClass.getMethod("getInstance");
+            return (OpenTelemetry) getInstanceMethod.invoke(null);
+        } catch (Exception e) {
+            log.debug("OpenTelemetry not available: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * OpenTelemetry metrics tracker factory for HikariCP.
+     */
+    private static class HikariOpenTelemetryMetricsTrackerFactory implements MetricsTrackerFactory {
+        private final Meter meter;
+        private final String poolName;
+        private final Attributes attributes;
+        private volatile PoolStats poolStats;
+
+        public HikariOpenTelemetryMetricsTrackerFactory(OpenTelemetry openTelemetry, String poolName) {
+            this.meter = openTelemetry.getMeter("ojp.hikari.pool");
+            this.poolName = poolName;
+            this.attributes = Attributes.of(AttributeKey.stringKey("pool.name"), poolName);
+            
+            log.info("Registering OpenTelemetry gauges for HikariCP pool '{}'", poolName);
+            
+            // Register standardized pool metrics (aligned suffix naming with XA pools)
+            meter.gaugeBuilder("ojp.hikari.pool.connections.active")
+                    .setDescription("Number of active (borrowed) connections")
+                    .setUnit("connections")
+                    .buildWithCallback(measurement -> {
+                        PoolStats stats = poolStats;
+                        if (stats != null) {
+                            measurement.record(stats.getActiveConnections(), attributes);
+                        }
+                    });
+            
+            meter.gaugeBuilder("ojp.hikari.pool.connections.idle")
+                    .setDescription("Number of idle connections in pool")
+                    .setUnit("connections")
+                    .buildWithCallback(measurement -> {
+                        PoolStats stats = poolStats;
+                        if (stats != null) {
+                            measurement.record(stats.getIdleConnections(), attributes);
+                        }
+                    });
+            
+            meter.gaugeBuilder("ojp.hikari.pool.connections.total")
+                    .setDescription("Total connections (active + idle)")
+                    .setUnit("connections")
+                    .buildWithCallback(measurement -> {
+                        PoolStats stats = poolStats;
+                        if (stats != null) {
+                            measurement.record(stats.getTotalConnections(), attributes);
+                        }
+                    });
+            
+            meter.gaugeBuilder("ojp.hikari.pool.connections.pending")
+                    .setDescription("Number of threads waiting for connections")
+                    .setUnit("threads")
+                    .buildWithCallback(measurement -> {
+                        PoolStats stats = poolStats;
+                        if (stats != null) {
+                            measurement.record(stats.getPendingThreads(), attributes);
+                        }
+                    });
+            
+            meter.gaugeBuilder("ojp.hikari.pool.connections.max")
+                    .setDescription("Maximum pool size")
+                    .setUnit("connections")
+                    .buildWithCallback(measurement -> {
+                        PoolStats stats = poolStats;
+                        if (stats != null) {
+                            measurement.record(stats.getMaxConnections(), attributes);
+                        }
+                    });
+            
+            meter.gaugeBuilder("ojp.hikari.pool.connections.min")
+                    .setDescription("Minimum idle connections")
+                    .setUnit("connections")
+                    .buildWithCallback(measurement -> {
+                        PoolStats stats = poolStats;
+                        if (stats != null) {
+                            measurement.record(stats.getMinConnections(), attributes);
+                        }
+                    });
+        }
+
+        @Override
+        public com.zaxxer.hikari.metrics.IMetricsTracker create(String poolName, PoolStats poolStats) {
+            // Store the PoolStats reference so gauges can read from it
+            this.poolStats = poolStats;
+            log.info("HikariCP pool '{}' metrics tracker created - metrics will be available", poolName);
+            
+            return new com.zaxxer.hikari.metrics.IMetricsTracker() {
+                @Override
+                public void recordConnectionAcquiredNanos(long elapsedAcquiredNanos) {
+                    // Can add histogram/counter for acquisition time if needed
+                }
+
+                @Override
+                public void recordConnectionUsageMillis(long elapsedBorrowedMillis) {
+                    // Can add histogram/counter for usage time if needed
+                }
+
+                @Override
+                public void recordConnectionTimeout() {
+                    // Can add counter for timeouts if needed
+                }
+
+                @Override
+                public void close() {
+                    // Cleanup if needed
+                }
+            };
         }
     }
 
