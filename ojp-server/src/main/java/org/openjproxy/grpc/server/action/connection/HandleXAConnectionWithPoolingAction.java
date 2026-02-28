@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.MultinodePoolCoordinator;
 import org.openjproxy.grpc.server.Session;
+import org.openjproxy.grpc.server.OjpMetrics;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
@@ -235,9 +236,12 @@ public class HandleXAConnectionWithPoolingAction {
                 xaPoolConfig.put("xa.url", parsedUrl);
                 xaPoolConfig.put("xa.username", connectionDetails.getUser());
                 xaPoolConfig.put("xa.password", connectionDetails.getPassword());
-                // Use connHash as pool name so each distinct XA connection gets a unique name —
-                // prevents DuplicateLabelsException when multiple XA connections are open concurrently
-                xaPoolConfig.put("xa.poolName", connHash);
+                // Use a human-readable pool name (<dbname>_xa_<first4 of connHash>) so that
+                // pool.name labels in Prometheus are readable and unique per connection.
+                // This also prevents DuplicateLabelsException when a pool is recreated, because
+                // OpenTelemetryPoolMetrics.close() now properly unregisters the old gauge callbacks.
+                String xaPoolLabel = OjpMetrics.buildPoolLabel(parsedUrl, connHash, true);
+                xaPoolConfig.put("xa.poolName", xaPoolLabel);
                 // Use calculated pool sizes (with multinode coordination if applicable)
                 xaPoolConfig.put("xa.maxPoolSize", String.valueOf(maxPoolSize));
                 xaPoolConfig.put("xa.minIdle", String.valueOf(minIdle));
@@ -268,7 +272,7 @@ public class HandleXAConnectionWithPoolingAction {
 
                 // Register XA pool with metrics for pool statistics gauges
                 if (context.getOjpMetrics() != null) {
-                    context.getOjpMetrics().registerXaPool(connHash, pooledXADataSource);
+                    context.getOjpMetrics().registerXaPool(connHash, xaPoolLabel, pooledXADataSource);
                 }
                 
                 log.info("[XA-POOL-CREATE] Successfully created XA pool for connHash={} - maxPoolSize={}, minIdle={}, multinode={}, poolObject={}", 

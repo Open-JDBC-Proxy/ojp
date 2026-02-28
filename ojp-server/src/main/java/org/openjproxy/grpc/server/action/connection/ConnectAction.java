@@ -15,6 +15,7 @@ import org.openjproxy.grpc.server.MultinodeXaCoordinator;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
+import org.openjproxy.grpc.server.OjpMetrics;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
@@ -199,7 +200,9 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                     
                     // Register datasource with metrics for pool statistics
                     if (context.getOjpMetrics() != null) {
-                        context.getOjpMetrics().registerDatasource(connHash, ds);
+                        String poolLabel = OjpMetrics.buildPoolLabel(
+                                UrlParser.parseUrl(connectionDetails.getUrl()), connHash, false);
+                        context.getOjpMetrics().registerDatasource(connHash, poolLabel, ds);
                     }
                     
                     // Create a slow query segregation manager for this datasource

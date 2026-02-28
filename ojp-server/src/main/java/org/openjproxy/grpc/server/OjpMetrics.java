@@ -46,6 +46,7 @@ public class OjpMetrics {
     // Attribute keys
     static final AttributeKey<String> SQL_KEY = AttributeKey.stringKey("sql");
     static final AttributeKey<String> CONN_HASH_KEY = AttributeKey.stringKey("conn_hash");
+    static final AttributeKey<String> POOL_LABEL_KEY = AttributeKey.stringKey("pool");
     static final AttributeKey<String> OUTCOME_KEY = AttributeKey.stringKey("outcome");
 
     /** Maximum length of the {@code sql} label value to keep Prometheus cardinality bounded. */
@@ -89,9 +90,13 @@ public class OjpMetrics {
 
     // Datasource registry for HikariCP pool gauges
     private final Map<String, DataSource> datasourceRegistry = new ConcurrentHashMap<>();
+    // human-readable pool labels for HikariCP gauges (key = connHash, value = friendly label)
+    private final Map<String, String> datasourceLabels = new ConcurrentHashMap<>();
 
     // XA pool datasource registry (CommonsPool2XADataSource instances)
     private final Map<String, CommonsPool2XADataSource> xaPoolRegistry = new ConcurrentHashMap<>();
+    // human-readable pool labels for XA pool gauges (key = connHash, value = friendly label)
+    private final Map<String, String> xaPoolLabels = new ConcurrentHashMap<>();
 
     /**
      * Creates OJP metrics bound to the given {@link OpenTelemetry} instance.
@@ -133,14 +138,15 @@ public class OjpMetrics {
                 .setDescription("Number of active connections in the pool")
                 .setUnit("{connections}")
                 .ofLongs()
-                .buildWithCallback(measurement -> datasourceRegistry.forEach((connHash, ds) -> {
+                .buildWithCallback(measurement -> datasourceRegistry.forEach((hash, ds) -> {
                     if (ds instanceof HikariDataSource hikari) {
                         try {
+                            String label = datasourceLabels.getOrDefault(hash, hash);
                             measurement.record(
                                     hikari.getHikariPoolMXBean().getActiveConnections(),
-                                    Attributes.of(CONN_HASH_KEY, connHash));
+                                    Attributes.of(POOL_LABEL_KEY, label));
                         } catch (Exception e) {
-                            logger.trace("Could not read active connections for {}", connHash);
+                            logger.trace("Could not read active connections for {}", hash);
                         }
                     }
                 }));
@@ -149,14 +155,15 @@ public class OjpMetrics {
                 .setDescription("Number of idle connections in the pool")
                 .setUnit("{connections}")
                 .ofLongs()
-                .buildWithCallback(measurement -> datasourceRegistry.forEach((connHash, ds) -> {
+                .buildWithCallback(measurement -> datasourceRegistry.forEach((hash, ds) -> {
                     if (ds instanceof HikariDataSource hikari) {
                         try {
+                            String label = datasourceLabels.getOrDefault(hash, hash);
                             measurement.record(
                                     hikari.getHikariPoolMXBean().getIdleConnections(),
-                                    Attributes.of(CONN_HASH_KEY, connHash));
+                                    Attributes.of(POOL_LABEL_KEY, label));
                         } catch (Exception e) {
-                            logger.trace("Could not read idle connections for {}", connHash);
+                            logger.trace("Could not read idle connections for {}", hash);
                         }
                     }
                 }));
@@ -165,14 +172,15 @@ public class OjpMetrics {
                 .setDescription("Number of threads awaiting a connection from the pool")
                 .setUnit("{threads}")
                 .ofLongs()
-                .buildWithCallback(measurement -> datasourceRegistry.forEach((connHash, ds) -> {
+                .buildWithCallback(measurement -> datasourceRegistry.forEach((hash, ds) -> {
                     if (ds instanceof HikariDataSource hikari) {
                         try {
+                            String label = datasourceLabels.getOrDefault(hash, hash);
                             measurement.record(
                                     hikari.getHikariPoolMXBean().getThreadsAwaitingConnection(),
-                                    Attributes.of(CONN_HASH_KEY, connHash));
+                                    Attributes.of(POOL_LABEL_KEY, label));
                         } catch (Exception e) {
-                            logger.trace("Could not read pending threads for {}", connHash);
+                            logger.trace("Could not read pending threads for {}", hash);
                         }
                     }
                 }));
@@ -182,11 +190,12 @@ public class OjpMetrics {
                 .setDescription("Number of active XA sessions in the pool")
                 .setUnit("{sessions}")
                 .ofLongs()
-                .buildWithCallback(measurement -> xaPoolRegistry.forEach((connHash, xaPool) -> {
+                .buildWithCallback(measurement -> xaPoolRegistry.forEach((hash, xaPool) -> {
                     try {
-                        measurement.record(xaPool.getNumActive(), Attributes.of(CONN_HASH_KEY, connHash));
+                        String label = xaPoolLabels.getOrDefault(hash, hash);
+                        measurement.record(xaPool.getNumActive(), Attributes.of(POOL_LABEL_KEY, label));
                     } catch (Exception e) {
-                        logger.trace("Could not read active XA sessions for {}", connHash);
+                        logger.trace("Could not read active XA sessions for {}", hash);
                     }
                 }));
 
@@ -194,11 +203,12 @@ public class OjpMetrics {
                 .setDescription("Number of idle XA sessions in the pool")
                 .setUnit("{sessions}")
                 .ofLongs()
-                .buildWithCallback(measurement -> xaPoolRegistry.forEach((connHash, xaPool) -> {
+                .buildWithCallback(measurement -> xaPoolRegistry.forEach((hash, xaPool) -> {
                     try {
-                        measurement.record(xaPool.getNumIdle(), Attributes.of(CONN_HASH_KEY, connHash));
+                        String label = xaPoolLabels.getOrDefault(hash, hash);
+                        measurement.record(xaPool.getNumIdle(), Attributes.of(POOL_LABEL_KEY, label));
                     } catch (Exception e) {
-                        logger.trace("Could not read idle XA sessions for {}", connHash);
+                        logger.trace("Could not read idle XA sessions for {}", hash);
                     }
                 }));
 
@@ -206,11 +216,12 @@ public class OjpMetrics {
                 .setDescription("Number of threads awaiting an XA session from the pool")
                 .setUnit("{threads}")
                 .ofLongs()
-                .buildWithCallback(measurement -> xaPoolRegistry.forEach((connHash, xaPool) -> {
+                .buildWithCallback(measurement -> xaPoolRegistry.forEach((hash, xaPool) -> {
                     try {
-                        measurement.record(xaPool.getNumWaiters(), Attributes.of(CONN_HASH_KEY, connHash));
+                        String label = xaPoolLabels.getOrDefault(hash, hash);
+                        measurement.record(xaPool.getNumWaiters(), Attributes.of(POOL_LABEL_KEY, label));
                     } catch (Exception e) {
-                        logger.trace("Could not read pending threads for XA pool {}", connHash);
+                        logger.trace("Could not read pending threads for XA pool {}", hash);
                     }
                 }));
 
@@ -313,12 +324,14 @@ public class OjpMetrics {
     /**
      * Registers a datasource so that pool gauges include its statistics.
      *
-     * @param connHash   the connection hash used as Prometheus label
-     * @param dataSource the datasource (non-HikariCP sources are silently ignored)
+     * @param connHash   the connection hash used as internal registry key
+     * @param poolLabel  human-readable pool label for Prometheus (e.g. {@code mydb_a1b2})
+     * @param dataSource the datasource (non-HikariCP sources are silently ignored in gauge callbacks)
      */
-    public void registerDatasource(String connHash, DataSource dataSource) {
+    public void registerDatasource(String connHash, String poolLabel, DataSource dataSource) {
         datasourceRegistry.put(connHash, dataSource);
-        logger.debug("Registered datasource for metrics: {}", connHash);
+        datasourceLabels.put(connHash, poolLabel);
+        logger.debug("Registered datasource for metrics: {} (label={})", connHash, poolLabel);
     }
 
     /**
@@ -328,6 +341,7 @@ public class OjpMetrics {
      */
     public void deregisterDatasource(String connHash) {
         datasourceRegistry.remove(connHash);
+        datasourceLabels.remove(connHash);
         logger.debug("Deregistered datasource for metrics: {}", connHash);
     }
 
@@ -338,13 +352,15 @@ public class OjpMetrics {
     /**
      * Registers an XA pool datasource so that XA pool gauges include its statistics.
      *
-     * @param connHash       the connection hash used as Prometheus label
+     * @param connHash         the connection hash used as internal registry key
+     * @param poolLabel        human-readable pool label for Prometheus (e.g. {@code mydb_xa_a1b2})
      * @param xaPoolDataSource the pooled XA datasource (non-CommonsPool2 sources are silently ignored)
      */
-    public void registerXaPool(String connHash, Object xaPoolDataSource) {
+    public void registerXaPool(String connHash, String poolLabel, Object xaPoolDataSource) {
         if (xaPoolDataSource instanceof CommonsPool2XADataSource pool) {
             xaPoolRegistry.put(connHash, pool);
-            logger.debug("Registered XA pool for metrics: {}", connHash);
+            xaPoolLabels.put(connHash, poolLabel);
+            logger.debug("Registered XA pool for metrics: {} (label={})", connHash, poolLabel);
         } else {
             logger.debug("XA pool datasource for {} is not a CommonsPool2XADataSource, skipping registration", connHash);
         }
@@ -357,6 +373,67 @@ public class OjpMetrics {
      */
     public void deregisterXaPool(String connHash) {
         xaPoolRegistry.remove(connHash);
+        xaPoolLabels.remove(connHash);
         logger.debug("Deregistered XA pool for metrics: {}", connHash);
+    }
+
+    // -------------------------------------------------------------------------
+    // Pool label helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Builds a human-readable pool label in the form {@code <dbname>[_xa]_<4-char-hash>}.
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>Regular: {@code mydb_a1b2}</li>
+     *   <li>XA:      {@code mydb_xa_a1b2}</li>
+     * </ul>
+     *
+     * @param jdbcUrl  JDBC URL used to extract the database name (may be {@code null})
+     * @param connHash full connection hash (only first 4 chars are used)
+     * @param xa       whether this is an XA pool
+     * @return a bounded, human-readable pool label
+     */
+    public static String buildPoolLabel(String jdbcUrl, String connHash, boolean xa) {
+        String dbName = extractDbName(jdbcUrl);
+        String hashSuffix = (connHash != null && connHash.length() >= 4)
+                ? connHash.substring(0, 4)
+                : (connHash != null ? connHash : "");
+        String base = (dbName != null && !dbName.isBlank()) ? dbName : "pool";
+        return xa ? base + "_xa_" + hashSuffix : base + "_" + hashSuffix;
+    }
+
+    /**
+     * Extracts the database name from a JDBC URL (the last path segment before any query string).
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>{@code jdbc:postgresql://host:5432/mydb?sslmode=require} → {@code mydb}</li>
+     *   <li>{@code jdbc:mysql://host:3306/mydb} → {@code mydb}</li>
+     * </ul>
+     *
+     * @param jdbcUrl the JDBC URL to parse (may be {@code null})
+     * @return the lower-cased database name, or {@code null} if it cannot be extracted
+     */
+    public static String extractDbName(String jdbcUrl) {
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            return null;
+        }
+        try {
+            // strip query/option string: everything after '?' or ';'
+            String withoutQuery = jdbcUrl.split("[?;]")[0];
+            int lastSlash = withoutQuery.lastIndexOf('/');
+            if (lastSlash >= 0 && lastSlash < withoutQuery.length() - 1) {
+                String candidate = withoutQuery.substring(lastSlash + 1).toLowerCase();
+                // Reject empty strings and host:port fragments (contain ':')
+                if (!candidate.isBlank() && !candidate.contains(":")) {
+                    return candidate;
+                }
+            }
+        } catch (Exception e) {
+            logger.trace("Could not extract database name from URL: {}", jdbcUrl);
+        }
+        return null;
     }
 }
