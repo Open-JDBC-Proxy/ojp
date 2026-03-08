@@ -16,7 +16,8 @@
 # 8. multinode-xa-test: Multinode XA integration tests (needs: build-test)
 # 9. oracle-test: Oracle database tests (needs: build-test)
 # 10. sqlserver-tests: SQL Server tests (needs: build-test)
-# 11. notify-integration: Triggers integration repo workflow
+# 11. ojp-testcontainers-test: OJP TestContainers integration tests (needs: build-test)
+# 12. notify-integration: Triggers integration repo workflow
 #
 # SEQUENTIAL EXECUTION:
 # All specialized test jobs depend on build-test completing successfully.
@@ -1844,7 +1845,52 @@ jobs:
         run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
 
   # ===========================================================================
-  # JOB 11: Notify Integration Repository
+  # JOB 11: OJP TestContainers Integration Tests
+  # ===========================================================================
+  #
+  # This job validates the ojp-testcontainers module by:
+  # 1. Building the ojp-testcontainers module from the local source so tests
+  #    always run against the latest code rather than a published artifact.
+  # 2. Starting an OJP Server Docker container via OjpContainer and asserting
+  #    that the server port is reachable over TCP.
+  #
+  # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
+  #
+  # ===========================================================================
+  ojp-testcontainers-test:
+    name: OJP TestContainers Integration Tests
+    runs-on: ubuntu-latest
+    # DEPENDENCY: This job only runs if build-test succeeds
+    needs: [build-test]
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 22
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+
+      # Build and install the ojp-testcontainers module locally so integration
+      # tests always exercise the latest code from this repository.
+      - name: Build and Install (ojp-testcontainers) locally
+        run: mvn clean install -pl ojp-testcontainers -am -DskipTests -Dgpg.skip=true
+
+      # Run the OjpContainerIntegrationTest which starts the OJP Docker container
+      # and verifies TCP connectivity to the exposed OJP port.
+      - name: Run OJP TestContainers Integration Tests
+        run: mvn test -pl ojp-testcontainers -Dgpg.skip=true -DenableOjpContainerTests=true
+
+  # ===========================================================================
+  # JOB 12: Notify Integration Repository
   # ===========================================================================
   #
   # This job triggers a workflow in the ojp-framework-integration repository

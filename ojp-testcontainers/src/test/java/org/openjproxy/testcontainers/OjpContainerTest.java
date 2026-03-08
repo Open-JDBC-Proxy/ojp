@@ -1,6 +1,7 @@
 package org.openjproxy.testcontainers;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.testcontainers.utility.DockerImageName;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +53,7 @@ class OjpContainerTest {
     }
 
     @Test
+    @EnabledIf("org.openjproxy.testcontainers.OjpContainerIntegrationTest#isEnabled")
     void testStartAndGetConnectionInfo() {
         try (OjpContainer container = new OjpContainer()) {
             container.start();
@@ -73,6 +75,7 @@ class OjpContainerTest {
     }
 
     @Test
+    @EnabledIf("org.openjproxy.testcontainers.OjpContainerIntegrationTest#isEnabled")
     void testContainerIsReady() {
         try (OjpContainer container = new OjpContainer()) {
             container.start();
