@@ -14,6 +14,8 @@ import java.sql.SQLException;
 @Slf4j
 public class XADataSourceFactory {
 
+    public static final String POSTGRESQL_XA_DATASOURCE = "org.postgresql.xa.PGXADataSource";
+
     /**
      * Creates an XADataSource for the specified database type based on the URL.
      * 
@@ -58,9 +60,9 @@ public class XADataSourceFactory {
         try {
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if PostgreSQL driver is available
-            Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader);
+            Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader);
             // Use reflection to create and configure PGXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader)
+            XADataSource xaDS = (XADataSource) Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             // Parse connection URL to extract host, port, database
@@ -334,9 +336,9 @@ public class XADataSourceFactory {
         try {
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             // Check if PostgreSQL driver is available (CockroachDB uses PostgreSQL protocol)
-            Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader);
+            Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader);
             // Use reflection to create and configure PGXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("org.postgresql.xa.PGXADataSource", true, classLoader)
+            XADataSource xaDS = (XADataSource) Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader)
                     .getDeclaredConstructor()
                     .newInstance();
             // Parse connection URL to extract host, port, database
