@@ -15,6 +15,18 @@ import java.sql.SQLException;
 public class XADataSourceFactory {
 
     public static final String POSTGRESQL_XA_DATASOURCE = "org.postgresql.xa.PGXADataSource";
+    private static final String SET_DRIVER_TYPE = "setDriverType";
+    private static final String SET_SERVER_NAME = "setServerName";
+    private static final String SET_SERVER_NAMES = "setServerNames";
+    private static final String SET_PORT_NUMBER = "setPortNumber";
+    private static final String SET_PORT_NUMBERS = "setPortNumbers";
+    private static final String SET_DATABASE_NAME = "setDatabaseName";
+    private static final String SET_SERVICE_NAME = "setServiceName";
+    private static final String SET_URL = "setUrl";
+    private static final String SET_URL_SQL_SERVER = "setURL";
+    private static final String SET_USER = "setUser";
+    private static final String SET_PASSWORD = "setPassword";
+    private static final String SET_CONNECTION_PROPERTIES = "setConnectionProperties";
 
     /**
      * Creates an XADataSource for the specified database type based on the URL.
@@ -53,45 +65,72 @@ public class XADataSourceFactory {
         }
     }
 
+    private static ClassLoader currentClassLoader() {
+        return Thread.currentThread().getContextClassLoader();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T newReflectiveInstance(String className, ClassLoader classLoader) throws ReflectiveOperationException {
+        return (T) Class.forName(className, true, classLoader)
+                .getDeclaredConstructor()
+                .newInstance();
+    }
+
+    private static void setStringProperty(Object target, String methodName, String value) throws ReflectiveOperationException {
+        target.getClass().getMethod(methodName, String.class).invoke(target, value);
+    }
+
+    private static void setIntProperty(Object target, String methodName, int value) throws ReflectiveOperationException {
+        target.getClass().getMethod(methodName, int.class).invoke(target, value);
+    }
+
+    private static void setStringArrayProperty(Object target, String methodName, String[] value)
+            throws ReflectiveOperationException {
+        Object[] args = {value};
+        target.getClass().getMethod(methodName, String[].class).invoke(target, args);
+    }
+
+    private static void setIntArrayProperty(Object target, String methodName, int[] value)
+            throws ReflectiveOperationException {
+        Object[] args = {value};
+        target.getClass().getMethod(methodName, int[].class).invoke(target, args);
+    }
+
+    private static void setCredentials(Object target, ConnectionDetails connectionDetails) throws ReflectiveOperationException {
+        setStringProperty(target, SET_USER, connectionDetails.getUser());
+        setStringProperty(target, SET_PASSWORD, connectionDetails.getPassword());
+    }
+
+    @FunctionalInterface
+    private interface XaDataSourceConfigurer {
+        void configure(XADataSource xaDataSource) throws ReflectiveOperationException;
+    }
+
+    private static XADataSource createConfiguredXADataSource(
+            String driverClassName,
+            String driverMissingMessage,
+            String failureMessagePrefix,
+            String successMessage,
+            String successValue,
+            XaDataSourceConfigurer configurer) throws SQLException {
+        try {
+            XADataSource xaDS = newReflectiveInstance(driverClassName, currentClassLoader());
+            configurer.configure(xaDS);
+            log.info(successMessage, successValue);
+            return xaDS;
+        } catch (ClassNotFoundException e) {
+            throw new SQLException(driverMissingMessage, e);
+        } catch (Exception e) {
+            throw new SQLException(failureMessagePrefix + e.getMessage(), e);
+        }
+    }
+
     /**
      * Creates a PostgreSQL XADataSource.
      */
     private static XADataSource createPostgreSQLXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            // Check if PostgreSQL driver is available
-            Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader);
-            // Use reflection to create and configure PGXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader)
-                    .getDeclaredConstructor()
-                    .newInstance();
-            // Parse connection URL to extract host, port, database
-            // Format: jdbc:postgresql://host:port/database or ojp[...]:host:port/database
-            String cleanUrl = url;
-            if (cleanUrl.toLowerCase().contains("_postgresql:")) {
-                cleanUrl = cleanUrl.substring(cleanUrl.toLowerCase().indexOf("_postgresql:") + 1);
-            } else if (cleanUrl.toLowerCase().startsWith("jdbc:postgresql:")) {
-                cleanUrl = cleanUrl.substring("jdbc:".length());
-            }
-            // Parse postgresql://host:port/database
-            if (cleanUrl.startsWith("postgresql://")) {
-                cleanUrl = cleanUrl.substring("postgresql://".length());
-                String[] parts = cleanUrl.split("/");
-                if (parts.length >= 2) {
-                    String hostPort = parts[0];
-                    String database = parts[1].split("\\?")[0]; // Remove query params
-                    String[] hostPortParts = hostPort.split(":");
-                    String host = hostPortParts[0];
-                    int port = hostPortParts.length > 1 ? Integer.parseInt(hostPortParts[1]) : 5432;
-                    // Set properties using reflection
-                    xaDS.getClass().getMethod("setServerNames", String[].class).invoke(xaDS, (Object) new String[]{host});
-                    xaDS.getClass().getMethod("setPortNumbers", int[].class).invoke(xaDS, (Object) new int[]{port});
-                    xaDS.getClass().getMethod("setDatabaseName", String.class).invoke(xaDS, database);
-                }
-            }
-            xaDS.getClass().getMethod("setUser", String.class).invoke(xaDS, connectionDetails.getUser());
-            xaDS.getClass().getMethod("setPassword", String.class).invoke(xaDS, connectionDetails.getPassword());
-            // Get server names for logging
+            XADataSource xaDS = createPostgreSQLCompatibleXADataSource(url, connectionDetails, 5432, false);
             String[] serverNames = (String[]) xaDS.getClass().getMethod("getServerNames").invoke(xaDS);
             String host = (serverNames != null && serverNames.length > 0) ? serverNames[0] : "unknown";
             log.info("Created PostgreSQL XADataSource for host: {}", host);
@@ -107,24 +146,16 @@ public class XADataSourceFactory {
      * Creates a MySQL XADataSource.
      */
     private static XADataSource createMySQLXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
-        try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            // Check if MySQL driver is available
-            Class.forName("com.mysql.cj.jdbc.MysqlXADataSource", true, classLoader);
-            // Use reflection to create and configure MysqlXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("com.mysql.cj.jdbc.MysqlXADataSource", true, classLoader)
-                    .getDeclaredConstructor()
-                    .newInstance();
-            xaDS.getClass().getMethod("setUrl", String.class).invoke(xaDS, url);
-            xaDS.getClass().getMethod("setUser", String.class).invoke(xaDS, connectionDetails.getUser());
-            xaDS.getClass().getMethod("setPassword", String.class).invoke(xaDS, connectionDetails.getPassword());
-            log.info("Created MySQL XADataSource for URL: {}", url);
-            return xaDS;
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("MySQL JDBC driver not found. Add mysql-connector-j to classpath.", e);
-        } catch (Exception e) {
-            throw new SQLException("Failed to create MySQL XADataSource: " + e.getMessage(), e);
-        }
+        return createConfiguredXADataSource(
+                "com.mysql.cj.jdbc.MysqlXADataSource",
+                "MySQL JDBC driver not found. Add mysql-connector-j to classpath.",
+                "Failed to create MySQL XADataSource: ",
+                "Created MySQL XADataSource for URL: {}",
+                url,
+                xaDS -> {
+                    setStringProperty(xaDS, SET_URL, url);
+                    setCredentials(xaDS, connectionDetails);
+                });
     }
 
     /**
@@ -132,28 +163,16 @@ public class XADataSourceFactory {
      */
     private static XADataSource createMariaDBXADataSource(String url, ConnectionDetails connectionDetails)
             throws SQLException {
-        try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            // Check if MariaDB driver is available
-            Class.forName("org.mariadb.jdbc.MariaDbDataSource", true, classLoader);
-
-            // Use reflection to create and configure MariaDbDataSource
-            XADataSource xaDS = (XADataSource) Class.forName("org.mariadb.jdbc.MariaDbDataSource", true, classLoader)
-                    .getDeclaredConstructor()
-                    .newInstance();
-
-            xaDS.getClass().getMethod("setUrl", String.class).invoke(xaDS, url);
-            xaDS.getClass().getMethod("setUser", String.class).invoke(xaDS, connectionDetails.getUser());
-            xaDS.getClass().getMethod("setPassword", String.class).invoke(xaDS, connectionDetails.getPassword());
-
-            log.info("Created MariaDB XADataSource for URL: {}", url);
-            return xaDS;
-
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("MariaDB JDBC driver not found. Add mariadb-java-client to classpath.", e);
-        } catch (Exception e) {
-            throw new SQLException("Failed to create MariaDB XADataSource: " + e.getMessage(), e);
-        }
+        return createConfiguredXADataSource(
+                "org.mariadb.jdbc.MariaDbDataSource",
+                "MariaDB JDBC driver not found. Add mariadb-java-client to classpath.",
+                "Failed to create MariaDB XADataSource: ",
+                "Created MariaDB XADataSource for URL: {}",
+                url,
+                xaDS -> {
+                    setStringProperty(xaDS, SET_URL, url);
+                    setCredentials(xaDS, connectionDetails);
+                });
     }
 
     /**
@@ -171,13 +190,7 @@ public class XADataSourceFactory {
      */
     private static XADataSource createOracleXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            // Check if Oracle driver is available
-            Class.forName("oracle.jdbc.xa.client.OracleXADataSource", true, classLoader);
-            // Use reflection to create and configure OracleXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("oracle.jdbc.xa.client.OracleXADataSource", true, classLoader)
-                    .getDeclaredConstructor()
-                    .newInstance();
+            XADataSource xaDS = newReflectiveInstance("oracle.jdbc.xa.client.OracleXADataSource", currentClassLoader());
             // Clean the URL - remove OJP wrapper if present
             String cleanUrl = url;
             if (cleanUrl.toLowerCase().contains("_oracle:")) {
@@ -192,7 +205,7 @@ public class XADataSourceFactory {
                 int port = 1521;
                 String serviceName = null;
                 // Set driver type first - required for Oracle to construct proper URL internally
-                xaDS.getClass().getMethod("setDriverType", String.class).invoke(xaDS, "thin");
+                setStringProperty(xaDS, SET_DRIVER_TYPE, "thin");
                 if (connectionPart.contains("/")) {
                     // Service name format: host:port/service
                     String[] parts = connectionPart.split("/");
@@ -202,10 +215,9 @@ public class XADataSourceFactory {
                         port = Integer.parseInt(hostPort[1]);
                     }
                     serviceName = parts[1];
-                    // Set properties using reflection
-                    xaDS.getClass().getMethod("setServerName", String.class).invoke(xaDS, host);
-                    xaDS.getClass().getMethod("setPortNumber", int.class).invoke(xaDS, port);
-                    xaDS.getClass().getMethod("setServiceName", String.class).invoke(xaDS, serviceName);
+                    setStringProperty(xaDS, SET_SERVER_NAME, host);
+                    setIntProperty(xaDS, SET_PORT_NUMBER, port);
+                    setStringProperty(xaDS, SET_SERVICE_NAME, serviceName);
                 } else if (connectionPart.contains(":")) {
                     // SID format: host:port:sid
                     String[] parts = connectionPart.split(":");
@@ -215,25 +227,24 @@ public class XADataSourceFactory {
                     }
                     if (parts.length > 2) {
                         String sid = parts[2];
-                        xaDS.getClass().getMethod("setServerName", String.class).invoke(xaDS, host);
-                        xaDS.getClass().getMethod("setPortNumber", int.class).invoke(xaDS, port);
-                        xaDS.getClass().getMethod("setDatabaseName", String.class).invoke(xaDS, sid);
+                        setStringProperty(xaDS, SET_SERVER_NAME, host);
+                        setIntProperty(xaDS, SET_PORT_NUMBER, port);
+                        setStringProperty(xaDS, SET_DATABASE_NAME, sid);
                     }
                 } else {
                     // Fallback: try setting just the service name from the connection part
-                    xaDS.getClass().getMethod("setServerName", String.class).invoke(xaDS, host);
-                    xaDS.getClass().getMethod("setPortNumber", int.class).invoke(xaDS, port);
-                    xaDS.getClass().getMethod("setServiceName", String.class).invoke(xaDS, connectionPart);
+                    setStringProperty(xaDS, SET_SERVER_NAME, host);
+                    setIntProperty(xaDS, SET_PORT_NUMBER, port);
+                    setStringProperty(xaDS, SET_SERVICE_NAME, connectionPart);
                 }
             } else {
                 // For non-thin URLs or unparseable formats, set driver type and try to parse
-                xaDS.getClass().getMethod("setDriverType", String.class).invoke(xaDS, "thin");
+                setStringProperty(xaDS, SET_DRIVER_TYPE, "thin");
                 // Set sensible defaults
-                xaDS.getClass().getMethod("setServerName", String.class).invoke(xaDS, "localhost");
-                xaDS.getClass().getMethod("setPortNumber", int.class).invoke(xaDS, 1521);
+                setStringProperty(xaDS, SET_SERVER_NAME, "localhost");
+                setIntProperty(xaDS, SET_PORT_NUMBER, 1521);
             }
-            xaDS.getClass().getMethod("setUser", String.class).invoke(xaDS, connectionDetails.getUser());
-            xaDS.getClass().getMethod("setPassword", String.class).invoke(xaDS, connectionDetails.getPassword());
+            setCredentials(xaDS, connectionDetails);
             // Oracle XA requires specific properties to work correctly
             // Set connection properties that enable XA support
             try {
@@ -243,7 +254,7 @@ public class XADataSourceFactory {
                 props.setProperty("password", connectionDetails.getPassword());
                 // Oracle XA specific properties
                 props.setProperty("v$session.program", "OJP-XA");
-                xaDS.getClass().getMethod("setConnectionProperties", java.util.Properties.class).invoke(xaDS, props);
+                xaDS.getClass().getMethod(SET_CONNECTION_PROPERTIES, java.util.Properties.class).invoke(xaDS, props);
             } catch (Exception e) {
                 log.warn("Could not set connection properties on Oracle XADataSource: {}", e.getMessage());
             }
@@ -260,72 +271,54 @@ public class XADataSourceFactory {
      * Creates a SQL Server XADataSource.
      */
     private static XADataSource createSQLServerXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
-        try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            // Check if SQL Server driver is available
-            Class.forName("com.microsoft.sqlserver.jdbc.SQLServerXADataSource", true, classLoader);
-            // Use reflection to create and configure SQLServerXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("com.microsoft.sqlserver.jdbc.SQLServerXADataSource", true, classLoader)
-                    .getDeclaredConstructor()
-                    .newInstance();
-            // Set URL using reflection
-            xaDS.getClass().getMethod("setURL", String.class).invoke(xaDS, url);
-            xaDS.getClass().getMethod("setUser", String.class).invoke(xaDS, connectionDetails.getUser());
-            xaDS.getClass().getMethod("setPassword", String.class).invoke(xaDS, connectionDetails.getPassword());
-            log.info("Created SQL Server XADataSource for URL: {}", url);
-            return xaDS;
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("SQL Server JDBC driver not found. Add mssql-jdbc to classpath.", e);
-        } catch (Exception e) {
-            throw new SQLException("Failed to create SQL Server XADataSource: " + e.getMessage(), e);
-        }
+        return createConfiguredXADataSource(
+                "com.microsoft.sqlserver.jdbc.SQLServerXADataSource",
+                "SQL Server JDBC driver not found. Add mssql-jdbc to classpath.",
+                "Failed to create SQL Server XADataSource: ",
+                "Created SQL Server XADataSource for URL: {}",
+                url,
+                xaDS -> {
+                    setStringProperty(xaDS, SET_URL_SQL_SERVER, url);
+                    setCredentials(xaDS, connectionDetails);
+                });
     }
 
     /**
      * Creates a DB2 XADataSource.
      */
     private static XADataSource createDB2XADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
-        try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            // Check if DB2 driver is available
-            Class.forName("com.ibm.db2.jcc.DB2XADataSource", true, classLoader);
-            // Use reflection to create and configure DB2XADataSource
-            XADataSource xaDS = (XADataSource) Class.forName("com.ibm.db2.jcc.DB2XADataSource", true, classLoader)
-                    .getDeclaredConstructor()
-                    .newInstance();
-            // Parse DB2 URL: jdbc:db2://host:port/database
-            String cleanUrl = url;
-            if (cleanUrl.toLowerCase().contains("_db2:")) {
-                cleanUrl = cleanUrl.substring(cleanUrl.toLowerCase().indexOf("_db2:") + 1);
-            } else if (cleanUrl.toLowerCase().startsWith("jdbc:db2:")) {
-                cleanUrl = cleanUrl.substring("jdbc:".length());
-            }
-            // Parse db2://host:port/database
-            if (cleanUrl.startsWith("db2://")) {
-                cleanUrl = cleanUrl.substring("db2://".length());
-                String[] parts = cleanUrl.split("/");
-                if (parts.length >= 2) {
-                    String hostPort = parts[0];
-                    String database = parts[1].split("\\?")[0]; // Remove query params
-                    String[] hostPortParts = hostPort.split(":");
-                    String host = hostPortParts[0];
-                    int port = hostPortParts.length > 1 ? Integer.parseInt(hostPortParts[1]) : 50000;
-                    // Set properties using reflection
-                    xaDS.getClass().getMethod("setServerName", String.class).invoke(xaDS, host);
-                    xaDS.getClass().getMethod("setPortNumber", int.class).invoke(xaDS, port);
-                    xaDS.getClass().getMethod("setDatabaseName", String.class).invoke(xaDS, database);
-                    xaDS.getClass().getMethod("setDriverType", int.class).invoke(xaDS, 4); // Type 4 driver
-                }
-            }
-            xaDS.getClass().getMethod("setUser", String.class).invoke(xaDS, connectionDetails.getUser());
-            xaDS.getClass().getMethod("setPassword", String.class).invoke(xaDS, connectionDetails.getPassword());
-            log.info("Created DB2 XADataSource for URL: {}", url);
-            return xaDS;
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("DB2 JDBC driver not found. Add db2jcc or db2jcc4 to classpath.", e);
-        } catch (Exception e) {
-            throw new SQLException("Failed to create DB2 XADataSource: " + e.getMessage(), e);
-        }
+        return createConfiguredXADataSource(
+                "com.ibm.db2.jcc.DB2XADataSource",
+                "DB2 JDBC driver not found. Add db2jcc or db2jcc4 to classpath.",
+                "Failed to create DB2 XADataSource: ",
+                "Created DB2 XADataSource for URL: {}",
+                url,
+                xaDS -> {
+                    // Parse DB2 URL: jdbc:db2://host:port/database
+                    String cleanUrl = url;
+                    if (cleanUrl.toLowerCase().contains("_db2:")) {
+                        cleanUrl = cleanUrl.substring(cleanUrl.toLowerCase().indexOf("_db2:") + 1);
+                    } else if (cleanUrl.toLowerCase().startsWith("jdbc:db2:")) {
+                        cleanUrl = cleanUrl.substring("jdbc:".length());
+                    }
+                    // Parse db2://host:port/database
+                    if (cleanUrl.startsWith("db2://")) {
+                        cleanUrl = cleanUrl.substring("db2://".length());
+                        String[] parts = cleanUrl.split("/");
+                        if (parts.length >= 2) {
+                            String hostPort = parts[0];
+                            String database = parts[1].split("\\?")[0]; // Remove query params
+                            String[] hostPortParts = hostPort.split(":");
+                            String host = hostPortParts[0];
+                            int port = hostPortParts.length > 1 ? Integer.parseInt(hostPortParts[1]) : 50000;
+                            setStringProperty(xaDS, SET_SERVER_NAME, host);
+                            setIntProperty(xaDS, SET_PORT_NUMBER, port);
+                            setStringProperty(xaDS, SET_DATABASE_NAME, database);
+                            setIntProperty(xaDS, SET_DRIVER_TYPE, 4); // Type 4 driver
+                        }
+                    }
+                    setCredentials(xaDS, connectionDetails);
+                });
     }
 
     /**
@@ -334,49 +327,7 @@ public class XADataSourceFactory {
      */
     private static XADataSource createCockroachDBXADataSource(String url, ConnectionDetails connectionDetails) throws SQLException {
         try {
-            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            // Check if PostgreSQL driver is available (CockroachDB uses PostgreSQL protocol)
-            Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader);
-            // Use reflection to create and configure PGXADataSource
-            XADataSource xaDS = (XADataSource) Class.forName(POSTGRESQL_XA_DATASOURCE, true, classLoader)
-                    .getDeclaredConstructor()
-                    .newInstance();
-            // Parse connection URL to extract host, port, database
-            // CockroachDB URL format: jdbc:postgresql://host:port/database
-            String cleanUrl = url;
-            if (cleanUrl.toLowerCase().contains("_postgresql:") || cleanUrl.toLowerCase().contains("_cockroach")) {
-                int startIdx = cleanUrl.toLowerCase().indexOf("_postgresql:");
-                if (startIdx == -1) {
-                    startIdx = cleanUrl.toLowerCase().indexOf("_cockroach");
-                }
-                cleanUrl = cleanUrl.substring(startIdx + 1);
-                // If it says cockroachdb://, change to postgresql://
-                cleanUrl = cleanUrl.replace("cockroachdb://", "postgresql://");
-                cleanUrl = cleanUrl.replace("cockroach://", "postgresql://");
-            } else if (cleanUrl.toLowerCase().startsWith("jdbc:postgresql:")) {
-                cleanUrl = cleanUrl.substring("jdbc:".length());
-            } else if (cleanUrl.toLowerCase().startsWith("jdbc:cockroachdb:")) {
-                cleanUrl = cleanUrl.substring("jdbc:".length()).replace("cockroachdb:", "postgresql:");
-            }
-            // Parse postgresql://host:port/database
-            if (cleanUrl.startsWith("postgresql://")) {
-                cleanUrl = cleanUrl.substring("postgresql://".length());
-                String[] parts = cleanUrl.split("/");
-                if (parts.length >= 2) {
-                    String hostPort = parts[0];
-                    String database = parts[1].split("\\?")[0]; // Remove query params
-                    String[] hostPortParts = hostPort.split(":");
-                    String host = hostPortParts[0];
-                    int port = hostPortParts.length > 1 ? Integer.parseInt(hostPortParts[1]) : 26257; // CockroachDB default port
-                    // Set properties using reflection
-                    xaDS.getClass().getMethod("setServerNames", String[].class).invoke(xaDS, (Object) new String[]{host});
-                    xaDS.getClass().getMethod("setPortNumbers", int[].class).invoke(xaDS, (Object) new int[]{port});
-                    xaDS.getClass().getMethod("setDatabaseName", String.class).invoke(xaDS, database);
-                }
-            }
-            xaDS.getClass().getMethod("setUser", String.class).invoke(xaDS, connectionDetails.getUser());
-            xaDS.getClass().getMethod("setPassword", String.class).invoke(xaDS, connectionDetails.getPassword());
-            // Get server names for logging
+            XADataSource xaDS = createPostgreSQLCompatibleXADataSource(url, connectionDetails, 26257, true);
             String[] serverNames = (String[]) xaDS.getClass().getMethod("getServerNames").invoke(xaDS);
             String host = (serverNames != null && serverNames.length > 0) ? serverNames[0] : "unknown";
             log.info("Created CockroachDB XADataSource (using PostgreSQL driver) for host: {}", host);
@@ -386,5 +337,49 @@ public class XADataSourceFactory {
         } catch (Exception e) {
             throw new SQLException("Failed to create CockroachDB XADataSource: " + e.getMessage(), e);
         }
+    }
+
+    private static XADataSource createPostgreSQLCompatibleXADataSource(
+            String url,
+            ConnectionDetails connectionDetails,
+            int defaultPort,
+            boolean cockroach) throws ReflectiveOperationException {
+        XADataSource xaDS = newReflectiveInstance(POSTGRESQL_XA_DATASOURCE, currentClassLoader());
+        String cleanUrl = normalizePostgreSqlUrl(url, cockroach);
+        if (cleanUrl.startsWith("postgresql://")) {
+            String connectionPart = cleanUrl.substring("postgresql://".length());
+            String[] parts = connectionPart.split("/");
+            if (parts.length >= 2) {
+                String hostPort = parts[0];
+                String database = parts[1].split("\\?")[0];
+                String[] hostPortParts = hostPort.split(":");
+                String host = hostPortParts[0];
+                int port = hostPortParts.length > 1 ? Integer.parseInt(hostPortParts[1]) : defaultPort;
+                setStringArrayProperty(xaDS, SET_SERVER_NAMES, new String[]{host});
+                setIntArrayProperty(xaDS, SET_PORT_NUMBERS, new int[]{port});
+                setStringProperty(xaDS, SET_DATABASE_NAME, database);
+            }
+        }
+        setCredentials(xaDS, connectionDetails);
+        return xaDS;
+    }
+
+    private static String normalizePostgreSqlUrl(String url, boolean cockroach) {
+        String cleanUrl = url;
+        String lowerUrl = cleanUrl.toLowerCase();
+        if (lowerUrl.contains("_postgresql:") || lowerUrl.contains("_cockroach")) {
+            int startIdx = lowerUrl.indexOf("_postgresql:");
+            if (startIdx == -1) {
+                startIdx = lowerUrl.indexOf("_cockroach");
+            }
+            cleanUrl = cleanUrl.substring(startIdx + 1);
+            cleanUrl = cleanUrl.replace("cockroachdb://", "postgresql://");
+            cleanUrl = cleanUrl.replace("cockroach://", "postgresql://");
+        } else if (lowerUrl.startsWith("jdbc:postgresql:")) {
+            cleanUrl = cleanUrl.substring("jdbc:".length());
+        } else if (cockroach && lowerUrl.startsWith("jdbc:cockroachdb:")) {
+            cleanUrl = cleanUrl.substring("jdbc:".length()).replace("cockroachdb:", "postgresql:");
+        }
+        return cleanUrl;
     }
 }

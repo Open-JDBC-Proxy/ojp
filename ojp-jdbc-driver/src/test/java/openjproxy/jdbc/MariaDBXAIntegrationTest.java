@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * 2. A MariaDB database with XA support
  */
 @Slf4j
-public class MariaDBXAIntegrationTest {
+class MariaDBXAIntegrationTest {
 
     private static boolean isTestEnabled;
     private XAConnection xaConnection;
@@ -38,7 +38,7 @@ public class MariaDBXAIntegrationTest {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
-    public void setUp(String driverClass, String url, String user, String password) throws SQLException {
+    private void setUp(String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "MariaDB XA tests are disabled. Enable with -DenableMariaDBTests=true");
 
         // Create XA DataSource
@@ -67,7 +67,7 @@ public class MariaDBXAIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/mariadb_xa_connection.csv")
     void testXAConnectionBasics(String driverClass, String url, String user, String password) throws Exception {
-        setUp(driverClass, url, user, password);
+        setUp(url, user, password);
 
         assertNotNull(xaConnection, "XA connection should be created");
         assertNotNull(connection, "Logical connection should be created");
@@ -84,7 +84,7 @@ public class MariaDBXAIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/mariadb_xa_connection.csv")
     void testXATransactionWithCRUD(String driverClass, String url, String user, String password) throws Exception {
-        setUp(driverClass, url, user, password);
+        setUp(url, user, password);
 
         XAResource xaResource = xaConnection.getXAResource();
         String tableName = "mariadb_xa_crud_test";
@@ -127,7 +127,7 @@ public class MariaDBXAIntegrationTest {
     @ParameterizedTest
     @CsvFileSource(resources = "/mariadb_xa_connection.csv")
     void testXARollback(String driverClass, String url, String user, String password) throws Exception {
-        setUp(driverClass, url, user, password);
+        setUp(url, user, password);
 
         XAResource xaResource = xaConnection.getXAResource();
         String tableName = "mariadb_xa_rollback_test";
@@ -176,7 +176,7 @@ public class MariaDBXAIntegrationTest {
         private final byte[] globalTransactionId;
         private final byte[] branchQualifier;
 
-        public TestXid(int formatId, byte[] globalTransactionId, byte[] branchQualifier) {
+        TestXid(int formatId, byte[] globalTransactionId, byte[] branchQualifier) {
             this.formatId = formatId;
             this.globalTransactionId = globalTransactionId;
             this.branchQualifier = branchQualifier;
