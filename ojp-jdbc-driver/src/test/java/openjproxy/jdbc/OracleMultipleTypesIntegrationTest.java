@@ -1,6 +1,7 @@
 package openjproxy.jdbc;
 
 import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -9,13 +10,11 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Date;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -48,13 +47,14 @@ public class OracleMultipleTypesIntegrationTest {
      * so OffsetDateTime/OffsetTime/Instant are tested in partial support test.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, ParseException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
-        System.out.println("Testing Oracle natively supported types for url -> " + url);
+        System.out.println("Testing Oracle natively supported types for driver -> " + driverClass + ", url -> " + url);
 
         TestDBUtils.createMultiTypeTestTable(conn, "oracle_multi_types_test", TestDBUtils.SqlSyntax.ORACLE);
 
@@ -110,167 +110,135 @@ public class OracleMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from oracle_multi_types_test where val_int = ?");
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
-        resultSet.next();
+        assertTrue(resultSet.next(), "Expected one Oracle row");
+        assertOracleTypesByIndex(resultSet, valDate, valTime, valTimestamp, valLocalDateTime, valLocalDate, valLocalTime);
+        assertOracleTypesByName(resultSet);
+
+        TestDBUtils.executeUpdate(conn, "delete from oracle_multi_types_test where val_int=1");
+
+        ResultSet resultSetAfterDeletion = psSelect.executeQuery();
+        assertFalse(resultSetAfterDeletion.next());
+        resultSetAfterDeletion.close();
+
+        resultSet.close();
+        psInsert.close();
+        psSelect.close();
+        connResult.close();
+    }
+
+    private static void assertOracleTypesByIndex(ResultSet resultSet, LocalDate valDate, LocalTime valTime,
+                                                 LocalDateTime valTimestamp, LocalDateTime valLocalDateTime,
+                                                 LocalDate valLocalDate, LocalTime valLocalTime) throws SQLException {
         assertEquals(1, resultSet.getInt(1));
         assertEquals("TITLE_1", resultSet.getString(2));
-        assertEquals("2.2222", ""+resultSet.getDouble(3));
+        assertEquals("2.2222", "" + resultSet.getDouble(3));
         assertEquals(33333333333333L, resultSet.getLong(4));
-        assertEquals(127, resultSet.getInt(5)); // NUMBER(3) in Oracle
+        assertEquals(127, resultSet.getInt(5));
         assertEquals(32767, resultSet.getInt(6));
-        assertEquals(1, resultSet.getInt(7)); // Oracle NUMBER(1) for boolean
+        assertEquals(1, resultSet.getInt(7));
         assertEquals(new BigDecimal(10), resultSet.getBigDecimal(8));
-        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
-        // Oracle RAW column may be returned as String by OJP driver
-        // For now, just verify we get a non-null value
-        Object byteValue = resultSet.getObject(10);
-        Assertions.assertNotNull(byteValue, "RAW column should not be null");
-        // Oracle RAW column may be returned as String by OJP driver  
-        Object binaryValue = resultSet.getObject(11);
-        if (binaryValue instanceof String) {
-            // If returned as string, check the content
-            String stringValue = (String) binaryValue;
-            Assertions.assertTrue(
-                stringValue.contains("AAAA") || stringValue.length() > 0, "Binary column should contain expected data");
-        } else {
-            // Handle as byte array
-            assertEquals("AAAA", new String(resultSet.getBytes(11)));
-        }
-        
-        // Validate columns 12, 13, 14 using getObject with java.time types
-        Object valDateRet = resultSet.getObject(12);
-        Object valTimeRet = resultSet.getObject(13);
-        Object valTimestampRet = resultSet.getObject(14);
-        
-        assertNotNull(valDateRet, "Date column should not be null");
-        assertNotNull(valTimeRet, "Time column should not be null");
-        assertNotNull(valTimestampRet, "Timestamp column should not be null");
-        
-        // Validate date (column 12)
-        if (valDateRet instanceof LocalDate) {
-            assertEquals(valDate, valDateRet);
-        } else if (valDateRet instanceof Date) {
-            LocalDate retrievedDate = ((Date) valDateRet).toLocalDate();
-            assertEquals(valDate, retrievedDate);
-        }
-        
-        // Validate time (column 13) - Oracle stores as TIMESTAMP
-        if (valTimeRet instanceof LocalTime) {
-            LocalTime retrievedTime = (LocalTime) valTimeRet;
-            assertEquals(valTime.getHour(), retrievedTime.getHour());
-            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
-            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
-        } else if (valTimeRet instanceof Time) {
-            LocalTime retrievedTime = ((Time) valTimeRet).toLocalTime();
-            assertEquals(valTime.getHour(), retrievedTime.getHour());
-            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
-            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
-        } else if (valTimeRet instanceof Timestamp) {
-            // Oracle stores TIME as TIMESTAMP, extract time portion
-            LocalTime retrievedTime = ((Timestamp) valTimeRet).toLocalDateTime().toLocalTime();
-            assertEquals(valTime.getHour(), retrievedTime.getHour());
-            assertEquals(valTime.getMinute(), retrievedTime.getMinute());
-            assertEquals(valTime.getSecond(), retrievedTime.getSecond());
-        }
-        
-        // Validate timestamp (column 14)
-        if (valTimestampRet instanceof LocalDateTime) {
-            assertEquals(valTimestamp, valTimestampRet);
-        } else if (valTimestampRet instanceof Timestamp) {
-            LocalDateTime retrievedTimestamp = ((Timestamp) valTimestampRet).toLocalDateTime();
-            assertEquals(valTimestamp, retrievedTimestamp);
-        }
-        
-        // Oracle natively supported java.time types - retrieve as Object to get the actual type
-        Object valLocalDateTimeRet = resultSet.getObject(15);
-        Object valLocalDateRet = resultSet.getObject(16);
-        Object valLocalTimeRet = resultSet.getObject(17);
-        // Columns 18-20 (Instant, OffsetDateTime, OffsetTime) are null - not tested in success scenario
-        
-        // Validate Oracle's natively supported java.time types (JDBC 4.2)
-        assertNotNull(valLocalDateTimeRet, "LocalDateTime should not be null");
-        assertNotNull(valLocalDateRet, "LocalDate should not be null");
-        assertNotNull(valLocalTimeRet, "LocalTime should not be null");
-        
-        // Oracle JDBC driver should return actual java.time types per JDBC 4.2
-        // For LocalDateTime (TIMESTAMP)
-        if (valLocalDateTimeRet instanceof LocalDateTime) {
-            assertEquals(valLocalDateTime, valLocalDateTimeRet);
-        } else if (valLocalDateTimeRet instanceof Timestamp) {
-            LocalDateTime retrievedLdt = ((Timestamp) valLocalDateTimeRet).toLocalDateTime();
-            assertEquals(valLocalDateTime, retrievedLdt);
-        }
-        
-        // For LocalDate (DATE)
-        if (valLocalDateRet instanceof LocalDate) {
-            assertEquals(valLocalDate, valLocalDateRet);
-        } else if (valLocalDateRet instanceof Date) {
-            LocalDate retrievedLd = ((Date) valLocalDateRet).toLocalDate();
-            assertEquals(valLocalDate, retrievedLd);
-        }
-        
-        // For LocalTime (TIME - stored as TIMESTAMP in Oracle)
-        if (valLocalTimeRet instanceof LocalTime) {
-            LocalTime retrievedLt = (LocalTime) valLocalTimeRet;
-            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
-            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
-            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
-        } else if (valLocalTimeRet instanceof Time) {
-            LocalTime retrievedLt = ((Time) valLocalTimeRet).toLocalTime();
-            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
-            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
-            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
-        } else if (valLocalTimeRet instanceof Timestamp) {
-            // Oracle may return as Timestamp - extract time portion
-            LocalTime retrievedLt = ((Timestamp) valLocalTimeRet).toLocalDateTime().toLocalTime();
-            assertEquals(valLocalTime.getHour(), retrievedLt.getHour());
-            assertEquals(valLocalTime.getMinute(), retrievedLt.getMinute());
-            assertEquals(valLocalTime.getSecond(), retrievedLt.getSecond());
-        }
+        assertEquals("20.2", "" + resultSet.getFloat(9));
+        assertNotNull(resultSet.getObject(10), "RAW column should not be null");
+        assertBinaryColumn(resultSet.getObject(11), resultSet.getBytes(11));
+        assertDateValue(resultSet.getObject(12), valDate);
+        assertTimeValue(resultSet.getObject(13), valTime);
+        assertTimestampValue(resultSet.getObject(14), valTimestamp);
+        assertDateTimeValue(resultSet.getObject(15), valLocalDateTime);
+        assertDateValue(resultSet.getObject(16), valLocalDate);
+        assertTimeValue(resultSet.getObject(17), valLocalTime);
+    }
 
-        // Test column name access
+    private static void assertOracleTypesByName(ResultSet resultSet) throws SQLException {
         assertEquals(1, resultSet.getInt("val_int"));
         assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
+        assertEquals("2.2222", "" + resultSet.getDouble("val_double_precision"));
         assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
         assertEquals(127, resultSet.getInt("val_tinyint"));
         assertEquals(32767, resultSet.getInt("val_smallint"));
         assertEquals(new BigDecimal(10), resultSet.getBigDecimal("val_decimal"));
-        assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
-        assertEquals(1, resultSet.getInt("val_boolean")); // Oracle boolean as NUMBER(1)
-        // Oracle RAW column may be returned as String by OJP driver
-        Object byteValueByName = resultSet.getObject("val_byte");
-        Assertions.assertNotNull( byteValueByName,"RAW column val_byte should not be null");
-        // Oracle RAW column may be returned as String by OJP driver
-        Object binaryValueByName = resultSet.getObject("val_binary");
-        if (binaryValueByName instanceof String) {
-            String stringValue = (String) binaryValueByName;
-            Assertions.assertTrue(
-                stringValue.contains("AAAA") || stringValue.length() > 0, "Binary column should contain expected data");
-        } else {
-            assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
-        }
-        
-        // SimpleDateFormat variables for validation using column names (lines 252-254)
-        // Set explicit UTC timezone to ensure consistent behavior across different JVM timezone settings
+        assertEquals("20.2", "" + resultSet.getFloat("val_float"));
+        assertEquals(1, resultSet.getInt("val_boolean"));
+        assertNotNull(resultSet.getObject("val_byte"), "RAW column val_byte should not be null");
+        assertBinaryColumn(resultSet.getObject("val_binary"), resultSet.getBytes("val_binary"));
+
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         SimpleDateFormat sdfTimeOnly = new SimpleDateFormat("HH:mm:ss");
         sdfTimeOnly.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         SimpleDateFormat sdfTimestamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
         sdfTimestamp.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
-        
+
         assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
         assertEquals("11:12:13", sdfTimeOnly.format(resultSet.getTimestamp("val_time")));
         assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
+    }
 
-        TestDBUtils.executeUpdate(conn, "delete from oracle_multi_types_test where val_int=1");
+    private static void assertBinaryColumn(Object value, byte[] bytes) {
+        assertNotNull(value, "Binary column should not be null");
+        if (value instanceof String) {
+            String stringValue = (String) value;
+            assertTrue(stringValue.contains("AAAA") || !stringValue.isEmpty(),
+                    "Binary column should contain expected data");
+        } else {
+            assertEquals("AAAA", new String(bytes));
+        }
+    }
 
-        ResultSet resultSetAfterDeletion = psSelect.executeQuery();
-        assertFalse(resultSetAfterDeletion.next());
+    private static void assertDateValue(Object actual, LocalDate expected) {
+        assertNotNull(actual, "Date column should not be null");
+        if (actual instanceof LocalDate) {
+            LocalDate localDate = (LocalDate) actual;
+            assertEquals(expected, localDate);
+        } else if (actual instanceof Date) {
+            Date date = (Date) actual;
+            assertEquals(expected, date.toLocalDate());
+        } else {
+            fail("Unexpected date type: " + actual.getClass());
+        }
+    }
 
-        resultSet.close();
-        psSelect.close();
-        conn.close();
+    private static void assertTimeValue(Object actual, LocalTime expected) {
+        assertNotNull(actual, "Time column should not be null");
+        LocalTime time;
+        if (actual instanceof LocalTime) {
+            time = (LocalTime) actual;
+        } else if (actual instanceof Time) {
+            time = ((Time) actual).toLocalTime();
+        } else if (actual instanceof Timestamp) {
+            time = ((Timestamp) actual).toLocalDateTime().toLocalTime();
+        } else {
+            time = null;
+        }
+        assertNotNull(time, "Unexpected time type: " + actual.getClass());
+        assertEquals(expected.getHour(), time.getHour());
+        assertEquals(expected.getMinute(), time.getMinute());
+        assertEquals(expected.getSecond(), time.getSecond());
+    }
+
+    private static void assertTimestampValue(Object actual, LocalDateTime expected) {
+        assertNotNull(actual, "Timestamp column should not be null");
+        if (actual instanceof LocalDateTime) {
+            LocalDateTime localDateTime = (LocalDateTime) actual;
+            assertEquals(expected, localDateTime);
+        } else if (actual instanceof Timestamp) {
+            Timestamp timestamp = (Timestamp) actual;
+            assertEquals(expected, timestamp.toLocalDateTime());
+        } else {
+            fail("Unexpected timestamp type: " + actual.getClass());
+        }
+    }
+
+    private static void assertDateTimeValue(Object actual, LocalDateTime expected) {
+        assertNotNull(actual, "LocalDateTime should not be null");
+        if (actual instanceof LocalDateTime) {
+            LocalDateTime localDateTime = (LocalDateTime) actual;
+            assertEquals(expected, localDateTime);
+        } else if (actual instanceof Timestamp) {
+            Timestamp timestamp = (Timestamp) actual;
+            assertEquals(expected, timestamp.toLocalDateTime());
+        } else {
+            fail("Unexpected LocalDateTime type: " + actual.getClass());
+        }
     }
 
     /**
@@ -283,13 +251,14 @@ public class OracleMultipleTypesIntegrationTest {
      * This test documents expected database behavior when these types are used.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void typesPartialSupportTest(String driverClass, String url, String user, String pwd) throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void typesPartialSupportTest(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
-        System.out.println("Testing Oracle partially supported types for url -> " + url);
+        System.out.println("Testing Oracle partially supported types for driver -> " + driverClass + ", url -> " + url);
 
         TestDBUtils.createMultiTypeTestTable(conn, "oracle_partial_types_test", TestDBUtils.SqlSyntax.ORACLE);
 
@@ -414,17 +383,18 @@ public class OracleMultipleTypesIntegrationTest {
             // Ignore if table doesn't exist
         }
 
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleSpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void testOracleSpecificTypes(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
-        System.out.println("Testing Oracle-specific types for url -> " + url);
+        System.out.println("Testing Oracle-specific types for driver -> " + driverClass + ", url -> " + url);
 
         // Test CLOB, BLOB, and NVARCHAR2 types (Oracle-specific)
         try {
@@ -469,17 +439,18 @@ public class OracleMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleNumberTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void testOracleNumberTypes(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
-        System.out.println("Testing Oracle NUMBER types for url -> " + url);
+        System.out.println("Testing Oracle NUMBER types for driver -> " + driverClass + ", url -> " + url);
 
         // Test various Oracle NUMBER precision/scale combinations
         try {
@@ -523,7 +494,7 @@ public class OracleMultipleTypesIntegrationTest {
         resultSet.close();
         psSelect.close();
         psInsert.close();
-        conn.close();
+        connResult.close();
     }
 
     /**

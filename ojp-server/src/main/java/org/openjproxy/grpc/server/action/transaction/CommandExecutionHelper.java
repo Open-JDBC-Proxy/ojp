@@ -96,7 +96,8 @@ public class CommandExecutionHelper {
         } catch (Exception e) {
             log.error("Unexpected failure during {} execution: {}",
                     operationName, e.getMessage(), e);
-            if (e.getCause() instanceof SQLException sqlException) {
+            if (e.getCause() instanceof SQLException) {
+                SQLException sqlException = (SQLException) e.getCause();
                 circuitBreaker.onFailure(stmtHash, sqlException);
                 sendSQLExceptionMetadata(sqlException, responseObserver);
             } else {

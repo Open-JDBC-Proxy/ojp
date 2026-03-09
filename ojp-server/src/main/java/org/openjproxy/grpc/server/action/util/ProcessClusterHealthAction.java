@@ -76,7 +76,8 @@ public class ProcessClusterHealthAction {
 
         // Apply pool size changes to non-XA HikariDataSource if present
         DataSource ds = context.getDatasourceMap().get(connHash);
-        if (ds instanceof HikariDataSource hikariDataSource) {
+        if (ds instanceof HikariDataSource) {
+            HikariDataSource hikariDataSource = (HikariDataSource) ds;
             log.debug("[XA-REBALANCE-DEBUG] Applying size changes to HikariDataSource for {}", connHash);
             ConnectionPoolConfigurer.applyPoolSizeChanges(connHash, hikariDataSource);
         } else {

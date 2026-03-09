@@ -75,7 +75,7 @@ public class FetchNextRowsAction implements Action<ResultSetFetchRequest, OpResu
 
         try {
             ConnectionSessionDTO dto = sessionConnection(context, request.getSession(), false);
-            handleResultSet(context, dto.getSession(), request.getResultSetUUID(), responseObserver);
+            handleResultSet(context, dto.getSession(), "", request.getResultSetUUID(), responseObserver);
         } catch (SQLException e) {
             log.error("Failure fetch next rows for result set: {}", e.getMessage(), e);
             sendSQLExceptionMetadata(e, responseObserver);

@@ -88,15 +88,18 @@ public class SqlTableExtractor {
         try {
             Statement statement = CCJSqlParserUtil.parse(sql);
             
-            if (statement instanceof Insert insert) {
+            if (statement instanceof Insert) {
+                Insert insert = (Insert) statement;
                 String tableName = insert.getTable().getName().toLowerCase();
                 return Set.of(tableName);
                 
-            } else if (statement instanceof Update update) {
+            } else if (statement instanceof Update) {
+                Update update = (Update) statement;
                 String tableName = update.getTable().getName().toLowerCase();
                 return Set.of(tableName);
                 
-            } else if (statement instanceof Delete delete) {
+            } else if (statement instanceof Delete) {
+                Delete delete = (Delete) statement;
                 String tableName = delete.getTable().getName().toLowerCase();
                 return Set.of(tableName);
             }

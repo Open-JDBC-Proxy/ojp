@@ -237,7 +237,8 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
                     inputStream = sessionManager.getLob(lobReference.getSession(), lobReference.getUuid());
                     inputStream.reset();// Might be a second read of the same stream, this guarantees that the position
                     // is at the start.
-                    if (inputStream instanceof ByteArrayInputStream bais) {// Only used in SQL Server
+                    if (inputStream instanceof ByteArrayInputStream) {// Only used in SQL Server
+                        ByteArrayInputStream bais = (ByteArrayInputStream) inputStream;
                         bais.reset();
                         readLobContextBuilder.lobLength(Optional.of((long) bais.available()));
                         readLobContextBuilder.availableLength(Optional.of(bais.available()));

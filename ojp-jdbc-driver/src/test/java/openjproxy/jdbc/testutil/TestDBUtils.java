@@ -212,14 +212,25 @@ public class TestDBUtils {
             XAConnection xaConnection = xaDataSource.getXAConnection(user, password);
             Connection connection = xaConnection.getConnection();
             ConnectionResult result = new ConnectionResult(connection, xaConnection);
-            // For XA connections, set autocommit to false and start transaction immediately
+            // For XA connections, set autocommit to false Oracle cannot execute DDL while an XA branch is active because DDL triggers implicit commit.
+            // So we defer XA start for Oracle URLs and let tests start explicitly when needed.
             connection.setAutoCommit(false);
-            result.startXATransactionIfNeeded();
+            if (!isOracleUrl(url)) {
+                result.startXATransactionIfNeeded();
+            }
             return result;
         } else {
             Connection connection = DriverManager.getConnection(url, user, password);
             return new ConnectionResult(connection, null);
         }
+    }
+
+    private static boolean isOracleUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        String normalized = url.toLowerCase();
+        return normalized.contains("oracle:");
     }
 
     /**

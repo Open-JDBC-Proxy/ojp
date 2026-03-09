@@ -63,10 +63,11 @@ public class OjpSystemPropertiesBridge {
      */
     @PostConstruct
     public void applySystemProperties() {
-        if (!(environment instanceof ConfigurableEnvironment configurableEnvironment)) {
+        if (!(environment instanceof ConfigurableEnvironment)) {
             log.warn("Environment is not a ConfigurableEnvironment; OJP system properties will not be applied.");
             return;
         }
+        ConfigurableEnvironment configurableEnvironment = (ConfigurableEnvironment) environment;
         applyOjpSystemProperties(configurableEnvironment);
     }
 
@@ -87,7 +88,8 @@ public class OjpSystemPropertiesBridge {
     static void applyOjpSystemProperties(ConfigurableEnvironment configurableEnvironment) {
         Set<String> processed = new HashSet<>();
         for (PropertySource<?> source : configurableEnvironment.getPropertySources()) {
-            if (source instanceof EnumerablePropertySource<?> enumerable) {
+            if (source instanceof EnumerablePropertySource<?>) {
+                EnumerablePropertySource<?> enumerable = (EnumerablePropertySource<?>) source;
                 processEnumerableSource(enumerable, processed, configurableEnvironment);
             }
         }

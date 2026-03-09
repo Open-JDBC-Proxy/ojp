@@ -68,7 +68,7 @@ public class ResultSetHelper {
      * @throws SQLException if a database access error occurs while reading the
      *                      result set
      */
-    public static void handleResultSet(ActionContext context, SessionInfo session, String resultSetUUID,
+    public static void handleResultSet(ActionContext context, SessionInfo session, String statementUUID, String resultSetUUID,
             StreamObserver<OpResult> responseObserver)
             throws SQLException {
         var sessionManager = context.getSessionManager();
@@ -204,7 +204,7 @@ public class ResultSetHelper {
                 justSent = true;
                 // Send a block of records
                 responseObserver.onNext(ResultSetWrapper.wrapResults(session, results, queryResultBuilder,
-                        resultSetUUID, resultSetMode));
+                        statementUUID, resultSetUUID, resultSetMode));
                 queryResultBuilder = OpQueryResult.builder();// Recreate the builder to not send labels in every block.
                 results = new ArrayList<>();
             }
@@ -213,7 +213,7 @@ public class ResultSetHelper {
         if (!justSent) {
             // Send a block of remaining records
             responseObserver.onNext(
-                    ResultSetWrapper.wrapResults(session, results, queryResultBuilder, resultSetUUID, resultSetMode));
+                    ResultSetWrapper.wrapResults(session, results, queryResultBuilder, statementUUID, resultSetUUID, resultSetMode));
         }
 
         responseObserver.onCompleted();

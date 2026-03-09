@@ -1,5 +1,7 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -7,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -36,13 +37,14 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
      * and subsequent operations use the same session/connection.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-     void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)             throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+     void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd, boolean isXA)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table session affinity for Oracle: {}", url);
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
         try (Statement stmt = conn.createStatement()) {
             // Oracle global temp tables are permanent, just truncate
@@ -86,7 +88,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
             } catch (SQLException e) {
                 logger.warn("Error during cleanup: {}", e.getMessage());
             }
-            conn.close();
+            connResult.close();
         }
     }
 
@@ -94,13 +96,14 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
      * Tests that multiple temporary table operations work correctly.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-     void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)             throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+     void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd, boolean isXA)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing complex temporary table operations for Oracle: {}", url);
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
         try (Statement stmt = conn.createStatement()) {
             // Oracle global temp tables are permanent, just truncate
@@ -162,7 +165,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
             } catch (SQLException e) {
                 logger.warn("Error during cleanup: {}", e.getMessage());
             }
-            conn.close();
+            connResult.close();
         }
     }
 
@@ -170,13 +173,14 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
      * Tests that temp table persists within same session across transactions.
      */
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)             throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd, boolean isXA)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table persistence across transactions for Oracle: {}", url);
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
         try (Statement stmt = conn.createStatement()) {
             // Oracle global temp tables are permanent, just truncate
@@ -193,17 +197,24 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
             }
 
             // Start transaction and insert
-            conn.setAutoCommit(false);
+            if (!isXA) {
+                conn.setAutoCommit(false);
+            }
+            connResult.startXATransactionIfNeeded();
             stmt.execute("INSERT INTO temp_persist VALUES (1, 'in_transaction')");
-            conn.commit();
+            connResult.commit();
+            connResult.startXATransactionIfNeeded();
 
             // Start another transaction and query (should still see the temp table)
-            conn.setAutoCommit(false);
+            if (!isXA) {
+                conn.setAutoCommit(false);
+            }
             ResultSet rs = stmt.executeQuery("SELECT * FROM temp_persist WHERE id = 1");
             assertTrue(rs.next(), "Should find row inserted in previous transaction");
             assertEquals("in_transaction", rs.getString("data"), "Data should match");
             rs.close();
-            conn.commit();
+            connResult.commit();
+            connResult.startXATransactionIfNeeded();
 
             logger.info("Oracle temporary table persistence across transactions test passed");
 
@@ -214,7 +225,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
             } catch (SQLException e) {
                 logger.warn("Error during cleanup: {}", e.getMessage());
             }
-            conn.close();
+            connResult.close();
         }
     }
 }

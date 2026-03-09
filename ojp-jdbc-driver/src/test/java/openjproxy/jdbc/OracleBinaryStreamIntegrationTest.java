@@ -1,5 +1,7 @@
 package openjproxy.jdbc;
 
+import openjproxy.jdbc.testutil.TestDBUtils;
+import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -8,7 +10,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -31,11 +32,12 @@ class OracleBinaryStreamIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
         System.out.println("Testing Oracle binary stream for url -> " + url);
 
@@ -51,7 +53,11 @@ class OracleBinaryStreamIntegrationTest {
                 " val_raw2 RAW(2000)" +
                 ")");
 
-        conn.setAutoCommit(false);
+        connResult.startXATransactionIfNeeded();
+
+        if (!isXA) {
+            conn.setAutoCommit(false);
+        }
 
         PreparedStatement psInsert = conn.prepareStatement(
                 "insert into oracle_binary_stream_test (val_raw1, val_raw2) values (?, ?)"
@@ -65,7 +71,8 @@ class OracleBinaryStreamIntegrationTest {
         psInsert.setBinaryStream(2, inputStream2, 7);
         psInsert.executeUpdate();
 
-        conn.commit();
+        connResult.commit();
+        connResult.startXATransactionIfNeeded();
 
         PreparedStatement psSelect = conn.prepareStatement("select val_raw1, val_raw2 from oracle_binary_stream_test ");
         ResultSet resultSet = psSelect.executeQuery();
@@ -88,15 +95,16 @@ class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
         System.out.println("Testing Oracle large binary stream for url -> " + url);
 
@@ -111,6 +119,8 @@ class OracleBinaryStreamIntegrationTest {
                 " val_blob BLOB" +
                 ")");
 
+        connResult.startXATransactionIfNeeded();
+
         PreparedStatement psInsert = conn.prepareStatement(
                 "insert into oracle_large_binary_test (val_blob) values (?)"
         );
@@ -119,6 +129,8 @@ class OracleBinaryStreamIntegrationTest {
         psInsert.setBinaryStream(1, inputStream);
 
         psInsert.executeUpdate();
+        connResult.commit();
+        connResult.startXATransactionIfNeeded();
 
         PreparedStatement psSelect = conn.prepareStatement("select val_blob from oracle_large_binary_test ");
         ResultSet resultSet = psSelect.executeQuery();
@@ -138,15 +150,16 @@ class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
+    void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
-        Connection conn = DriverManager.getConnection(url, user, pwd);
+        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
+        Connection conn = connResult.getConnection();
 
         System.out.println("Testing Oracle-specific binary handling for url -> " + url);
 
@@ -163,6 +176,8 @@ class OracleBinaryStreamIntegrationTest {
                 " large_blob BLOB" +
                 ")");
 
+        connResult.startXATransactionIfNeeded();
+
         PreparedStatement psInsert = conn.prepareStatement(
                 "insert into oracle_binary_types_test (small_raw, medium_raw, large_blob) values (?, ?, ?)"
         );
@@ -177,6 +192,8 @@ class OracleBinaryStreamIntegrationTest {
         psInsert.setBinaryStream(3, new ByteArrayInputStream(largeData.getBytes()));
 
         psInsert.executeUpdate();
+        connResult.commit();
+        connResult.startXATransactionIfNeeded();
 
         PreparedStatement psSelect = conn.prepareStatement("select small_raw, medium_raw, large_blob from oracle_binary_types_test");
         ResultSet resultSet = psSelect.executeQuery();
@@ -198,6 +215,6 @@ class OracleBinaryStreamIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        conn.close();
+        connResult.close();
     }
 }
