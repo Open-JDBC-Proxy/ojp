@@ -23,7 +23,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Cache for pre-fetched next pages of paginated SELECT queries.
@@ -59,9 +61,12 @@ import java.util.concurrent.TimeUnit;
  * because those references cannot be transferred to a separate prefetch connection.
  *
  * <h2>Background cleanup</h2>
- * When enabled, a daemon background thread runs every {@code cleanupIntervalSeconds}
- * to evict expired or failed entries.  Entries expire after {@code ttlSeconds} regardless
- * of whether they were ever consumed.  Call {@link #shutdown()} to stop the scheduler.
+ * All cache instances share a single application-wide daemon thread
+ * ({@link #CLEANUP_EXECUTOR}) that is created once for the lifetime of the JVM.
+ * When enabled, each instance registers its own periodic eviction task on that shared
+ * executor; {@link #shutdown()} cancels the task for that instance without affecting
+ * the shared thread or any other instance's tasks.  Entries expire after
+ * {@code ttlSeconds} regardless of whether they were ever consumed.
  *
  * <h2>Thread safety</h2>
  * All public methods are thread-safe.  The internal cache uses a
@@ -70,21 +75,38 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class NextPagePrefetchCache implements AutoCloseable {
 
+    /**
+     * Application-wide single-threaded executor shared by ALL enabled cache instances.
+     * Using a {@code static final} field guarantees exactly ONE background cleanup thread
+     * per JVM regardless of how many {@code NextPagePrefetchCache} instances are created.
+     * The executor is a daemon so it never prevents JVM shutdown.
+     */
+    private static final ScheduledExecutorService CLEANUP_EXECUTOR =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "ojp-prefetch-cache-cleanup");
+                t.setDaemon(true);
+                return t;
+            });
+
     private final boolean enabled;
     private final int maxEntries;
     private final long ttlMs;
     private final long prefetchWaitTimeoutMs;
 
     /**
-     * Maps {@code "<datasourceId>|<normalized-sql>"} to the asynchronous result of the prefetch.
+     * Maps {@code "<datasourceId>\u0001<normalized-sql>"} to the asynchronous result of the prefetch.
      * Including the datasource ID in the key ensures that two different datasources executing
      * the same SQL do not share cache entries.
      */
     private final ConcurrentHashMap<String, CompletableFuture<CachedPage>> cache
             = new ConcurrentHashMap<>();
 
-    /** Background scheduler for periodic eviction of expired/abandoned entries. */
-    private final ScheduledExecutorService cleanupScheduler;
+    /**
+     * Handle to this instance's eviction task on {@link #CLEANUP_EXECUTOR}.
+     * {@code null} reference when the cleanup job is disabled ({@code cleanupIntervalSeconds == 0}).
+     * Cancelled atomically by {@link #shutdown()} to avoid concurrent double-cancel races.
+     */
+    private final AtomicReference<ScheduledFuture<?>> cleanupTask = new AtomicReference<>();
 
     /**
      * Creates a new cache instance.
@@ -95,7 +117,7 @@ public class NextPagePrefetchCache implements AutoCloseable {
      * @param prefetchWaitTimeoutMs  max time (ms) to wait for an in-progress prefetch
      *                               before falling back to a live DB query
      * @param cleanupIntervalSeconds interval (seconds) between background eviction sweeps;
-     *                               {@code 0} disables the background job
+     *                               {@code 0} disables the background job for this instance
      */
     public NextPagePrefetchCache(boolean enabled, int maxEntries,
                                  long ttlSeconds, long prefetchWaitTimeoutMs,
@@ -106,17 +128,14 @@ public class NextPagePrefetchCache implements AutoCloseable {
         this.prefetchWaitTimeoutMs = prefetchWaitTimeoutMs;
 
         if (enabled && cleanupIntervalSeconds > 0) {
-            this.cleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "ojp-prefetch-cache-cleanup");
-                t.setDaemon(true);
-                return t;
-            });
-            cleanupScheduler.scheduleAtFixedRate(
+            // Register this instance's eviction task on the single shared executor.
+            // The executor has exactly one thread, so all tasks run sequentially on
+            // that same thread — never more than one cleanup thread in the JVM.
+            cleanupTask.set(CLEANUP_EXECUTOR.scheduleAtFixedRate(
                     this::evictExpiredOrCompleted,
-                    cleanupIntervalSeconds, cleanupIntervalSeconds, TimeUnit.SECONDS);
-            log.debug("Prefetch cache cleanup scheduled every {}s", cleanupIntervalSeconds);
-        } else {
-            this.cleanupScheduler = null;
+                    cleanupIntervalSeconds, cleanupIntervalSeconds, TimeUnit.SECONDS));
+            log.debug("Prefetch cache cleanup registered every {}s on shared executor",
+                    cleanupIntervalSeconds);
         }
     }
 
@@ -136,13 +155,16 @@ public class NextPagePrefetchCache implements AutoCloseable {
     }
 
     /**
-     * Shuts down the background cleanup scheduler, if one was started.
-     * Safe to call multiple times.
+     * Cancels this instance's periodic cleanup task on the shared executor.
+     * The shared executor itself is left running so that other cache instances
+     * (if any) are not affected.  Safe to call multiple times; uses an atomic
+     * swap to prevent concurrent double-cancel races.
      */
     public void shutdown() {
-        if (cleanupScheduler != null && !cleanupScheduler.isShutdown()) {
-            cleanupScheduler.shutdown();
-            log.debug("Prefetch cache cleanup scheduler shut down");
+        ScheduledFuture<?> task = cleanupTask.getAndSet(null);
+        if (task != null) {
+            task.cancel(false);
+            log.debug("Prefetch cache cleanup task cancelled");
         }
     }
 

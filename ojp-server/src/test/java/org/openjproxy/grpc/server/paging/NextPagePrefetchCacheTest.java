@@ -414,7 +414,7 @@ class NextPagePrefetchCacheTest {
 
     @Test
     void shutdown_doesNotThrow_whenSchedulerNotStarted() {
-        // cleanupIntervalSeconds=0 → no scheduler started
+        // cleanupIntervalSeconds=0 → no cleanup task registered
         NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 60, 5000, 0);
         cache.shutdown(); // must not throw
     }
