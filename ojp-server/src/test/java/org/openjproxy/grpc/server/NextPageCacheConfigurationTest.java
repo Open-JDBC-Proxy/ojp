@@ -30,11 +30,7 @@ class NextPageCacheConfigurationTest {
 
     @AfterEach
     void cleanupProperties() {
-        System.clearProperty(ENABLED_KEY);
-        System.clearProperty(TTL_KEY);
-        System.clearProperty(MAX_ENTRIES_KEY);
-        System.clearProperty(WAIT_TIMEOUT_MS_KEY);
-        System.clearProperty(CLEANUP_INTERVAL_KEY);
+        clearProperties();
     }
 
     // ----------------------------------------------------------------

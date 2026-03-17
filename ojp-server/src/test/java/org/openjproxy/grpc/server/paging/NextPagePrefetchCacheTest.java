@@ -127,7 +127,7 @@ class NextPagePrefetchCacheTest {
         NextPagePrefetchCache cache = enabledCache();
         DataSource ds = mockDataSource(1);
         cache.prefetchAsync(ds, "ds1", null, List.of());
-        // Nothing to assert – just must not throw
+        assertEquals(0, cache.cacheSize(), "Cache should remain empty when SQL is null");
     }
 
     // ----------------------------------------------------------------

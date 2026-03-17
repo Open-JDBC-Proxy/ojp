@@ -42,76 +42,30 @@ class PaginationDetectorTest {
         assertTrue(result.get().isFirstPage());
     }
 
-    @Test
-    void detectOffsetFetch_sqlServer() {
-        String sql = "SELECT id, name FROM users ORDER BY id OFFSET 30 ROWS FETCH NEXT 10 ROWS ONLY";
+    @ParameterizedTest(name = "[{index}] {0}")
+    @CsvSource({
+        // SQL Server / Oracle: OFFSET … ROWS FETCH NEXT … ROWS ONLY
+        "'SELECT id, name FROM users ORDER BY id OFFSET 30 ROWS FETCH NEXT 10 ROWS ONLY', 10, 30, 40",
+        // FETCH FIRST … ROWS ONLY with explicit OFFSET 0
+        "'SELECT * FROM items OFFSET 0 ROWS FETCH FIRST 50 ROWS ONLY',                   50,  0, 50",
+        // MySQL shorthand: LIMIT offset, pageSize
+        "'SELECT * FROM products LIMIT 20, 10',                                           10, 20, 30",
+        // FETCH FIRST … ROWS ONLY without any OFFSET (first page)
+        "'SELECT TOP_N.* FROM (SELECT * FROM t) TOP_N FETCH FIRST 10 ROWS ONLY',         10,  0, 10",
+        // FETCH NEXT … ROWS ONLY without any OFFSET (first page)
+        "'SELECT * FROM t FETCH NEXT 5 ROWS ONLY',                                         5,  0,  5",
+        // Standalone LIMIT without OFFSET (first page)
+        "'SELECT * FROM users WHERE active = 1 LIMIT 15',                                 15,  0, 15",
+        // Case-insensitive matching
+        "'select id from foo limit 5 offset 10',                                            5, 10, 15"
+    })
+    void detect_recognisesPaginationPatterns(String sql, long pageSize, long currentOffset, long nextOffset) {
         Optional<PageInfo> result = PaginationDetector.detect(sql);
 
-        assertTrue(result.isPresent());
-        assertEquals(30, result.get().getCurrentOffset());
-        assertEquals(10, result.get().getPageSize());
-    }
-
-    @Test
-    void detectOffsetFetch_fetchFirst() {
-        String sql = "SELECT * FROM items OFFSET 0 ROWS FETCH FIRST 50 ROWS ONLY";
-        Optional<PageInfo> result = PaginationDetector.detect(sql);
-
-        assertTrue(result.isPresent());
-        assertEquals(0, result.get().getCurrentOffset());
-        assertEquals(50, result.get().getPageSize());
-    }
-
-    @Test
-    void detectLimitComma_mysqlShorthand() {
-        // MySQL: LIMIT offset, pageSize (first arg = rows to skip, second = rows to return)
-        String sql = "SELECT * FROM products LIMIT 20, 10";
-        Optional<PageInfo> result = PaginationDetector.detect(sql);
-
-        assertTrue(result.isPresent());
-        assertEquals(20, result.get().getCurrentOffset());
-        assertEquals(10, result.get().getPageSize());
-    }
-
-    @Test
-    void detectFetchOnly_noOffset_firstPage() {
-        String sql = "SELECT TOP_N.* FROM (SELECT * FROM t) TOP_N FETCH FIRST 10 ROWS ONLY";
-        Optional<PageInfo> result = PaginationDetector.detect(sql);
-
-        assertTrue(result.isPresent());
-        assertEquals(0, result.get().getCurrentOffset());
-        assertEquals(10, result.get().getPageSize());
-        assertTrue(result.get().isFirstPage());
-    }
-
-    @Test
-    void detectFetchNextOnly_noOffset_firstPage() {
-        String sql = "SELECT * FROM t FETCH NEXT 5 ROWS ONLY";
-        Optional<PageInfo> result = PaginationDetector.detect(sql);
-
-        assertTrue(result.isPresent());
-        assertEquals(0, result.get().getCurrentOffset());
-        assertEquals(5, result.get().getPageSize());
-    }
-
-    @Test
-    void detectLimitOnly_noOffset_firstPage() {
-        String sql = "SELECT * FROM users WHERE active = 1 LIMIT 15";
-        Optional<PageInfo> result = PaginationDetector.detect(sql);
-
-        assertTrue(result.isPresent());
-        assertEquals(0, result.get().getCurrentOffset());
-        assertEquals(15, result.get().getPageSize());
-    }
-
-    @Test
-    void detectLimitOffset_caseInsensitive() {
-        String sql = "select id from foo limit 5 offset 10";
-        Optional<PageInfo> result = PaginationDetector.detect(sql);
-
-        assertTrue(result.isPresent());
-        assertEquals(10, result.get().getCurrentOffset());
-        assertEquals(5, result.get().getPageSize());
+        assertTrue(result.isPresent(), "Expected pagination to be detected in: " + sql);
+        assertEquals(pageSize, result.get().getPageSize(), "Page size mismatch");
+        assertEquals(currentOffset, result.get().getCurrentOffset(), "Current offset mismatch");
+        assertEquals(nextOffset, result.get().getNextPageOffset(), "Next offset mismatch");
     }
 
     // ----------------------------------------------------------------
