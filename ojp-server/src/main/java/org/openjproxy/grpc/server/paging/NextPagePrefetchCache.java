@@ -79,14 +79,12 @@ public class NextPagePrefetchCache implements AutoCloseable {
      * Application-wide single-threaded executor shared by ALL enabled cache instances.
      * Using a {@code static final} field guarantees exactly ONE background cleanup thread
      * per JVM regardless of how many {@code NextPagePrefetchCache} instances are created.
-     * The executor is a daemon so it never prevents JVM shutdown.
+     * The executor runs on a virtual thread; virtual threads are always daemon threads,
+     * so they never prevent JVM shutdown.
      */
     private static final ScheduledExecutorService CLEANUP_EXECUTOR =
-            Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "ojp-prefetch-cache-cleanup");
-                t.setDaemon(true);
-                return t;
-            });
+            Executors.newSingleThreadScheduledExecutor(r ->
+                    Thread.ofVirtual().name("ojp-prefetch-cache-cleanup").unstarted(r));
 
     private final boolean enabled;
     private final int maxEntries;
