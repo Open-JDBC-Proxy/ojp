@@ -13,6 +13,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -237,5 +238,133 @@ class NextPagePrefetchCacheTest {
         CachedPage page = new CachedPage(List.of("col"), List.of());
         Thread.sleep(10); // small delay so currentTime > createdAt
         assertTrue(page.isExpired(0), "Page should be expired with TTL=0");
+    }
+
+    // ----------------------------------------------------------------
+    // CLOB / NCLOB return columns
+    // ----------------------------------------------------------------
+
+    /**
+     * Creates a mock DataSource whose ResultSet returns one row with one CLOB column.
+     * The CLOB content is materialised as the {@code String} returned by
+     * {@code getCharacterStream()}.
+     */
+    private static DataSource mockDataSourceWithClob(String clobContent) throws Exception {
+        java.io.Reader reader = new java.io.StringReader(clobContent);
+
+        ResultSetMetaData meta = mock(ResultSetMetaData.class);
+        when(meta.getColumnCount()).thenReturn(1);
+        when(meta.getColumnName(1)).thenReturn("description");
+        when(meta.getColumnType(1)).thenReturn(Types.CLOB);
+
+        ResultSet rs = mock(ResultSet.class);
+        when(rs.getMetaData()).thenReturn(meta);
+        when(rs.next()).thenReturn(true, false);
+        when(rs.getCharacterStream(1)).thenReturn(reader);
+
+        Statement stmt = mock(Statement.class);
+        when(stmt.executeQuery(anyString())).thenReturn(rs);
+
+        Connection conn = mock(Connection.class);
+        when(conn.createStatement()).thenReturn(stmt);
+
+        DataSource ds = mock(DataSource.class);
+        when(ds.getConnection()).thenReturn(conn);
+        return ds;
+    }
+
+    /**
+     * Creates a mock DataSource whose ResultSet returns one row with one NCLOB column.
+     */
+    private static DataSource mockDataSourceWithNClob(String nclobContent) throws Exception {
+        java.io.Reader reader = new java.io.StringReader(nclobContent);
+
+        ResultSetMetaData meta = mock(ResultSetMetaData.class);
+        when(meta.getColumnCount()).thenReturn(1);
+        when(meta.getColumnName(1)).thenReturn("content");
+        when(meta.getColumnType(1)).thenReturn(Types.NCLOB);
+
+        ResultSet rs = mock(ResultSet.class);
+        when(rs.getMetaData()).thenReturn(meta);
+        when(rs.next()).thenReturn(true, false);
+        when(rs.getNCharacterStream(1)).thenReturn(reader);
+
+        Statement stmt = mock(Statement.class);
+        when(stmt.executeQuery(anyString())).thenReturn(rs);
+
+        Connection conn = mock(Connection.class);
+        when(conn.createStatement()).thenReturn(stmt);
+
+        DataSource ds = mock(DataSource.class);
+        when(ds.getConnection()).thenReturn(conn);
+        return ds;
+    }
+
+    @Test
+    void prefetchAndGet_cachesClobColumns_asString() throws Exception {
+        NextPagePrefetchCache cache = enabledCache();
+        String clobContent = "This is a large text value stored as CLOB";
+        DataSource ds = mockDataSourceWithClob(clobContent);
+
+        String sql = "SELECT description FROM articles LIMIT 10 OFFSET 10";
+        cache.prefetchAsync(ds, sql, List.of());
+
+        Optional<CachedPage> result = cache.getIfReady(sql);
+
+        assertTrue(result.isPresent(), "CLOB column query should be cached");
+        CachedPage page = result.get();
+        assertEquals(1, page.getRows().size());
+        assertEquals(clobContent, page.getRows().get(0)[0],
+                "CLOB content should be materialised as String");
+    }
+
+    @Test
+    void prefetchAndGet_cachesNclobColumns_asString() throws Exception {
+        NextPagePrefetchCache cache = enabledCache();
+        String nclobContent = "Unicode text: こんにちは";
+        DataSource ds = mockDataSourceWithNClob(nclobContent);
+
+        String sql = "SELECT content FROM docs LIMIT 10 OFFSET 10";
+        cache.prefetchAsync(ds, sql, List.of());
+
+        Optional<CachedPage> result = cache.getIfReady(sql);
+
+        assertTrue(result.isPresent(), "NCLOB column query should be cached");
+        CachedPage page = result.get();
+        assertEquals(1, page.getRows().size());
+        assertEquals(nclobContent, page.getRows().get(0)[0],
+                "NCLOB content should be materialised as String");
+    }
+
+    @Test
+    void prefetchAndGet_handlesNullClobValue() throws Exception {
+        ResultSetMetaData meta = mock(ResultSetMetaData.class);
+        when(meta.getColumnCount()).thenReturn(1);
+        when(meta.getColumnName(1)).thenReturn("description");
+        when(meta.getColumnType(1)).thenReturn(Types.CLOB);
+
+        ResultSet rs = mock(ResultSet.class);
+        when(rs.getMetaData()).thenReturn(meta);
+        when(rs.next()).thenReturn(true, false);
+        when(rs.getCharacterStream(1)).thenReturn(null); // NULL CLOB
+
+        Statement stmt = mock(Statement.class);
+        when(stmt.executeQuery(anyString())).thenReturn(rs);
+
+        Connection conn = mock(Connection.class);
+        when(conn.createStatement()).thenReturn(stmt);
+
+        DataSource ds = mock(DataSource.class);
+        when(ds.getConnection()).thenReturn(conn);
+
+        NextPagePrefetchCache cache = enabledCache();
+        String sql = "SELECT description FROM t LIMIT 10 OFFSET 10";
+        cache.prefetchAsync(ds, sql, List.of());
+
+        Optional<CachedPage> result = cache.getIfReady(sql);
+
+        assertTrue(result.isPresent(), "Null CLOB should be cached as null value");
+        assertFalse(result.get().getRows().isEmpty());
+        assertNull(result.get().getRows().get(0)[0], "Null CLOB column should be null in cache");
     }
 }

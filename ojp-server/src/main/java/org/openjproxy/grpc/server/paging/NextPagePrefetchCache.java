@@ -39,14 +39,16 @@ import java.util.concurrent.TimeUnit;
  *       falling back to a regular database query.</li>
  * </ol>
  *
- * <h2>Limitations (first-pass implementation)</h2>
+ * <h2>Materialised LOB data</h2>
+ * All column types are cached:
  * <ul>
- *   <li>CLOB / NCLOB columns are not cached – the prefetch skips storing the page.</li>
- *   <li>Parameters of type BLOB or CLOB (LOB references) are not supported in
- *       prefetch queries and will cause the prefetch to be skipped.</li>
- *   <li>This feature is <strong>disabled by default</strong> and must be enabled
- *       via {@code ojp.server.nextPageCache.enabled=true}.</li>
+ *   <li>BLOB / LONGVARBINARY / VARBINARY / BINARY → materialized as {@code byte[]}</li>
+ *   <li>CLOB / NCLOB / LONGVARCHAR / LONGNVARCHAR → materialized as {@code String}</li>
+ *   <li>All other types → stored using {@code ResultSet.getObject()}</li>
  * </ul>
+ * Queries that use <em>LOB session references</em> as input parameters (i.e., parameters
+ * of type BLOB or CLOB that reference a session-scoped LOB object) are still skipped
+ * because those references cannot be transferred to a separate prefetch connection.
  *
  * <h2>Thread safety</h2>
  * All public methods are thread-safe.  The internal cache uses a
@@ -62,8 +64,6 @@ public class NextPagePrefetchCache {
 
     /**
      * Maps the (trimmed) next-page SQL to the asynchronous result of the prefetch.
-     * A {@code null} value inside the future signals that caching was skipped
-     * (e.g., CLOB columns detected).
      */
     private final ConcurrentHashMap<String, CompletableFuture<CachedPage>> cache
             = new ConcurrentHashMap<>();
@@ -104,7 +104,7 @@ public class NextPagePrefetchCache {
      * <ul>
      *   <li>no entry exists for {@code sql}</li>
      *   <li>the entry is expired</li>
-     *   <li>the prefetch failed, returned a null result (e.g., CLOB detected), or timed out</li>
+     *   <li>the prefetch failed or timed out</li>
      * </ul>
      *
      * <p>The entry is removed from the cache after a successful retrieval (single-use
@@ -128,7 +128,7 @@ public class NextPagePrefetchCache {
             cache.remove(key, future);
 
             if (page == null) {
-                log.debug("Prefetch for '{}' returned no-cache result (e.g. CLOB columns)", abbreviate(sql));
+                log.debug("Prefetch for '{}' returned no-cache result", abbreviate(sql));
                 return Optional.empty();
             }
             if (page.isExpired(ttlMs)) {
@@ -230,8 +230,6 @@ public class NextPagePrefetchCache {
     /**
      * Executes {@code sql} using the given connection and materialises all result
      * rows into a {@link CachedPage}.
-     *
-     * <p>Returns {@code null} when caching should be skipped (CLOB columns detected).</p>
      */
     private static CachedPage executeAndReadAllRows(Connection conn, String sql,
                                                     List<Parameter> params) throws SQLException {
@@ -249,8 +247,8 @@ public class NextPagePrefetchCache {
     }
 
     /**
-     * Materialises all rows from {@code rs}.  Returns {@code null} when the
-     * result set contains CLOB/NCLOB columns (caching is not supported for those).
+     * Materialises all rows from {@code rs}, eagerly reading all column values
+     * (including LOB types) into in-memory representations.
      */
     private static CachedPage readAllRows(ResultSet rs) throws SQLException {
         ResultSetMetaData meta = rs.getMetaData();
@@ -262,16 +260,7 @@ public class NextPagePrefetchCache {
             labels.add(meta.getColumnName(i));
         }
 
-        // Skip caching if CLOB / NCLOB columns are present
-        for (int i = 1; i <= colCount; i++) {
-            int sqlType = meta.getColumnType(i);
-            if (sqlType == Types.CLOB || sqlType == Types.NCLOB) {
-                log.debug("Skipping cache – CLOB/NCLOB column detected at index {}", i);
-                return null;
-            }
-        }
-
-        // Read all rows eagerly; convert binary types to byte arrays
+        // Read all rows eagerly; materialise binary and character LOBs
         List<Object[]> rows = new ArrayList<>();
         while (rs.next()) {
             Object[] row = new Object[colCount];
@@ -285,8 +274,14 @@ public class NextPagePrefetchCache {
     }
 
     /**
-     * Reads a single column value, eagerly materialising BLOB / binary data as
-     * {@code byte[]} so that it remains valid after the connection is closed.
+     * Reads a single column value, eagerly materialising LOB data so that
+     * it remains valid after the connection is closed:
+     * <ul>
+     *   <li>BLOB / LONGVARBINARY → {@code byte[]}</li>
+     *   <li>VARBINARY / BINARY → {@code byte[]}</li>
+     *   <li>CLOB / NCLOB / LONGVARCHAR / LONGNVARCHAR → {@code String}</li>
+     *   <li>All other types → returned as-is via {@code ResultSet.getObject()}</li>
+     * </ul>
      */
     private static Object readColumnValue(ResultSet rs, int col, int sqlType) throws SQLException {
         switch (sqlType) {
@@ -305,6 +300,32 @@ public class NextPagePrefetchCache {
             case Types.VARBINARY:
             case Types.BINARY:
                 return rs.getBytes(col);
+            case Types.CLOB:
+            case Types.LONGVARCHAR: {
+                try (java.io.Reader reader = rs.getCharacterStream(col)) {
+                    if (reader == null) {
+                        return null;
+                    }
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    reader.transferTo(sw);
+                    return sw.toString();
+                } catch (java.io.IOException e) {
+                    throw new SQLException("Failed to read CLOB data", e);
+                }
+            }
+            case Types.NCLOB:
+            case Types.LONGNVARCHAR: {
+                try (java.io.Reader reader = rs.getNCharacterStream(col)) {
+                    if (reader == null) {
+                        return null;
+                    }
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    reader.transferTo(sw);
+                    return sw.toString();
+                } catch (java.io.IOException e) {
+                    throw new SQLException("Failed to read NCLOB data", e);
+                }
+            }
             case Types.DATE:
                 return rs.getDate(col);
             case Types.TIMESTAMP:
