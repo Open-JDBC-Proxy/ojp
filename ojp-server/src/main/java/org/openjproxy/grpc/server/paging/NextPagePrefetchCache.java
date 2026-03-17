@@ -26,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 /**
  * Cache for pre-fetched next pages of paginated SELECT queries.
@@ -85,6 +86,9 @@ public class NextPagePrefetchCache implements AutoCloseable {
     private static final ScheduledExecutorService CLEANUP_EXECUTOR =
             Executors.newSingleThreadScheduledExecutor(r ->
                     Thread.ofVirtual().name("ojp-prefetch-cache-cleanup").unstarted(r));
+
+    /** Pre-compiled pattern for stripping newlines and tabs in log abbreviations. */
+    private static final Pattern NEWLINE_PATTERN = Pattern.compile("[\\r\\n\\t]+");
 
     private final boolean enabled;
     private final int maxEntries;
@@ -520,7 +524,7 @@ public class NextPagePrefetchCache implements AutoCloseable {
             return "<null>";
         }
         // Remove newlines/tabs for single-line thread names
-        String singleLine = sql.replaceAll("[\\r\\n\\t]+", " ").trim();
+        String singleLine = NEWLINE_PATTERN.matcher(sql).replaceAll(" ").trim();
         return singleLine.length() <= maxLen ? singleLine : singleLine.substring(0, maxLen - 3) + "...";
     }
 

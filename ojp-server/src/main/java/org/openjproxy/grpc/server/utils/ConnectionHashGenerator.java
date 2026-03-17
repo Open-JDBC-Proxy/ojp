@@ -56,14 +56,8 @@ public class ConnectionHashGenerator {
         if (connectionDetails.getPropertiesList().isEmpty()) {
             return "default";
         }
-        
-        try {
-            Map<String, Object> properties = ProtoConverter.propertiesFromProto(connectionDetails.getPropertiesList());
-            Object dataSourceName = properties.get("ojp.datasource.name");
-            return dataSourceName != null ? dataSourceName.toString() : "default";
-        } catch (Exception e) {
-            // If we can't deserialize properties, fall back to default
-            return "default";
-        }
+        Map<String, Object> properties = ProtoConverter.propertiesFromProto(connectionDetails.getPropertiesList());
+        Object dataSourceName = properties.get("ojp.datasource.name");
+        return dataSourceName != null ? dataSourceName.toString() : "default";
     }
 }

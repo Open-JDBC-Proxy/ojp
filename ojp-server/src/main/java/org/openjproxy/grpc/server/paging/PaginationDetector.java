@@ -115,9 +115,12 @@ public class PaginationDetector {
             return Optional.of(new PageInfo(offset, limit));
         }
 
+        // Patterns 4 and 5 only apply when the query has no OFFSET clause at all.
+        // Evaluate once and reuse the result.
+        boolean noOffset = !HAS_OFFSET.matcher(sql).find();
+
         // Pattern 4: FETCH FIRST/NEXT n ROWS ONLY  (first page, offset = 0)
-        // Only match when there is no OFFSET clause in the same query
-        if (!HAS_OFFSET.matcher(sql).find()) {
+        if (noOffset) {
             Matcher m4 = FETCH_ONLY.matcher(sql);
             if (m4.find()) {
                 long fetchSize = Long.parseLong(m4.group(1));
@@ -126,8 +129,7 @@ public class PaginationDetector {
         }
 
         // Pattern 5: standalone LIMIT n (first page, offset = 0)
-        // Only match when there is no OFFSET clause in the same query
-        if (!HAS_OFFSET.matcher(sql).find()) {
+        if (noOffset) {
             Matcher m5 = LIMIT_ONLY.matcher(sql);
             if (m5.find()) {
                 long limit = Long.parseLong(m5.group(1));
@@ -177,8 +179,12 @@ public class PaginationDetector {
             return sql.substring(0, m3.start(1)) + nextOffset + sql.substring(m3.end(1));
         }
 
+        // Patterns 4 and 5 only apply when the query has no OFFSET clause at all.
+        // Evaluate once and reuse the result.
+        boolean noOffset = !HAS_OFFSET.matcher(sql).find();
+
         // Pattern 4: FETCH FIRST/NEXT n ROWS ONLY without OFFSET → insert OFFSET before FETCH
-        if (!HAS_OFFSET.matcher(sql).find()) {
+        if (noOffset) {
             Matcher m4 = FETCH_ONLY.matcher(sql);
             if (m4.find()) {
                 int fetchStart = m4.start();
@@ -189,7 +195,7 @@ public class PaginationDetector {
         }
 
         // Pattern 5: standalone LIMIT n → append OFFSET n
-        if (!HAS_OFFSET.matcher(sql).find()) {
+        if (noOffset) {
             Matcher m5 = LIMIT_ONLY.matcher(sql);
             if (m5.find()) {
                 return sql + " OFFSET " + nextOffset;

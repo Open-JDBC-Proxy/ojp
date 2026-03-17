@@ -389,15 +389,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         queryResultBuilder.labels(page.getColumnLabels());
 
         List<Object[]> batch = new ArrayList<>();
-        int row = 0;
-        boolean justSent = false;
+        int totalRows = page.getRows().size();
 
         for (Object[] rowValues : page.getRows()) {
-            justSent = false;
-            row++;
             batch.add(rowValues);
-            if (row % CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK == 0) {
-                justSent = true;
+            if (batch.size() == CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK) {
                 responseObserver.onNext(ResultSetWrapper.wrapResults(session, batch,
                         queryResultBuilder, null, ""));
                 queryResultBuilder = OpQueryResult.builder();
@@ -405,7 +401,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             }
         }
 
-        if (!justSent) {
+        // Send remaining rows, or an empty batch when there are no rows at all
+        if (!batch.isEmpty() || totalRows == 0) {
             responseObserver.onNext(ResultSetWrapper.wrapResults(session, batch,
                     queryResultBuilder, null, ""));
         }
