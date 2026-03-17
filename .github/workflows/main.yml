@@ -220,6 +220,15 @@ jobs:
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
+      # Start third OJP server WITH next-page prefetch cache enabled
+      # Pagination-cache integration tests run against this server (port 10594)
+      - name: Start OJP Server container (prefetch cache on port 10594)
+        run: |
+          docker run -d --name ojp-server-prefetch-cache \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
+            rrobetti/ojp:0.4.1-SNAPSHOT
+
       - name: Wait for ojp-server to start
         run: sleep 10
 
@@ -235,7 +244,7 @@ jobs:
 
       # Run PostgreSQL-specific tests with -DenablePostgresTests flag
       - name: Test (ojp-jdbc-driver) with PostgreSQL enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenablePostgresTests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenablePostgresTests=true -DenablePostgresPrefetchCacheTests=true
 
       # ===================================================================
       # SQL Enhancer Integration Test
@@ -267,6 +276,9 @@ jobs:
           echo ""
           echo "=== OJP Server (with SQL enhancer) log ==="
           docker logs ojp-server-enhancer 2>&1 || echo "ojp-server-enhancer container not found"
+          echo ""
+          echo "=== OJP Server (with prefetch cache) log ==="
+          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 3: MySQL Integration Tests
