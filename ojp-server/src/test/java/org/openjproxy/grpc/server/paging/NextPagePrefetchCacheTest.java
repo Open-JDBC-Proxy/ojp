@@ -199,7 +199,7 @@ class NextPagePrefetchCacheTest {
         cache.prefetchAsync(ds, "ds1", sql, List.of());
 
         // Wait a bit to ensure the prefetch completes and the entry is expired
-        Thread.sleep(50);
+        Thread.sleep(50); //NOSONAR
 
         Optional<CachedPage> result = cache.getIfReady("ds1", sql);
         assertFalse(result.isPresent(), "Entry should be expired with TTL=0");
@@ -236,7 +236,7 @@ class NextPagePrefetchCacheTest {
     @Test
     void cachedPage_isExpired_withZeroTtl() throws Exception {
         CachedPage page = new CachedPage(List.of("col"), List.of());
-        Thread.sleep(10); // small delay so currentTime > createdAt
+        Thread.sleep(10); //NOSONAR - small delay so currentTime > createdAt
         assertTrue(page.isExpired(0), "Page should be expired with TTL=0");
     }
 
@@ -417,6 +417,7 @@ class NextPagePrefetchCacheTest {
         // cleanupIntervalSeconds=0 → no cleanup task registered
         NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 60, 5000, 0);
         cache.shutdown(); // must not throw
+        assertEquals(0, cache.cacheSize(), "Cache should remain empty after shutdown");
     }
 
     @Test
@@ -424,6 +425,7 @@ class NextPagePrefetchCacheTest {
         NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 60, 5000, 30);
         cache.shutdown();
         cache.shutdown(); // second call must not throw
+        assertEquals(0, cache.cacheSize(), "Cache should remain empty after double shutdown");
     }
 
     @Test
@@ -439,7 +441,7 @@ class NextPagePrefetchCacheTest {
         // Wait (with polling) for the background cleanup to reduce the cache size to 0
         long deadline = System.currentTimeMillis() + 5_000;
         while (cache.cacheSize() > 0 && System.currentTimeMillis() < deadline) {
-            Thread.sleep(50);
+            Thread.sleep(50); //NOSONAR
         }
 
         assertEquals(0, cache.cacheSize(),
@@ -457,6 +459,7 @@ class NextPagePrefetchCacheTest {
         NextPagePrefetchCache cache = enabledCache();
         // Null datasourceId should be silently ignored (no NullPointerException)
         cache.registerDatasourcePrefetchWaitTimeout(null, 1000);
+        assertEquals(0, cache.cacheSize(), "Cache should remain empty when datasourceId is null");
     }
 
     @Test

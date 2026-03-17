@@ -3,6 +3,9 @@ package org.openjproxy.grpc.server;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -198,36 +201,15 @@ class NextPageCacheConfigurationTest {
         System.clearProperty("ojp.server.nextPageCache.datasource.my-db.prefetchWaitTimeoutMs");
     }
 
-    @Test
-    void perDatasource_prefetchWaitTimeoutMs_fallsBackToGlobalDefault_whenNotSet() {
-        System.setProperty(WAIT_TIMEOUT_MS_KEY, "8000");
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"unknown-ds", "default"})
+    void perDatasource_prefetchWaitTimeoutMs_fallsBackToGlobalDefault_whenNoPerDatasourcePropertySet(String datasourceName) {
+        System.setProperty(WAIT_TIMEOUT_MS_KEY, "5000");
 
         ServerConfiguration config = new ServerConfiguration();
 
-        // Datasource "unknown" has no per-datasource property set
-        assertEquals(8000L, config.getNextPageCachePrefetchWaitTimeoutMs("unknown-ds"));
-
-        System.clearProperty(WAIT_TIMEOUT_MS_KEY);
-    }
-
-    @Test
-    void perDatasource_prefetchWaitTimeoutMs_fallsBackToGlobalDefault_forNullName() {
-        System.setProperty(WAIT_TIMEOUT_MS_KEY, "3000");
-
-        ServerConfiguration config = new ServerConfiguration();
-
-        assertEquals(3000L, config.getNextPageCachePrefetchWaitTimeoutMs(null));
-
-        System.clearProperty(WAIT_TIMEOUT_MS_KEY);
-    }
-
-    @Test
-    void perDatasource_prefetchWaitTimeoutMs_fallsBackToGlobalDefault_forDefaultName() {
-        System.setProperty(WAIT_TIMEOUT_MS_KEY, "4000");
-
-        ServerConfiguration config = new ServerConfiguration();
-
-        assertEquals(4000L, config.getNextPageCachePrefetchWaitTimeoutMs("default"));
+        assertEquals(5000L, config.getNextPageCachePrefetchWaitTimeoutMs(datasourceName));
 
         System.clearProperty(WAIT_TIMEOUT_MS_KEY);
     }
