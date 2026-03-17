@@ -186,4 +186,82 @@ class NextPageCacheConfigurationTest {
     void defaultTtlSeconds_is60Seconds() {
         assertEquals(60L, ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_TTL_SECONDS);
     }
+
+    // ----------------------------------------------------------------
+    // Per-datasource prefetch wait timeout
+    // ----------------------------------------------------------------
+
+    @Test
+    void perDatasource_prefetchWaitTimeoutMs_isRespected() {
+        System.setProperty("ojp.server.nextPageCache.datasource.my-db.prefetchWaitTimeoutMs", "1500");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(1500L, config.getNextPageCachePrefetchWaitTimeoutMs("my-db"));
+
+        System.clearProperty("ojp.server.nextPageCache.datasource.my-db.prefetchWaitTimeoutMs");
+    }
+
+    @Test
+    void perDatasource_prefetchWaitTimeoutMs_fallsBackToGlobalDefault_whenNotSet() {
+        System.setProperty(WAIT_TIMEOUT_MS_KEY, "8000");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        // Datasource "unknown" has no per-datasource property set
+        assertEquals(8000L, config.getNextPageCachePrefetchWaitTimeoutMs("unknown-ds"));
+
+        System.clearProperty(WAIT_TIMEOUT_MS_KEY);
+    }
+
+    @Test
+    void perDatasource_prefetchWaitTimeoutMs_fallsBackToGlobalDefault_forNullName() {
+        System.setProperty(WAIT_TIMEOUT_MS_KEY, "3000");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(3000L, config.getNextPageCachePrefetchWaitTimeoutMs(null));
+
+        System.clearProperty(WAIT_TIMEOUT_MS_KEY);
+    }
+
+    @Test
+    void perDatasource_prefetchWaitTimeoutMs_fallsBackToGlobalDefault_forDefaultName() {
+        System.setProperty(WAIT_TIMEOUT_MS_KEY, "4000");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(4000L, config.getNextPageCachePrefetchWaitTimeoutMs("default"));
+
+        System.clearProperty(WAIT_TIMEOUT_MS_KEY);
+    }
+
+    @Test
+    void perDatasource_invalidPrefetchWaitTimeout_fallsBackToGlobalDefault() {
+        System.setProperty("ojp.server.nextPageCache.datasource.bad-ds.prefetchWaitTimeoutMs", "not-a-number");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS,
+                config.getNextPageCachePrefetchWaitTimeoutMs("bad-ds"));
+
+        System.clearProperty("ojp.server.nextPageCache.datasource.bad-ds.prefetchWaitTimeoutMs");
+    }
+
+    @Test
+    void perDatasource_multipleOverrides_areIndependent() {
+        System.setProperty("ojp.server.nextPageCache.datasource.ds-a.prefetchWaitTimeoutMs", "1000");
+        System.setProperty("ojp.server.nextPageCache.datasource.ds-b.prefetchWaitTimeoutMs", "2000");
+        System.setProperty(WAIT_TIMEOUT_MS_KEY, "9000");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(1000L, config.getNextPageCachePrefetchWaitTimeoutMs("ds-a"));
+        assertEquals(2000L, config.getNextPageCachePrefetchWaitTimeoutMs("ds-b"));
+        assertEquals(9000L, config.getNextPageCachePrefetchWaitTimeoutMs("ds-c")); // falls back to global
+
+        System.clearProperty("ojp.server.nextPageCache.datasource.ds-a.prefetchWaitTimeoutMs");
+        System.clearProperty("ojp.server.nextPageCache.datasource.ds-b.prefetchWaitTimeoutMs");
+        System.clearProperty(WAIT_TIMEOUT_MS_KEY);
+    }
 }

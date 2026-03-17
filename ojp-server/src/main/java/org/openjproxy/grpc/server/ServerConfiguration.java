@@ -694,6 +694,35 @@ public class ServerConfiguration {
         return nextPageCachePrefetchWaitTimeoutMs;
     }
 
+    /**
+     * Returns the prefetch-wait timeout for a specific datasource.
+     *
+     * <p>If a per-datasource override is configured via
+     * {@code ojp.server.nextPageCache.datasource.<datasourceName>.prefetchWaitTimeoutMs},
+     * that value is returned.  Otherwise the global
+     * {@code ojp.server.nextPageCache.prefetchWaitTimeoutMs} is used as the fallback.</p>
+     *
+     * @param datasourceName the {@code ojp.datasource.name} value from the client connection
+     *                       properties; {@code null} or {@code "default"} always returns
+     *                       the global default
+     * @return the effective prefetch-wait timeout in milliseconds for the given datasource
+     */
+    public long getNextPageCachePrefetchWaitTimeoutMs(String datasourceName) {
+        if (datasourceName != null && !datasourceName.isEmpty() && !"default".equals(datasourceName)) {
+            String perDatasourceKey = "ojp.server.nextPageCache.datasource." + datasourceName
+                    + ".prefetchWaitTimeoutMs";
+            String raw = getStringProperty(perDatasourceKey, null);
+            if (raw != null) {
+                try {
+                    return Long.parseLong(raw);
+                } catch (NumberFormatException e) {
+                    logger.warn("Invalid value for '{}': '{}', falling back to global default", perDatasourceKey, raw);
+                }
+            }
+        }
+        return nextPageCachePrefetchWaitTimeoutMs;
+    }
+
     public long getNextPageCacheCleanupIntervalSeconds() {
         return nextPageCacheCleanupIntervalSeconds;
     }

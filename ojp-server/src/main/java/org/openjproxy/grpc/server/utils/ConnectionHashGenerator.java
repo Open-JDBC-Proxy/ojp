@@ -44,9 +44,15 @@ public class ConnectionHashGenerator {
     
     /**
      * Extracts the dataSource name from connection details properties.
-     * Returns "default" if no dataSource name is specified.
+     * Returns {@code "default"} if no dataSource name is specified.
+     *
+     * <p>The dataSource name corresponds to the {@code ojp.datasource.name} property
+     * set in the client connection properties.</p>
+     *
+     * @param connectionDetails the connection details whose properties to inspect
+     * @return the datasource name, or {@code "default"} when none is set
      */
-    private static String extractDataSourceName(ConnectionDetails connectionDetails) {
+    public static String extractDataSourceName(ConnectionDetails connectionDetails) {
         if (connectionDetails.getPropertiesList().isEmpty()) {
             return "default";
         }

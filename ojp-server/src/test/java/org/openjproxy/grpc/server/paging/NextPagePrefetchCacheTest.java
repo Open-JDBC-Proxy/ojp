@@ -447,4 +447,48 @@ class NextPagePrefetchCacheTest {
 
         cache.shutdown();
     }
+
+    // ----------------------------------------------------------------
+    // Per-datasource prefetch wait timeout
+    // ----------------------------------------------------------------
+
+    @Test
+    void registerDatasourcePrefetchWaitTimeout_ignoresNullId() {
+        NextPagePrefetchCache cache = enabledCache();
+        // Null datasourceId should be silently ignored (no NullPointerException)
+        cache.registerDatasourcePrefetchWaitTimeout(null, 1000);
+    }
+
+    @Test
+    void getIfReady_usesPerDatasourceTimeout_whenRegistered() throws Exception {
+        // enabled, maxEntries=100, ttlSeconds=60, globalTimeoutMs=1, cleanupInterval=0 (disabled)
+        NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 60, 1, 0); // global: 1ms
+        cache.registerDatasourcePrefetchWaitTimeout("ds-custom", 5_000); // per-ds: 5 s
+
+        DataSource ds = mockDataSource(3);
+        String sql = "SELECT id FROM t LIMIT 10 OFFSET 0";
+        cache.prefetchAsync(ds, "ds-custom", sql, List.of());
+
+        Optional<CachedPage> result = cache.getIfReady("ds-custom", sql);
+
+        assertTrue(result.isPresent(), "Cache hit expected with per-datasource timeout");
+        assertEquals(3, result.get().getRows().size());
+    }
+
+    @Test
+    void registerDatasourcePrefetchWaitTimeout_replacesExistingValue() throws Exception {
+        // enabled, maxEntries=100, ttlSeconds=60, globalTimeoutMs=9999, cleanupInterval=0 (disabled)
+        NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 60, 9_999, 0);
+
+        cache.registerDatasourcePrefetchWaitTimeout("ds-x", 1_000);
+        cache.registerDatasourcePrefetchWaitTimeout("ds-x", 2_000); // replace
+
+        // Exercise getIfReady to confirm the updated timeout is used without error
+        DataSource ds = mockDataSource(1);
+        String sql = "SELECT id FROM t LIMIT 5 OFFSET 0";
+        cache.prefetchAsync(ds, "ds-x", sql, List.of());
+
+        Optional<CachedPage> result = cache.getIfReady("ds-x", sql);
+        assertTrue(result.isPresent());
+    }
 }

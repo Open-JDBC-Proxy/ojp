@@ -83,6 +83,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     // Next-page prefetch cache for paginated queries (disabled by default)
     private final NextPagePrefetchCache nextPagePrefetchCache;
+    private final ServerConfiguration serverConfiguration;
 
     // Multinode XA coordinator for distributing transaction limits
     private static final MultinodeXaCoordinator xaCoordinator = new MultinodeXaCoordinator();
@@ -99,6 +100,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             ServerConfiguration serverConfiguration) {
         this.sessionManager = sessionManager;
         this.circuitBreakerRegistry = circuitBreakerRegistry;
+        this.serverConfiguration = serverConfiguration;
         // Server configuration for creating segregation managers
         this.sqlEnhancerEngine = new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(
                 serverConfiguration.isSqlEnhancerEnabled());
@@ -213,6 +215,17 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     @Override
     public void connect(ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
+        // Register per-datasource prefetch wait timeout so that getIfReady() uses the
+        // correct timeout for this datasource rather than the global default.
+        if (nextPagePrefetchCache.isEnabled()) {
+            String connHash = org.openjproxy.grpc.server.utils.ConnectionHashGenerator
+                    .hashConnectionDetails(connectionDetails);
+            String datasourceName = org.openjproxy.grpc.server.utils.ConnectionHashGenerator
+                    .extractDataSourceName(connectionDetails);
+            long perDatasourceTimeout = serverConfiguration
+                    .getNextPageCachePrefetchWaitTimeoutMs(datasourceName);
+            nextPagePrefetchCache.registerDatasourcePrefetchWaitTimeout(connHash, perDatasourceTimeout);
+        }
         org.openjproxy.grpc.server.action.connection.ConnectAction.getInstance()
                 .execute(actionContext, connectionDetails, responseObserver);
     }

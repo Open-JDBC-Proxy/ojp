@@ -92,6 +92,15 @@ public class NextPagePrefetchCache implements AutoCloseable {
     private final long prefetchWaitTimeoutMs;
 
     /**
+     * Per-datasource prefetch-wait timeout overrides.
+     * Key: datasource connection hash (see {@code ConnectionHashGenerator}).
+     * Value: timeout in milliseconds.
+     * When an entry is present it takes precedence over {@link #prefetchWaitTimeoutMs}.
+     */
+    private final ConcurrentHashMap<String, Long> datasourcePrefetchWaitTimeoutMs
+            = new ConcurrentHashMap<>();
+
+    /**
      * Maps {@code "<datasourceId>\u0001<normalized-sql>"} to the asynchronous result of the prefetch.
      * Including the datasource ID in the key ensures that two different datasources executing
      * the same SQL do not share cache entries.
@@ -153,6 +162,25 @@ public class NextPagePrefetchCache implements AutoCloseable {
     }
 
     /**
+     * Registers a per-datasource prefetch-wait timeout that overrides the global default
+     * for the specified datasource.
+     *
+     * <p>Calling this method multiple times for the same {@code datasourceId} simply
+     * replaces the previously registered value.  The registration is thread-safe.</p>
+     *
+     * @param datasourceId the unique identifier of the datasource (connection hash)
+     * @param timeoutMs    the maximum time in milliseconds to wait for an in-progress
+     *                     prefetch before falling back to a live DB query
+     */
+    public void registerDatasourcePrefetchWaitTimeout(String datasourceId, long timeoutMs) {
+        if (datasourceId != null) {
+            datasourcePrefetchWaitTimeoutMs.put(datasourceId, timeoutMs);
+            log.debug("Registered per-datasource prefetchWaitTimeoutMs={} for datasourceId={}",
+                    timeoutMs, datasourceId);
+        }
+    }
+
+    /**
      * Cancels this instance's periodic cleanup task on the shared executor.
      * The shared executor itself is left running so that other cache instances
      * (if any) are not affected.  Safe to call multiple times; uses an atomic
@@ -204,8 +232,11 @@ public class NextPagePrefetchCache implements AutoCloseable {
             return Optional.empty();
         }
 
+        long effectiveTimeoutMs = datasourcePrefetchWaitTimeoutMs.getOrDefault(
+                datasourceId, prefetchWaitTimeoutMs);
+
         try {
-            CachedPage page = future.get(prefetchWaitTimeoutMs, TimeUnit.MILLISECONDS);
+            CachedPage page = future.get(effectiveTimeoutMs, TimeUnit.MILLISECONDS);
             // Remove after use (single-use semantics; if another thread also grabs
             // the same entry concurrently, it gets a copy of the same data).
             cache.remove(key, future);
@@ -223,7 +254,7 @@ public class NextPagePrefetchCache implements AutoCloseable {
 
         } catch (java.util.concurrent.TimeoutException e) {
             log.debug("Prefetch for '{}' did not complete within {}ms – falling back to live query",
-                    abbreviate(sql), prefetchWaitTimeoutMs);
+                    abbreviate(sql), effectiveTimeoutMs);
             return Optional.empty();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
