@@ -132,6 +132,12 @@ public class ResultSet extends RemoteProxyResultSet {
         this.blockIdx = null;
         this.itResults = null;
         this.currentDataBlock = null;
+        // When the result set was served directly from the prefetch cache there is no
+        // server-side ResultSet object registered, so skip the remote close call.
+        String uuid = this.getResultSetUUID();
+        if (uuid == null || uuid.isBlank()) {
+            return;
+        }
         //If the parent statement is closed the result set is closed already, attempting to close it again would produce an error.
         if (this.statement == null || !this.statement.isClosed()) {
             super.close();
