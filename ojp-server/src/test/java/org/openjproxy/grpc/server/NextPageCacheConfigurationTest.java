@@ -13,10 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class NextPageCacheConfigurationTest {
 
-    private static final String ENABLED_KEY           = "ojp.server.nextPageCache.enabled";
-    private static final String TTL_KEY               = "ojp.server.nextPageCache.ttlSeconds";
-    private static final String MAX_ENTRIES_KEY       = "ojp.server.nextPageCache.maxEntries";
-    private static final String WAIT_TIMEOUT_MS_KEY   = "ojp.server.nextPageCache.prefetchWaitTimeoutMs";
+    private static final String ENABLED_KEY               = "ojp.server.nextPageCache.enabled";
+    private static final String TTL_KEY                   = "ojp.server.nextPageCache.ttlSeconds";
+    private static final String MAX_ENTRIES_KEY           = "ojp.server.nextPageCache.maxEntries";
+    private static final String WAIT_TIMEOUT_MS_KEY       = "ojp.server.nextPageCache.prefetchWaitTimeoutMs";
+    private static final String CLEANUP_INTERVAL_KEY      = "ojp.server.nextPageCache.cleanupIntervalSeconds";
 
     @BeforeEach
     void clearProperties() {
@@ -24,6 +25,7 @@ class NextPageCacheConfigurationTest {
         System.clearProperty(TTL_KEY);
         System.clearProperty(MAX_ENTRIES_KEY);
         System.clearProperty(WAIT_TIMEOUT_MS_KEY);
+        System.clearProperty(CLEANUP_INTERVAL_KEY);
     }
 
     @AfterEach
@@ -32,6 +34,7 @@ class NextPageCacheConfigurationTest {
         System.clearProperty(TTL_KEY);
         System.clearProperty(MAX_ENTRIES_KEY);
         System.clearProperty(WAIT_TIMEOUT_MS_KEY);
+        System.clearProperty(CLEANUP_INTERVAL_KEY);
     }
 
     // ----------------------------------------------------------------
@@ -56,6 +59,8 @@ class NextPageCacheConfigurationTest {
                 config.getNextPageCacheMaxEntries(), "Default max-entries mismatch");
         assertEquals(ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS,
                 config.getNextPageCachePrefetchWaitTimeoutMs(), "Default prefetch-wait-timeout mismatch");
+        assertEquals(ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_CLEANUP_INTERVAL_SECONDS,
+                config.getNextPageCacheCleanupIntervalSeconds(), "Default cleanup-interval mismatch");
     }
 
     // ----------------------------------------------------------------
@@ -147,5 +152,38 @@ class NextPageCacheConfigurationTest {
 
         assertEquals(ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS,
                 config.getNextPageCachePrefetchWaitTimeoutMs());
+    }
+
+    // ----------------------------------------------------------------
+    // Custom cleanup interval
+    // ----------------------------------------------------------------
+
+    @Test
+    void systemProperty_cleanupIntervalSeconds_isRespected() {
+        System.setProperty(CLEANUP_INTERVAL_KEY, "30");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(30L, config.getNextPageCacheCleanupIntervalSeconds());
+    }
+
+    @Test
+    void systemProperty_invalidCleanupInterval_fallsBackToDefault() {
+        System.setProperty(CLEANUP_INTERVAL_KEY, "not-a-number");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_CLEANUP_INTERVAL_SECONDS,
+                config.getNextPageCacheCleanupIntervalSeconds());
+    }
+
+    @Test
+    void defaultCleanupInterval_is60Seconds() {
+        assertEquals(60L, ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_CLEANUP_INTERVAL_SECONDS);
+    }
+
+    @Test
+    void defaultTtlSeconds_is60Seconds() {
+        assertEquals(60L, ServerConfiguration.DEFAULT_NEXT_PAGE_CACHE_TTL_SECONDS);
     }
 }

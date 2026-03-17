@@ -73,6 +73,7 @@ public class ServerConfiguration {
     private static final String NEXT_PAGE_CACHE_TTL_SECONDS_KEY = "ojp.server.nextPageCache.ttlSeconds";
     private static final String NEXT_PAGE_CACHE_MAX_ENTRIES_KEY = "ojp.server.nextPageCache.maxEntries";
     private static final String NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS_KEY = "ojp.server.nextPageCache.prefetchWaitTimeoutMs";
+    private static final String NEXT_PAGE_CACHE_CLEANUP_INTERVAL_SECONDS_KEY = "ojp.server.nextPageCache.cleanupIntervalSeconds";
 
     // TLS configuration keys
     private static final String TLS_ENABLED_KEY = "ojp.server.tls.enabled";
@@ -143,9 +144,10 @@ public class ServerConfiguration {
 
     // Next-page prefetch cache default values
     public static final boolean DEFAULT_NEXT_PAGE_CACHE_ENABLED = false; // Disabled by default, opt-in
-    public static final long DEFAULT_NEXT_PAGE_CACHE_TTL_SECONDS = 300; // 5 minutes
+    public static final long DEFAULT_NEXT_PAGE_CACHE_TTL_SECONDS = 60; // 1 minute
     public static final int DEFAULT_NEXT_PAGE_CACHE_MAX_ENTRIES = 100;
     public static final long DEFAULT_NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS = 5000; // 5 seconds
+    public static final long DEFAULT_NEXT_PAGE_CACHE_CLEANUP_INTERVAL_SECONDS = 60; // 1 minute
 
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
@@ -228,6 +230,7 @@ public class ServerConfiguration {
     private final long nextPageCacheTtlSeconds;
     private final int nextPageCacheMaxEntries;
     private final long nextPageCachePrefetchWaitTimeoutMs;
+    private final long nextPageCacheCleanupIntervalSeconds;
 
     public ServerConfiguration() {
         this.serverPort = getIntProperty(SERVER_PORT_KEY, DEFAULT_SERVER_PORT);
@@ -297,6 +300,7 @@ public class ServerConfiguration {
         this.nextPageCacheTtlSeconds = getLongProperty(NEXT_PAGE_CACHE_TTL_SECONDS_KEY, DEFAULT_NEXT_PAGE_CACHE_TTL_SECONDS);
         this.nextPageCacheMaxEntries = getIntProperty(NEXT_PAGE_CACHE_MAX_ENTRIES_KEY, DEFAULT_NEXT_PAGE_CACHE_MAX_ENTRIES);
         this.nextPageCachePrefetchWaitTimeoutMs = getLongProperty(NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS_KEY, DEFAULT_NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS);
+        this.nextPageCacheCleanupIntervalSeconds = getLongProperty(NEXT_PAGE_CACHE_CLEANUP_INTERVAL_SECONDS_KEY, DEFAULT_NEXT_PAGE_CACHE_CLEANUP_INTERVAL_SECONDS);
 
         logConfigurationSummary();
     }
@@ -446,6 +450,7 @@ public class ServerConfiguration {
             logger.info("  Next-Page Cache TTL: {} seconds", nextPageCacheTtlSeconds);
             logger.info("  Next-Page Cache Max Entries: {}", nextPageCacheMaxEntries);
             logger.info("  Next-Page Cache Prefetch Wait Timeout: {} ms", nextPageCachePrefetchWaitTimeoutMs);
+            logger.info("  Next-Page Cache Cleanup Interval: {} seconds", nextPageCacheCleanupIntervalSeconds);
         }
     }
     
@@ -687,6 +692,10 @@ public class ServerConfiguration {
 
     public long getNextPageCachePrefetchWaitTimeoutMs() {
         return nextPageCachePrefetchWaitTimeoutMs;
+    }
+
+    public long getNextPageCacheCleanupIntervalSeconds() {
+        return nextPageCacheCleanupIntervalSeconds;
     }
 
 }

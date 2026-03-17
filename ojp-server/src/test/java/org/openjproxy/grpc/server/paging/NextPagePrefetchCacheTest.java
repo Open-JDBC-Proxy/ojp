@@ -29,11 +29,11 @@ class NextPagePrefetchCacheTest {
     // ----------------------------------------------------------------
 
     private static NextPagePrefetchCache enabledCache() {
-        return new NextPagePrefetchCache(true, 100, 60, 5000);
+        return new NextPagePrefetchCache(true, 100, 60, 5000, 0);
     }
 
     private static NextPagePrefetchCache disabledCache() {
-        return new NextPagePrefetchCache(false, 100, 60, 5000);
+        return new NextPagePrefetchCache(false, 100, 60, 5000, 0);
     }
 
     /**
@@ -96,7 +96,7 @@ class NextPagePrefetchCacheTest {
     @Test
     void getIfReady_returnsEmpty_whenNothingCached() {
         NextPagePrefetchCache cache = enabledCache();
-        Optional<CachedPage> result = cache.getIfReady("SELECT * FROM t LIMIT 10 OFFSET 10");
+        Optional<CachedPage> result = cache.getIfReady("ds1", "SELECT * FROM t LIMIT 10 OFFSET 10");
         assertFalse(result.isPresent(), "Expected empty when nothing is cached");
     }
 
@@ -109,24 +109,24 @@ class NextPagePrefetchCacheTest {
         NextPagePrefetchCache cache = disabledCache();
         DataSource ds = mockDataSource(1);
 
-        cache.prefetchAsync(ds, "SELECT * FROM t LIMIT 10 OFFSET 10", List.of());
+        cache.prefetchAsync(ds, "ds1", "SELECT * FROM t LIMIT 10 OFFSET 10", List.of());
 
         // Cache should still be empty
-        assertFalse(cache.getIfReady("SELECT * FROM t LIMIT 10 OFFSET 10").isPresent());
+        assertFalse(cache.getIfReady("ds1", "SELECT * FROM t LIMIT 10 OFFSET 10").isPresent());
     }
 
     @Test
     void prefetchAsync_doesNothing_whenDataSourceIsNull() {
         NextPagePrefetchCache cache = enabledCache();
-        cache.prefetchAsync(null, "SELECT * FROM t LIMIT 10 OFFSET 10", List.of());
-        assertFalse(cache.getIfReady("SELECT * FROM t LIMIT 10 OFFSET 10").isPresent());
+        cache.prefetchAsync(null, "ds1", "SELECT * FROM t LIMIT 10 OFFSET 10", List.of());
+        assertFalse(cache.getIfReady("ds1", "SELECT * FROM t LIMIT 10 OFFSET 10").isPresent());
     }
 
     @Test
     void prefetchAsync_doesNothing_whenSqlIsNull() throws Exception {
         NextPagePrefetchCache cache = enabledCache();
         DataSource ds = mockDataSource(1);
-        cache.prefetchAsync(ds, null, List.of());
+        cache.prefetchAsync(ds, "ds1", null, List.of());
         // Nothing to assert – just must not throw
     }
 
@@ -140,10 +140,10 @@ class NextPagePrefetchCacheTest {
         DataSource ds = mockDataSource(3);
 
         String sql = "SELECT id FROM t LIMIT 10 OFFSET 10";
-        cache.prefetchAsync(ds, sql, List.of());
+        cache.prefetchAsync(ds, "ds1", sql, List.of());
 
         // Wait for the prefetch (virtual thread) to complete
-        Optional<CachedPage> result = cache.getIfReady(sql);
+        Optional<CachedPage> result = cache.getIfReady("ds1", sql);
 
         assertTrue(result.isPresent(), "Expected cached page");
         CachedPage page = result.get();
@@ -157,10 +157,10 @@ class NextPagePrefetchCacheTest {
         DataSource ds = mockDataSource(1);
 
         // Prefetch with one form of the SQL
-        cache.prefetchAsync(ds, "SELECT id FROM t LIMIT 10 OFFSET 10", List.of());
+        cache.prefetchAsync(ds, "ds1", "SELECT id FROM t LIMIT 10 OFFSET 10", List.of());
 
         // Retrieve with slightly different casing/whitespace (should normalise to same key)
-        Optional<CachedPage> result = cache.getIfReady("  SELECT ID FROM T LIMIT 10 OFFSET 10  ");
+        Optional<CachedPage> result = cache.getIfReady("ds1", "  SELECT ID FROM T LIMIT 10 OFFSET 10  ");
 
         assertTrue(result.isPresent(), "Keys should normalise to the same entry");
     }
@@ -175,13 +175,13 @@ class NextPagePrefetchCacheTest {
         DataSource ds = mockDataSource(2);
 
         String sql = "SELECT id FROM t LIMIT 10 OFFSET 10";
-        cache.prefetchAsync(ds, sql, List.of());
+        cache.prefetchAsync(ds, "ds1", sql, List.of());
 
-        Optional<CachedPage> first = cache.getIfReady(sql);
+        Optional<CachedPage> first = cache.getIfReady("ds1", sql);
         assertTrue(first.isPresent(), "First retrieval should succeed");
 
         // Second retrieval should return empty (entry was removed after first use)
-        Optional<CachedPage> second = cache.getIfReady(sql);
+        Optional<CachedPage> second = cache.getIfReady("ds1", sql);
         assertFalse(second.isPresent(), "Second retrieval should be empty (single-use)");
     }
 
@@ -192,16 +192,16 @@ class NextPagePrefetchCacheTest {
     @Test
     void getIfReady_returnsEmpty_whenEntryExpired() throws Exception {
         // TTL = 0 seconds → immediately expired
-        NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 0, 5000);
+        NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 0, 5000, 0);
         DataSource ds = mockDataSource(1);
 
         String sql = "SELECT id FROM t LIMIT 10 OFFSET 10";
-        cache.prefetchAsync(ds, sql, List.of());
+        cache.prefetchAsync(ds, "ds1", sql, List.of());
 
         // Wait a bit to ensure the prefetch completes and the entry is expired
         Thread.sleep(50);
 
-        Optional<CachedPage> result = cache.getIfReady(sql);
+        Optional<CachedPage> result = cache.getIfReady("ds1", sql);
         assertFalse(result.isPresent(), "Entry should be expired with TTL=0");
     }
 
@@ -215,11 +215,11 @@ class NextPagePrefetchCacheTest {
         DataSource ds = mockDataSource(1);
 
         String sql = "SELECT id FROM t LIMIT 10 OFFSET 10";
-        cache.prefetchAsync(ds, sql, List.of()); // first start
-        cache.prefetchAsync(ds, sql, List.of()); // duplicate – should be ignored
+        cache.prefetchAsync(ds, "ds1", sql, List.of()); // first start
+        cache.prefetchAsync(ds, "ds1", sql, List.of()); // duplicate – should be ignored
 
         // Retrieve to confirm the entry exists (one execution)
-        Optional<CachedPage> result = cache.getIfReady(sql);
+        Optional<CachedPage> result = cache.getIfReady("ds1", sql);
         assertTrue(result.isPresent());
     }
 
@@ -307,9 +307,9 @@ class NextPagePrefetchCacheTest {
         DataSource ds = mockDataSourceWithClob(clobContent);
 
         String sql = "SELECT description FROM articles LIMIT 10 OFFSET 10";
-        cache.prefetchAsync(ds, sql, List.of());
+        cache.prefetchAsync(ds, "ds1", sql, List.of());
 
-        Optional<CachedPage> result = cache.getIfReady(sql);
+        Optional<CachedPage> result = cache.getIfReady("ds1", sql);
 
         assertTrue(result.isPresent(), "CLOB column query should be cached");
         CachedPage page = result.get();
@@ -325,9 +325,9 @@ class NextPagePrefetchCacheTest {
         DataSource ds = mockDataSourceWithNClob(nclobContent);
 
         String sql = "SELECT content FROM docs LIMIT 10 OFFSET 10";
-        cache.prefetchAsync(ds, sql, List.of());
+        cache.prefetchAsync(ds, "ds1", sql, List.of());
 
-        Optional<CachedPage> result = cache.getIfReady(sql);
+        Optional<CachedPage> result = cache.getIfReady("ds1", sql);
 
         assertTrue(result.isPresent(), "NCLOB column query should be cached");
         CachedPage page = result.get();
@@ -359,12 +359,92 @@ class NextPagePrefetchCacheTest {
 
         NextPagePrefetchCache cache = enabledCache();
         String sql = "SELECT description FROM t LIMIT 10 OFFSET 10";
-        cache.prefetchAsync(ds, sql, List.of());
+        cache.prefetchAsync(ds, "ds1", sql, List.of());
 
-        Optional<CachedPage> result = cache.getIfReady(sql);
+        Optional<CachedPage> result = cache.getIfReady("ds1", sql);
 
         assertTrue(result.isPresent(), "Null CLOB should be cached as null value");
         assertFalse(result.get().getRows().isEmpty());
         assertNull(result.get().getRows().get(0)[0], "Null CLOB column should be null in cache");
+    }
+
+    // ----------------------------------------------------------------
+    // Datasource isolation
+    // ----------------------------------------------------------------
+
+    @Test
+    void prefetchAndGet_isolatesByDatasourceId() throws Exception {
+        NextPagePrefetchCache cache = enabledCache();
+        DataSource ds1 = mockDataSource(2);
+        DataSource ds2 = mockDataSource(5);
+
+        String sql = "SELECT id FROM t LIMIT 10 OFFSET 10";
+
+        // Prefetch same SQL for two different datasources
+        cache.prefetchAsync(ds1, "conn-hash-A", sql, List.of());
+        cache.prefetchAsync(ds2, "conn-hash-B", sql, List.of());
+
+        // Each datasource gets its own cache entry
+        Optional<CachedPage> resultA = cache.getIfReady("conn-hash-A", sql);
+        Optional<CachedPage> resultB = cache.getIfReady("conn-hash-B", sql);
+
+        assertTrue(resultA.isPresent(), "Datasource A should have its own cache entry");
+        assertTrue(resultB.isPresent(), "Datasource B should have its own cache entry");
+        assertEquals(2, resultA.get().getRows().size(), "DS-A should have 2 rows");
+        assertEquals(5, resultB.get().getRows().size(), "DS-B should have 5 rows");
+    }
+
+    @Test
+    void getIfReady_withDifferentDatasourceId_missesCache() throws Exception {
+        NextPagePrefetchCache cache = enabledCache();
+        DataSource ds = mockDataSource(1);
+
+        String sql = "SELECT id FROM t LIMIT 10 OFFSET 10";
+        cache.prefetchAsync(ds, "conn-hash-A", sql, List.of());
+
+        // Asking for the same SQL under a different datasource ID should miss
+        Optional<CachedPage> result = cache.getIfReady("conn-hash-B", sql);
+        assertFalse(result.isPresent(),
+                "Cache miss expected: different datasourceId should not match");
+    }
+
+    // ----------------------------------------------------------------
+    // Background cleanup scheduler
+    // ----------------------------------------------------------------
+
+    @Test
+    void shutdown_doesNotThrow_whenSchedulerNotStarted() {
+        // cleanupIntervalSeconds=0 → no scheduler started
+        NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 60, 5000, 0);
+        cache.shutdown(); // must not throw
+    }
+
+    @Test
+    void shutdown_isIdempotent() {
+        NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 60, 5000, 30);
+        cache.shutdown();
+        cache.shutdown(); // second call must not throw
+    }
+
+    @Test
+    void backgroundCleanup_evictsExpiredEntries() throws Exception {
+        // TTL = 0 → all entries expire immediately
+        // cleanupInterval = 1 second → scheduler will run
+        NextPagePrefetchCache cache = new NextPagePrefetchCache(true, 100, 0, 5000, 1);
+        DataSource ds = mockDataSource(2);
+
+        String sql = "SELECT id FROM t LIMIT 10 OFFSET 10";
+        cache.prefetchAsync(ds, "ds1", sql, List.of());
+
+        // Wait (with polling) for the background cleanup to reduce the cache size to 0
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (cache.cacheSize() > 0 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
+
+        assertEquals(0, cache.cacheSize(),
+                "Background cleanup should have evicted the expired entry");
+
+        cache.shutdown();
     }
 }

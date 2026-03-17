@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -30,7 +32,8 @@ import java.util.concurrent.TimeUnit;
  * <ol>
  *   <li>When a paginated query is executed, the server fires a virtual thread that
  *       executes the <em>next</em> page SQL against the database and stores the result
- *       in this cache, keyed by the (trimmed) next-page SQL string.</li>
+ *       in this cache, keyed by the datasource identifier and (trimmed) next-page SQL
+ *       string.</li>
  *   <li>When the client subsequently requests the next page, the server first checks
  *       this cache.  If a matching entry is found the result is served from memory,
  *       and another prefetch is started for the page after that.</li>
@@ -38,6 +41,11 @@ import java.util.concurrent.TimeUnit;
  *       up to {@code prefetchWaitTimeoutMs} for the operation to complete before
  *       falling back to a regular database query.</li>
  * </ol>
+ *
+ * <h2>Datasource isolation</h2>
+ * Each cache entry is scoped to a specific datasource by including the
+ * {@code datasourceId} in the cache key.  Two datasources executing the same SQL
+ * query will never share a prefetched page.
  *
  * <h2>Materialised LOB data</h2>
  * All column types are cached:
@@ -50,12 +58,17 @@ import java.util.concurrent.TimeUnit;
  * of type BLOB or CLOB that reference a session-scoped LOB object) are still skipped
  * because those references cannot be transferred to a separate prefetch connection.
  *
+ * <h2>Background cleanup</h2>
+ * When enabled, a daemon background thread runs every {@code cleanupIntervalSeconds}
+ * to evict expired or failed entries.  Entries expire after {@code ttlSeconds} regardless
+ * of whether they were ever consumed.  Call {@link #shutdown()} to stop the scheduler.
+ *
  * <h2>Thread safety</h2>
  * All public methods are thread-safe.  The internal cache uses a
  * {@link ConcurrentHashMap} and prefetch threads are Java 21 virtual threads.
  */
 @Slf4j
-public class NextPagePrefetchCache {
+public class NextPagePrefetchCache implements AutoCloseable {
 
     private final boolean enabled;
     private final int maxEntries;
@@ -63,26 +76,48 @@ public class NextPagePrefetchCache {
     private final long prefetchWaitTimeoutMs;
 
     /**
-     * Maps the (trimmed) next-page SQL to the asynchronous result of the prefetch.
+     * Maps {@code "<datasourceId>|<normalized-sql>"} to the asynchronous result of the prefetch.
+     * Including the datasource ID in the key ensures that two different datasources executing
+     * the same SQL do not share cache entries.
      */
     private final ConcurrentHashMap<String, CompletableFuture<CachedPage>> cache
             = new ConcurrentHashMap<>();
 
+    /** Background scheduler for periodic eviction of expired/abandoned entries. */
+    private final ScheduledExecutorService cleanupScheduler;
+
     /**
      * Creates a new cache instance.
      *
-     * @param enabled               whether the feature is enabled
-     * @param maxEntries            maximum number of entries to keep (oldest removed first)
-     * @param ttlSeconds            time-to-live for each entry in seconds
-     * @param prefetchWaitTimeoutMs max time (ms) to wait for an in-progress prefetch
-     *                              before falling back to a live DB query
+     * @param enabled                whether the feature is enabled
+     * @param maxEntries             maximum number of entries to keep (oldest removed first)
+     * @param ttlSeconds             time-to-live for each entry in seconds
+     * @param prefetchWaitTimeoutMs  max time (ms) to wait for an in-progress prefetch
+     *                               before falling back to a live DB query
+     * @param cleanupIntervalSeconds interval (seconds) between background eviction sweeps;
+     *                               {@code 0} disables the background job
      */
     public NextPagePrefetchCache(boolean enabled, int maxEntries,
-                                 long ttlSeconds, long prefetchWaitTimeoutMs) {
+                                 long ttlSeconds, long prefetchWaitTimeoutMs,
+                                 long cleanupIntervalSeconds) {
         this.enabled = enabled;
         this.maxEntries = maxEntries;
         this.ttlMs = ttlSeconds * 1000L;
         this.prefetchWaitTimeoutMs = prefetchWaitTimeoutMs;
+
+        if (enabled && cleanupIntervalSeconds > 0) {
+            this.cleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "ojp-prefetch-cache-cleanup");
+                t.setDaemon(true);
+                return t;
+            });
+            cleanupScheduler.scheduleAtFixedRate(
+                    this::evictExpiredOrCompleted,
+                    cleanupIntervalSeconds, cleanupIntervalSeconds, TimeUnit.SECONDS);
+            log.debug("Prefetch cache cleanup scheduled every {}s", cleanupIntervalSeconds);
+        } else {
+            this.cleanupScheduler = null;
+        }
     }
 
     /**
@@ -92,17 +127,42 @@ public class NextPagePrefetchCache {
         return enabled;
     }
 
+    /**
+     * Returns the current number of entries in the cache (in-progress + completed).
+     * Primarily intended for monitoring and testing.
+     */
+    public int cacheSize() {
+        return cache.size();
+    }
+
+    /**
+     * Shuts down the background cleanup scheduler, if one was started.
+     * Safe to call multiple times.
+     */
+    public void shutdown() {
+        if (cleanupScheduler != null && !cleanupScheduler.isShutdown()) {
+            cleanupScheduler.shutdown();
+            log.debug("Prefetch cache cleanup scheduler shut down");
+        }
+    }
+
+    /** Implements {@link AutoCloseable} by delegating to {@link #shutdown()}. */
+    @Override
+    public void close() {
+        shutdown();
+    }
+
     // -----------------------------------------------------------------
     // Cache read
     // -----------------------------------------------------------------
 
     /**
-     * Retrieves the cached page for the given SQL, waiting up to
+     * Retrieves the cached page for the given datasource + SQL pair, waiting up to
      * {@code prefetchWaitTimeoutMs} when the prefetch is still in progress.
      *
      * <p>Returns an empty Optional when:</p>
      * <ul>
-     *   <li>no entry exists for {@code sql}</li>
+     *   <li>no entry exists for {@code datasourceId} + {@code sql}</li>
      *   <li>the entry is expired</li>
      *   <li>the prefetch failed or timed out</li>
      * </ul>
@@ -111,11 +171,14 @@ public class NextPagePrefetchCache {
      * semantics) so that concurrent requests for the same page can each independently
      * obtain the result and start the next prefetch.</p>
      *
-     * @param sql the exact paginated SQL sent by the client
+     * @param datasourceId the unique identifier of the datasource (e.g. connection hash);
+     *                     used to isolate entries from different datasources that may
+     *                     share the same SQL text
+     * @param sql          the exact paginated SQL sent by the client
      * @return an Optional containing the cached page, or empty if unavailable
      */
-    public Optional<CachedPage> getIfReady(String sql) {
-        String key = normalizeKey(sql);
+    public Optional<CachedPage> getIfReady(String datasourceId, String sql) {
+        String key = normalizeKey(datasourceId, sql);
         CompletableFuture<CachedPage> future = cache.get(key);
         if (future == null) {
             return Optional.empty();
@@ -160,18 +223,22 @@ public class NextPagePrefetchCache {
     /**
      * Starts an asynchronous prefetch of {@code nextPageSql} on a virtual thread.
      *
-     * <p>The method returns immediately.  If an entry for {@code nextPageSql}
-     * already exists (either in-progress or completed), no new prefetch is started.
-     * Entries are evicted lazily when the cache exceeds {@code maxEntries}.</p>
+     * <p>The method returns immediately.  If an entry for {@code datasourceId} +
+     * {@code nextPageSql} already exists (either in-progress or completed), no new
+     * prefetch is started.  Entries are evicted lazily when the cache exceeds
+     * {@code maxEntries}.</p>
      *
      * <p>BLOB/CLOB parameters are not supported; if any parameter has type
      * {@code BLOB} or {@code CLOB} the prefetch is silently skipped.</p>
      *
      * @param dataSource  the DataSource from which to obtain a dedicated prefetch connection
+     * @param datasourceId the unique identifier of the datasource (e.g. connection hash);
+     *                     used to scope the cache entry so two datasources do not share pages
      * @param nextPageSql the SQL for the next page (produced by {@link PaginationDetector#buildNextPageSql})
      * @param params      the query parameters (may be null or empty for non-prepared queries)
      */
-    public void prefetchAsync(DataSource dataSource, String nextPageSql, List<Parameter> params) {
+    public void prefetchAsync(DataSource dataSource, String datasourceId,
+                              String nextPageSql, List<Parameter> params) {
         if (!enabled || dataSource == null || nextPageSql == null) {
             return;
         }
@@ -182,7 +249,7 @@ public class NextPagePrefetchCache {
             return;
         }
 
-        String key = normalizeKey(nextPageSql);
+        String key = normalizeKey(datasourceId, nextPageSql);
 
         // Don't prefetch if already in-progress or completed
         if (cache.containsKey(key)) {
@@ -380,9 +447,13 @@ public class NextPagePrefetchCache {
      * Normalises a SQL string for use as a cache key:
      * strips leading/trailing whitespace and folds to lower-case so that
      * minor formatting differences do not result in cache misses.
+     * The datasource ID is separated from the SQL by the ASCII SOH character
+     * ({@code \u0001}), which cannot appear in a SQL string or a connection hash,
+     * guaranteeing no key collisions regardless of the datasource ID content.
      */
-    private static String normalizeKey(String sql) {
-        return sql.trim().toLowerCase(java.util.Locale.ROOT);
+    private static String normalizeKey(String datasourceId, String sql) {
+        String normalizedSql = sql.trim().toLowerCase(java.util.Locale.ROOT);
+        return (datasourceId == null ? "" : datasourceId) + '\u0001' + normalizedSql;
     }
 
     /** Returns a safe short preview of an SQL string for log messages. */

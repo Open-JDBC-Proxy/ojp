@@ -107,7 +107,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 serverConfiguration.isNextPageCacheEnabled(),
                 serverConfiguration.getNextPageCacheMaxEntries(),
                 serverConfiguration.getNextPageCacheTtlSeconds(),
-                serverConfiguration.getNextPageCachePrefetchWaitTimeoutMs());
+                serverConfiguration.getNextPageCachePrefetchWaitTimeoutMs(),
+                serverConfiguration.getNextPageCacheCleanupIntervalSeconds());
         initializeXAPoolProvider();
 
         // Create SQL statement metrics from the registered OpenTelemetry instance (if available)
@@ -308,11 +309,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
         // ---- Next-page prefetch cache ----
         if (nextPagePrefetchCache.isEnabled()) {
-            Optional<CachedPage> cached = nextPagePrefetchCache.getIfReady(sql);
+            String connHash = dto.getSession().getConnHash();
+            Optional<CachedPage> cached = nextPagePrefetchCache.getIfReady(connHash, sql);
             if (cached.isPresent()) {
                 CachedPage page = cached.get();
                 // Start prefetch for the page after this one before returning the cached result
-                startNextPagePrefetch(sql, params, dto.getSession().getConnHash());
+                startNextPagePrefetch(sql, params, connHash);
                 streamCachedPage(page, dto.getSession(), responseObserver);
                 return;
             }
@@ -357,7 +359,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
             log.debug("No DataSource found for prefetch, connHash={}", connHash);
             return;
         }
-        nextPagePrefetchCache.prefetchAsync(dataSource, nextPageSql, params);
+        nextPagePrefetchCache.prefetchAsync(dataSource, connHash, nextPageSql, params);
     }
 
     /**
