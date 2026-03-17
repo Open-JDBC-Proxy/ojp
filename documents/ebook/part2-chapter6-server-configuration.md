@@ -402,6 +402,106 @@ graph LR
     E --> C
 ```
 
+## 6.8 Next-Page Prefetch Cache
+
+For applications that page through query results — common in reporting, data exports, and list views — OJP can dramatically reduce latency by pre-executing the **next page query in the background** while the current page is being delivered to the client. When the client then requests the next page, the rows are served directly from memory instead of making a round-trip to the database.
+
+### How It Works
+
+OJP automatically detects SQL pagination clauses in the queries your application already writes. There are no client-side changes needed — the feature is fully transparent. Supported pagination patterns include:
+
+| SQL Pattern | Example |
+|---|---|
+| `LIMIT n OFFSET m` | `SELECT * FROM orders LIMIT 100 OFFSET 200` |
+| `OFFSET m ROWS FETCH NEXT n ROWS ONLY` | SQL Server, Oracle |
+| `FETCH FIRST n ROWS ONLY` | DB2, Oracle |
+| `LIMIT m, n` | MySQL shorthand |
+| Standalone `LIMIT n` | First-page query without OFFSET |
+
+```mermaid
+flowchart TD
+    A([Client requests page N]) --> B{Cache hit?}
+    B -- Yes --> C[Serve rows from memory]
+    B -- No --> D[Execute page N SQL against DB]
+    D --> E[Stream rows to client]
+    E --> F{SQL is paginated?}
+    F -- No --> Z([Done])
+    F -- Yes --> G[Rewrite SQL for page N+1]
+    G --> H[Start background virtual thread]
+    H --> I[(Execute page N+1 query against DB)]
+    I --> J[Materialise all rows in memory]
+    J --> K[Store in cache keyed by datasource + SQL]
+    C --> L[Remove entry from cache]
+    L --> F
+```
+
+The cache key combines the datasource identifier and the normalised SQL text, so two datasources running identical queries never see each other's cached data.
+
+### Configuration
+
+The prefetch cache is **disabled by default**. Enable it with a single property:
+
+```bash
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=true \
+     -jar ojp-server.jar
+```
+
+**All prefetch cache settings:**
+
+| Property | Default | Description |
+|---|---|---|
+| `ojp.server.nextPageCache.enabled` | `false` | Enable/disable the feature |
+| `ojp.server.nextPageCache.ttlSeconds` | `60` | Maximum age (seconds) of a cached page before eviction |
+| `ojp.server.nextPageCache.maxEntries` | `100` | Maximum number of in-memory cache entries |
+| `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `5000` | Maximum time (ms) to wait for a prefetch to complete; falls back to a live query on timeout |
+| `ojp.server.nextPageCache.cleanupIntervalSeconds` | `60` | Interval (seconds) between background eviction sweeps |
+| `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for the wait timeout (`<name>` matches `ojp.datasource.name` on the client) |
+
+### Per-Datasource Wait Timeout
+
+Different datasources may have different response-time characteristics. A fast OLTP datasource might need only 1 second, while a heavy analytics datasource might need 10 seconds:
+
+```bash
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=true \
+     -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=2000 \
+     -D"ojp.server.nextPageCache.datasource.analytics.prefetchWaitTimeoutMs=10000" \
+     -jar ojp-server.jar
+```
+
+### Background Cleanup
+
+A single virtual thread named `ojp-prefetch-cache-cleanup` runs the eviction sweep on a fixed interval, removing entries that are either expired (older than `ttlSeconds`) or abandoned (prefetch still in-flight past the TTL). Only one cleanup thread ever exists per JVM, regardless of how many datasources are active.
+
+```mermaid
+flowchart TD
+    BOOT([JVM starts]) --> EX[Create shared CLEANUP_EXECUTOR\none virtual thread for all instances]
+    INST([Cache instance created]) --> REG[Schedule evictExpiredOrCompleted\nevery cleanupIntervalSeconds]
+    REG --> TASK[ScheduledFuture stored per instance]
+
+    subgraph TICK [Every cleanupIntervalSeconds]
+        T1[Iterate all entries] --> T2{Entry done or failed?}
+        T2 -- Yes + expired --> T3[Remove entry]
+        T2 -- No, still in-flight --> T4{Older than ttlSeconds?}
+        T4 -- Yes --> T5[Cancel prefetch future\nRemove entry]
+        T4 -- No --> T6[Keep entry]
+    end
+    EX --> TICK
+```
+
+### When to Enable It
+
+The prefetch cache delivers the most benefit when:
+
+- Your application pages through results **sequentially** (page 1, 2, 3, …) rather than jumping to arbitrary offsets.
+- The database round-trip latency is noticeable (> 50 ms) for each page query.
+- Pagination page sizes are consistent across requests for the same query.
+
+It has minimal impact (and adds slight overhead) when queries jump to random offsets, when all rows fit on a single page, or when the database is so fast that the prefetch rarely completes before the client requests the next page.
+
+**[IMAGE PROMPT: Create a timeline diagram showing two scenarios side-by-side. Left side: "Without Prefetch Cache" showing sequential client requests each waiting for a DB round-trip. Right side: "With Prefetch Cache" showing the next page being pre-fetched while the current page is delivered, with the second request served instantly from memory. Use a horizontal timeline axis labeled "Time" with colored blocks for DB calls and client waits. Style: Performance comparison diagram with green (fast) vs gray (waiting) blocks.]**
+
 ## 6.9 Configuration Validation and Troubleshooting
 
 When things don't work as expected, configuration issues are often the culprit. OJP provides clear error messages when configuration values are invalid or inconsistent. The server validates configuration at startup and fails fast if critical settings are problematic.
@@ -434,8 +534,8 @@ The server logs its active configuration at INFO level during startup. Review th
 
 OJP server configuration gives you precise control over server behavior, security, performance, and observability. The hierarchical configuration system with JVM properties and environment variables provides flexibility for different deployment scenarios. Default settings work well for most use cases, but understanding the available options lets you optimize for your specific workload.
 
-Key configuration areas include core server settings for network and threading, security controls through IP whitelisting, logging levels for operational visibility, OpenTelemetry integration for observability, circuit breakers for resilience, and slow query segregation for performance under mixed workloads. Each area offers sensible defaults that you can refine based on monitoring data.
+Key configuration areas include core server settings for network and threading, security controls through IP whitelisting, logging levels for operational visibility, OpenTelemetry integration for observability, circuit breakers for resilience, slow query segregation for performance under mixed workloads, and the next-page prefetch cache for transparently accelerating paginated queries. Each area offers sensible defaults that you can refine based on monitoring data.
 
 Start simple, monitor closely, and adjust based on observed behavior. Good configuration emerges from understanding your workload and using OJP's flexibility to match it, not from cargo-culting settings from other environments.
 
-**[IMAGE PROMPT: Create a summary mind map with "OJP Server Configuration" at the center. Six main branches radiating outward: "Core Settings" (server icon), "Security" (lock icon), "Logging" (document icon), "Telemetry" (graph icon), "Circuit Breaker" (shield icon), and "Slow Query Segregation" (speedometer icon). Each branch has 2-3 sub-branches with key points. Use colors to group related concepts and make it visually hierarchical. Style: Modern mind map with icons and color coding.]**
+**[IMAGE PROMPT: Create a summary mind map with "OJP Server Configuration" at the center. Seven main branches radiating outward: "Core Settings" (server icon), "Security" (lock icon), "Logging" (document icon), "Telemetry" (graph icon), "Circuit Breaker" (shield icon), "Slow Query Segregation" (speedometer icon), and "Prefetch Cache" (cache/memory icon). Each branch has 2-3 sub-branches with key points. Use colors to group related concepts and make it visually hierarchical. Style: Modern mind map with icons and color coding.]**

@@ -103,94 +103,29 @@ class PaginationDetectorTest {
     }
 
     // ----------------------------------------------------------------
-    // buildNextPageSql() – LIMIT / OFFSET
+    // buildNextPageSql() – parameterised round-trip
     // ----------------------------------------------------------------
 
-    @Test
-    void buildNextPage_limitOffset_incrementsOffset() {
-        String sql = "SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 0";
+    @ParameterizedTest(name = "[{index}] {0}")
+    @CsvSource({
+        // LIMIT n OFFSET m – first page (offset 0 → 10)
+        "'SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 0',          'SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 10'",
+        // LIMIT n OFFSET m – second page (offset 10 → 20)
+        "'SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 10',         'SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 20'",
+        // OFFSET FETCH (SQL Server / Oracle) – first page (offset 0 → 20)
+        "'SELECT id FROM t ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY',  'SELECT id FROM t ORDER BY id OFFSET 20 ROWS FETCH NEXT 20 ROWS ONLY'",
+        // OFFSET FETCH (SQL Server / Oracle) – second page (offset 20 → 40)
+        "'SELECT id FROM t ORDER BY id OFFSET 20 ROWS FETCH NEXT 20 ROWS ONLY', 'SELECT id FROM t ORDER BY id OFFSET 40 ROWS FETCH NEXT 20 ROWS ONLY'",
+        // MySQL LIMIT offset, pageSize – first page (offset 0 → 10)
+        "'SELECT * FROM products LIMIT 0, 10',                          'SELECT * FROM products LIMIT 10, 10'",
+        // FETCH FIRST … ROWS ONLY without OFFSET – inserts OFFSET clause
+        "'SELECT * FROM t FETCH FIRST 10 ROWS ONLY',                    'SELECT * FROM t OFFSET 10 ROWS FETCH FIRST 10 ROWS ONLY'",
+        // Standalone LIMIT without OFFSET – appends OFFSET clause
+        "'SELECT * FROM users LIMIT 5',                                 'SELECT * FROM users LIMIT 5 OFFSET 5'"
+    })
+    void buildNextPageSql_producesCorrectNextPageQuery(String sql, String expected) {
         PageInfo pageInfo = PaginationDetector.detect(sql).orElseThrow();
-
-        String nextPage = PaginationDetector.buildNextPageSql(sql, pageInfo);
-
-        assertEquals("SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 10", nextPage);
-    }
-
-    @Test
-    void buildNextPage_limitOffset_secondPage_givesThirdPageSql() {
-        String sql = "SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 10";
-        PageInfo pageInfo = PaginationDetector.detect(sql).orElseThrow();
-
-        String nextPage = PaginationDetector.buildNextPageSql(sql, pageInfo);
-
-        assertEquals("SELECT id FROM users ORDER BY id LIMIT 10 OFFSET 20", nextPage);
-    }
-
-    // ----------------------------------------------------------------
-    // buildNextPageSql() – OFFSET FETCH (SQL Server / Oracle)
-    // ----------------------------------------------------------------
-
-    @Test
-    void buildNextPage_offsetFetch_incrementsOffset() {
-        String sql = "SELECT id FROM t ORDER BY id OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY";
-        PageInfo pageInfo = PaginationDetector.detect(sql).orElseThrow();
-
-        String nextPage = PaginationDetector.buildNextPageSql(sql, pageInfo);
-
-        assertEquals("SELECT id FROM t ORDER BY id OFFSET 20 ROWS FETCH NEXT 20 ROWS ONLY", nextPage);
-    }
-
-    @Test
-    void buildNextPage_offsetFetch_secondPage() {
-        String sql = "SELECT id FROM t ORDER BY id OFFSET 20 ROWS FETCH NEXT 20 ROWS ONLY";
-        PageInfo pageInfo = PaginationDetector.detect(sql).orElseThrow();
-
-        String nextPage = PaginationDetector.buildNextPageSql(sql, pageInfo);
-
-        assertEquals("SELECT id FROM t ORDER BY id OFFSET 40 ROWS FETCH NEXT 20 ROWS ONLY", nextPage);
-    }
-
-    // ----------------------------------------------------------------
-    // buildNextPageSql() – MySQL LIMIT m, n
-    // ----------------------------------------------------------------
-
-    @Test
-    void buildNextPage_limitComma_incrementsOffset() {
-        // MySQL LIMIT 0, 10: offset=0, pageSize=10 → next: offset=10
-        String sql = "SELECT * FROM products LIMIT 0, 10";
-        PageInfo pageInfo = PaginationDetector.detect(sql).orElseThrow();
-
-        String nextPage = PaginationDetector.buildNextPageSql(sql, pageInfo);
-
-        assertEquals("SELECT * FROM products LIMIT 10, 10", nextPage);
-    }
-
-    // ----------------------------------------------------------------
-    // buildNextPageSql() – FETCH ONLY (first-page, no OFFSET)
-    // ----------------------------------------------------------------
-
-    @Test
-    void buildNextPage_fetchOnly_insertsOffset() {
-        String sql = "SELECT * FROM t FETCH FIRST 10 ROWS ONLY";
-        PageInfo pageInfo = PaginationDetector.detect(sql).orElseThrow();
-
-        String nextPage = PaginationDetector.buildNextPageSql(sql, pageInfo);
-
-        assertEquals("SELECT * FROM t OFFSET 10 ROWS FETCH FIRST 10 ROWS ONLY", nextPage);
-    }
-
-    // ----------------------------------------------------------------
-    // buildNextPageSql() – standalone LIMIT (first-page, no OFFSET)
-    // ----------------------------------------------------------------
-
-    @Test
-    void buildNextPage_limitOnly_appendsOffset() {
-        String sql = "SELECT * FROM users LIMIT 5";
-        PageInfo pageInfo = PaginationDetector.detect(sql).orElseThrow();
-
-        String nextPage = PaginationDetector.buildNextPageSql(sql, pageInfo);
-
-        assertEquals("SELECT * FROM users LIMIT 5 OFFSET 5", nextPage);
+        assertEquals(expected, PaginationDetector.buildNextPageSql(sql, pageInfo));
     }
 
     // ----------------------------------------------------------------

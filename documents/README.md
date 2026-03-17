@@ -56,6 +56,13 @@ Located in [connection-pool/](connection-pool/):
 Located in [analysis/](analysis/):
 - [Transaction Isolation Handling](analysis/TRANSACTION_ISOLATION_HANDLING.md) - Complete technical documentation on transaction isolation reset behavior
 
+## Features
+
+Located in [features/](features/):
+- [Next-Page Prefetch Cache](features/NEXT_PAGE_PREFETCH_CACHE.md) - Transparent background pre-fetching of the next query page to eliminate round-trip latency in paginated result sets
+- [SQL Enhancer Engine Quickstart](features/SQL_ENHANCER_ENGINE_QUICKSTART.md) - SQL optimisation using Apache Calcite (experimental)
+- [SQL Enhancer Configuration Examples](features/SQL_ENHANCER_CONFIGURATION_EXAMPLES.md) - Configuration examples for the SQL enhancer
+
 ## Database Setup Guides
 
 Located in [environment-setup/](environment-setup/):
@@ -158,6 +165,7 @@ documents/
 ├── contributor-badges/        # Recognition program
 ├── designs/                   # Design documents
 ├── environment-setup/         # Database setup guides
+├── features/                  # Feature guides and documentation
 ├── fixed-issues/              # Issue fix documentation
 ├── guides/                    # Developer guides
 ├── images/                    # Diagrams and images
