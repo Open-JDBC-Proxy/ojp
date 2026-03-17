@@ -68,6 +68,12 @@ public class ServerConfiguration {
     private static final String TELEMETRY_GRPC_METRICS_ENABLED_KEY = "ojp.telemetry.grpc.metrics.enabled";
     private static final String TELEMETRY_POOL_METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
 
+    // Next-page prefetch cache configuration keys
+    private static final String NEXT_PAGE_CACHE_ENABLED_KEY = "ojp.server.nextPageCache.enabled";
+    private static final String NEXT_PAGE_CACHE_TTL_SECONDS_KEY = "ojp.server.nextPageCache.ttlSeconds";
+    private static final String NEXT_PAGE_CACHE_MAX_ENTRIES_KEY = "ojp.server.nextPageCache.maxEntries";
+    private static final String NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS_KEY = "ojp.server.nextPageCache.prefetchWaitTimeoutMs";
+
     // TLS configuration keys
     private static final String TLS_ENABLED_KEY = "ojp.server.tls.enabled";
     private static final String TLS_KEYSTORE_PATH_KEY = "ojp.server.tls.keystore.path";
@@ -134,6 +140,12 @@ public class ServerConfiguration {
     // Telemetry metrics default values
     public static final boolean DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
     public static final boolean DEFAULT_TELEMETRY_POOL_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
+
+    // Next-page prefetch cache default values
+    public static final boolean DEFAULT_NEXT_PAGE_CACHE_ENABLED = false; // Disabled by default, opt-in
+    public static final long DEFAULT_NEXT_PAGE_CACHE_TTL_SECONDS = 300; // 5 minutes
+    public static final int DEFAULT_NEXT_PAGE_CACHE_MAX_ENTRIES = 100;
+    public static final long DEFAULT_NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS = 5000; // 5 seconds
 
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
@@ -211,6 +223,12 @@ public class ServerConfiguration {
     private final boolean tlsClientAuthRequired;
 
 
+    // Next-page prefetch cache configuration
+    private final boolean nextPageCacheEnabled;
+    private final long nextPageCacheTtlSeconds;
+    private final int nextPageCacheMaxEntries;
+    private final long nextPageCachePrefetchWaitTimeoutMs;
+
     public ServerConfiguration() {
         this.serverPort = getIntProperty(SERVER_PORT_KEY, DEFAULT_SERVER_PORT);
         this.prometheusPort = getIntProperty(PROMETHEUS_PORT_KEY, DEFAULT_PROMETHEUS_PORT);
@@ -273,6 +291,12 @@ public class ServerConfiguration {
         // Telemetry metrics configuration
         this.telemetryGrpcMetricsEnabled = getBooleanProperty(TELEMETRY_GRPC_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED);
         this.telemetryPoolMetricsEnabled = getBooleanProperty(TELEMETRY_POOL_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_POOL_METRICS_ENABLED);
+
+        // Next-page prefetch cache configuration
+        this.nextPageCacheEnabled = getBooleanProperty(NEXT_PAGE_CACHE_ENABLED_KEY, DEFAULT_NEXT_PAGE_CACHE_ENABLED);
+        this.nextPageCacheTtlSeconds = getLongProperty(NEXT_PAGE_CACHE_TTL_SECONDS_KEY, DEFAULT_NEXT_PAGE_CACHE_TTL_SECONDS);
+        this.nextPageCacheMaxEntries = getIntProperty(NEXT_PAGE_CACHE_MAX_ENTRIES_KEY, DEFAULT_NEXT_PAGE_CACHE_MAX_ENTRIES);
+        this.nextPageCachePrefetchWaitTimeoutMs = getLongProperty(NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS_KEY, DEFAULT_NEXT_PAGE_CACHE_PREFETCH_WAIT_TIMEOUT_MS);
 
         logConfigurationSummary();
     }
@@ -415,6 +439,13 @@ public class ServerConfiguration {
             logger.info("  Tracing Endpoint: {}", tracingEndpoint);
             logger.info("  Tracing Service Name: {}", tracingServiceName);
             logger.info("  Tracing Sample Rate: {}", tracingSampleRate);
+        }
+        logger.info("Next-Page Prefetch Cache Configuration:");
+        logger.info("  Next-Page Cache Enabled: {}", nextPageCacheEnabled);
+        if (nextPageCacheEnabled) {
+            logger.info("  Next-Page Cache TTL: {} seconds", nextPageCacheTtlSeconds);
+            logger.info("  Next-Page Cache Max Entries: {}", nextPageCacheMaxEntries);
+            logger.info("  Next-Page Cache Prefetch Wait Timeout: {} ms", nextPageCachePrefetchWaitTimeoutMs);
         }
     }
     
@@ -641,5 +672,21 @@ public class ServerConfiguration {
     public boolean isTelemetryPoolMetricsEnabled() {
         return telemetryPoolMetricsEnabled;
     }
-    
+
+    public boolean isNextPageCacheEnabled() {
+        return nextPageCacheEnabled;
+    }
+
+    public long getNextPageCacheTtlSeconds() {
+        return nextPageCacheTtlSeconds;
+    }
+
+    public int getNextPageCacheMaxEntries() {
+        return nextPageCacheMaxEntries;
+    }
+
+    public long getNextPageCachePrefetchWaitTimeoutMs() {
+        return nextPageCachePrefetchWaitTimeoutMs;
+    }
+
 }

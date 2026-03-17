@@ -21,9 +21,12 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.server.action.resource.CallResourceAction;
+import org.openjproxy.grpc.server.action.session.ResultSetHelper;
 import org.openjproxy.grpc.server.action.session.TerminateSessionAction;
 import org.openjproxy.grpc.server.action.transaction.CommitTransactionAction;
 import org.openjproxy.grpc.server.action.transaction.RollbackTransactionAction;
@@ -35,6 +38,11 @@ import org.openjproxy.grpc.server.action.xa.XaPrepareAction;
 import org.openjproxy.grpc.server.action.xa.XaRecoverAction;
 import org.openjproxy.grpc.server.action.xa.XaRollbackAction;
 import org.openjproxy.grpc.server.action.xa.XaStartAction;
+import org.openjproxy.grpc.server.paging.CachedPage;
+import org.openjproxy.grpc.server.paging.NextPagePrefetchCache;
+import org.openjproxy.grpc.server.paging.PageInfo;
+import org.openjproxy.grpc.server.paging.PaginationDetector;
+import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 import org.openjproxy.xa.pool.XATransactionRegistry;
 import org.openjproxy.xa.pool.spi.XAConnectionPoolProvider;
@@ -47,6 +55,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -72,6 +81,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     // SQL Enhancer Engine for query optimization
     private final org.openjproxy.grpc.server.sql.SqlEnhancerEngine sqlEnhancerEngine;
 
+    // Next-page prefetch cache for paginated queries (disabled by default)
+    private final NextPagePrefetchCache nextPagePrefetchCache;
+
     // Multinode XA coordinator for distributing transaction limits
     private static final MultinodeXaCoordinator xaCoordinator = new MultinodeXaCoordinator();
 
@@ -90,6 +102,12 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         // Server configuration for creating segregation managers
         this.sqlEnhancerEngine = new org.openjproxy.grpc.server.sql.SqlEnhancerEngine(
                 serverConfiguration.isSqlEnhancerEnabled());
+        // Next-page prefetch cache (disabled by default)
+        this.nextPagePrefetchCache = new NextPagePrefetchCache(
+                serverConfiguration.isNextPageCacheEnabled(),
+                serverConfiguration.getNextPageCacheMaxEntries(),
+                serverConfiguration.getNextPageCacheTtlSeconds(),
+                serverConfiguration.getNextPageCachePrefetchWaitTimeoutMs());
         initializeXAPoolProvider();
 
         // Create SQL statement metrics from the registered OpenTelemetry instance (if available)
@@ -287,16 +305,99 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         }
 
         List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
+
+        // ---- Next-page prefetch cache ----
+        if (nextPagePrefetchCache.isEnabled()) {
+            Optional<CachedPage> cached = nextPagePrefetchCache.getIfReady(sql);
+            if (cached.isPresent()) {
+                CachedPage page = cached.get();
+                // Start prefetch for the page after this one before returning the cached result
+                startNextPagePrefetch(sql, params, dto.getSession().getConnHash());
+                streamCachedPage(page, dto.getSession(), responseObserver);
+                return;
+            }
+        }
+        // ---- End next-page prefetch cache check ----
+
         if (CollectionUtils.isNotEmpty(params)) {
             PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
             String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
+            // Start prefetch for the next page while the current page is being streamed
+            startNextPagePrefetch(sql, params, dto.getSession().getConnHash());
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, responseObserver);
         } else {
             Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
             String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(),
                     stmt.executeQuery(sql));
+            // Start prefetch for the next page while the current page is being streamed
+            startNextPagePrefetch(sql, params, dto.getSession().getConnHash());
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, responseObserver);
         }
+    }
+
+    /**
+     * Starts an asynchronous prefetch of the next page for the given SQL, if the feature
+     * is enabled and the SQL contains a recognised pagination clause.
+     *
+     * @param sql      the current paginated SQL
+     * @param params   the query parameters (used as-is for the next-page query)
+     * @param connHash the connection hash used to look up the DataSource
+     */
+    private void startNextPagePrefetch(String sql, List<Parameter> params, String connHash) {
+        if (!nextPagePrefetchCache.isEnabled()) {
+            return;
+        }
+        Optional<PageInfo> pageInfo = PaginationDetector.detect(sql);
+        if (pageInfo.isEmpty()) {
+            return;
+        }
+        String nextPageSql = PaginationDetector.buildNextPageSql(sql, pageInfo.get());
+        if (nextPageSql == null) {
+            return;
+        }
+        DataSource dataSource = datasourceMap.get(connHash);
+        if (dataSource == null) {
+            log.debug("No DataSource found for prefetch, connHash={}", connHash);
+            return;
+        }
+        nextPagePrefetchCache.prefetchAsync(dataSource, nextPageSql, params);
+    }
+
+    /**
+     * Streams the rows held in a {@link CachedPage} directly to the gRPC response observer,
+     * using the same chunking strategy as {@link ResultSetHelper#handleResultSet}.
+     *
+     * @param page             the cached page to stream
+     * @param session          the current session info (embedded in each response message)
+     * @param responseObserver the gRPC observer to stream results into
+     */
+    private static void streamCachedPage(CachedPage page, SessionInfo session,
+                                         StreamObserver<OpResult> responseObserver) {
+        OpQueryResult.OpQueryResultBuilder queryResultBuilder = OpQueryResult.builder();
+        queryResultBuilder.labels(page.getColumnLabels());
+
+        List<Object[]> batch = new ArrayList<>();
+        int row = 0;
+        boolean justSent = false;
+
+        for (Object[] rowValues : page.getRows()) {
+            justSent = false;
+            row++;
+            batch.add(rowValues);
+            if (row % CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK == 0) {
+                justSent = true;
+                responseObserver.onNext(ResultSetWrapper.wrapResults(session, batch,
+                        queryResultBuilder, null, ""));
+                queryResultBuilder = OpQueryResult.builder();
+                batch = new ArrayList<>();
+            }
+        }
+
+        if (!justSent) {
+            responseObserver.onNext(ResultSetWrapper.wrapResults(session, batch,
+                    queryResultBuilder, null, ""));
+        }
+        responseObserver.onCompleted();
     }
 
     @Override
