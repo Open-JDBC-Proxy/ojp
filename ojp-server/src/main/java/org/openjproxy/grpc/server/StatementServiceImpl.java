@@ -319,20 +319,17 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         }
         // ---- End next-page prefetch cache check ----
 
+        String resultSetUUID;
         if (CollectionUtils.isNotEmpty(params)) {
             PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
-            String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
-            // Start prefetch for the next page while the current page is being streamed
-            startNextPagePrefetch(sql, params, dto.getSession().getConnHash());
-            handleResultSet(actionContext, dto.getSession(), resultSetUUID, responseObserver);
+            resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
         } else {
             Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
-            String resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(),
-                    stmt.executeQuery(sql));
-            // Start prefetch for the next page while the current page is being streamed
-            startNextPagePrefetch(sql, params, dto.getSession().getConnHash());
-            handleResultSet(actionContext, dto.getSession(), resultSetUUID, responseObserver);
+            resultSetUUID = this.sessionManager.registerResultSet(dto.getSession(), stmt.executeQuery(sql));
         }
+        // Start prefetch for the next page while the current page is being streamed
+        startNextPagePrefetch(sql, params, dto.getSession().getConnHash());
+        handleResultSet(actionContext, dto.getSession(), resultSetUUID, responseObserver);
     }
 
     /**

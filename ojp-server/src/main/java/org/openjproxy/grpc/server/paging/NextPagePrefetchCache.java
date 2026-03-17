@@ -205,8 +205,10 @@ public class NextPagePrefetchCache {
         log.debug("Starting prefetch for '{}'", abbreviate(nextPageSql));
 
         List<Parameter> paramsCopy = params == null ? List.of() : List.copyOf(params);
+        // Include a safe SQL snippet in the thread name for easier thread-dump analysis
+        String threadName = "ojp-next-page-prefetch[" + abbreviate(nextPageSql, 40) + "]";
 
-        Thread.ofVirtual().name("ojp-next-page-prefetch").start(() -> {
+        Thread.ofVirtual().name(threadName).start(() -> {
             try (Connection conn = dataSource.getConnection()) {
                 CachedPage page = executeAndReadAllRows(conn, nextPageSql, paramsCopy);
                 future.complete(page); // null signals "skip cache"
@@ -364,10 +366,17 @@ public class NextPagePrefetchCache {
 
     /** Returns a safe short preview of an SQL string for log messages. */
     private static String abbreviate(String sql) {
+        return abbreviate(sql, 80);
+    }
+
+    /** Returns a safe short preview of an SQL string, truncated to {@code maxLen} characters. */
+    private static String abbreviate(String sql, int maxLen) {
         if (sql == null) {
             return "<null>";
         }
-        return sql.length() <= 80 ? sql : sql.substring(0, 77) + "...";
+        // Remove newlines/tabs for single-line thread names
+        String singleLine = sql.replaceAll("[\\r\\n\\t]+", " ").trim();
+        return singleLine.length() <= maxLen ? singleLine : singleLine.substring(0, maxLen - 3) + "...";
     }
 
     /**
