@@ -351,17 +351,19 @@ public class NextPagePrefetchCache implements AutoCloseable {
      */
     private static CachedPage executeAndReadAllRows(Connection conn, String sql,
                                                     List<Parameter> params) throws SQLException {
-        ResultSet rs;
         if (params.isEmpty()) {
-            Statement stmt = conn.createStatement();
-            rs = stmt.executeQuery(sql);
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+                return readAllRows(rs);
+            }
         } else {
-            PreparedStatement ps = conn.prepareStatement(sql);
-            setNonLobParameters(ps, params);
-            rs = ps.executeQuery();
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                setNonLobParameters(ps, params);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return readAllRows(rs);
+                }
+            }
         }
-
-        return readAllRows(rs);
     }
 
     /**
@@ -409,8 +411,8 @@ public class NextPagePrefetchCache implements AutoCloseable {
                 if (blob == null) {
                     return null;
                 }
-                try {
-                    return blob.getBinaryStream().readAllBytes();
+                try (java.io.InputStream stream = blob.getBinaryStream()) {
+                    return stream.readAllBytes();
                 } catch (java.io.IOException e) {
                     throw new SQLException("Failed to read BLOB data", e);
                 }

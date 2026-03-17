@@ -12,14 +12,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Integration test for the next-page prefetch cache feature with a PostgreSQL backend.
@@ -78,7 +76,7 @@ class PostgresPaginationCacheIntegrationTest {
                                          String url, String user, String pwd)
             throws SQLException, ClassNotFoundException {
 
-        assumeFalse(!isTestEnabled,
+        assumeTrue(isTestEnabled,
                 "Postgres prefetch-cache tests are disabled " +
                 "(pass -DenablePostgresPrefetchCacheTests=true to enable)");
 
@@ -287,8 +285,7 @@ class PostgresPaginationCacheIntegrationTest {
                 actualBytes = s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             }
         } else {
-            fail(columnLabel + " has unexpected type " + actual.getClass().getName());
-            return; // unreachable – suppresses "actualBytes may be uninitialised" warning
+            actualBytes = fail(columnLabel + " has unexpected type " + actual.getClass().getName());
         }
 
         assertArrayEquals(expected, actualBytes, columnLabel + " bytes do not match");
