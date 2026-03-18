@@ -456,27 +456,18 @@ java -Duser.timezone=UTC \
 | `ojp.server.nextPageCache.maxEntries` | `100` | Maximum number of in-memory cache entries |
 | `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `5000` | Maximum time (ms) to wait for a prefetch to complete; falls back to a live query on timeout |
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `60` | Interval (seconds) between background eviction sweeps |
-| `ojp.server.nextPageCache.datasource.<name>.enabled` | *(global)* | Per-datasource override for `enabled` (`<name>` matches `ojp.datasource.name` on the client) |
 | `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for the wait timeout (`<name>` matches `ojp.datasource.name` on the client) |
 
 ### Per-Datasource Cache Control
 
-Both `enabled` and `prefetchWaitTimeoutMs` can be configured independently for each datasource. The datasource name matches the `ojp.datasource.name` connection property used by the client application.
+The per-datasource `enabled` flag is a **client-side** connection property. Each datasource in the client application can independently opt in or out of the prefetch cache by setting `ojp.nextPageCache.enabled` in its `ojp.properties` file — no server restart needed:
 
-**Mixed enable/disable across datasources:**
+```properties
+# ojp.properties — client application
+# Default datasource: cache enabled (uses server global default)
 
-```bash
-# Enable globally, but disable for a datasource with random-access patterns
-java -Duser.timezone=UTC \
-     -Dojp.server.nextPageCache.enabled=true \
-     -D"ojp.server.nextPageCache.datasource.random-access.enabled=false" \
-     -jar ojp-server.jar
-
-# Or disable globally, opting in only a single reporting datasource
-java -Duser.timezone=UTC \
-     -Dojp.server.nextPageCache.enabled=false \
-     -D"ojp.server.nextPageCache.datasource.reporting.enabled=true" \
-     -jar ojp-server.jar
+# "random-access" datasource: disable the prefetch cache
+random-access.ojp.nextPageCache.enabled=false
 ```
 
 **Per-datasource wait timeout (different DB response times):**

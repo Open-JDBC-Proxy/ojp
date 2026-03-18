@@ -225,10 +225,20 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     .extractDataSourceName(connectionDetails);
             long perDatasourceTimeout = serverConfiguration
                     .getNextPageCachePrefetchWaitTimeoutMs(datasourceName);
-            boolean perDatasourceCacheEnabled = serverConfiguration
-                    .isNextPageCacheEnabled(datasourceName);
             nextPagePrefetchCache.registerDatasourcePrefetchWaitTimeout(connHash, perDatasourceTimeout);
-            nextPagePrefetchCache.registerDatasourceCacheEnabled(connHash, perDatasourceCacheEnabled);
+            // The per-datasource cache-enabled flag is a CLIENT-side connection property
+            // (ojp.nextPageCache.enabled in the client's ojp.properties). The server only
+            // owns the global on/off switch; individual datasources opt out via their own config.
+            // When the property is absent the per-connection map has no entry, so
+            // NextPagePrefetchCache.isEnabledForDatasource() falls through to the global
+            // server-side flag — which is the correct default.
+            java.util.Map<String, Object> clientProps =
+                    ProtoConverter.propertiesFromProto(connectionDetails.getPropertiesList());
+            Object clientEnabledRaw = clientProps.get(CommonConstants.NEXT_PAGE_CACHE_ENABLED_PROPERTY);
+            if (clientEnabledRaw != null) {
+                boolean clientCacheEnabled = Boolean.parseBoolean(clientEnabledRaw.toString());
+                nextPagePrefetchCache.registerDatasourceCacheEnabled(connHash, clientCacheEnabled);
+            }
         }
         org.openjproxy.grpc.server.action.connection.ConnectAction.getInstance()
                 .execute(actionContext, connectionDetails, responseObserver);

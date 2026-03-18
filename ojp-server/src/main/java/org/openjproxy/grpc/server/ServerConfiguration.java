@@ -723,30 +723,6 @@ public class ServerConfiguration {
         return nextPageCachePrefetchWaitTimeoutMs;
     }
 
-    /**
-     * Returns whether the next-page prefetch cache is enabled for a specific datasource.
-     *
-     * <p>If a per-datasource override is configured via
-     * {@code ojp.server.nextPageCache.datasource.<datasourceName>.enabled},
-     * that value is returned.  Otherwise the global
-     * {@code ojp.server.nextPageCache.enabled} is used as the fallback.</p>
-     *
-     * @param datasourceName the {@code ojp.datasource.name} value from the client connection
-     *                       properties; {@code null} or {@code "default"} always returns
-     *                       the global default
-     * @return {@code true} if the prefetch cache is enabled for the given datasource
-     */
-    public boolean isNextPageCacheEnabled(String datasourceName) {
-        if (datasourceName != null && !datasourceName.isEmpty() && !"default".equals(datasourceName)) {
-            String perDatasourceKey = "ojp.server.nextPageCache.datasource." + datasourceName + ".enabled";
-            String raw = getStringProperty(perDatasourceKey, null);
-            if (raw != null) {
-                return Boolean.parseBoolean(raw);
-            }
-        }
-        return nextPageCacheEnabled;
-    }
-
     public long getNextPageCacheCleanupIntervalSeconds() {
         return nextPageCacheCleanupIntervalSeconds;
     }

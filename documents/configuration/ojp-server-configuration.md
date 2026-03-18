@@ -173,8 +173,16 @@ The cache detects SQL pagination clauses automatically (`LIMIT/OFFSET`, `OFFSET 
 | `ojp.server.nextPageCache.maxEntries` | `OJP_SERVER_NEXTPAGECACHE_MAXENTRIES` | int | 100 | Maximum number of cache entries across all datasources | 0.4.1 |
 | `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `OJP_SERVER_NEXTPAGECACHE_PREFETCHWAITTIMEOUTMS` | long | 5000 | Maximum time (ms) to wait for a prefetch to complete before falling back to a live query | 0.4.1 |
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `OJP_SERVER_NEXTPAGECACHE_CLEANUPINTERVALSECONDS` | long | 60 | Interval (seconds) at which the background cleanup thread evicts expired entries | 0.4.1 |
-| `ojp.server.nextPageCache.datasource.<name>.enabled` | *(no env-var equivalent)* | boolean | *(global default)* | Per-datasource override for `enabled`; `<name>` matches `ojp.datasource.name` on the client | 0.4.1 |
 | `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(no env-var equivalent)* | long | *(global default)* | Per-datasource override for `prefetchWaitTimeoutMs`; `<name>` matches `ojp.datasource.name` on the client | 0.4.1 |
+
+> **Per-datasource `enabled` is a client-side setting.**  
+> Each datasource in the client application can independently opt in or out of the prefetch cache
+> by setting `ojp.nextPageCache.enabled=false` in its `ojp.properties`:
+> ```properties
+> # ojp.properties — client application
+> # Disable the prefetch cache for the "random-access" datasource
+> random-access.ojp.nextPageCache.enabled=false
+> ```
 
 #### Next-Page Prefetch Cache Configuration Examples
 
@@ -194,22 +202,7 @@ java -Duser.timezone=UTC \
      -jar ojp-server.jar
 ```
 
-**Per-datasource cache control (mixed enable/disable):**
-```bash
-# Enable globally but disable for a specific datasource (e.g., one with non-sequential access)
-java -Duser.timezone=UTC \
-     -Dojp.server.nextPageCache.enabled=true \
-     -D"ojp.server.nextPageCache.datasource.random-access.enabled=false" \
-     -jar ojp-server.jar
-
-# Or disable globally but opt a single datasource in
-java -Duser.timezone=UTC \
-     -Dojp.server.nextPageCache.enabled=false \
-     -D"ojp.server.nextPageCache.datasource.reporting.enabled=true" \
-     -jar ojp-server.jar
-```
-
-**Per-datasource wait timeout override:**
+**Per-datasource wait timeout override (server-side):**
 ```bash
 # Give the "analytics" datasource more time to prefetch large pages
 java -Duser.timezone=UTC \

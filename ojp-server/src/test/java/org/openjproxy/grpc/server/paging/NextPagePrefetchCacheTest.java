@@ -569,4 +569,51 @@ class NextPagePrefetchCacheTest {
         assertTrue(result.isPresent(), "Per-datasource enabled override should allow prefetch");
         assertEquals(3, result.get().getRows().size());
     }
+
+    // ----------------------------------------------------------------
+    // Client-side ojp.nextPageCache.enabled property (simulates connect() logic)
+    // ----------------------------------------------------------------
+
+    @Test
+    void clientProperty_disable_registersOverrideViaCache() {
+        // Simulate what StatementServiceImpl.connect() does when the client sends
+        // ojp.nextPageCache.enabled=false in its connection properties.
+        NextPagePrefetchCache cache = enabledCache(); // globally enabled
+
+        // Client sends the property; connect() reads it and registers with the cache
+        String clientEnabledValue = "false";
+        cache.registerDatasourceCacheEnabled("conn-abc", Boolean.parseBoolean(clientEnabledValue));
+
+        assertFalse(cache.isEnabledForDatasource("conn-abc"),
+                "Client property ojp.nextPageCache.enabled=false should disable cache for that connection");
+        assertTrue(cache.isEnabledForDatasource("conn-xyz"),
+                "Other connections without an override should still use the global setting");
+    }
+
+    @Test
+    void clientProperty_enable_overridesGlobalDisable() {
+        // Client sends ojp.nextPageCache.enabled=true while the server global is false.
+        NextPagePrefetchCache cache = disabledCache(); // globally disabled
+
+        cache.registerDatasourceCacheEnabled("conn-reporting", Boolean.parseBoolean("true"));
+
+        assertTrue(cache.isEnabledForDatasource("conn-reporting"),
+                "Client property ojp.nextPageCache.enabled=true should enable cache even when globally disabled");
+        assertFalse(cache.isEnabledForDatasource("conn-other"),
+                "Connections without an override should still reflect the global disabled setting");
+    }
+
+    @Test
+    void clientProperty_absent_fallsBackToGlobal() {
+        // When the client does NOT send ojp.nextPageCache.enabled, connect() does not call
+        // registerDatasourceCacheEnabled, so isEnabledForDatasource falls back to the global flag.
+        NextPagePrefetchCache cacheEnabled = enabledCache();
+        NextPagePrefetchCache cacheDisabled = disabledCache();
+
+        // No registration performed (client property was absent)
+        assertTrue(cacheEnabled.isEnabledForDatasource("conn-no-prop"),
+                "Absent client property on globally-enabled cache should default to true");
+        assertFalse(cacheDisabled.isEnabledForDatasource("conn-no-prop"),
+                "Absent client property on globally-disabled cache should default to false");
+    }
 }

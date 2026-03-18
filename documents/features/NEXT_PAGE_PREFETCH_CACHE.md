@@ -87,32 +87,29 @@ Each cache entry is keyed by **datasource identifier + normalised SQL**. Two dat
 | `ojp.server.nextPageCache.maxEntries` | `100` | Maximum cache entries across all datasources |
 | `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `5000` | Maximum wait (ms) for an in-flight prefetch before falling back to a live query |
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `60` | Interval (seconds) between background eviction scans |
-| `ojp.server.nextPageCache.datasource.<name>.enabled` | *(global)* | Per-datasource override for `enabled`; takes precedence over the global flag |
 | `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for `prefetchWaitTimeoutMs` |
 
 ### Per-Datasource Configuration
 
-Both `enabled` and `prefetchWaitTimeoutMs` can be overridden independently for each datasource.
-The datasource name matches the `ojp.datasource.name` client connection property:
+The per-datasource `enabled` flag is a **client-side** connection property.  Each datasource in the
+client application can independently opt in or out of the prefetch cache by setting
+`ojp.nextPageCache.enabled` in its `ojp.properties` file:
 
 ```properties
-# Globally enable the cache, but disable it for the OLAP datasource
-ojp.server.nextPageCache.enabled=true
-ojp.server.nextPageCache.datasource.olap.enabled=false
+# ojp.properties — client application
 
-# Per-datasource timeout tuning
+# Default datasource: cache enabled (uses server global default)
+
+# "olap" datasource: disable the prefetch cache
+olap.ojp.nextPageCache.enabled=false
+
+# Per-datasource timeout tuning (server-side)
 ojp.server.nextPageCache.datasource.analytics.prefetchWaitTimeoutMs=10000
 ojp.server.nextPageCache.datasource.oltp.prefetchWaitTimeoutMs=1000
 ```
 
-> **Note:** You can also use per-datasource `enabled` to opt individual datasources **in** when the
-> global flag is `false`:
-> ```properties
-> ojp.server.nextPageCache.enabled=false
-> ojp.server.nextPageCache.datasource.reporting.enabled=true
-> ```
-
-The global values are used as fallback when no per-datasource property is set for a given datasource.
+The `prefetchWaitTimeoutMs` can be overridden on the server side per datasource name (which matches
+the `ojp.datasource.name` connection property the client sends on connect).
 
 ## Quick Start
 

@@ -26,6 +26,7 @@ public class CommonConstants {
 
     // Configuration property keys
     public static final String DATASOURCE_NAME_PROPERTY = "ojp.datasource.name";
+    public static final String NEXT_PAGE_CACHE_ENABLED_PROPERTY = "ojp.nextPageCache.enabled";
     public static final String MAXIMUM_POOL_SIZE_PROPERTY = "ojp.connection.pool.maximumPoolSize";
     public static final String MINIMUM_IDLE_PROPERTY = "ojp.connection.pool.minimumIdle";
     public static final String IDLE_TIMEOUT_PROPERTY = "ojp.connection.pool.idleTimeout";
