@@ -151,7 +151,7 @@ class SQLServerPaginationCacheIntegrationTest {
      *   name       NVARCHAR(100) NOT NULL     – "record_{id}"
      *   val_int    INT          NOT NULL      – id × 10
      *   val_bigint BIGINT       NOT NULL      – id × 1,000,000
-     *   val_bool   BIT          NOT NULL      – 1 when id is even, else 0
+     *   val_bool   BIT          NOT NULL      – true (1) when id is even, else false (0)
      *   val_text   NVARCHAR(255) NOT NULL     – "text_value_for_row_{id}"
      *   val_binary VARBINARY(32) NOT NULL     – four deterministic bytes derived from id
      * </pre>
@@ -225,7 +225,7 @@ class SQLServerPaginationCacheIntegrationTest {
                         "val_int mismatch for id=" + id);
                 assertEquals(id * 1_000_000L, rs.getLong("val_bigint"),
                         "val_bigint mismatch for id=" + id);
-                assertEquals(id % 2 == 0 ? 1 : 0, rs.getInt("val_bool"),
+                assertEquals(id % 2 == 0, rs.getBoolean("val_bool"),
                         "val_bool mismatch for id=" + id);
                 assertEquals("text_value_for_row_" + id, rs.getString("val_text"),
                         "val_text mismatch for id=" + id);
