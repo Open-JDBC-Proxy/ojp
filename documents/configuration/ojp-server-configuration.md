@@ -168,11 +168,12 @@ The cache detects SQL pagination clauses automatically (`LIMIT/OFFSET`, `OFFSET 
 
 | Property | Environment Variable | Type | Default | Description | Since |
 |---|---|---|---|---|---|
-| `ojp.server.nextPageCache.enabled` | `OJP_SERVER_NEXTPAGECACHE_ENABLED` | boolean | false | Enable/disable the next-page prefetch cache | 0.4.1 |
+| `ojp.server.nextPageCache.enabled` | `OJP_SERVER_NEXTPAGECACHE_ENABLED` | boolean | false | Enable/disable the next-page prefetch cache globally | 0.4.1 |
 | `ojp.server.nextPageCache.ttlSeconds` | `OJP_SERVER_NEXTPAGECACHE_TTLSECONDS` | long | 60 | Maximum time (seconds) a cached page is kept before being discarded | 0.4.1 |
 | `ojp.server.nextPageCache.maxEntries` | `OJP_SERVER_NEXTPAGECACHE_MAXENTRIES` | int | 100 | Maximum number of cache entries across all datasources | 0.4.1 |
 | `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `OJP_SERVER_NEXTPAGECACHE_PREFETCHWAITTIMEOUTMS` | long | 5000 | Maximum time (ms) to wait for a prefetch to complete before falling back to a live query | 0.4.1 |
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `OJP_SERVER_NEXTPAGECACHE_CLEANUPINTERVALSECONDS` | long | 60 | Interval (seconds) at which the background cleanup thread evicts expired entries | 0.4.1 |
+| `ojp.server.nextPageCache.datasource.<name>.enabled` | *(no env-var equivalent)* | boolean | *(global default)* | Per-datasource override for `enabled`; `<name>` matches `ojp.datasource.name` on the client | 0.4.1 |
 | `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(no env-var equivalent)* | long | *(global default)* | Per-datasource override for `prefetchWaitTimeoutMs`; `<name>` matches `ojp.datasource.name` on the client | 0.4.1 |
 
 #### Next-Page Prefetch Cache Configuration Examples
@@ -190,6 +191,21 @@ java -Duser.timezone=UTC \
      -Dojp.server.nextPageCache.enabled=true \
      -Dojp.server.nextPageCache.ttlSeconds=30 \
      -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=2000 \
+     -jar ojp-server.jar
+```
+
+**Per-datasource cache control (mixed enable/disable):**
+```bash
+# Enable globally but disable for a specific datasource (e.g., one with non-sequential access)
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=true \
+     -D"ojp.server.nextPageCache.datasource.random-access.enabled=false" \
+     -jar ojp-server.jar
+
+# Or disable globally but opt a single datasource in
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=false \
+     -D"ojp.server.nextPageCache.datasource.reporting.enabled=true" \
      -jar ojp-server.jar
 ```
 

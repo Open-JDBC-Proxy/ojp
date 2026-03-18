@@ -105,6 +105,15 @@ public class NextPagePrefetchCache implements AutoCloseable {
             = new ConcurrentHashMap<>();
 
     /**
+     * Per-datasource cache-enabled overrides.
+     * Key: datasource connection hash (see {@code ConnectionHashGenerator}).
+     * Value: {@code true} to enable, {@code false} to disable the cache for this datasource.
+     * When an entry is present it takes precedence over the global {@link #enabled} flag.
+     */
+    private final ConcurrentHashMap<String, Boolean> datasourceCacheEnabled
+            = new ConcurrentHashMap<>();
+
+    /**
      * Maps {@code "<datasourceId>\u0001<normalized-sql>"} to the asynchronous result of the prefetch.
      * Including the datasource ID in the key ensures that two different datasources executing
      * the same SQL do not share cache entries.
@@ -182,6 +191,44 @@ public class NextPagePrefetchCache implements AutoCloseable {
             log.debug("Registered per-datasource prefetchWaitTimeoutMs={} for datasourceId={}",
                     timeoutMs, datasourceId);
         }
+    }
+
+    /**
+     * Registers whether the prefetch cache is enabled for a specific datasource,
+     * overriding the global {@link #enabled} flag for that datasource.
+     *
+     * <p>Calling this method multiple times for the same {@code datasourceId} simply
+     * replaces the previously registered value.  The registration is thread-safe.</p>
+     *
+     * @param datasourceId the unique identifier of the datasource (connection hash)
+     * @param cacheEnabled {@code true} to enable caching, {@code false} to disable it
+     *                     for this specific datasource
+     */
+    public void registerDatasourceCacheEnabled(String datasourceId, boolean cacheEnabled) {
+        if (datasourceId != null) {
+            datasourceCacheEnabled.put(datasourceId, cacheEnabled);
+            log.debug("Registered per-datasource cacheEnabled={} for datasourceId={}",
+                    cacheEnabled, datasourceId);
+        }
+    }
+
+    /**
+     * Returns whether the cache is enabled for the given datasource.
+     * If a per-datasource override has been registered via
+     * {@link #registerDatasourceCacheEnabled}, that value takes precedence
+     * over the global {@link #enabled} flag.
+     *
+     * @param datasourceId the connection hash for the datasource; may be {@code null}
+     * @return {@code true} if caching should be used for this datasource
+     */
+    public boolean isEnabledForDatasource(String datasourceId) {
+        if (datasourceId != null) {
+            Boolean override = datasourceCacheEnabled.get(datasourceId);
+            if (override != null) {
+                return override;
+            }
+        }
+        return enabled;
     }
 
     /**
@@ -294,7 +341,7 @@ public class NextPagePrefetchCache implements AutoCloseable {
      */
     public void prefetchAsync(DataSource dataSource, String datasourceId,
                               String nextPageSql, List<Parameter> params) {
-        if (!enabled || dataSource == null || nextPageSql == null) {
+        if (!isEnabledForDatasource(datasourceId) || dataSource == null || nextPageSql == null) {
             return;
         }
 

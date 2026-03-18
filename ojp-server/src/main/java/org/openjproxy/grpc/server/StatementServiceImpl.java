@@ -215,8 +215,9 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
 
     @Override
     public void connect(ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
-        // Register per-datasource prefetch wait timeout so that getIfReady() uses the
-        // correct timeout for this datasource rather than the global default.
+        // Register per-datasource prefetch wait timeout and enabled flag so that
+        // getIfReady() and prefetchAsync() use the correct settings for this datasource
+        // rather than the global defaults.
         if (nextPagePrefetchCache.isEnabled()) {
             String connHash = org.openjproxy.grpc.server.utils.ConnectionHashGenerator
                     .hashConnectionDetails(connectionDetails);
@@ -224,7 +225,10 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                     .extractDataSourceName(connectionDetails);
             long perDatasourceTimeout = serverConfiguration
                     .getNextPageCachePrefetchWaitTimeoutMs(datasourceName);
+            boolean perDatasourceCacheEnabled = serverConfiguration
+                    .isNextPageCacheEnabled(datasourceName);
             nextPagePrefetchCache.registerDatasourcePrefetchWaitTimeout(connHash, perDatasourceTimeout);
+            nextPagePrefetchCache.registerDatasourceCacheEnabled(connHash, perDatasourceCacheEnabled);
         }
         org.openjproxy.grpc.server.action.connection.ConnectAction.getInstance()
                 .execute(actionContext, connectionDetails, responseObserver);
@@ -323,13 +327,15 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         // ---- Next-page prefetch cache ----
         if (nextPagePrefetchCache.isEnabled()) {
             String connHash = dto.getSession().getConnHash();
-            Optional<CachedPage> cached = nextPagePrefetchCache.getIfReady(connHash, sql);
-            if (cached.isPresent()) {
-                CachedPage page = cached.get();
-                // Start prefetch for the page after this one before returning the cached result
-                startNextPagePrefetch(sql, params, connHash);
-                streamCachedPage(page, dto.getSession(), responseObserver);
-                return;
+            if (nextPagePrefetchCache.isEnabledForDatasource(connHash)) {
+                Optional<CachedPage> cached = nextPagePrefetchCache.getIfReady(connHash, sql);
+                if (cached.isPresent()) {
+                    CachedPage page = cached.get();
+                    // Start prefetch for the page after this one before returning the cached result
+                    startNextPagePrefetch(sql, params, connHash);
+                    streamCachedPage(page, dto.getSession(), responseObserver);
+                    return;
+                }
             }
         }
         // ---- End next-page prefetch cache check ----

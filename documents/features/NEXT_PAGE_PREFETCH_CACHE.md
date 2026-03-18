@@ -82,23 +82,37 @@ Each cache entry is keyed by **datasource identifier + normalised SQL**. Two dat
 
 | Property | Default | Description |
 |---|---|---|
-| `ojp.server.nextPageCache.enabled` | `false` | Enable the feature (opt-in) |
+| `ojp.server.nextPageCache.enabled` | `false` | Enable the feature globally (opt-in) |
 | `ojp.server.nextPageCache.ttlSeconds` | `60` | Maximum age of a cached page before eviction |
 | `ojp.server.nextPageCache.maxEntries` | `100` | Maximum cache entries across all datasources |
 | `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `5000` | Maximum wait (ms) for an in-flight prefetch before falling back to a live query |
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `60` | Interval (seconds) between background eviction scans |
+| `ojp.server.nextPageCache.datasource.<name>.enabled` | *(global)* | Per-datasource override for `enabled`; takes precedence over the global flag |
 | `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for `prefetchWaitTimeoutMs` |
 
-### Per-Datasource Timeout Override
+### Per-Datasource Configuration
 
-The `prefetchWaitTimeoutMs` can be overridden for each datasource independently. The datasource name matches the `ojp.datasource.name` client connection property:
+Both `enabled` and `prefetchWaitTimeoutMs` can be overridden independently for each datasource.
+The datasource name matches the `ojp.datasource.name` client connection property:
 
 ```properties
+# Globally enable the cache, but disable it for the OLAP datasource
+ojp.server.nextPageCache.enabled=true
+ojp.server.nextPageCache.datasource.olap.enabled=false
+
+# Per-datasource timeout tuning
 ojp.server.nextPageCache.datasource.analytics.prefetchWaitTimeoutMs=10000
 ojp.server.nextPageCache.datasource.oltp.prefetchWaitTimeoutMs=1000
 ```
 
-The global `prefetchWaitTimeoutMs` is used as the fallback when no per-datasource property is set.
+> **Note:** You can also use per-datasource `enabled` to opt individual datasources **in** when the
+> global flag is `false`:
+> ```properties
+> ojp.server.nextPageCache.enabled=false
+> ojp.server.nextPageCache.datasource.reporting.enabled=true
+> ```
+
+The global values are used as fallback when no per-datasource property is set for a given datasource.
 
 ## Quick Start
 

@@ -494,4 +494,79 @@ class NextPagePrefetchCacheTest {
         Optional<CachedPage> result = cache.getIfReady("ds-x", sql);
         assertTrue(result.isPresent());
     }
+
+    // ----------------------------------------------------------------
+    // Per-datasource cache enabled flag
+    // ----------------------------------------------------------------
+
+    @Test
+    void registerDatasourceCacheEnabled_ignoresNullId() {
+        NextPagePrefetchCache cache = enabledCache();
+        // Null datasourceId should be silently ignored (no NullPointerException)
+        cache.registerDatasourceCacheEnabled(null, false);
+        assertEquals(0, cache.cacheSize(), "Cache should remain empty when datasourceId is null");
+    }
+
+    @Test
+    void isEnabledForDatasource_returnsTrueByDefault_whenGloballyEnabled() {
+        NextPagePrefetchCache cache = enabledCache();
+        assertTrue(cache.isEnabledForDatasource("any-ds"),
+                "Should return true when no per-datasource override is registered");
+    }
+
+    @Test
+    void isEnabledForDatasource_returnsFalseByDefault_whenGloballyDisabled() {
+        NextPagePrefetchCache cache = disabledCache();
+        assertFalse(cache.isEnabledForDatasource("any-ds"),
+                "Should return false when cache is globally disabled");
+    }
+
+    @Test
+    void isEnabledForDatasource_respectsPerDatasourceOverride_disabled() {
+        NextPagePrefetchCache cache = enabledCache(); // globally enabled
+        cache.registerDatasourceCacheEnabled("disabled-ds", false);
+
+        assertFalse(cache.isEnabledForDatasource("disabled-ds"),
+                "Per-datasource false should override the global true");
+        assertTrue(cache.isEnabledForDatasource("other-ds"),
+                "Other datasources not overridden should still use the global setting");
+    }
+
+    @Test
+    void isEnabledForDatasource_respectsPerDatasourceOverride_enabled() {
+        NextPagePrefetchCache cache = disabledCache(); // globally disabled
+        cache.registerDatasourceCacheEnabled("special-ds", true);
+
+        assertTrue(cache.isEnabledForDatasource("special-ds"),
+                "Per-datasource true should override the global false");
+        assertFalse(cache.isEnabledForDatasource("other-ds"),
+                "Other datasources not overridden should still use the global setting");
+    }
+
+    @Test
+    void prefetchAsync_isSkipped_whenPerDatasourceDisabled() throws Exception {
+        NextPagePrefetchCache cache = enabledCache(); // globally enabled
+        cache.registerDatasourceCacheEnabled("disabled-ds", false);
+
+        DataSource ds = mockDataSource(5);
+        String sql = "SELECT id FROM t LIMIT 10 OFFSET 0";
+        cache.prefetchAsync(ds, "disabled-ds", sql, List.of());
+
+        assertEquals(0, cache.cacheSize(), "Prefetch should be skipped for disabled datasource");
+    }
+
+    @Test
+    void prefetchAsync_isAllowed_whenPerDatasourceEnabled_andGloballyDisabled() throws Exception {
+        NextPagePrefetchCache cache = disabledCache(); // globally disabled
+        cache.registerDatasourceCacheEnabled("special-ds", true);
+
+        DataSource ds = mockDataSource(3);
+        String sql = "SELECT id FROM t LIMIT 10 OFFSET 0";
+        cache.prefetchAsync(ds, "special-ds", sql, List.of());
+
+        Thread.sleep(50); //NOSONAR
+        Optional<CachedPage> result = cache.getIfReady("special-ds", sql);
+        assertTrue(result.isPresent(), "Per-datasource enabled override should allow prefetch");
+        assertEquals(3, result.get().getRows().size());
+    }
 }

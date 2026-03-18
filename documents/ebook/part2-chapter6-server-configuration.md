@@ -451,16 +451,35 @@ java -Duser.timezone=UTC \
 
 | Property | Default | Description |
 |---|---|---|
-| `ojp.server.nextPageCache.enabled` | `false` | Enable/disable the feature |
+| `ojp.server.nextPageCache.enabled` | `false` | Enable/disable the feature globally |
 | `ojp.server.nextPageCache.ttlSeconds` | `60` | Maximum age (seconds) of a cached page before eviction |
 | `ojp.server.nextPageCache.maxEntries` | `100` | Maximum number of in-memory cache entries |
 | `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `5000` | Maximum time (ms) to wait for a prefetch to complete; falls back to a live query on timeout |
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `60` | Interval (seconds) between background eviction sweeps |
+| `ojp.server.nextPageCache.datasource.<name>.enabled` | *(global)* | Per-datasource override for `enabled` (`<name>` matches `ojp.datasource.name` on the client) |
 | `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for the wait timeout (`<name>` matches `ojp.datasource.name` on the client) |
 
-### Per-Datasource Wait Timeout
+### Per-Datasource Cache Control
 
-Different datasources may have different response-time characteristics. A fast OLTP datasource might need only 1 second, while a heavy analytics datasource might need 10 seconds:
+Both `enabled` and `prefetchWaitTimeoutMs` can be configured independently for each datasource. The datasource name matches the `ojp.datasource.name` connection property used by the client application.
+
+**Mixed enable/disable across datasources:**
+
+```bash
+# Enable globally, but disable for a datasource with random-access patterns
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=true \
+     -D"ojp.server.nextPageCache.datasource.random-access.enabled=false" \
+     -jar ojp-server.jar
+
+# Or disable globally, opting in only a single reporting datasource
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=false \
+     -D"ojp.server.nextPageCache.datasource.reporting.enabled=true" \
+     -jar ojp-server.jar
+```
+
+**Per-datasource wait timeout (different DB response times):**
 
 ```bash
 java -Duser.timezone=UTC \
