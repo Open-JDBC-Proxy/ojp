@@ -124,14 +124,23 @@ ojp.server.nextPageCache.datasource.oltp.prefetchWaitTimeoutMs=1000
 
 ## Quick Start
 
-**Enable with defaults:**
+**Step 1 — Server administrator: enable the cache infrastructure**
 ```bash
 java -Duser.timezone=UTC \
      -Dojp.server.nextPageCache.enabled=true \
      -jar ojp-server.jar
 ```
 
-**Tuned for a reporting workload:**
+**Step 2 — Client application: opt in per datasource** (`ojp.properties`)
+```properties
+# Default datasource: enable the prefetch cache
+ojp.nextPageCache.enabled=true
+
+# "olap" datasource: disable cache for random-access workloads
+olap.ojp.nextPageCache.enabled=false
+```
+
+**Tuned server settings for a reporting workload:**
 ```bash
 java -Duser.timezone=UTC \
      -Dojp.server.nextPageCache.enabled=true \

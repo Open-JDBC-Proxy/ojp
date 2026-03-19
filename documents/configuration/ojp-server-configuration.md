@@ -164,7 +164,10 @@ For full integration examples including Docker Compose setups, see the **[Teleme
 
 The prefetch cache transparently pre-executes the **next page query** in the background while the current page is being sent to the client. When the client requests the next page, the rows are served from memory instead of hitting the database again, significantly reducing perceived latency for paginated result sets.
 
-The cache detects SQL pagination clauses automatically (`LIMIT/OFFSET`, `OFFSET … FETCH`, `FETCH FIRST … ROWS ONLY`, MySQL `LIMIT m, n`, and standalone `LIMIT n`). No client changes are needed — the feature is entirely transparent.
+The cache detects SQL pagination clauses automatically (`LIMIT/OFFSET`, `OFFSET … FETCH`, `FETCH FIRST … ROWS ONLY`, MySQL `LIMIT m, n`, and standalone `LIMIT n`).
+
+> **Two-tier configuration model:**  
+> The cache uses a two-tier configuration model. The **server administrator** enables the feature globally and tunes its resource limits (TTL, max entries, timeouts). Each **client application** then controls, per datasource, whether that datasource uses the cache — without requiring a server restart. See the client-side settings below.
 
 | Property | Environment Variable | Type | Default | Description | Since |
 |---|---|---|---|---|---|

@@ -439,13 +439,30 @@ The cache key combines the datasource identifier and the normalised SQL text, so
 
 ### Configuration
 
-The prefetch cache is **disabled by default**. Enable it with a single property:
+The prefetch cache uses a **two-tier configuration model**:
+
+- **Server administrator** enables the global cache infrastructure and tunes resource limits (TTL, max entries, timeouts) in `ojp-server.properties` or as JVM system properties.
+- **Client application** controls, per datasource, whether that datasource uses the cache by setting `ojp.nextPageCache.enabled` in its `ojp.properties` — without requiring a server restart.
+
+**Step 1 — Server administrator: enable the infrastructure**
 
 ```bash
 java -Duser.timezone=UTC \
      -Dojp.server.nextPageCache.enabled=true \
      -jar ojp-server.jar
 ```
+
+**Step 2 — Client application: opt in per datasource** (`ojp.properties`)
+
+```properties
+# Default datasource — explicitly opt in
+ojp.nextPageCache.enabled=true
+
+# "random-access" datasource — opt out even though server has the cache enabled
+random-access.ojp.nextPageCache.enabled=false
+```
+
+When a datasource does not set `ojp.nextPageCache.enabled`, the server's global `ojp.server.nextPageCache.enabled` value is used as the fallback.
 
 **Server-side settings (`ojp-server.properties` / JVM system properties):**
 
@@ -466,19 +483,7 @@ java -Duser.timezone=UTC \
 
 ### Per-Datasource Cache Control
 
-The per-datasource `enabled` flag is a **client-side** connection property. Each datasource in the client application can independently opt in or out of the prefetch cache by setting `ojp.nextPageCache.enabled` in its `ojp.properties` file — no server restart needed:
-
-```properties
-# ojp.properties — client application
-
-# Default datasource: explicitly enable the cache
-ojp.nextPageCache.enabled=true
-
-# "random-access" datasource: disable the prefetch cache for random-access workloads
-random-access.ojp.nextPageCache.enabled=false
-```
-
-**Per-datasource wait timeout (different DB response times):**
+While each client datasource controls its `enabled` flag (shown in the "Configuration" section above), the server administrator can also tune the prefetch wait timeout on a per-datasource basis — useful when different databases have significantly different response times:
 
 ```bash
 java -Duser.timezone=UTC \
