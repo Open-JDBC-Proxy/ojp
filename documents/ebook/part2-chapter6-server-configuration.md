@@ -447,7 +447,7 @@ java -Duser.timezone=UTC \
      -jar ojp-server.jar
 ```
 
-**All prefetch cache settings:**
+**Server-side settings (`ojp-server.properties` / JVM system properties):**
 
 | Property | Default | Description |
 |---|---|---|
@@ -458,15 +458,23 @@ java -Duser.timezone=UTC \
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `60` | Interval (seconds) between background eviction sweeps |
 | `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for the wait timeout (`<name>` matches `ojp.datasource.name` on the client) |
 
+**Client-side settings (`ojp.properties` in the client application):**
+
+| Property | Default | Description |
+|---|---|---|
+| `ojp.nextPageCache.enabled` | *(server global)* | Per-datasource opt-in/out; set to `false` to disable the cache for this datasource even when the server has it globally enabled |
+
 ### Per-Datasource Cache Control
 
 The per-datasource `enabled` flag is a **client-side** connection property. Each datasource in the client application can independently opt in or out of the prefetch cache by setting `ojp.nextPageCache.enabled` in its `ojp.properties` file — no server restart needed:
 
 ```properties
 # ojp.properties — client application
-# Default datasource: cache enabled (uses server global default)
 
-# "random-access" datasource: disable the prefetch cache
+# Default datasource: explicitly enable the cache
+ojp.nextPageCache.enabled=true
+
+# "random-access" datasource: disable the prefetch cache for random-access workloads
 random-access.ojp.nextPageCache.enabled=false
 ```
 

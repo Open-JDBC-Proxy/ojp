@@ -177,9 +177,14 @@ The cache detects SQL pagination clauses automatically (`LIMIT/OFFSET`, `OFFSET 
 
 > **Per-datasource `enabled` is a client-side setting.**  
 > Each datasource in the client application can independently opt in or out of the prefetch cache
-> by setting `ojp.nextPageCache.enabled=false` in its `ojp.properties`:
+> by setting `ojp.nextPageCache.enabled` in its `ojp.properties`. The value is sent to the server
+> at connection time; when absent, the server's global flag applies as the fallback.
 > ```properties
 > # ojp.properties — client application
+>
+> # Default datasource: explicitly enable the cache
+> ojp.nextPageCache.enabled=true
+>
 > # Disable the prefetch cache for the "random-access" datasource
 > random-access.ojp.nextPageCache.enabled=false
 > ```

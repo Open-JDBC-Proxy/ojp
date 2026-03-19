@@ -24,6 +24,7 @@ public class DatasourcePropertiesLoader {
     private static final String DEFAULT_DATASOURCE_NAME = "default";
     private static final String OJP_POOL_PREFIX = "ojp.connection.pool.";
     private static final String OJP_XA_PREFIX = "ojp.xa.";
+    private static final String OJP_NEXT_PAGE_CACHE_PREFIX = "ojp.nextPageCache.";
 
     /**
      * Load ojp.properties and extract configuration for the datasource identified by
@@ -105,11 +106,14 @@ public class DatasourcePropertiesLoader {
     }
 
     private static boolean hasPrefixedOjpKey(String key, String prefixDot) {
-        return key.startsWith(prefixDot + OJP_POOL_PREFIX) || key.startsWith(prefixDot + OJP_XA_PREFIX);
+        return key.startsWith(prefixDot + OJP_POOL_PREFIX)
+                || key.startsWith(prefixDot + OJP_XA_PREFIX)
+                || key.startsWith(prefixDot + OJP_NEXT_PAGE_CACHE_PREFIX);
     }
 
     private static boolean isUnprefixedOjpKey(String key) {
-        return key.startsWith(OJP_POOL_PREFIX) || key.startsWith(OJP_XA_PREFIX);
+        return key.startsWith(OJP_POOL_PREFIX) || key.startsWith(OJP_XA_PREFIX)
+                || key.startsWith(OJP_NEXT_PAGE_CACHE_PREFIX);
     }
 
     private static void copyUnprefixedOjpProperties(Properties target, Properties source) {

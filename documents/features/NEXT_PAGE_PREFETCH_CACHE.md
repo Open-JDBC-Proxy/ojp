@@ -80,6 +80,8 @@ Each cache entry is keyed by **datasource identifier + normalised SQL**. Two dat
 
 ## Configuration Reference
 
+### Server-Side Settings (`ojp-server.properties` / JVM system properties)
+
 | Property | Default | Description |
 |---|---|---|
 | `ojp.server.nextPageCache.enabled` | `false` | Enable the feature globally (opt-in) |
@@ -87,29 +89,38 @@ Each cache entry is keyed by **datasource identifier + normalised SQL**. Two dat
 | `ojp.server.nextPageCache.maxEntries` | `100` | Maximum cache entries across all datasources |
 | `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `5000` | Maximum wait (ms) for an in-flight prefetch before falling back to a live query |
 | `ojp.server.nextPageCache.cleanupIntervalSeconds` | `60` | Interval (seconds) between background eviction scans |
-| `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for `prefetchWaitTimeoutMs` |
+| `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(global)* | Per-datasource override for `prefetchWaitTimeoutMs`; `<name>` matches `ojp.datasource.name` sent by the client |
+
+### Client-Side Settings (`ojp.properties` in the client application)
+
+| Property | Default | Description |
+|---|---|---|
+| `ojp.nextPageCache.enabled` | *(server global)* | Per-datasource opt-in/out; when `false` the cache is disabled for this datasource even if the server has it globally enabled |
+
+The `enabled` flag is set in the client's `ojp.properties` file and is sent to the server at
+connection time. When absent, the server's global `ojp.server.nextPageCache.enabled` value applies.
 
 ### Per-Datasource Configuration
 
-The per-datasource `enabled` flag is a **client-side** connection property.  Each datasource in the
-client application can independently opt in or out of the prefetch cache by setting
-`ojp.nextPageCache.enabled` in its `ojp.properties` file:
+Each datasource in the client application can independently opt in or out of the prefetch cache:
 
 ```properties
 # ojp.properties — client application
 
-# Default datasource: cache enabled (uses server global default)
+# Default datasource: explicitly enable the cache
+ojp.nextPageCache.enabled=true
 
-# "olap" datasource: disable the prefetch cache
+# "olap" datasource: disable the prefetch cache for random-access workloads
 olap.ojp.nextPageCache.enabled=false
+```
 
-# Per-datasource timeout tuning (server-side)
+The server-side `prefetchWaitTimeoutMs` can also be overridden per datasource (server configuration):
+
+```properties
+# ojp-server.properties or JVM system properties
 ojp.server.nextPageCache.datasource.analytics.prefetchWaitTimeoutMs=10000
 ojp.server.nextPageCache.datasource.oltp.prefetchWaitTimeoutMs=1000
 ```
-
-The `prefetchWaitTimeoutMs` can be overridden on the server side per datasource name (which matches
-the `ojp.datasource.name` connection property the client sends on connect).
 
 ## Quick Start
 
