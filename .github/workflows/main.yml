@@ -98,16 +98,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -131,9 +124,6 @@ jobs:
         if: always()  # ensures it runs even if previous steps fail
         run: |
           docker logs ojp-server 2>&1 || echo "ojp-server container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 2: PostgreSQL Integration Tests
@@ -217,7 +207,7 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
       # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
@@ -230,15 +220,6 @@ jobs:
           docker run -d --name ojp-server-enhancer \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
-
-      # Start third OJP server WITH next-page prefetch cache enabled
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
@@ -288,9 +269,6 @@ jobs:
           echo ""
           echo "=== OJP Server (with SQL enhancer) log ==="
           docker logs ojp-server-enhancer 2>&1 || echo "ojp-server-enhancer container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 3: MySQL Integration Tests
@@ -365,16 +343,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -397,9 +368,6 @@ jobs:
         if: always()
         run: |
           docker logs ojp-server 2>&1 || echo "ojp-server container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # ===========================================================================
@@ -473,16 +441,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -505,9 +466,6 @@ jobs:
         if: always()
         run: |
           docker logs ojp-server 2>&1 || echo "ojp-server container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 5: CockroachDB Integration Tests
@@ -572,16 +530,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -604,9 +555,6 @@ jobs:
         if: always()
         run: |
           docker logs ojp-server 2>&1 || echo "ojp-server container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 6: DB2 Integration Tests  
@@ -752,16 +700,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -784,9 +725,6 @@ jobs:
         if: always()
         run: |
           docker logs ojp-server 2>&1 || echo "ojp-server container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 7: Multinode Integration Tests
@@ -1760,16 +1698,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1792,9 +1723,6 @@ jobs:
         if: always()  # ensures it runs even if previous steps fail
         run: |
           docker logs ojp-server 2>&1 || echo "ojp-server container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 10: SQL Server Integration Tests
@@ -1875,16 +1803,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
-      # Pagination-cache integration tests run against this server (port 10594)
-      - name: Start OJP Server container (prefetch cache on port 10594)
-        run: |
-          docker run -d --name ojp-server-prefetch-cache \
-            --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10594 -Dojp.prometheus.port=9164 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
-            rrobetti/ojp:0.4.1-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1913,9 +1834,6 @@ jobs:
         if: always()  # ensures it runs even if previous steps fail
         run: |
           docker logs ojp-server 2>&1 || echo "ojp-server container not found"
-          echo ""
-          echo "=== OJP Server (with prefetch cache) log ==="
-          docker logs ojp-server-prefetch-cache 2>&1 || echo "ojp-server-prefetch-cache container not found"
 
   # ===========================================================================
   # JOB 11: Notify Integration Repository

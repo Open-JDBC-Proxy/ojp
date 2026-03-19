@@ -10,17 +10,17 @@ import java.util.stream.Stream;
 /**
  * Custom {@link ArgumentsProvider} for SQL Server prefetch-cache integration tests.
  *
- * <p>Provides connection details pointing to the OJP prefetch-cache server on port 10594
- * (instead of the standard port 1059 used by {@link SQLServerConnectionProvider}).
+ * <p>Provides connection details pointing to the OJP server (default port 1059) with the
+ * next-page prefetch cache enabled via the client-side property {@code ojp.nextPageCache.enabled}.
  * The actual SQL Server instance is still supplied by {@link SQLServerTestContainer}.
  */
 public class SQLServerPrefetchCacheConnectionProvider implements ArgumentsProvider {
 
     private static final String JDBC_PREFIX = "jdbc:";
 
-    /** The OJP server with the prefetch cache enabled runs on this port in CI. */
+    /** OJP server host:port used for prefetch-cache tests (defaults to standard port 1059). */
     private static final String PREFETCH_CACHE_PORT =
-            System.getProperty("ojp.prefetch.cache.port", "10594");
+            System.getProperty("ojp.prefetch.cache.port", "1059");
     private static final String OJP_PROXY_HOST =
             System.getProperty("ojp.proxy.host", "localhost");
     private static final String PREFETCH_CACHE_ADDRESS = OJP_PROXY_HOST + ":" + PREFETCH_CACHE_PORT;

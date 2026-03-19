@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *   <li>Creates a dedicated table with multiple column types, including a {@code BLOB} column.</li>
  *   <li>Inserts the requested number of rows with fully deterministic, per-row values.</li>
  *   <li>Paginates through all rows using {@code OFFSET … ROWS FETCH NEXT 100 ROWS ONLY} against an
- *       OJP server instance that has {@code ojp.server.nextPageCache.enabled=true} (port 10594).
+ *       OJP server instance that has {@code ojp.server.nextPageCache.enabled=true} (default port 1059).
  *       The client also sets {@code ojp.nextPageCache.enabled=true} in {@code ojp.properties},
  *       which is the per-datasource opt-in sent to the server on connect.</li>
  *   <li>Asserts <em>every</em> column value, including a byte-exact comparison of the
@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *
  * <p>This test is disabled by default and is activated by passing
  * {@code -DenableOraclePrefetchCacheTests=true} to the Maven Surefire plugin in CI.
- * The target OJP server must already be running on port 10594 with
+ * The target OJP server must already be running on default port 1059 with
  * {@code ojp.server.nextPageCache.enabled=true}. The client-side per-datasource flag
  * {@code ojp.nextPageCache.enabled=true} is set in {@code ojp.properties} and is sent to
  * the server at connection time to explicitly opt this datasource into the cache.
