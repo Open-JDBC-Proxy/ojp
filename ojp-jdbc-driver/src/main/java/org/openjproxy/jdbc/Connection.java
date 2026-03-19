@@ -188,6 +188,7 @@ public class Connection implements java.sql.Connection {
             this.session = null;
         }
         this.closed = true;
+        OjpDriverMetricsHolder.get().onConnectionClosed();
     }
 
     @Override
