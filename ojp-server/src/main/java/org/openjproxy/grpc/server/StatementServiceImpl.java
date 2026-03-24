@@ -18,6 +18,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.openjproxy.grpc.ProtoConverter;
+import org.openjproxy.grpc.dto.Parameter;
+import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.action.resource.CallResourceAction;
 import org.openjproxy.grpc.server.action.session.TerminateSessionAction;
 import org.openjproxy.grpc.server.action.transaction.CommitTransactionAction;
@@ -160,6 +165,19 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     public void connect(ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
         org.openjproxy.grpc.server.action.connection.ConnectAction.getInstance()
                 .execute(actionContext, connectionDetails, responseObserver);
+    }
+
+    /**
+     * Gets or creates the slow query segregation manager for a specific connection.
+     * Delegates to {@link SlowQuerySegregationManager#getOrCreate(ActionContext, String)}
+     * to ensure consistent manager creation across the codebase.
+     *
+     * @param connHash the connection hash to look up or create a manager for
+     * @return the slow query segregation manager for the connection (never null)
+     * @see SlowQuerySegregationManager#getOrCreate(ActionContext, String)
+     */
+    private SlowQuerySegregationManager getSlowQuerySegregationManagerForConnection(String connHash) {
+        return SlowQuerySegregationManager.getOrCreate(actionContext, connHash);
     }
 
     @SneakyThrows

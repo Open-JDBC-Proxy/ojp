@@ -1,5 +1,6 @@
 package org.openjproxy.grpc.server;
 
+import org.openjproxy.grpc.server.action.ActionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +66,22 @@ public class SlowQuerySegregationManager {
     public SlowQuerySegregationManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
                                      long slowSlotTimeoutMs, long fastSlotTimeoutMs, boolean enabled) {
         this(totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs, 0L, enabled);
+    }
+
+    /**
+     * Gets or creates a slow query segregation manager for a specific connection hash.
+     * Uses thread-safe ConcurrentHashMap.computeIfAbsent() to prevent race conditions
+     * where multiple threads attempt to create the manager simultaneously.
+     *
+     * @param context  the action context containing the slow query segregation managers map
+     * @param connHash the connection hash to look up or create a manager for
+     * @return the slow query segregation manager for the connection (never null)
+     */
+    public static SlowQuerySegregationManager getOrCreate(ActionContext context, String connHash) {
+        return context.getSlowQuerySegregationManagers().computeIfAbsent(connHash, key -> {
+            logger.warn("No SlowQuerySegregationManager found for connection hash {}, creating disabled fallback", key);
+            return new SlowQuerySegregationManager(1, 0, 0, 0, 0, 0, false);
+        });
     }
     
     /**
