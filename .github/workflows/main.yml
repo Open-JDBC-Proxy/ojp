@@ -98,8 +98,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
+
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -117,11 +118,12 @@ jobs:
       # This is the key test step - only H2 tests are enabled
       # All other database tests are disabled by default
       - name: Test (ojp-jdbc-driver) with H2 only
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableH2Tests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableH2Tests=true -DenableH2PrefetchCacheTests=true
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
-        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
+        run: |
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 2: PostgreSQL Integration Tests
@@ -205,7 +207,7 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
 
       # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
@@ -235,7 +237,7 @@ jobs:
 
       # Run PostgreSQL-specific tests with -DenablePostgresTests flag
       - name: Test (ojp-jdbc-driver) with PostgreSQL enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenablePostgresTests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenablePostgresTests=true -DenablePostgresPrefetchCacheTests=true
 
       # ===================================================================
       # SQL Enhancer Integration Test
@@ -341,8 +343,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
+
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -359,11 +362,12 @@ jobs:
 
       # Run MySQL-specific tests with -DenableMySQLTests flag
       - name: Test (ojp-jdbc-driver) with MySQL enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMySQLTests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMySQLTests=true -DenableMySQLPrefetchCacheTests=true
 
       - name: Show ojp-server.log
         if: always()
-        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
+        run: |
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # ===========================================================================
@@ -437,8 +441,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
+
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -455,11 +460,12 @@ jobs:
 
       # Run MariaDB-specific tests with -DenableMariaDBTests flag
       - name: Test (ojp-jdbc-driver) with MariaDB enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMariaDBTests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableMariaDBTests=true -DenableMariaDBPrefetchCacheTests=true
 
       - name: Show ojp-server.log
         if: always()
-        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
+        run: |
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 5: CockroachDB Integration Tests
@@ -524,8 +530,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
+
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -542,11 +549,12 @@ jobs:
 
       # Run CockroachDB-specific tests with -DenableCockroachDBTests flag
       - name: Test (ojp-jdbc-driver) with CockroachDB enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableCockroachDBTests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableCockroachDBTests=true -DenableCockroachDBPrefetchCacheTests=true
 
       - name: Show ojp-server.log
         if: always()
-        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
+        run: |
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 6: DB2 Integration Tests  
@@ -692,8 +700,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
+
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -710,11 +719,12 @@ jobs:
 
       # Run DB2-specific tests with -DenableDb2Tests flag
       - name: Test (ojp-jdbc-driver) with DB2 enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableDb2Tests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableDb2Tests=true -DenableDb2PrefetchCacheTests=true
 
       - name: Show ojp-server.log
         if: always()
-        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
+        run: |
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 7: Multinode Integration Tests
@@ -1688,8 +1698,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
+
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1706,11 +1717,12 @@ jobs:
 
       # Run Oracle-specific tests with -DenableOracleTests flag
       - name: Test (ojp-jdbc-driver) with Oracle enabled
-        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableOracleTests=true
+        run: mvn test -pl ojp-jdbc-driver -Dgpg.skip=true -DenableOracleTests=true -DenableOraclePrefetchCacheTests=true
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
-        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
+        run: |
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 10: SQL Server Integration Tests
@@ -1791,8 +1803,9 @@ jobs:
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true -Dojp.server.nextPageCache.enabled=true -Dojp.server.nextPageCache.ttlSeconds=60 -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=5000" \
             rrobetti/ojp:0.4.1-SNAPSHOT
+
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1814,11 +1827,13 @@ jobs:
         run: |
           mvn test -pl ojp-jdbc-driver -Dgpg.skip=true \
             -DenableSqlServerTests=true \
+            -DenableSqlServerPrefetchCacheTests=true \
             -Dtest="SQLServer*"
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
-        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
+        run: |
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 11: Notify Integration Repository

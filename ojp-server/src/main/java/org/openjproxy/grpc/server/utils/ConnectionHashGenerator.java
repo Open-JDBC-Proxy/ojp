@@ -44,20 +44,20 @@ public class ConnectionHashGenerator {
     
     /**
      * Extracts the dataSource name from connection details properties.
-     * Returns "default" if no dataSource name is specified.
+     * Returns {@code "default"} if no dataSource name is specified.
+     *
+     * <p>The dataSource name corresponds to the {@code ojp.datasource.name} property
+     * set in the client connection properties.</p>
+     *
+     * @param connectionDetails the connection details whose properties to inspect
+     * @return the datasource name, or {@code "default"} when none is set
      */
-    private static String extractDataSourceName(ConnectionDetails connectionDetails) {
+    public static String extractDataSourceName(ConnectionDetails connectionDetails) {
         if (connectionDetails.getPropertiesList().isEmpty()) {
             return "default";
         }
-        
-        try {
-            Map<String, Object> properties = ProtoConverter.propertiesFromProto(connectionDetails.getPropertiesList());
-            Object dataSourceName = properties.get("ojp.datasource.name");
-            return dataSourceName != null ? dataSourceName.toString() : "default";
-        } catch (Exception e) {
-            // If we can't deserialize properties, fall back to default
-            return "default";
-        }
+        Map<String, Object> properties = ProtoConverter.propertiesFromProto(connectionDetails.getPropertiesList());
+        Object dataSourceName = properties.get("ojp.datasource.name");
+        return dataSourceName != null ? dataSourceName.toString() : "default";
     }
 }

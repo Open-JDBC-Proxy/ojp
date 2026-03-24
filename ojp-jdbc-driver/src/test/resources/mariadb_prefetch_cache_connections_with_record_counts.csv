@@ -1,0 +1,5 @@
+99,org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_mariadb://localhost:3307/defaultdb,testuser,testpassword
+100,org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_mariadb://localhost:3307/defaultdb,testuser,testpassword
+101,org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_mariadb://localhost:3307/defaultdb,testuser,testpassword
+567,org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_mariadb://localhost:3307/defaultdb,testuser,testpassword
+1000,org.openjproxy.jdbc.Driver,jdbc:ojp[localhost:1059]_mariadb://localhost:3307/defaultdb,testuser,testpassword

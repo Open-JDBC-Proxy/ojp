@@ -160,6 +160,79 @@ For full integration examples including Docker Compose setups, see the **[Teleme
 | `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Timeout for acquiring slow operation slots (ms) | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Timeout for acquiring fast operation slots (ms) | 0.2.0-beta |
 
+### Next-Page Prefetch Cache Settings
+
+The prefetch cache transparently pre-executes the **next page query** in the background while the current page is being sent to the client. When the client requests the next page, the rows are served from memory instead of hitting the database again, significantly reducing perceived latency for paginated result sets.
+
+The cache detects SQL pagination clauses automatically (`LIMIT/OFFSET`, `OFFSET … FETCH`, `FETCH FIRST … ROWS ONLY`, MySQL `LIMIT m, n`, and standalone `LIMIT n`).
+
+> **Two-tier configuration model:**  
+> The cache uses a two-tier configuration model. The **server administrator** enables the feature globally and tunes its resource limits (TTL, max entries, timeouts). Each **client application** then controls, per datasource, whether that datasource uses the cache — without requiring a server restart. See the client-side settings below.
+
+| Property | Environment Variable | Type | Default | Description | Since |
+|---|---|---|---|---|---|
+| `ojp.server.nextPageCache.enabled` | `OJP_SERVER_NEXTPAGECACHE_ENABLED` | boolean | false | Enable/disable the next-page prefetch cache globally | 0.4.1 |
+| `ojp.server.nextPageCache.ttlSeconds` | `OJP_SERVER_NEXTPAGECACHE_TTLSECONDS` | long | 60 | Maximum time (seconds) a cached page is kept before being discarded | 0.4.1 |
+| `ojp.server.nextPageCache.maxEntries` | `OJP_SERVER_NEXTPAGECACHE_MAXENTRIES` | int | 100 | Maximum number of cache entries across all datasources | 0.4.1 |
+| `ojp.server.nextPageCache.prefetchWaitTimeoutMs` | `OJP_SERVER_NEXTPAGECACHE_PREFETCHWAITTIMEOUTMS` | long | 5000 | Maximum time (ms) to wait for a prefetch to complete before falling back to a live query | 0.4.1 |
+| `ojp.server.nextPageCache.cleanupIntervalSeconds` | `OJP_SERVER_NEXTPAGECACHE_CLEANUPINTERVALSECONDS` | long | 60 | Interval (seconds) at which the background cleanup thread evicts expired entries | 0.4.1 |
+| `ojp.server.nextPageCache.datasource.<name>.prefetchWaitTimeoutMs` | *(no env-var equivalent)* | long | *(global default)* | Per-datasource override for `prefetchWaitTimeoutMs`; `<name>` matches `ojp.datasource.name` on the client | 0.4.1 |
+
+> **Per-datasource `enabled` is a client-side setting.**  
+> Each datasource in the client application can independently opt in or out of the prefetch cache
+> by setting `ojp.nextPageCache.enabled` in its `ojp.properties`. The value is sent to the server
+> at connection time; when absent, the server's global flag applies as the fallback.
+> ```properties
+> # ojp.properties — client application
+>
+> # Default datasource: explicitly enable the cache
+> ojp.nextPageCache.enabled=true
+>
+> # Disable the prefetch cache for the "random-access" datasource
+> random-access.ojp.nextPageCache.enabled=false
+> ```
+
+#### Next-Page Prefetch Cache Configuration Examples
+
+**Enable the cache with default settings:**
+```bash
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=true \
+     -jar ojp-server.jar
+```
+
+**Enable with custom TTL and wait timeout:**
+```bash
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=true \
+     -Dojp.server.nextPageCache.ttlSeconds=30 \
+     -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=2000 \
+     -jar ojp-server.jar
+```
+
+**Per-datasource wait timeout override (server-side):**
+```bash
+# Give the "analytics" datasource more time to prefetch large pages
+java -Duser.timezone=UTC \
+     -Dojp.server.nextPageCache.enabled=true \
+     -Dojp.server.nextPageCache.prefetchWaitTimeoutMs=2000 \
+     -D"ojp.server.nextPageCache.datasource.analytics.prefetchWaitTimeoutMs=10000" \
+     -jar ojp-server.jar
+```
+
+**Via environment variables:**
+```bash
+export OJP_SERVER_NEXTPAGECACHE_ENABLED=true
+export OJP_SERVER_NEXTPAGECACHE_TTLSECONDS=60
+export OJP_SERVER_NEXTPAGECACHE_PREFETCHWAITTIMEOUTMS=5000
+export OJP_SERVER_NEXTPAGECACHE_CLEANUPINTERVALSECONDS=60
+java -Duser.timezone=UTC -jar ojp-server.jar
+```
+
+> **ℹ️ Cache isolation**: Entries are keyed by `datasourceId + normalizedSQL`, so two datasources executing the same query never share cached data.
+
+> **ℹ️ Background cleanup**: A single shared virtual thread (`ojp-prefetch-cache-cleanup`) runs the eviction scan at the configured interval. No additional threads are created regardless of how many datasources are active.
+
 ### SQL Enhancer and Schema Loader Settings
 
 > **⚠️ EXPERIMENTAL FEATURE - NOT RECOMMENDED FOR PRODUCTION**
