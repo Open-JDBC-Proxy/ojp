@@ -113,8 +113,10 @@ public class Driver implements java.sql.Driver {
                     sessionInfo.getSessionUUID(), sessionInfo.getConnHash());
         } catch (Exception e) {
             log.error("Failed to establish connection", e);
+            OjpDriverMetricsHolder.get().onConnectionFailed();
             throw e;
         }
+        OjpDriverMetricsHolder.get().onConnectionCreated();
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
         return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
     }

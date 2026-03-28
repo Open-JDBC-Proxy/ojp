@@ -25,6 +25,7 @@ import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.GrpcChannelFactory;
 import org.openjproxy.jdbc.Connection;
 import org.openjproxy.jdbc.LobGrpcIterator;
+import org.openjproxy.jdbc.OjpDriverMetricsHolder;
 
 import java.sql.SQLException;
 import java.util.Iterator;
@@ -99,6 +100,7 @@ public class StatementServiceGrpcClient implements StatementService {
     public OpResult executeUpdate(SessionInfo sessionInfo, String sql, List<Parameter> params, String statementUUID,
                                   Map<String, Object> properties)
             throws SQLException {
+        long startNs = System.nanoTime();
         try {
             StatementRequest.Builder builder = StatementRequest.newBuilder()
                     .setSession(sessionInfo)
@@ -113,8 +115,11 @@ public class StatementServiceGrpcClient implements StatementService {
                 builder.addAllProperties(propertiesToProto(properties));
             }
             
-            return this.statemetServiceBlockingStub.executeUpdate(builder.build());
+            OpResult result = this.statemetServiceBlockingStub.executeUpdate(builder.build());
+            OjpDriverMetricsHolder.get().onStatementExecuted((System.nanoTime() - startNs) / 1_000_000L);
+            return result;
         } catch (StatusRuntimeException e) {
+            OjpDriverMetricsHolder.get().onStatementFailed();
             throw handle(e);
         }
     }
@@ -142,8 +147,11 @@ public class StatementServiceGrpcClient implements StatementService {
                 builder.addAllProperties(propertiesToProto(properties));
             }
             
-            return this.statemetServiceBlockingStub.executeQuery(builder.build());
+            // Wrap the streaming iterator so that metrics are recorded across the full
+            // result-stream lifetime, not just at RPC initiation.
+            return new OjpMetricsIterator(this.statemetServiceBlockingStub.executeQuery(builder.build()));
         } catch (StatusRuntimeException e) {
+            OjpDriverMetricsHolder.get().onStatementFailed();
             throw handle(e);
         }
     }

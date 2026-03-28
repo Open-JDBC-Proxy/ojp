@@ -1,1 +1,2 @@
 org.openjproxy.autoconfigure.OjpAutoConfiguration
+org.openjproxy.autoconfigure.OjpMicrometerAutoConfiguration
