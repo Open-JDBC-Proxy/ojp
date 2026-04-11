@@ -1,0 +1,53 @@
+# =============================================================================
+# GitHub Automatic Release Notes Configuration
+# =============================================================================
+#
+# Controls how GitHub auto-generates release notes for each release.
+# Merged pull requests are categorised into sections based on their labels.
+# Any PR without a matching label appears under "Other Changes".
+#
+# Labels used here must exist in the repository (Settings → Labels).
+# The "exclude" section hides housekeeping PRs from public-facing notes.
+#
+# Docs: https://docs.github.com/en/repositories/releasing-projects-on-github/
+#       automatically-generated-release-notes
+# =============================================================================
+
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - dependencies
+      - automated-pr
+  categories:
+    - title: "🚀 New Features"
+      labels:
+        - enhancement
+        - feature
+    - title: "🐛 Bug Fixes"
+      labels:
+        - bug
+        - fix
+    - title: "⚡ Performance"
+      labels:
+        - performance
+    - title: "🔒 Security"
+      labels:
+        - security
+    - title: "🏗️ Internals & Refactoring"
+      labels:
+        - refactor
+        - internal
+        - chore
+    - title: "📖 Documentation"
+      labels:
+        - documentation
+        - docs
+    - title: "🧪 Tests"
+      labels:
+        - test
+        - testing
+    - title: "⬆️ Dependency Updates"
+      labels:
+        - dependency-update
+    - title: "Other Changes"

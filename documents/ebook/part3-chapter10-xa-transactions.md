@@ -401,13 +401,13 @@ Effective monitoring is essential for XA deployments because distributed transac
 
 ### Pool Metrics
 
-OJP exposes comprehensive pool metrics through both debug logging and JMX/Prometheus. For HikariCP (non-XA), metrics are exposed via `HikariPoolMXBean` including active connections, idle connections, total connections, and threads awaiting connections. For XA pools (Apache Commons Pool 2), metrics are exposed through debug logging and enhanced diagnostics.
+OJP exposes comprehensive pool metrics through both debug logging and Prometheus. For HikariCP (non-XA), metrics are exposed via `HikariPoolMXBean` and the `ojp.hikari.pool` OpenTelemetry scope including active connections, idle connections, total connections, acquisition time histograms, and threads awaiting connections. For XA pools (Apache Commons Pool 2), metrics are exposed through the `ojp.xa.pool` OpenTelemetry scope and enhanced diagnostics.
 
 The most important metrics to monitor are active session count, idle session count, and pool wait times.
 
 Active session count shows how many backend sessions are currently borrowed from the pool. If this number consistently approaches `maxTotal`, you may need to increase your pool size. Idle session count shows how many sessions are waiting in the pool. If this number is consistently low, increasing `minIdle` ensures better response times for bursts of traffic.
 
-Pool wait time metrics show how long clients wait to borrow a session when the pool is exhausted. Occasional spikes are normal during traffic bursts, but sustained high wait times indicate that your pool is undersized for your workload.
+Pool wait time metrics show how long clients wait to borrow a session when the pool is exhausted. The `ojp.xa.pool.connections.acquisition.time` histogram tracks connection acquisition latency, enabling p50/p95/p99 percentile analysis. Occasional spikes are normal during traffic bursts, but sustained high percentile values indicate that your pool is undersized for your workload.
 
 Enable pool metrics with debug logging:
 
@@ -424,6 +424,20 @@ Session returned to pool: poolState=[active=1, idle=9, maxTotal=11]
 Pool resized due to cluster health change: maxTotal=11→22, minIdle=10→20
 Pre-warmed 10 idle connections successfully
 ```
+
+### SQL Execution Metrics for XA
+
+SQL execution time metrics are emitted identically for XA and non-XA connections. Every SQL statement executed within an XA transaction contributes to the `ojp.sql.execution.time` histogram under the `ojp.sql` scope. You can monitor per-statement latency percentiles, execution counts, and slow-query rates for XA workloads using the same PromQL queries as for non-XA workloads:
+
+```promql
+# p95 SQL execution time for XA statements
+histogram_quantile(0.95,
+  sum(rate(ojp_sql_execution_time_milliseconds_bucket[5m]))
+  by (le, sql_statement)
+)
+```
+
+See Chapter 13 for a complete SQL execution metrics reference.
 
 ### Transaction State Tracking
 

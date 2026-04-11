@@ -3,6 +3,7 @@ package org.openjproxy.grpc.server;
 import com.openjproxy.grpc.SessionInfo;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.grpc.server.cache.CacheConfiguration;
 
 import javax.sql.XAConnection;
 import javax.transaction.xa.XAResource;
@@ -37,6 +38,8 @@ public class Session {
     private XAResource xaResource;
     @Getter
     private Object backendSession; // Holds XABackendSession for XA pooling (avoids hard dependency)
+    @Getter
+    private final CacheConfiguration cacheConfiguration;  // Can be null if caching not configured
     private Map<String, ResultSet> resultSetMap;
     private Map<String, Statement> statementMap;
     private Map<String, PreparedStatement> preparedStatementMap;
@@ -51,15 +54,20 @@ public class Session {
     private final long creationTime;
 
     public Session(Connection connection, String connectionHash, String clientUUID) {
-        this(connection, connectionHash, clientUUID, false, null);
+        this(connection, connectionHash, clientUUID, false, null, null);
     }
 
     public Session(Connection connection, String connectionHash, String clientUUID, boolean isXA, XAConnection xaConnection) {
+        this(connection, connectionHash, clientUUID, isXA, xaConnection, null);
+    }
+
+    public Session(Connection connection, String connectionHash, String clientUUID, boolean isXA, XAConnection xaConnection, CacheConfiguration cacheConfiguration) {
         this.connection = connection;
         this.connectionHash = connectionHash;
         this.clientUUID = clientUUID;
         this.isXA = isXA;
         this.xaConnection = xaConnection;
+        this.cacheConfiguration = cacheConfiguration;  // Can be null
         this.sessionUUID = UUID.randomUUID().toString();
         this.closed = false;
         this.creationTime = System.currentTimeMillis();

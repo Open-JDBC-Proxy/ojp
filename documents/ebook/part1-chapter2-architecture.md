@@ -108,7 +108,7 @@ graph TD
     style POOL fill:#ff8a65
 ```
 
-The server offers flexible deployment options to fit various infrastructure needs. You can run it as a Docker container with pre-built images that include open-source drivers, as a runnable JAR for standalone execution with external driver support, or deploy it to Kubernetes using Helm charts for cloud-native environments.
+The server offers flexible deployment options to fit various infrastructure needs. You can run it as a Docker container (drivers must be downloaded and mounted into the `ojp-libs` directory), as a runnable JAR for standalone execution with external driver support, or deploy it to Kubernetes using Helm charts for cloud-native environments.
 
 **Configuration**: Server behavior is controlled through environment variables or JVM system properties:
 
@@ -207,7 +207,7 @@ classDiagram
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.0-beta</version>
 </dependency>
 ```
 

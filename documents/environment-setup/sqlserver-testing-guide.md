@@ -5,7 +5,7 @@ This document explains how to set up and run SQL Server tests with OJP.
 ## Prerequisites
 
 1. **Docker** - Required to run SQL Server locally
-2. **Microsoft SQL Server JDBC Driver** - Automatically included in dependencies
+2. **Microsoft SQL Server JDBC Driver** - Must be downloaded and placed in `ojp-libs` folder
 
 ## Setup Instructions
 
@@ -55,15 +55,27 @@ GO
 
 ### 3. SQL Server JDBC Driver
 
-The Microsoft SQL Server JDBC driver is not automatically included in the ojp-server dependencies.
+> **⚠️ For Version 0.4.0-beta and Later:**  
+> JDBC drivers are no longer added to pom.xml. Instead, download the driver and place it in the `ojp-libs` folder.
 
-```xml
-<dependency>
-    <groupId>com.microsoft.sqlserver</groupId>
-    <artifactId>mssql-jdbc</artifactId>
-    <version>12.8.1.jre11</version>
-</dependency>
+Download the Microsoft SQL Server JDBC driver and place it in the `ojp-libs` directory:
+
+```bash
+# Download from Microsoft
+# https://learn.microsoft.com/en-us/sql/connect/jdbc/download-microsoft-jdbc-driver-for-sql-server
+# Choose: mssql-jdbc-12.8.1.jre11.jar (or latest version)
+
+# Create ojp-libs directory if it doesn't exist
+mkdir -p ojp-libs
+
+# Place the driver in ojp-libs
+cp ~/Downloads/mssql-jdbc-12.8.1.jre11.jar ./ojp-libs/
+
+# Verify the file is in place
+ls -lh ojp-libs/mssql-jdbc*.jar
 ```
+
+For more details on driver setup, see the [Database Drivers Configuration Guide](../configuration/DRIVERS_AND_LIBS.md).
 
 ### 4. Start OJP Server
 

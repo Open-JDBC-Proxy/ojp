@@ -351,7 +351,7 @@ graph TD
     style POOL fill:#ff8a65
 ```
 
-The server offers flexible deployment options to fit various infrastructure needs. You can run it as a Docker container with pre-built images that include open-source drivers, as a runnable JAR for standalone execution with external driver support, or deploy it to Kubernetes using Helm charts for cloud-native environments.
+The server offers flexible deployment options to fit various infrastructure needs. You can run it as a Docker container (drivers must be downloaded and mounted into the `ojp-libs` directory), as a runnable JAR for standalone execution with external driver support, or deploy it to Kubernetes using Helm charts for cloud-native environments.
 
 **Configuration**: Server behavior is controlled through environment variables or JVM system properties:
 
@@ -437,7 +437,7 @@ classDiagram
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.0-beta</version>
 </dependency>
 ```
 
@@ -1081,25 +1081,36 @@ If you don't have Java 22+, you can download it from Eclipse Temurin at adoptium
 #### Prompt 2
 
 **[IMAGE PROMPT 2]**: Create a step-by-step visual guide showing:
-Step 1: Docker command in terminal
-Step 2: OJP Server starting up (container icon)
-Step 3: Server ready with ports exposed
-Step 4: Applications connecting to OJP
+Step 1: Download drivers using download-drivers.sh
+Step 2: Docker command in terminal with volume mount
+Step 3: OJP Server starting up (container icon)
+Step 4: Server ready with ports exposed
+Step 5: Applications connecting to OJP
 Use a horizontal timeline or numbered steps format
 Modern tutorial style with screenshots/mockups
 
-The fastest way to get started is using the pre-built Docker image that includes open-source database drivers (H2, PostgreSQL, MySQL, MariaDB).
+> **🚨 Important for Version 0.4.0-beta and Later:** JDBC drivers are **NO LONGER included** in the OJP Server Docker image. You must download drivers and mount them into the `ojp-libs` directory.
+
+The fastest way to get started is using the pre-built Docker image. Before running, you must download the JDBC drivers and mount them into the container.
 
 **Start OJP Server**:
 
+> **Note**: Run the following commands from the root of the OJP repository (or any working directory of your choice).
+
 ```bash
+# Step 1: Download open source drivers (from your working directory)
+mkdir -p ojp-libs
+bash ojp-server/download-drivers.sh ./ojp-libs
+
+# Step 2: Run with drivers mounted (from the same directory)
 docker run --rm -d \
   --name ojp-server \
   --network host \
-  rrobetti/ojp:0.3.1-beta
+  -v "$(pwd)/ojp-libs":/opt/ojp/ojp-libs \
+  rrobetti/ojp:0.4.0-beta
 ```
 
-This command accomplishes several things in one step. It downloads the OJP Server image (approximately 50MB), which includes drivers for H2, PostgreSQL, MySQL, and MariaDB out of the box. The server starts on port 1059 for gRPC communication and exposes metrics on port 9159 for Prometheus. The `-d` flag runs the container in detached mode, while `--rm` ensures the container is automatically removed when stopped.
+This downloads the OJP Server image (approximately 50MB) and starts it with your downloaded drivers mounted. The server starts on port 1059 for gRPC communication and exposes metrics on port 9159 for Prometheus. The `-d` flag runs the container in detached mode, while `--rm` ensures the container is automatically removed when stopped.
 
 **Verify it's running**:
 
@@ -1149,7 +1160,7 @@ Professional code documentation style
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.0-beta</version>
 </dependency>
 ```
 
@@ -1157,7 +1168,7 @@ Professional code documentation style
 
 ```groovy
 dependencies {
-    implementation 'org.openjproxy:ojp-jdbc-driver:0.3.1-beta'
+    implementation 'org.openjproxy:ojp-jdbc-driver:0.4.0-beta'
 }
 ```
 
@@ -1165,7 +1176,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("org.openjproxy:ojp-jdbc-driver:0.3.1-beta")
+    implementation("org.openjproxy:ojp-jdbc-driver:0.4.0-beta")
 }
 ```
 
@@ -1646,54 +1657,54 @@ Before going to production, verify:
 
 #### Prompt 1
 
-**[IMAGE PROMPT 1]**: Create an infographic showing the four included open-source databases:
+**[IMAGE PROMPT 1]**: Create an infographic showing the four supported open-source databases:
 - H2 (with logo) - Embedded/file-based
 - PostgreSQL (with logo) - Enterprise-grade
 - MySQL (with logo) - Widely-used
 - MariaDB (with logo) - MySQL-compatible
-Show each with a checkmark indicating "included by default"
+Show each with a download arrow indicating "download via script"
 Use professional database vendor style with clean icons
-Modern "batteries included" theme
+Modern "drop-in driver" theme
 
 ```mermaid
 graph TB
-    subgraph "Open Source Drivers - Included"
+    subgraph "Open Source Drivers - Download via Script"
     H2[H2 Database<br/>v2.3.232<br/>Embedded/File-based]
     PG[PostgreSQL<br/>v42.7.8<br/>Enterprise RDBMS]
     MY[MySQL<br/>v9.5.0<br/>Popular Open Source]
     MA[MariaDB<br/>v3.5.2<br/>MySQL Compatible]
     end
     
-    subgraph "OJP Docker Image"
-    DOCKER[Pre-installed<br/>Ready to Use]
+    subgraph "ojp-libs Directory"
+    LIBS[Place JARs here<br/>Mount as Volume]
     end
     
-    H2 --> DOCKER
-    PG --> DOCKER
-    MY --> DOCKER
-    MA --> DOCKER
+    H2 --> LIBS
+    PG --> LIBS
+    MY --> LIBS
+    MA --> LIBS
     
     style H2 fill:#1e5b8e
     style PG fill:#336791
     style MY fill:#4479a1
     style MA fill:#003545
-    style DOCKER fill:#4caf50
+    style LIBS fill:#4caf50
 ```
 
 These drivers are:
-These drivers come pre-installed in Docker images, making deployment instant. For runnable JAR deployments, they're automatically available through the download script. All drivers are tested and verified to work correctly with OJP, and they're kept up-to-date with the latest stable versions from Maven Central.
+These drivers must be downloaded before deployment using the `download-drivers.sh` script. For Docker deployments, mount the `ojp-libs` directory as a volume. All drivers are tested and verified to work correctly with OJP, and they're kept up-to-date with the latest stable versions from Maven Central.
 
 #### Prompt 2
 
 **[IMAGE PROMPT 2]**: Create a step-by-step visual guide showing:
-Step 1: Docker pull command
-Step 2: Docker run with included drivers
-Step 3: Instant connection to any of the 4 databases
+Step 1: Download drivers using download-drivers.sh script
+Step 2: Docker run with volume mount
+Step 3: Connection to any of the 4 databases
 Step 4: Success indicator
 Use terminal-style screenshots with highlights
-Professional Docker quick start style
+Professional Docker setup guide style
 
-The simplest way to use OJP with open-source databases is Docker:
+The simplest way to use OJP with open-source databases is Docker with a volume mount:
 
 ```bash
 
@@ -1769,7 +1780,7 @@ graph LR
 | Oracle | ojdbc11.jar | [Oracle JDBC Downloads](https://www.oracle.com/database/technologies/jdbc-downloads.html) |
 | SQL Server | mssql-jdbc-*.jar | [Microsoft JDBC Downloads](https://learn.microsoft.com/en-us/sql/connect/jdbc/download-microsoft-jdbc-driver-for-sql-server) |
 | DB2 | db2jcc*.jar | IBM Support / DB2 installation |
-| CockroachDB | postgresql-*.jar | Compatible with PostgreSQL driver (included!) |
+| CockroachDB | postgresql-*.jar | Compatible with PostgreSQL driver (download via script) |
 
 #### Prompt 6
 
@@ -1835,7 +1846,7 @@ Professional compatibility guide
 Good news! CockroachDB uses the PostgreSQL wire protocol:
 
 ```java
-// CockroachDB works with the included PostgreSQL driver!
+// CockroachDB works with the downloaded PostgreSQL driver!
 String url = "jdbc:ojp[localhost:1059]_postgresql://localhost:26257/mydb?" +
              "sslmode=disable";
 Connection conn = DriverManager.getConnection(url, "root", "");
@@ -1846,7 +1857,7 @@ String clusterUrl = "jdbc:ojp[localhost:1059]_postgresql://" +
                     "sslmode=require&load_balance=true";
 ```
 
-**No additional driver required** - the included PostgreSQL driver works out of the box!
+**No additional driver required** - CockroachDB works with the PostgreSQL driver (download via `download-drivers.sh`).
 
 ---
 
@@ -1946,7 +1957,7 @@ version: '3.8'
 
 services:
   ojp-server:
-    image: rrobetti/ojp:0.3.1-beta
+    image: rrobetti/ojp:0.4.0-beta
     ports:
       - "1059:1059"
       - "9159:9159"
@@ -3046,7 +3057,7 @@ graph TD
     H --> I[Server Ready]
 ```
 
-This implementation demonstrates a key principle in OJP's design philosophy: start with simplicity but architect for flexibility. The "batteries included" Docker image preserves the easy onboarding experience, while the externalization architecture accommodates enterprise requirements for control and customization.
+This implementation demonstrates a key principle in OJP's design philosophy: start with simplicity but architect for flexibility. The `download-drivers.sh` script preserves the easy onboarding experience, while the externalization architecture accommodates enterprise requirements for control and customization.
 
 #### Prompt 2
 
@@ -3191,14 +3202,14 @@ The vision extends beyond just connection count management. Intelligent features
 #### Prompt 2
 
 **[IMAGE PROMPT: Limitations vs Solutions Matrix]**
-Create a table-style infographic showing current limitations and their solutions/mitigations. Four columns: "Limitation", "Impact", "Mitigation", "Roadmap Status". Rows include: Network Latency (Impact: 1-3ms, Mitigation: Accept for non-latency-critical apps, Status: Inherent trade-off), Single Point of Failure (Impact: Total outage, Mitigation: Deploy multinode, Status: Solved), Observability Gaps (Impact: Limited tracing, Mitigation: Use Prometheus metrics, Status: Planned), Manual Discovery (Impact: Manual updates, Mitigation: Use ConfigMaps, Status: Planned). Use color coding: red for high impact, yellow for medium, green for mitigated.
+Create a table-style infographic showing current limitations and their solutions/mitigations. Four columns: "Limitation", "Impact", "Mitigation", "Roadmap Status". Rows include: Network Latency (Impact: 1-3ms, Mitigation: Accept for non-latency-critical apps, Status: Inherent trade-off), Single Point of Failure (Impact: Total outage, Mitigation: Deploy multinode, Status: Solved), Observability Gaps (Impact: No SQL-level instrumentation, Mitigation: Use Prometheus metrics + distributed traces, Status: Planned), Manual Discovery (Impact: Manual updates, Mitigation: Use ConfigMaps, Status: Planned). Use color coding: red for high impact, yellow for medium, green for mitigated.
 
 #### Prompt 3
 
 **[IMAGE PROMPT: Roadmap Timeline]**
-Create a roadmap visualization showing enhancement phases. Display a horizontal timeline with three phases: "Near Term (6-12 months)", "Mid Term (1-2 years)", "Long Term (2+ years)". Near Term shows: Distributed Tracing Export, Enhanced Health Checks. Mid Term shows: Dynamic Server Discovery, Configuration Sync, SQL-Level Instrumentation. Long Term shows: Read Replica Routing, Connection Pool Autoscaling, Query Caching. Use different colors for observability (blue), operational (green), and performance (orange) enhancements. Add icons representing each feature.
+Create a roadmap visualization showing enhancement phases. Display a horizontal timeline with three phases: "Near Term (6-12 months)", "Mid Term (1-2 years)", "Long Term (2+ years)". Near Term shows: Enhanced Health Checks, SQL-Level Instrumentation. Mid Term shows: Dynamic Server Discovery, Configuration Sync. Long Term shows: Read Replica Routing, Connection Pool Autoscaling, Query Caching. Use different colors for observability (blue), operational (green), and performance (orange) enhancements. Add icons representing each feature.
 
-The roadmap remains intentionally flexible. Community priorities help shape which enhancements arrive first. If multiple users request dynamic discovery, it jumps in priority. If distributed tracing emerges as a critical need, it accelerates. Open-source projects thrive on this feedback loop—users identifying needs, contributors implementing solutions, and the maintainers integrating improvements into the core.
+The roadmap remains intentionally flexible. Community priorities help shape which enhancements arrive first. If multiple users request dynamic discovery, it jumps in priority. Open-source projects thrive on this feedback loop—users identifying needs, contributors implementing solutions, and the maintainers integrating improvements into the core.
 
 #### Prompt 4
 

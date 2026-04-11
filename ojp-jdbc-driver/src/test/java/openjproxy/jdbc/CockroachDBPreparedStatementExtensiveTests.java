@@ -344,4 +344,53 @@ class CockroachDBPreparedStatementExtensiveTests {
 
     // Note: testMaxRows, testQueryTimeout, and testFetchSize are removed due to OJP driver issues
     // with PreparedStatement methods called before execution. These work fine with Statement.
+
+    /**
+     * Reproduces the Spring Data saveAll / batch insert scenario with generated keys (issue #408).
+     * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is followed by
+     * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data uses for saveAll.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/cockroachdb_connection.csv")
+    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
+        Statement stmt = connection.createStatement();
+        try {
+            stmt.execute("DROP TABLE cockroachdb_batch_gen_keys_test");
+        } catch (SQLException ignore) {
+            // Table may not exist on first run; ignore the error and proceed with CREATE TABLE
+        }
+        stmt.execute("CREATE TABLE cockroachdb_batch_gen_keys_test (id SERIAL PRIMARY KEY, name VARCHAR(100))");
+        stmt.close();
+
+        // Reproduces: prepareStatement(sql, RETURN_GENERATED_KEYS) → addBatch() x N → executeBatch() → getGeneratedKeys()
+        ps = connection.prepareStatement("INSERT INTO cockroachdb_batch_gen_keys_test (name) VALUES (?)", Statement.RETURN_GENERATED_KEYS);
+
+        ps.setString(1, "Alice");
+        ps.addBatch();
+
+        ps.setString(1, "Bob");
+        ps.addBatch();
+
+        ps.setString(1, "Carol");
+        ps.addBatch();
+
+        int[] batchResults = ps.executeBatch();
+        assertEquals(3, batchResults.length, "All 3 batch rows should be inserted");
+        for (int result : batchResults) {
+            assertTrue(result >= 0 || result == Statement.SUCCESS_NO_INFO, "Each batch row should succeed");
+        }
+
+        ResultSet keys = ps.getGeneratedKeys();
+        assertNotNull(keys, "getGeneratedKeys() must not return null after batch insert");
+        int keyCount = 0;
+        while (keys.next()) {
+            long generatedId = keys.getLong(1);
+            assertTrue(generatedId > 0, "Each generated key must be positive");
+            keyCount++;
+        }
+        assertTrue(keyCount > 0, "At least one generated key must be returned");
+        keys.close();
+    }
 }

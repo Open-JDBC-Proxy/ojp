@@ -19,15 +19,26 @@ docker run --name ojp-oracle -e ORACLE_PASSWORD=testpassword -e APP_USER=testuse
 
 Wait for the database to fully start (may take a few minutes).
 
-### 2. Add Oracle JDBC Driver dependency 
+### 2. Add Oracle JDBC Driver
 
-Add the oracle jdbc driver or the desired version to the ojp-server pom.xml dependencies. For example:
+> **⚠️ For Version 0.4.0-beta and Later:**  
+> JDBC drivers are no longer added to pom.xml. Instead, download the driver and place it in the `ojp-libs` folder.
 
-        <dependency>
-            <groupId>com.oracle.database.jdbc</groupId>
-            <artifactId>ojdbc11</artifactId>
-            <version>23.8.0.25.04</version>
-        </dependency>
+Download the Oracle JDBC driver from [Oracle's website](https://www.oracle.com/database/technologies/jdbc-downloads.html) and place it in the `ojp-libs` directory:
+
+```bash
+# Download ojdbc11.jar from Oracle (requires Oracle account)
+# https://www.oracle.com/database/technologies/jdbc-downloads.html
+
+# Place in ojp-libs directory (create if it doesn't exist)
+mkdir -p ojp-libs
+cp ~/Downloads/ojdbc11.jar ./ojp-libs/
+
+# Verify the file is in place
+ls -lh ojp-libs/ojdbc11.jar
+```
+
+For more details on driver setup, see the [Database Drivers Configuration Guide](../configuration/DRIVERS_AND_LIBS.md).
 
 ### 3. Start OJP Server
 
@@ -72,4 +83,4 @@ Also can explicitly disable oracle tests as in:
 mvn test -DenableOracleTests=false
 ```
 
-To build a Docker image of ojp-server follow the above steps and then follow the [Build ojp-server docker image](/ojp-server/README.md) - OpenTelemetry integration and monitoring setup.
+To use Oracle with Docker deployment, see the [Docker Deployment Guide](../configuration/DOCKER_DEPLOYMENT.md) for volume mount instructions.

@@ -84,17 +84,22 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
-      - name: Test and Run (ojp-server)
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
+      - name: Start OJP Server container
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -116,7 +121,7 @@ jobs:
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
-        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 2: PostgreSQL Integration Tests
@@ -184,29 +189,36 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
       # Start first OJP server without SQL enhancer (default configuration)
       # Tests will run against this server via postgres_connection.csv (port 1059)
-      - name: Test and Run (ojp-server)
+      - name: Start OJP Server container
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
       # Tests will run against this server via postgres_connection.csv (port 10593)
       # OPTIMIZE mode enables conversion and optimization with schema loading support
       # PostgreSQL dialect ensures proper SQL parsing and validation
       # This ensures all PostgreSQL tests validate both configurations
-      - name: Test and Run (ojp-server-enhancer on port 10593)
+      - name: Start OJP Server container (SQL enhancer on port 10593)
         run: |
-          nohup java -Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-enhancer.log 2>&1 &
-          echo $! > /tmp/ojp-server-enhancer.pid
+          docker run -d --name ojp-server-enhancer \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -251,10 +263,10 @@ jobs:
         if: always()
         run: |
           echo "=== OJP Server (default) log ==="
-          cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+          docker logs ojp-server 2>&1 || echo "ojp-server container not found"
           echo ""
           echo "=== OJP Server (with SQL enhancer) log ==="
-          cat /tmp/ojp-server-enhancer.log || echo "/tmp/ojp-server-enhancer.log not found"
+          docker logs ojp-server-enhancer 2>&1 || echo "ojp-server-enhancer container not found"
 
   # ===========================================================================
   # JOB 3: MySQL Integration Tests
@@ -315,17 +327,22 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
-      - name: Test and Run (ojp-server)
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
+      - name: Start OJP Server container
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -346,10 +363,9 @@ jobs:
 
       - name: Show ojp-server.log
         if: always()
-        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
-  # JOB 4: MariaDB Integration Tests
   # ===========================================================================
   #
   # This job tests MariaDB database integration.
@@ -407,17 +423,22 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
-      - name: Test and Run (ojp-server)
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
+      - name: Start OJP Server container
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -438,7 +459,7 @@ jobs:
 
       - name: Show ojp-server.log
         if: always()
-        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 5: CockroachDB Integration Tests
@@ -489,17 +510,22 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
-      - name: Test and Run (ojp-server)
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
+      - name: Start OJP Server container
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -520,7 +546,7 @@ jobs:
 
       - name: Show ojp-server.log
         if: always()
-        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 6: DB2 Integration Tests  
@@ -621,23 +647,23 @@ jobs:
           
           echo "DB2 initialization complete"
 
-      # Download DB2 JDBC driver and place in ojp-libs directory
-      # Similar to Oracle, we handle it via drop-in mechanism
-      - name: Download DB2 JDBC Driver to ojp-libs
+      # Download DB2 JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
+      # Similar to Oracle, we handle it via the Jib extra directories mechanism
+      - name: Download DB2 JDBC Driver to ojp-server/ojp-libs
         run: |
-          # Create ojp-libs directory at repository root
-          mkdir -p ojp-libs
+          # Create ojp-server/ojp-libs directory for Jib to pick up during Docker image build
+          mkdir -p ojp-server/ojp-libs
           
           # Download DB2 JDBC driver from Maven Central
           echo "=== Downloading DB2 JDBC driver ==="
           mvn dependency:copy \
             -Dartifact=com.ibm.db2:jcc:11.5.9.0 \
-            -DoutputDirectory=ojp-libs \
+            -DoutputDirectory=ojp-server/ojp-libs \
             -Dmdep.stripVersion=false
           
           # Verify the download
-          echo "=== DB2 JDBC driver downloaded to ojp-libs ==="
-          ls -lh ojp-libs/
+          echo "=== DB2 JDBC driver downloaded to ojp-server/ojp-libs ==="
+          ls -lh ojp-server/ojp-libs/
 
       - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
@@ -652,17 +678,22 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
-      - name: Test and Run (ojp-server) with DB2 driver from ojp-libs
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
+      - name: Start OJP Server container with DB2 driver from ojp-server/ojp-libs
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -683,7 +714,7 @@ jobs:
 
       - name: Show ojp-server.log
         if: always()
-        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 7: Multinode Integration Tests
@@ -748,28 +779,33 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
       # Start first OJP server instance on port 10591
       - name: Start OJP Server 1 on port 10591
         run: |
-          # Start first server on port 10591 with Prometheus on 9159
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-1.log 2>&1 &
-          echo $! > /tmp/ojp-server-1.pid
-          echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9159 with PID $(cat /tmp/ojp-server-1.pid)"
+          docker run -d --name ojp-server-1 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9159"
 
       # Start second OJP server instance on port 10592
       - name: Start OJP Server 2 on port 10592
         run: |
-          # Start second server on port 10592 with Prometheus on 9160
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-2.log 2>&1 &
-          echo $! > /tmp/ojp-server-2.pid
-          echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9160 with PID $(cat /tmp/ojp-server-2.pid)"
+          docker run -d --name ojp-server-2 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9160"
 
       - name: Wait for OJP servers to start
         run: |
@@ -808,12 +844,12 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -lt 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT < 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -ge 25 ]; then
-              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
+              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 27!"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               exit 1
             else
@@ -832,10 +868,10 @@ jobs:
       - name: Kill OJP Server 1
         run: |
           echo "Killing OJP Server 1..."
-          if [ -f /tmp/ojp-server-1.pid ]; then
-            kill $(cat /tmp/ojp-server-1.pid) || true
-            echo "OJP Server 1 killed"
-          fi
+          docker logs ojp-server-1 > /tmp/ojp-server-1.log 2>&1 || true
+          docker stop ojp-server-1 || true
+          docker rm ojp-server-1 || true
+          echo "OJP Server 1 container stopped and removed"
           sleep 10
 
       # Verify failover: Connections should still be active on server 2
@@ -850,12 +886,12 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -lt 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT < 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -ge 25 ]; then
-              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
+              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 27!"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               exit 1
             else
@@ -874,9 +910,11 @@ jobs:
       - name: Restart OJP Server 1
         run: |
           echo "Restarting OJP Server 1..."
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9159 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-1-restart.log 2>&1 &
-          echo $! > /tmp/ojp-server-1-restart.pid
-          echo "OJP Server 1 restarted with PID $(cat /tmp/ojp-server-1-restart.pid)"
+          docker run -d --name ojp-server-1 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "OJP Server 1 container restarted"
           sleep 10
 
       # Verify recovery: Connections should be distributed across both servers again
@@ -891,12 +929,12 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -lt 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT < 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -ge 25 ]; then
-              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
+              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 27!"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               exit 1
             else
@@ -915,10 +953,10 @@ jobs:
       - name: Kill OJP Server 2
         run: |
           echo "Killing OJP Server 2..."
-          if [ -f /tmp/ojp-server-2.pid ]; then
-            kill $(cat /tmp/ojp-server-2.pid) || true
-            echo "OJP Server 2 killed"
-          fi
+          docker logs ojp-server-2 > /tmp/ojp-server-2.log 2>&1 || true
+          docker stop ojp-server-2 || true
+          docker rm ojp-server-2 || true
+          echo "OJP Server 2 container stopped and removed"
           sleep 10
 
       # Verify failover: Connections should migrate to server 1
@@ -933,12 +971,12 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -lt 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT < 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -ge 25 ]; then
-              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
+              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 27!"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               exit 1
             else
@@ -957,9 +995,11 @@ jobs:
       - name: Restart OJP Server 2
         run: |
           echo "Restarting OJP Server 2..."
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9160 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-2-restart.log 2>&1 &
-          echo $! > /tmp/ojp-server-2-restart.pid
-          echo "OJP Server 2 restarted with PID $(cat /tmp/ojp-server-2-restart.pid)"
+          docker run -d --name ojp-server-2 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "OJP Server 2 container restarted"
           sleep 10
 
       # Final verification: Both servers should be active
@@ -974,12 +1014,12 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -lt 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT < 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -ge 25 ]; then
-              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 25!"
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
+              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds maximum of 27!"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               exit 1
             else
@@ -1038,7 +1078,7 @@ jobs:
           cat /tmp/ojp-server-1.log || echo "/tmp/ojp-server-1.log not found"
           echo ""
           echo "=== OJP Server 1 Restart Log ==="
-          cat /tmp/ojp-server-1-restart.log || echo "/tmp/ojp-server-1-restart.log not found"
+          docker logs ojp-server-1 2>&1 || echo "ojp-server-1 container not found"
 
       - name: Show OJP Server 2 log
         if: always()
@@ -1047,7 +1087,7 @@ jobs:
           cat /tmp/ojp-server-2.log || echo "/tmp/ojp-server-2.log not found"
           echo ""
           echo "=== OJP Server 2 Restart Log ==="
-          cat /tmp/ojp-server-2-restart.log || echo "/tmp/ojp-server-2-restart.log not found"
+          docker logs ojp-server-2 2>&1 || echo "ojp-server-2 container not found"
 
       - name: Show MultinodeIntegrationTest log
         if: always()
@@ -1059,8 +1099,9 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          # Kill any remaining OJP server processes
-          pkill -f "ojp-server-0.3.2-snapshot-shaded.jar" || true
+          # Stop and remove any remaining OJP server containers
+          docker stop ojp-server-1 ojp-server-2 2>/dev/null || true
+          docker rm ojp-server-1 ojp-server-2 2>/dev/null || true
           # Stop Postgres container
           docker stop ojp-postgres-multinode || true
           docker rm ojp-postgres-multinode || true
@@ -1080,7 +1121,7 @@ jobs:
   # Database: PostgreSQL (with XA prepared transactions support)
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
-  # NOTE: Connection count checks expect 20-25 connections (XA pool only, non-XA pool disabled).
+  # NOTE: Connection count checks expect 20-27 connections (XA pool only, non-XA pool disabled).
   #
   # ===========================================================================
   multinode-xa-test:
@@ -1131,30 +1172,35 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
       # Start first OJP server instance on port 10591 with DEBUG logging
       - name: Start OJP Server 1 on port 10591
         run: |
-          # Start first server on port 10591 with Prometheus on 9161 (different from multinode-test to avoid conflicts)
-          # Enable DEBUG logging for XA pool operations
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-1.log 2>&1 &
-          echo $! > /tmp/ojp-server-xa-1.pid
-          echo "Started OJP Server 1 on gRPC port 10591, Prometheus port 9161 with DEBUG logging, PID $(cat /tmp/ojp-server-xa-1.pid)"
+          # Enable DEBUG logging for XA pool operations via JAVA_TOOL_OPTIONS
+          docker run -d --name ojp-server-xa-1 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9161 with DEBUG logging"
 
       # Start second OJP server instance on port 10592 with DEBUG logging
       - name: Start OJP Server 2 on port 10592
         run: |
-          # Start second server on port 10592 with Prometheus on 9162 (different from multinode-test to avoid conflicts)
-          # Enable DEBUG logging for XA pool operations
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-2.log 2>&1 &
-          echo $! > /tmp/ojp-server-xa-2.pid
-          echo "Started OJP Server 2 on gRPC port 10592, Prometheus port 9162 with DEBUG logging, PID $(cat /tmp/ojp-server-xa-2.pid)"
+          # Enable DEBUG logging for XA pool operations via JAVA_TOOL_OPTIONS
+          docker run -d --name ojp-server-xa-2 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9162 with DEBUG logging"
 
       - name: Wait for OJP servers to start
         run: |
@@ -1182,7 +1228,7 @@ jobs:
           sleep 20
 
       # Verify XA connection pooling is working
-      # Expected range: 20-25 connections (XA pool only, non-XA pool disabled)
+      # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
       # - XA pool max: 22 connections per server
       # - Plus 1-3 connections for SQL queries that count the connections themselves
       # - Lower bound of 20 accounts for partial pool initialization or connection release timing
@@ -1197,13 +1243,13 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            # Check for 20-25 connections (XA pool only, non-XA pool disabled)
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 25"
+            # Check for 20-27 connections (XA pool only, non-XA pool disabled)
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
-              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds expected maximum of 25!"
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
+              echo "✗ ERROR: Connection count ($CONNECTION_COUNT) exceeds expected maximum of 27!"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               exit 1
             else
@@ -1222,43 +1268,14 @@ jobs:
       - name: Kill OJP Server 1
         run: |
           echo "Killing OJP Server 1..."
-          if [ -f /tmp/ojp-server-xa-1.pid ]; then
-            SERVER_PID=$(cat /tmp/ojp-server-xa-1.pid)
-            kill $SERVER_PID || true
-            
-            # Wait for process to fully terminate (max 30s)
-            echo "Waiting for server process to terminate..."
-            for i in {1..30}; do
-              if ! kill -0 $SERVER_PID 2>/dev/null; then
-                echo "Server process terminated after ${i}s"
-                break
-              fi
-              sleep 1
-            done
-            
-            # Force kill if still alive
-            if kill -0 $SERVER_PID 2>/dev/null; then
-              echo "Force killing server process..."
-              kill -9 $SERVER_PID || true
-              sleep 2
-            fi
-            
-            # Wait for Prometheus port 9161 to be released
-            echo "Waiting for Prometheus port 9161 to be released..."
-            for i in {1..30}; do
-              if ! netstat -tuln | grep -q ':9161 '; then
-                echo "Port 9161 is now free after ${i}s"
-                break
-              fi
-              sleep 1
-            done
-            
-            echo "OJP Server 1 killed and ports released"
-          fi
+          docker logs ojp-server-xa-1 > /tmp/ojp-server-xa-1.log 2>&1 || true
+          docker stop ojp-server-xa-1 || true
+          docker rm ojp-server-xa-1 || true
+          echo "OJP Server 1 container stopped and removed"
           sleep 5
 
       # Verify XA failover: Connections should still be active on server 2
-      # Expected range: 20-25 connections (XA pool only, non-XA pool disabled)
+      # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
       # - XA pool max: 22 connections per server
       # - Plus 1-3 connections for SQL queries that count the connections themselves
       # - Lower bound of 20 accounts for partial pool initialization or connection release timing
@@ -1274,13 +1291,13 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
               # Allow temporary spike during pool rebalancing - wait up to TIMEOUT (600s) same as lower bound
-              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 25), waiting for pool rebalancing..."
+              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 27), waiting for pool rebalancing..."
             else
               # Count is below minimum - wait for connections to grow
               echo "Waiting for connections to reach at least 20... (currently: $CONNECTION_COUNT)"
@@ -1291,7 +1308,7 @@ jobs:
           done
           
           if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-25 (current: $CONNECTION_COUNT)"
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-27 (current: $CONNECTION_COUNT)"
             exit 1
           fi
 
@@ -1299,22 +1316,11 @@ jobs:
       - name: Restart OJP Server 1
         run: |
           echo "Restarting OJP Server 1..."
-          
-          # Double-check ports are free before restarting
-          echo "Verifying ports 10591 and 9161 are available..."
-          if netstat -tuln | grep -q ':10591 '; then
-            echo "Warning: Port 10591 still in use, waiting..."
-            sleep 5
-          fi
-          if netstat -tuln | grep -q ':9161 '; then
-            echo "Warning: Port 9161 still in use, waiting..."
-            sleep 5
-          fi
-          
-          # Start server
-          nohup java -Dojp.server.port=10591 -Dojp.prometheus.port=9161 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-1-restart.log 2>&1 &
-          echo $! > /tmp/ojp-server-xa-1-restart.pid
-          echo "OJP Server 1 restarted with PID $(cat /tmp/ojp-server-xa-1-restart.pid)"
+          docker run -d --name ojp-server-xa-1 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "OJP Server 1 container restarted"
           
           # Wait for server to fully start
           sleep 15
@@ -1324,7 +1330,7 @@ jobs:
           netstat -tuln | grep ':10591' || echo "Warning: Server might not be listening yet"
 
       # Verify XA recovery: Connections should be distributed across both servers again
-      # Expected range: 20-25 connections (XA pool only, non-XA pool disabled)
+      # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
       # - XA pool max: 22 connections per server
       # - Plus 1-3 connections for SQL queries that count the connections themselves
       # - Lower bound of 20 accounts for partial pool initialization or connection release timing
@@ -1340,13 +1346,13 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
               # Allow temporary spike during pool rebalancing - wait up to TIMEOUT (600s) same as lower bound
-              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 25), waiting for pool rebalancing..."
+              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 27), waiting for pool rebalancing..."
             else
               # Count is below minimum - wait for connections to grow
               echo "Waiting for connections to reach at least 20... (currently: $CONNECTION_COUNT)"
@@ -1357,7 +1363,7 @@ jobs:
           done
           
           if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-25 (current: $CONNECTION_COUNT)"
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-27 (current: $CONNECTION_COUNT)"
             exit 1
           fi
 
@@ -1365,43 +1371,14 @@ jobs:
       - name: Kill OJP Server 2
         run: |
           echo "Killing OJP Server 2..."
-          if [ -f /tmp/ojp-server-xa-2.pid ]; then
-            SERVER_PID=$(cat /tmp/ojp-server-xa-2.pid)
-            kill $SERVER_PID || true
-            
-            # Wait for process to fully terminate (max 30s)
-            echo "Waiting for server process to terminate..."
-            for i in {1..30}; do
-              if ! kill -0 $SERVER_PID 2>/dev/null; then
-                echo "Server process terminated after ${i}s"
-                break
-              fi
-              sleep 1
-            done
-            
-            # Force kill if still alive
-            if kill -0 $SERVER_PID 2>/dev/null; then
-              echo "Force killing server process..."
-              kill -9 $SERVER_PID || true
-              sleep 2
-            fi
-            
-            # Wait for Prometheus port 9162 to be released
-            echo "Waiting for Prometheus port 9162 to be released..."
-            for i in {1..30}; do
-              if ! netstat -tuln | grep -q ':9162 '; then
-                echo "Port 9162 is now free after ${i}s"
-                break
-              fi
-              sleep 1
-            done
-            
-            echo "OJP Server 2 killed and ports released"
-          fi
+          docker logs ojp-server-xa-2 > /tmp/ojp-server-xa-2.log 2>&1 || true
+          docker stop ojp-server-xa-2 || true
+          docker rm ojp-server-xa-2 || true
+          echo "OJP Server 2 container stopped and removed"
           sleep 5
 
       # Verify XA failover: Connections should migrate to server 1
-      # Expected range: 20-25 connections (XA pool only, non-XA pool disabled)
+      # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
       # - XA pool max: 22 connections per server
       # - Plus 1-3 connections for SQL queries that count the connections themselves
       # - Lower bound of 20 accounts for partial pool initialization or connection release timing
@@ -1417,13 +1394,13 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
               # Allow temporary spike during pool rebalancing - wait up to TIMEOUT (600s) same as lower bound
-              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 25), waiting for pool rebalancing..."
+              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 27), waiting for pool rebalancing..."
             else
               # Count is below minimum - wait for connections to grow
               echo "Waiting for connections to reach at least 20... (currently: $CONNECTION_COUNT)"
@@ -1434,7 +1411,7 @@ jobs:
           done
           
           if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-25 (current: $CONNECTION_COUNT)"
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-27 (current: $CONNECTION_COUNT)"
             exit 1
           fi
 
@@ -1442,22 +1419,11 @@ jobs:
       - name: Restart OJP Server 2
         run: |
           echo "Restarting OJP Server 2..."
-          
-          # Double-check ports are free before restarting
-          echo "Verifying ports 10592 and 9162 are available..."
-          if netstat -tuln | grep -q ':10592 '; then
-            echo "Warning: Port 10592 still in use, waiting..."
-            sleep 5
-          fi
-          if netstat -tuln | grep -q ':9162 '; then
-            echo "Warning: Port 9162 still in use, waiting..."
-            sleep 5
-          fi
-          
-          # Start server
-          nohup java -Dojp.server.port=10592 -Dojp.prometheus.port=9162 -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server-xa-2-restart.log 2>&1 &
-          echo $! > /tmp/ojp-server-xa-2-restart.pid
-          echo "OJP Server 2 restarted with PID $(cat /tmp/ojp-server-xa-2-restart.pid)"
+          docker run -d --name ojp-server-xa-2 \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
+          echo "OJP Server 2 container restarted"
           
           # Wait for server to fully start
           sleep 15
@@ -1467,7 +1433,7 @@ jobs:
           netstat -tuln | grep ':10592' || echo "Warning: Server might not be listening yet"
 
       # Final XA verification: Both servers should be active
-      # Expected range: 20-25 connections (XA pool only, non-XA pool disabled)
+      # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
       # - XA pool max: 22 connections per server
       # - Plus 1-3 connections for SQL queries that count the connections themselves
       # - Lower bound of 20 accounts for partial pool initialization or connection release timing
@@ -1483,13 +1449,13 @@ jobs:
             CONNECTION_COUNT=$(echo $CONNECTION_COUNT | tr -d '[:space:]')
             echo "Current connections: $CONNECTION_COUNT (elapsed: ${ELAPSED}s)"
             
-            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 25 ]; then
-              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 25"
+            if [ "$CONNECTION_COUNT" -ge 20 ] && [ "$CONNECTION_COUNT" -le 27 ]; then
+              echo "✓ Connection count is within expected range: 20 ≤ $CONNECTION_COUNT ≤ 27"
               PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SELECT datname, COUNT(*) AS connections FROM pg_stat_activity WHERE datname='defaultdb' GROUP BY datname ORDER BY connections DESC;"
               break
-            elif [ "$CONNECTION_COUNT" -gt 25 ]; then
+            elif [ "$CONNECTION_COUNT" -gt 27 ]; then
               # Allow temporary spike during pool rebalancing - wait up to TIMEOUT (600s) same as lower bound
-              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 25), waiting for pool rebalancing..."
+              echo "⚠ Connection count temporarily high ($CONNECTION_COUNT > 27), waiting for pool rebalancing..."
             else
               # Count is below minimum - wait for connections to grow
               echo "Waiting for connections to reach at least 20... (currently: $CONNECTION_COUNT)"
@@ -1500,7 +1466,7 @@ jobs:
           done
           
           if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-25 (current: $CONNECTION_COUNT)"
+            echo "✗ ERROR: Timeout after ${TIMEOUT}s - connection count never stabilized in range 20-27 (current: $CONNECTION_COUNT)"
             exit 1
           fi
 
@@ -1548,7 +1514,7 @@ jobs:
           cat /tmp/ojp-server-xa-1.log || echo "/tmp/ojp-server-xa-1.log not found"
           echo ""
           echo "=== OJP Server 1 Restart Log ==="
-          cat /tmp/ojp-server-xa-1-restart.log || echo "/tmp/ojp-server-xa-1-restart.log not found"
+          docker logs ojp-server-xa-1 2>&1 || echo "ojp-server-xa-1 container not found"
 
       - name: Show OJP Server 2 log
         if: always()
@@ -1557,7 +1523,7 @@ jobs:
           cat /tmp/ojp-server-xa-2.log || echo "/tmp/ojp-server-xa-2.log not found"
           echo ""
           echo "=== OJP Server 2 Restart Log ==="
-          cat /tmp/ojp-server-xa-2-restart.log || echo "/tmp/ojp-server-xa-2-restart.log not found"
+          docker logs ojp-server-xa-2 2>&1 || echo "ojp-server-xa-2 container not found"
 
       - name: Show MultinodeXAIntegrationTest log
         if: always()
@@ -1569,8 +1535,9 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          # Kill any remaining OJP server processes
-          pkill -f "ojp-server-0.3.2-snapshot-shaded.jar" || true
+          # Stop and remove any remaining OJP server containers
+          docker stop ojp-server-xa-1 ojp-server-xa-2 2>/dev/null || true
+          docker rm ojp-server-xa-1 ojp-server-xa-2 2>/dev/null || true
           # Stop Postgres container
           docker stop ojp-postgres-multinode-xa || true
           docker rm ojp-postgres-multinode-xa || true
@@ -1675,24 +1642,24 @@ jobs:
           
           echo "=== XA permissions granted successfully ==="
 
-      # Download Oracle JDBC driver and place in ojp-libs directory
+      # Download Oracle JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
       # We don't include it in the repository due to Oracle licensing
-      # The driver will be loaded at runtime via the drop-in mechanism
-      - name: Download Oracle JDBC Driver to ojp-libs
+      # The driver will be loaded at runtime via the Jib extra directories mechanism
+      - name: Download Oracle JDBC Driver to ojp-server/ojp-libs
         run: |
-          # Create ojp-libs directory at repository root
-          mkdir -p ojp-libs
+          # Create ojp-server/ojp-libs directory for Jib to pick up during Docker image build
+          mkdir -p ojp-server/ojp-libs
           
           # Download Oracle JDBC driver from Maven Central
           echo "=== Downloading Oracle JDBC driver ==="
           mvn dependency:copy \
             -Dartifact=com.oracle.database.jdbc:ojdbc11:23.8.0.25.04 \
-            -DoutputDirectory=ojp-libs \
+            -DoutputDirectory=ojp-server/ojp-libs \
             -Dmdep.stripVersion=false
           
           # Verify the download
-          echo "=== Oracle JDBC driver downloaded to ojp-libs ==="
-          ls -lh ojp-libs/
+          echo "=== Oracle JDBC driver downloaded to ojp-server/ojp-libs ==="
+          ls -lh ojp-server/ojp-libs/
 
       - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
@@ -1707,17 +1674,22 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
-      - name: Test and Run (ojp-server) with Oracle driver from ojp-libs
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
+      - name: Start OJP Server container with Oracle driver from ojp-server/ojp-libs
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1738,7 +1710,7 @@ jobs:
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
-        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 10: SQL Server Integration Tests
@@ -1774,23 +1746,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Download SQL Server JDBC driver and place in ojp-libs directory
-      # Similar to Oracle and DB2, we handle it via drop-in mechanism
-      - name: Download SQL Server JDBC Driver to ojp-libs
+      # Download SQL Server JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
+      # Similar to Oracle and DB2, we handle it via the Jib extra directories mechanism
+      - name: Download SQL Server JDBC Driver to ojp-server/ojp-libs
         run: |
-          # Create ojp-libs directory at repository root
-          mkdir -p ojp-libs
+          # Create ojp-server/ojp-libs directory for Jib to pick up during Docker image build
+          mkdir -p ojp-server/ojp-libs
           
           # Download SQL Server JDBC driver from Maven Central
           echo "=== Downloading SQL Server JDBC driver ==="
           mvn dependency:copy \
             -Dartifact=com.microsoft.sqlserver:mssql-jdbc:12.8.2.jre11 \
-            -DoutputDirectory=ojp-libs \
+            -DoutputDirectory=ojp-server/ojp-libs \
             -Dmdep.stripVersion=false
           
           # Verify the download
-          echo "=== SQL Server JDBC driver downloaded to ojp-libs ==="
-          ls -lh ojp-libs/
+          echo "=== SQL Server JDBC driver downloaded to ojp-server/ojp-libs ==="
+          ls -lh ojp-server/ojp-libs/
 
       - name: Set up JDK 22 for build
         uses: actions/setup-java@v4
@@ -1805,17 +1777,22 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 22
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-libs
+      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
-        run: bash ojp-server/download-drivers.sh ./ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 22
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
-      - name: Test and Run (ojp-server) with SQL Server driver from ojp-libs
+      - name: Build OJP Server Docker image
+        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+
+      - name: Start OJP Server container with SQL Server driver from ojp-server/ojp-libs
         run: |
-          nohup java -jar ojp-server/target/ojp-server-0.3.2-snapshot-shaded.jar > /tmp/ojp-server.log 2>&1 &
-          echo $! > /tmp/ojp-server.pid
+          docker run -d --name ojp-server \
+            --network host \
+            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
+            rrobetti/ojp:0.4.2-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1841,7 +1818,7 @@ jobs:
 
       - name: Show ojp-server.log
         if: always()  # ensures it runs even if previous steps fail
-        run: cat /tmp/ojp-server.log || echo "/tmp/ojp-server.log not found"
+        run: docker logs ojp-server 2>&1 || echo "ojp-server container not found"
 
   # ===========================================================================
   # JOB 11: Notify Integration Repository

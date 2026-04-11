@@ -114,7 +114,8 @@ docker run -d \
 Set JVM system properties:
 
 ```bash
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC \
+  -jar ojp-server.jar \
   -Dojp.server.sessionCleanup.enabled=true \
   -Dojp.server.sessionCleanup.timeoutMinutes=30 \
   -Dojp.server.sessionCleanup.intervalMinutes=5

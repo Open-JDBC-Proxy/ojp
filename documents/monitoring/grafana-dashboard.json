@@ -1,0 +1,281 @@
+{
+  "dashboard": {
+    "title": "OJP Query Result Cache Monitoring",
+    "tags": ["ojp", "cache", "performance"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Cache Hit Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(ojp_cache_hits_total[5m]) / (rate(ojp_cache_hits_total[5m]) + rate(ojp_cache_misses_total[5m]))",
+            "legendFormat": "Hit Rate - {{ datasource }}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percentunit",
+            "label": "Hit Rate",
+            "max": 1,
+            "min": 0
+          }
+        ],
+        "thresholds": [
+          {
+            "value": 0.6,
+            "colorMode": "critical",
+            "op": "lt",
+            "fill": true,
+            "line": true
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Cache Operations",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(ojp_cache_hits_total[5m])",
+            "legendFormat": "Hits - {{ datasource }}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(ojp_cache_misses_total[5m])",
+            "legendFormat": "Misses - {{ datasource }}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ops",
+            "label": "Operations/sec"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Query Execution Time (P95)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(ojp_query_execution_time_bucket{source=\"cache\"}[5m]))",
+            "legendFormat": "P95 Cache - {{ datasource }}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(ojp_query_execution_time_bucket{source=\"database\"}[5m]))",
+            "legendFormat": "P95 Database - {{ datasource }}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "s",
+            "label": "Latency",
+            "logBase": 1
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Cache Size (Memory)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "ojp_cache_size_bytes",
+            "legendFormat": "Size - {{ datasource }}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "bytes",
+            "label": "Memory Usage"
+          }
+        ],
+        "thresholds": [
+          {
+            "value": 500000000,
+            "colorMode": "critical",
+            "op": "gt",
+            "fill": true,
+            "line": true
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Cache Entries",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "ojp_cache_size_entries",
+            "legendFormat": "Entries - {{ datasource }}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Entry Count"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Cache Evictions",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 16, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(ojp_cache_evictions_total{reason=\"size\"}[5m])",
+            "legendFormat": "Size Evictions - {{ datasource }}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(ojp_cache_evictions_total{reason=\"ttl\"}[5m])",
+            "legendFormat": "TTL Evictions - {{ datasource }}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ops",
+            "label": "Evictions/sec"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Cache Invalidations",
+        "type": "graph",
+        "gridPos": {"x": 16, "y": 16, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(ojp_cache_invalidations_total[5m])",
+            "legendFormat": "Invalidations - {{ datasource }} - {{ table }}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ops",
+            "label": "Invalidations/sec"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Cache Rejections",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 24, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(ojp_cache_rejections_total[5m]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "unit": "ops"
+        },
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"value": 0, "color": "green"},
+            {"value": 10, "color": "yellow"},
+            {"value": 50, "color": "red"}
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "title": "Overall Hit Rate",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 24, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(ojp_cache_hits_total[5m])) / (sum(rate(ojp_cache_hits_total[5m])) + sum(rate(ojp_cache_misses_total[5m])))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "unit": "percentunit"
+        },
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"value": 0, "color": "red"},
+            {"value": 0.4, "color": "yellow"},
+            {"value": 0.6, "color": "green"}
+          ]
+        }
+      },
+      {
+        "id": 10,
+        "title": "Query Latency Improvement",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 24, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "(histogram_quantile(0.95, rate(ojp_query_execution_time_bucket{source=\"database\"}[5m])) - histogram_quantile(0.95, rate(ojp_query_execution_time_bucket{source=\"cache\"}[5m]))) / histogram_quantile(0.95, rate(ojp_query_execution_time_bucket{source=\"database\"}[5m]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "unit": "percentunit"
+        },
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"value": 0, "color": "red"},
+            {"value": 0.3, "color": "yellow"},
+            {"value": 0.5, "color": "green"}
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "title": "Total Memory Usage",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 24, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(ojp_cache_size_bytes)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "unit": "bytes"
+        },
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"value": 0, "color": "green"},
+            {"value": 1000000000, "color": "yellow"},
+            {"value": 2000000000, "color": "red"}
+          ]
+        }
+      }
+    ]
+  }
+}

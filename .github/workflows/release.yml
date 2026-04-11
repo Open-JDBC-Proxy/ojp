@@ -1,0 +1,339 @@
+# =============================================================================
+# OJP Release Workflow — One-Click Release to Maven Central & Docker Hub
+# =============================================================================
+#
+# OVERVIEW
+# --------
+# This workflow automates the full release cycle for all OJP modules:
+#
+#   1. Validates required secrets are configured
+#   2. Computes the release version (e.g. 0.4.1-SNAPSHOT → 0.4.1-beta)
+#      and the next development version (e.g. 0.4.1-beta → 0.4.2-SNAPSHOT)
+#   3. Bumps all pom.xml versions to the release version
+#   4. Builds all Maven modules (no tests)
+#   5. Deploys all library modules to Maven Central via Sonatype Central
+#   6. Builds and pushes the OJP Server Docker image to Docker Hub
+#   7. Updates all documentation to reference the new release version
+#   8. Creates a signed Git tag on the release commit
+#   9. Bumps all pom.xml versions to the next development version
+#  10. Commits and pushes all changes back to main
+#  11. Creates a GitHub Release with auto-generated release notes
+#      (based on merged PRs since the previous tag, categorised by label
+#       as defined in .github/release.yml)
+#
+# VERSION SCHEME
+# --------------
+# While the project is pre-1.0.0-GA, release versions carry a "-beta" suffix:
+#   0.4.1-SNAPSHOT  →  released as  0.4.1-beta  →  next dev  0.4.2-SNAPSHOT
+# After 1.0.0-GA the "-beta" suffix will be dropped.
+#
+# REQUIRED GITHUB SECRETS
+# -----------------------
+#   SONATYPE_USERNAME   Sonatype Central user-token username  (NOT your account username)
+#   SONATYPE_PASSWORD   Sonatype Central user-token password
+#   GPG_PRIVATE_KEY     ASCII-armored GPG private key (export: gpg --armor --export-secret-keys KEY_ID)
+#   GPG_PASSPHRASE      Passphrase for the GPG key
+#   DOCKERHUB_USER      Docker Hub username (currently: rrobetti)
+#   DOCKERHUB_TOKEN     Docker Hub access token (Settings → Security → Access Tokens)
+#
+# HOW TO TRIGGER
+# --------------
+#   GitHub UI → Actions → "Release to Maven Central & Docker Hub" → Run workflow
+#   Check "Dry run" to validate the version calculation and build without publishing.
+#
+# =============================================================================
+
+name: Release to Maven Central & Docker Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — build & version bump only, skip publishing and push'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  release:
+    name: Release OJP
+    runs-on: ubuntu-latest
+    # Minimal required permissions for this workflow
+    permissions:
+      contents: write   # push commits, create tags, create GitHub releases
+    # Prevent concurrent releases that could corrupt the version state
+    concurrency:
+      group: release
+      cancel-in-progress: false
+
+    steps:
+
+      # -----------------------------------------------------------------------
+      # 1. Validate required secrets (fast-fail before any version changes)
+      # -----------------------------------------------------------------------
+      - name: Validate required secrets
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          missing=()
+          [[ -z "${{ secrets.SONATYPE_USERNAME }}"  ]] && missing+=("SONATYPE_USERNAME")
+          [[ -z "${{ secrets.SONATYPE_PASSWORD }}"  ]] && missing+=("SONATYPE_PASSWORD")
+          [[ -z "${{ secrets.GPG_PRIVATE_KEY }}"    ]] && missing+=("GPG_PRIVATE_KEY")
+          [[ -z "${{ secrets.GPG_PASSPHRASE }}"     ]] && missing+=("GPG_PASSPHRASE")
+          [[ -z "${{ secrets.DOCKERHUB_USER }}"     ]] && missing+=("DOCKERHUB_USER")
+          [[ -z "${{ secrets.DOCKERHUB_TOKEN }}"    ]] && missing+=("DOCKERHUB_TOKEN")
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "ERROR: The following required secrets are not configured:" >&2
+            printf '  - %s\n' "${missing[@]}" >&2
+            echo "" >&2
+            echo "See documents/guides/RELEASE_PROCESS.md for setup instructions." >&2
+            exit 1
+          fi
+          echo "All required secrets are present."
+
+      # -----------------------------------------------------------------------
+      # 2. Checkout
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # A PAT with 'repo' scope is required so the workflow can push the
+          # version-bump commit back to main (GITHUB_TOKEN cannot push to
+          # protected branches by default).
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # -----------------------------------------------------------------------
+      # 3. Java + Maven settings (server credentials + GPG key import)
+      # -----------------------------------------------------------------------
+      - name: Set up JDK 22
+        uses: actions/setup-java@v4
+        with:
+          java-version: 22
+          distribution: 'temurin'
+          cache: maven
+          # Maven settings.xml will be generated with a <server> entry whose
+          # id matches <publishingServerId>central</publishingServerId> in pom.xml
+          server-id: central
+          server-username: SONATYPE_USERNAME
+          server-password: SONATYPE_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Configure Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # -----------------------------------------------------------------------
+      # 4. Compute release and next-development versions
+      # -----------------------------------------------------------------------
+      - name: Compute versions
+        id: versions
+        run: |
+          # Read current version from root pom, e.g. "0.4.1-SNAPSHOT"
+          CURRENT=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Current version: ${CURRENT}"
+
+          # Derive release version: strip -SNAPSHOT suffix, append -beta
+          # e.g. "0.4.1-SNAPSHOT" -> "0.4.1-beta"
+          if [[ "${CURRENT}" != *"-SNAPSHOT" ]]; then
+            echo "ERROR: Current version '${CURRENT}' does not end in -SNAPSHOT." >&2
+            echo "Only SNAPSHOT versions can be released." >&2
+            exit 1
+          fi
+          BASE="${CURRENT%-SNAPSHOT}"
+          RELEASE="${BASE}-beta"
+
+          # Derive next development version by incrementing the patch segment
+          # e.g. "0.4.1" -> "0.4.2-SNAPSHOT"
+          MAJOR=$(echo "${BASE}" | cut -d. -f1)
+          MINOR=$(echo "${BASE}" | cut -d. -f2)
+          PATCH=$(echo "${BASE}" | cut -d. -f3)
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT="${MAJOR}.${MINOR}.${NEXT_PATCH}-SNAPSHOT"
+
+          echo "Release version : ${RELEASE}"
+          echo "Next dev version: ${NEXT}"
+
+          echo "current=${CURRENT}"  >> "$GITHUB_OUTPUT"
+          echo "release=${RELEASE}"  >> "$GITHUB_OUTPUT"
+          echo "next=${NEXT}"        >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # 5. Set release version in all pom.xml files
+      # -----------------------------------------------------------------------
+      - name: Set release version (${{ steps.versions.outputs.release }})
+        run: |
+          mvn --batch-mode versions:set \
+              -DnewVersion=${{ steps.versions.outputs.release }} \
+              -DprocessAllModules=true \
+              -DgenerateBackupPoms=false \
+              --no-transfer-progress
+
+      # -----------------------------------------------------------------------
+      # 6. Build all modules (no tests) to validate the release
+      # -----------------------------------------------------------------------
+      - name: Build all modules (no tests)
+        run: |
+          mvn --batch-mode clean package \
+              -DskipTests \
+              -Dgpg.skip=true \
+              --no-transfer-progress
+
+      # -----------------------------------------------------------------------
+      # 7. Deploy all modules to Maven Central (libraries + ojp-server executable JAR)
+      # -----------------------------------------------------------------------
+      - name: Deploy to Maven Central
+        if: ${{ inputs.dry_run == false }}
+        env:
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          mvn --batch-mode deploy \
+              -DskipTests \
+              -Prelease \
+              --no-transfer-progress
+
+      # -----------------------------------------------------------------------
+      # 8. Build and push Docker image for ojp-server
+      #    Image tag is ${project.version} (e.g. rrobetti/ojp:0.4.1-beta)
+      # -----------------------------------------------------------------------
+      - name: Create ojp-libs directory for Jib
+        if: ${{ inputs.dry_run == false }}
+        run: mkdir -p ojp-server/ojp-libs
+
+      - name: Build and push Docker image (${{ steps.versions.outputs.release }})
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          mvn --batch-mode compile jib:build \
+              -pl ojp-server \
+              -Djib.to.auth.username="${{ secrets.DOCKERHUB_USER }}" \
+              -Djib.to.auth.password="${{ secrets.DOCKERHUB_TOKEN }}" \
+              -DskipTests \
+              --no-transfer-progress
+
+      # -----------------------------------------------------------------------
+      # 9. Update version references in all documentation (*.md files)
+      #    Replaces:  rrobetti/ojp:<old>   →  rrobetti/ojp:<new>
+      #               ojp-server-<old>     →  ojp-server-<new>  (filenames + URLs)
+      #               /ojp-server/<old>/   →  /ojp-server/<new>/  (Maven Central URL path)
+      #               <version><old></version>  →  <version><new></version>
+      # -----------------------------------------------------------------------
+      - name: Update documentation to ${{ steps.versions.outputs.release }}
+        run: |
+          NEW="${{ steps.versions.outputs.release }}"
+          echo "Updating documentation references to ${NEW}"
+
+          # Use sed with version-agnostic regex so any previous X.Y.Z-beta is replaced
+          find . -name "*.md" -not -path './.git/*' -print0 | xargs -0 sed -i \
+            -e "s|rrobetti/ojp:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta|rrobetti/ojp:${NEW}|g" \
+            -e "s|ojp-server-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta|ojp-server-${NEW}|g" \
+            -e "s|/ojp-server/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta/|/ojp-server/${NEW}/|g" \
+            -e "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta</version>|<version>${NEW}</version>|g"
+
+          echo "Files updated:"
+          git diff --name-only
+
+      # -----------------------------------------------------------------------
+      # 10. Commit release (pom changes + docs update) and create tag
+      # -----------------------------------------------------------------------
+      - name: Commit release pom changes and create tag
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          git add -A
+          git commit -m "chore(release): prepare release ${{ steps.versions.outputs.release }}"
+          git tag -a "v${{ steps.versions.outputs.release }}" \
+              -m "Release ${{ steps.versions.outputs.release }}"
+
+      # -----------------------------------------------------------------------
+      # 11. Set next development (SNAPSHOT) version
+      # -----------------------------------------------------------------------
+      - name: Set next development version (${{ steps.versions.outputs.next }})
+        run: |
+          mvn --batch-mode versions:set \
+              -DnewVersion=${{ steps.versions.outputs.next }} \
+              -DprocessAllModules=true \
+              -DgenerateBackupPoms=false \
+              --no-transfer-progress
+
+      - name: Commit next development version
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          git add -A
+          git commit -m "chore(release): prepare next development iteration ${{ steps.versions.outputs.next }}"
+
+      # -----------------------------------------------------------------------
+      # 12. Push commits and release tag to main
+      # -----------------------------------------------------------------------
+      - name: Push commits and tag
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          git push origin main
+          git push origin "v${{ steps.versions.outputs.release }}"
+
+      # -----------------------------------------------------------------------
+      # 13. Create GitHub Release from the new tag
+      #     Release notes are generated automatically from merged pull requests
+      #     since the previous release, categorised by label as defined in
+      #     .github/release.yml.  A fixed "Artifacts" footer is appended.
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release
+        if: ${{ inputs.dry_run == false }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag   = 'v${{ steps.versions.outputs.release }}';
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+
+            // Generate release notes from merged PRs since the previous tag.
+            // Categories are controlled by .github/release.yml.
+            const { data: generated } = await github.rest.repos.generateReleaseNotes({
+              owner,
+              repo,
+              tag_name:         tag,
+              target_commitish: 'main',
+            });
+
+            // Append a fixed artifacts footer to the auto-generated body.
+            const artifactsFooter = [
+              '',
+              '---',
+              '',
+              '### 📦 Artifacts',
+              `- **Maven Central:** [org.openjproxy](https://central.sonatype.com/search?q=org.openjproxy&smo=true)`,
+              `- **Docker Hub:** [rrobetti/ojp:${{ steps.versions.outputs.release }}](https://hub.docker.com/r/rrobetti/ojp)`,
+            ].join('\n');
+
+            await github.rest.repos.createRelease({
+              owner,
+              repo,
+              tag_name:   tag,
+              name:       generated.name,
+              body:       generated.body + artifactsFooter,
+              draft:      false,
+              prerelease: true,
+            });
+
+      # -----------------------------------------------------------------------
+      # Summary
+      # -----------------------------------------------------------------------
+      - name: Release summary
+        run: |
+          echo "### Release Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "**Mode:** Dry run (nothing was published)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Mode:** Full release" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Previous version | \`${{ steps.versions.outputs.current }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Released version | \`${{ steps.versions.outputs.release }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Next dev version | \`${{ steps.versions.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Maven Central:** https://central.sonatype.com/search?q=org.openjproxy" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Docker Hub:** https://hub.docker.com/r/rrobetti/ojp" >> "$GITHUB_STEP_SUMMARY"

@@ -6,13 +6,13 @@
 
     <name>OJP Datasource API</name>
     <artifactId>ojp-datasource-api</artifactId>
-    <version>0.3.2-snapshot</version>
+    <version>0.4.2-SNAPSHOT</version>
     <description>Connection Pool Abstraction API for OJP</description>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.3.2-snapshot</version>
+        <version>0.4.2-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -34,7 +34,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency>
 
@@ -42,7 +42,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.21.0</version>
+            <version>5.22.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -99,7 +99,57 @@
                     </execution>
                 </executions>
             </plugin>
-        </plugins>
-    </build>
+            <!--Signs the JARs for deployments-->
+            <!--<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin> -->
+            <!--Deploys to maven central-->
+            <!-- <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.8.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                </configuration>
+            </plugin>-->
+</plugins>
+</build>
+
+<!-- Add SCM and project info for Maven Central requirements -->
+    <scm>
+        <url>https://github.com/Open-J-Proxy/ojp</url>
+        <connection>scm:git:https://github.com/Open-J-Proxy/ojp.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com:Open-J-Proxy/ojp.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>rrobetti</id>
+            <name>Rogerio Robetti</name>
+        </developer>
+    </developers>
+
+    <url>https://github.com/Open-J-Proxy/ojp</url>
 
 </project>

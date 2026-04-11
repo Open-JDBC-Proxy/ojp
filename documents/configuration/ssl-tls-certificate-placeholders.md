@@ -95,7 +95,7 @@ This multi-layered approach ensures that even if a client is fully compromised, 
 Set properties when starting the OJP server:
 
 ```bash
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.sslrootcert=/etc/ojp/certs/ca-cert.pem \
   -Dojp.server.sslcert=/etc/ojp/certs/client-cert.pem \
   -Dojp.server.sslkey=/etc/ojp/certs/client-key.pem
@@ -110,7 +110,7 @@ export OJP_SERVER_SSLROOTCERT=/etc/ojp/certs/ca-cert.pem
 export OJP_SERVER_SSLCERT=/etc/ojp/certs/client-cert.pem
 export OJP_SERVER_SSLKEY=/etc/ojp/certs/client-key.pem
 
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 **Note**: JVM properties take precedence over environment variables.
@@ -154,7 +154,7 @@ ojp.datasource.url=jdbc:ojp[localhost:1059]_postgresql://dbhost:5432/mydb?ssl=tr
 
 ```bash
 # JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.sslrootcert=/etc/ojp/certs/postgresql/ca-cert.pem \
   -Dojp.server.sslcert=/etc/ojp/certs/postgresql/client-cert.pem \
   -Dojp.server.sslkey=/etc/ojp/certs/postgresql/client-key.pem
@@ -192,7 +192,7 @@ ojp.datasource.url=jdbc:ojp[localhost:1059]_mysql://dbhost:3306/mydb?useSSL=true
 
 ```bash
 # JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.mysql.truststore=file:///etc/ojp/certs/mysql/truststore.jks \
   -Dojp.server.mysql.truststorePassword=changeit \
   -Dojp.server.mysql.keystore=file:///etc/ojp/certs/mysql/keystore.jks \
@@ -223,7 +223,7 @@ MySQL/MariaDB can use standard Java SSL properties for basic SSL configuration, 
 **Server Configuration:**
 ```bash
 # Using standard Java SSL properties (limited functionality)
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Djavax.net.ssl.trustStore=/etc/ojp/certs/truststore.jks \
   -Djavax.net.ssl.trustStorePassword=changeit \
   -Djavax.net.ssl.keyStore=/etc/ojp/certs/keystore.jks \
@@ -256,7 +256,7 @@ ojp.datasource.url=jdbc:ojp[localhost:1059]_oracle:thin:@dbhost:2484/myservice?o
 
 ```bash
 # JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.oracle.wallet.location=/etc/ojp/wallet \
   -Doracle.net.tns_admin=/etc/ojp/tns
 
@@ -301,7 +301,7 @@ ojp.datasource.url=jdbc:ojp[localhost:1059]_oracle:thin:@mydb_ssl
 ```bash
 # Start OJP server with Oracle SSL JVM properties
 # Oracle JDBC driver will automatically use these properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Doracle.net.wallet_location=/etc/ojp/wallet \
   -Doracle.net.tns_admin=/etc/ojp/tns \
   -Doracle.net.ssl_server_dn_match=true \
@@ -329,7 +329,7 @@ ojp.datasource.url=jdbc:ojp[localhost:1059]_oracle:thin:@dbhost:2484/myservice?o
 **Server Configuration:**
 ```bash
 # Base SSL configuration via JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Doracle.net.ssl_server_dn_match=true \
   -Doracle.net.ssl_version=1.2 \
   -Dojp.server.oracle.custom.wallet=/etc/ojp/custom-wallet
@@ -360,7 +360,7 @@ ojp.datasource.url=jdbc:ojp[localhost:1059]_sqlserver://dbhost:1433;databaseName
 
 ```bash
 # JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.sqlserver.truststore=/etc/ojp/certs/sqlserver/truststore.jks \
   -Dojp.server.sqlserver.truststorePassword=changeit \
   -Dojp.server.sqlserver.keystore=/etc/ojp/certs/sqlserver/keystore.jks \
@@ -391,7 +391,7 @@ SQL Server JDBC driver can use standard Java SSL properties for basic SSL encryp
 **Server Configuration:**
 ```bash
 # Using standard Java SSL properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Djavax.net.ssl.trustStore=/etc/ojp/certs/truststore.jks \
   -Djavax.net.ssl.trustStorePassword=changeit
 ```
@@ -422,7 +422,7 @@ ojp.datasource.url=jdbc:ojp[localhost:1059]_db2://dbhost:50001/mydb:sslConnectio
 
 ```bash
 # JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.db2.truststore=/etc/ojp/certs/db2/truststore.jks \
   -Dojp.server.db2.truststorePassword=changeit \
   -Dojp.server.db2.keystore=/etc/ojp/certs/db2/keystore.jks \

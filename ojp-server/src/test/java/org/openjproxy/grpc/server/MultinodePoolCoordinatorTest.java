@@ -124,4 +124,45 @@ class MultinodePoolCoordinatorTest {
 
         assertEquals(1, allocation.getHealthyServers()); // Min 1
     }
+
+    @Test
+    void testUpdateHealthyServersReturnsAllocation() {
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+
+        List<String> servers = Arrays.asList("server1:1059", "server2:1059");
+        coordinator.calculatePoolSizes("conn1", TWENTY, FOUR, servers);
+
+        // updateHealthyServers must return the updated allocation so callers can use it
+        // directly without a second getPoolAllocation() call (which could race with a
+        // concurrent calculatePoolSizes() overwriting the map entry).
+        MultinodePoolCoordinator.PoolAllocation returned = coordinator.updateHealthyServers("conn1", ONE);
+
+        assertNotNull(returned, "updateHealthyServers should return the updated allocation");
+        assertEquals(ONE, returned.getHealthyServers());
+        assertEquals(TWENTY, returned.getCurrentMaxPoolSize()); // All load on 1 server
+
+        // Simulate the race: another thread calls calculatePoolSizes(), overwriting the map
+        // with a fresh allocation (healthyServers = totalServers = 2).
+        coordinator.calculatePoolSizes("conn1", TWENTY, FOUR, servers);
+
+        // The returned allocation from updateHealthyServers still reflects the correct (updated)
+        // health state even after the map was overwritten.
+        assertEquals(ONE, returned.getHealthyServers());
+        assertEquals(TWENTY, returned.getCurrentMaxPoolSize()); // Still correct!
+
+        // The map now has the fresh allocation with healthyServers = 2
+        MultinodePoolCoordinator.PoolAllocation mapAllocation = coordinator.getPoolAllocation("conn1");
+        assertEquals(TWO, mapAllocation.getHealthyServers());
+        assertEquals(TEN, mapAllocation.getCurrentMaxPoolSize());
+    }
+
+    @Test
+    void testUpdateHealthyServersReturnsNullForMissingConnHash() {
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+
+        // No allocation exists for this connHash
+        MultinodePoolCoordinator.PoolAllocation returned = coordinator.updateHealthyServers("missing", ONE);
+
+        assertNull(returned, "updateHealthyServers should return null when no allocation exists");
+    }
 }

@@ -1,13 +1,15 @@
 package org.openjproxy.grpc.server.action;
 
 import com.openjproxy.grpc.DbName;
-import org.openjproxy.grpc.server.CircuitBreaker;
-import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.MultinodeXaCoordinator;
-import org.openjproxy.grpc.server.ServerConfiguration;
+import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.SessionManager;
+import org.openjproxy.grpc.server.CircuitBreakerRegistry;
+import org.openjproxy.grpc.server.ServerConfiguration;
 import org.openjproxy.grpc.server.SlowQuerySegregationManager;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
+import org.openjproxy.grpc.server.metrics.SqlStatementMetrics;
+import org.openjproxy.grpc.server.sql.SqlEnhancerEngine;
 import org.openjproxy.xa.pool.XATransactionRegistry;
 import org.openjproxy.xa.pool.spi.XAConnectionPoolProvider;
 
@@ -18,7 +20,6 @@ import java.util.Map;
 /**
  * ActionContext holds all shared state and dependencies needed by Action classes.
  * This context is created once in StatementServiceImpl and passed to all actions.
- * 
  * Thread Safety: This class is thread-safe. All maps are ConcurrentHashMap.
  * Actions should not modify the context itself, only the data within the maps.
  */
@@ -75,6 +76,14 @@ public class ActionContext {
      */
     private final Map<String, SlowQuerySegregationManager> slowQuerySegregationManagers;
     
+    /**
+     * Map of connection hash to CacheConfiguration.
+     * Stores cache configuration for each datasource connection.
+     * Key: connection hash
+     * Value: cache configuration for query result caching
+     */
+    private final Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> cacheConfigurationMap;
+    
     // ========== XA Pool Provider ==========
     
     /**
@@ -104,20 +113,32 @@ public class ActionContext {
      * Thread-safe, shared across all actions.
      */
     private final SessionManager sessionManager;
-    
+
     /**
-     * Circuit breaker for protecting against cascading failures.
-     * Thread-safe, shared across all actions.
+     * Registry of circuit breakers providing isolated protection against cascading failures
+     * per datasource. Thread-safe and shared across all actions to ensure consistent
+     * state management.
      */
-    private final CircuitBreaker circuitBreaker;
+    private final CircuitBreakerRegistry circuitBreakerRegistry;
     
     /**
      * Server-wide configuration.
      * Immutable after construction.
      */
     private final ServerConfiguration serverConfiguration;
-    
-    // ========== Constructor ==========
+
+
+    /**
+     * SQL statement metrics from the registered OpenTelemetry instance
+     */
+    private final SqlStatementMetrics sqlStatementMetrics;
+
+    /**
+     *  SQL enhancer engine for parsing and enhancing SQL statements.
+     */
+    private final SqlEnhancerEngine sqlEnhancerEngine;
+
+    // ========== Constructors ==========
     
     public ActionContext(
             Map<String, DataSource> datasourceMap,
@@ -126,12 +147,14 @@ public class ActionContext {
             Map<String, UnpooledConnectionDetails> unpooledConnectionDetailsMap,
             Map<String, DbName> dbNameMap,
             Map<String, SlowQuerySegregationManager> slowQuerySegregationManagers,
+            Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> cacheConfigurationMap,
             XAConnectionPoolProvider xaPoolProvider,
             MultinodeXaCoordinator xaCoordinator,
             ClusterHealthTracker clusterHealthTracker,
             SessionManager sessionManager,
-            CircuitBreaker circuitBreaker,
-            ServerConfiguration serverConfiguration) {
+            CircuitBreakerRegistry circuitBreakerRegistry,
+            ServerConfiguration serverConfiguration,
+            SqlStatementMetrics sqlStatementMetrics, SqlEnhancerEngine sqlEnhancerEngine) {
         
         this.datasourceMap = datasourceMap;
         this.xaDataSourceMap = xaDataSourceMap;
@@ -139,12 +162,15 @@ public class ActionContext {
         this.unpooledConnectionDetailsMap = unpooledConnectionDetailsMap;
         this.dbNameMap = dbNameMap;
         this.slowQuerySegregationManagers = slowQuerySegregationManagers;
+        this.cacheConfigurationMap = cacheConfigurationMap;
         this.xaPoolProvider = xaPoolProvider;
         this.xaCoordinator = xaCoordinator;
         this.clusterHealthTracker = clusterHealthTracker;
         this.sessionManager = sessionManager;
-        this.circuitBreaker = circuitBreaker;
+        this.circuitBreakerRegistry = circuitBreakerRegistry;
         this.serverConfiguration = serverConfiguration;
+        this.sqlStatementMetrics = sqlStatementMetrics;
+        this.sqlEnhancerEngine = sqlEnhancerEngine;
     }
     
     // ========== Getters ==========
@@ -173,6 +199,10 @@ public class ActionContext {
         return slowQuerySegregationManagers;
     }
     
+    public Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> getCacheConfigurationMap() {
+        return cacheConfigurationMap;
+    }
+    
     public XAConnectionPoolProvider getXaPoolProvider() {
         return xaPoolProvider;
     }
@@ -193,11 +223,20 @@ public class ActionContext {
         return sessionManager;
     }
     
-    public CircuitBreaker getCircuitBreaker() {
-        return circuitBreaker;
+
+    public CircuitBreakerRegistry getCircuitBreakerRegistry() {
+        return circuitBreakerRegistry;
     }
     
     public ServerConfiguration getServerConfiguration() {
         return serverConfiguration;
+    }
+
+    public SqlStatementMetrics getSqlStatementMetrics() {
+        return sqlStatementMetrics;
+    }
+
+    public SqlEnhancerEngine getSqlEnhancerEngine() {
+        return sqlEnhancerEngine;
     }
 }

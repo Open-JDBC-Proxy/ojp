@@ -19,7 +19,7 @@ class ServerConfigurationTest {
         // Clear any system properties set during tests
         System.clearProperty("ojp.server.port");
         System.clearProperty("ojp.prometheus.port");
-        System.clearProperty("ojp.opentelemetry.enabled");
+        System.clearProperty("ojp.telemetry.enabled");
         System.clearProperty("ojp.opentelemetry.endpoint");
         System.clearProperty("ojp.server.threadPoolSize");
         System.clearProperty("ojp.server.maxRequestSize");
@@ -55,7 +55,7 @@ class ServerConfigurationTest {
         // Set JVM system properties
         System.setProperty("ojp.server.port", "8080");
         System.setProperty("ojp.prometheus.port", "9091");
-        System.setProperty("ojp.opentelemetry.enabled", "false");
+        System.setProperty("ojp.telemetry.enabled", "false");
         System.setProperty("ojp.opentelemetry.endpoint", "http://localhost:4317");
         System.setProperty("ojp.server.threadPoolSize", "100");
         System.setProperty("ojp.server.maxRequestSize", "8388608"); // 8MB
@@ -109,7 +109,7 @@ class ServerConfigurationTest {
 
     @Test
     void testBooleanValues() {
-        System.setProperty("ojp.opentelemetry.enabled", "true");
+        System.setProperty("ojp.telemetry.enabled", "true");
 
         ServerConfiguration config = new ServerConfiguration();
 
@@ -191,5 +191,69 @@ class ServerConfigurationTest {
         System.clearProperty("ojp.server.sessionCleanup.enabled");
         System.clearProperty("ojp.server.sessionCleanup.timeoutMinutes");
         System.clearProperty("ojp.server.sessionCleanup.intervalMinutes");
+    }
+
+    @Test
+    void testDefaultTracingConfiguration() {
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertFalse(config.isTracingEnabled());
+        assertEquals(ServerConfiguration.DEFAULT_TRACING_ENDPOINT, config.getTracingEndpoint());
+        assertEquals(ServerConfiguration.DEFAULT_TRACING_EXPORTER, config.getTracingExporter());
+        assertEquals(ServerConfiguration.DEFAULT_TRACING_SERVICE_NAME, config.getTracingServiceName());
+        assertEquals(ServerConfiguration.DEFAULT_TRACING_SAMPLE_RATE, config.getTracingSampleRate(), 0.001);
+    }
+
+    @Test
+    void testCustomTracingConfiguration() {
+        System.setProperty("ojp.tracing.enabled", "true");
+        System.setProperty("ojp.tracing.endpoint", "http://zipkin:9411/api/v2/spans");
+        System.setProperty("ojp.tracing.exporter", "zipkin");
+        System.setProperty("ojp.tracing.serviceName", "my-ojp");
+        System.setProperty("ojp.tracing.sampleRate", "0.5");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertTrue(config.isTracingEnabled());
+        assertEquals("http://zipkin:9411/api/v2/spans", config.getTracingEndpoint());
+        assertEquals("zipkin", config.getTracingExporter());
+        assertEquals("my-ojp", config.getTracingServiceName());
+        assertEquals(0.5, config.getTracingSampleRate(), 0.001);
+
+        // Cleanup
+        System.clearProperty("ojp.tracing.enabled");
+        System.clearProperty("ojp.tracing.endpoint");
+        System.clearProperty("ojp.tracing.exporter");
+        System.clearProperty("ojp.tracing.serviceName");
+        System.clearProperty("ojp.tracing.sampleRate");
+    }
+
+    @Test
+    void testOtlpTracingExporterConfiguration() {
+        System.setProperty("ojp.tracing.enabled", "true");
+        System.setProperty("ojp.tracing.exporter", "otlp");
+        System.setProperty("ojp.tracing.endpoint", "http://jaeger:4317");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertTrue(config.isTracingEnabled());
+        assertEquals("otlp", config.getTracingExporter());
+        assertEquals("http://jaeger:4317", config.getTracingEndpoint());
+
+        // Cleanup
+        System.clearProperty("ojp.tracing.enabled");
+        System.clearProperty("ojp.tracing.exporter");
+        System.clearProperty("ojp.tracing.endpoint");
+    }
+
+    @Test
+    void testInvalidTracingSampleRate() {
+        System.setProperty("ojp.tracing.sampleRate", "not-a-number");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_TRACING_SAMPLE_RATE, config.getTracingSampleRate(), 0.001);
+
+        System.clearProperty("ojp.tracing.sampleRate");
     }
 }

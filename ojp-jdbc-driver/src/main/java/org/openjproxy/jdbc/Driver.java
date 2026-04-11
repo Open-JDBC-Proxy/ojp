@@ -101,8 +101,17 @@ public class Driver implements java.sql.Driver {
             for (String key : ojpProperties.stringPropertyNames()) {
                 propertiesMap.put(key, ojpProperties.getProperty(key));
             }
+            
+            // Add cache configuration properties to the map
+            try {
+                CacheConfigurationBuilder.addCachePropertiesToMap(propertiesMap, dataSourceName);
+            } catch (Exception e) {
+                log.error("Failed to add cache configuration for datasource '{}': {}", dataSourceName, e.getMessage());
+                // Continue without cache configuration - caching will be disabled
+            }
+            
             connBuilder.addAllProperties(ProtoConverter.propertiesToProto(propertiesMap));
-            log.debug("Loaded ojp.properties with {} properties for dataSource: {}", ojpProperties.size(), dataSourceName);
+            log.debug("Loaded ojp.properties with {} properties for dataSource: {}", propertiesMap.size(), dataSourceName);
         }
         
         log.info("Calling connect() on statement service with URL: {}", connectionUrl);

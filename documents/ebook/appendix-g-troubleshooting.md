@@ -75,7 +75,7 @@ The JDBC driver must be accessible to your application's classloader. For Maven 
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.0-beta</version>
 </dependency>
 ```
 
@@ -319,7 +319,7 @@ hikariCP.maximumPoolSize=30
 Tune JVM heap size based on observed usage. Allocate enough heap for peak load plus headroom for garbage collection:
 
 ```bash
-java -Xms2g -Xmx4g -jar ojp-server.jar
+java -Duser.timezone=UTC -Xms2g -Xmx4g -jar ojp-server.jar
 ```
 
 Use `-Xms` (initial heap) close to `-Xmx` (maximum heap) to avoid heap resizing overhead. Monitor GC logs (`-Xlog:gc*:file=gc.log`) to verify GC behavior is acceptable—minor GCs should complete in under 100ms, major GCs should be infrequent.
@@ -542,10 +542,10 @@ For temporary debugging, use JVM properties to increase verbosity:
 
 ```bash
 # Enable debug logging for all OJP components
-java -Dojp.log.level=DEBUG -jar ojp-server.jar
+java -Duser.timezone=UTC -Dojp.log.level=DEBUG -jar ojp-server.jar
 
 # Enable debug logging for specific packages
-java -Dorg.openjproxy.grpc.client.level=DEBUG -jar ojp-server.jar
+java -Duser.timezone=UTC -Dorg.openjproxy.grpc.client.level=DEBUG -jar ojp-server.jar
 ```
 
 For permanent configuration, create or edit `logback.xml` in your classpath:
@@ -608,7 +608,7 @@ Unhandled exceptions in gRPC threads indicate errors not properly caught and han
 For deep gRPC protocol debugging, enable gRPC's native logging:
 
 ```bash
-java -Djava.util.logging.config.file=grpc-logging.properties -jar ojp-server.jar
+java -Duser.timezone=UTC -Djava.util.logging.config.file=grpc-logging.properties -jar ojp-server.jar
 ```
 
 Create `grpc-logging.properties`:

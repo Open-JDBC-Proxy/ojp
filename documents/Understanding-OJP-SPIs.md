@@ -83,23 +83,37 @@ The external libraries directory is configurable:
 export OJP_DRIVERS_PATH=/opt/ojp/external-libs
 
 # JVM system property
-java -Dojp.drivers.path=/opt/ojp/external-libs -jar ojp-server.jar
+java -Duser.timezone=UTC -Dojp.drivers.path=/opt/ojp/external-libs -jar ojp-server.jar
 ```
 
 **Default**: `./ojp-libs`
 
 ### Using with Docker
 
-**Built-in Drivers** (included in Docker image):
+> **🚨 Important for Version 0.4.0-beta and Later:** JDBC drivers are **NO LONGER included** in the OJP Server Docker image. You must download drivers and mount them into the `ojp-libs` directory.
+
+**Download and Mount Drivers**:
 ```bash
-# H2, PostgreSQL, MySQL, MariaDB are pre-installed
-docker run -d -p 1059:1059 rrobetti/ojp:latest
+# Download open source drivers (H2, PostgreSQL, MySQL, MariaDB)
+mkdir -p ./ojp-libs
+cd ojp-server
+bash download-drivers.sh ../ojp-libs
+cd ..
+
+# Run with drivers mounted
+docker run -d \
+  -p 1059:1059 \
+  -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
+  rrobetti/ojp:latest
 ```
 
 **Adding Proprietary Drivers**:
 ```bash
-# Create directory and add drivers
+# Create directory and add open source + proprietary drivers
 mkdir -p ./ojp-libs
+cd ojp-server
+bash download-drivers.sh ../ojp-libs
+cd ..
 cp ~/Downloads/ojdbc11.jar ./ojp-libs/
 
 # Mount as volume
@@ -127,7 +141,7 @@ cp ~/Downloads/mssql-jdbc-12.4.2.jar ./ojp-libs/
 
 **Step 3**: Run OJP Server:
 ```bash
-java -jar ojp-server-with-dependencies.jar
+java -Duser.timezone=UTC -jar ojp-server-with-dependencies.jar
 # Automatically loads drivers from ./ojp-libs
 ```
 

@@ -136,7 +136,8 @@ The client will use the JVM's default truststore (typically `$JAVA_HOME/lib/secu
 ### Using JVM System Properties
 
 ```bash
-java -Dojp.server.tls.enabled=true \
+java -Duser.timezone=UTC \
+     -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/etc/ojp/tls/server-keystore.jks \
      -Dojp.server.tls.keystore.password=changeit \
      -Dojp.server.tls.truststore.path=/etc/ojp/tls/server-truststore.jks \
@@ -155,13 +156,11 @@ export OJP_SERVER_TLS_TRUSTSTORE_PATH=/etc/ojp/tls/server-truststore.jks
 export OJP_SERVER_TLS_TRUSTSTORE_PASSWORD=changeit
 export OJP_SERVER_TLS_CLIENTAUTHREQUIRED=true
 
-java -jar ojp-server.jar
-```
-
-### Server TLS Only (No Client Authentication)
+java -Duser.timezone=UTC -jar ojp-server.jar
 
 ```bash
-java -Dojp.server.tls.enabled=true \
+java -Duser.timezone=UTC \
+     -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/etc/ojp/tls/server-keystore.jks \
      -Dojp.server.tls.keystore.password=changeit \
      -Dojp.server.tls.clientAuthRequired=false \
@@ -275,7 +274,8 @@ keytool -importcert -alias ojp-server \
 
 **Server:**
 ```bash
-java -Dojp.server.tls.enabled=true \
+java -Duser.timezone=UTC \
+     -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/opt/ojp/certs/server-keystore.jks \
      -Dojp.server.tls.keystore.password=devpassword \
      -jar ojp-server.jar
@@ -292,7 +292,8 @@ ojp.client.tls.truststore.password=devpassword
 
 **Server:**
 ```bash
-java -Dojp.server.tls.enabled=true \
+java -Duser.timezone=UTC \
+     -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/etc/ojp/ssl/server.jks \
      -Dojp.server.tls.keystore.password=${SERVER_KEYSTORE_PASSWORD} \
      -Dojp.server.tls.truststore.path=/etc/ojp/ssl/truststore.jks \
@@ -321,7 +322,8 @@ keytool -importkeystore \
         -srcstorepass changeit \
         -deststorepass changeit
 
-java -Dojp.server.tls.enabled=true \
+java -Duser.timezone=UTC \
+     -Dojp.server.tls.enabled=true \
      -Dojp.server.tls.keystore.path=/etc/ojp/ssl/server.jks \
      -Dojp.server.tls.keystore.password=changeit \
      -jar ojp-server.jar

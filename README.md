@@ -5,16 +5,17 @@
 
 [![security status](https:&#x2F;&#x2F;www.meterian.com/badge/gh/Open-J-Proxy/ojp/security?branch=main)](https:&#x2F;&#x2F;www.meterian.com/report/gh/Open-J-Proxy/ojp) [![stability status](https:&#x2F;&#x2F;www.meterian.com/badge/gh/Open-J-Proxy/ojp/stability?branch=main)](https:&#x2F;&#x2F;www.meterian.com/report/gh/Open-J-Proxy/ojp)
 
-[openjproxy.com](https://openjproxy.com) 
+Website 👉 [openjproxy.com](https://openjproxy.com) 
+
+Follow us on LinkedIn 👉 [Open J Proxy](https://www.linkedin.com/company/open-j-proxy) 
+
+[![Discord](https://img.shields.io/discord/1385189361565433927?label=Discord&logo=discord)](https://discord.gg/J5DdHpaUzu)
+
 ---
 
 A type 3 JDBC Driver and Layer 7 Proxy Server to decouple applications from relational database connection management.
 
 _"The only open-source JDBC Type 3 driver globally, this project introduces a transparent Quality-of-Service layer that decouples application performance from database bottlenecks. It's a must-try for any team struggling with data access contention, offering easy-to-implement back-pressure and pooling management." (Bruno Bossola - Java Champion and CTO @ Meterian.io)_  
-
-
-[![Discord](https://img.shields.io/discord/1385189361565433927?label=Discord&logo=discord)](https://discord.gg/J5DdHpaUzu)
-
 
 ---
 
@@ -28,6 +29,8 @@ _"The only open-source JDBC Type 3 driver globally, this project introduces a tr
 ## Value Proposition
 
 OJP protects your databases from overwhelming connection storms by acting as a smart backpressure mechanism. Instead of every application instance opening and holding connections, OJP orchestrates and optimizes database access through intelligent pooling, query flow control, and multi-database support. With minimal configuration changes, you replace native JDBC drivers gaining connection resilience, and safer scalability. Elastic scaling becomes simpler without putting your database at risk.
+
+Tested support for databases: **PostgreSQL, MySQL, MariaDB, Oracle, SQL Server, DB2, and H2**. Also compatible in principle with any database that provides a JDBC driver.
 
 ---
 ## Requirements
@@ -55,16 +58,20 @@ cd ..
 docker run --rm -d \
   --network host \
   -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.3.1-beta
+  rrobetti/ojp:0.4.1-beta
 ```
 
 **Alternative: Runnable JAR (No Docker)**
 
 ```bash
-# Download OJP Server JAR and open source drivers
-cd ojp-server
+# Download OJP Server JAR from Maven Central
+wget https://repo1.maven.org/maven2/org/openjproxy/ojp-server/0.4.1-beta/ojp-server-0.4.1-beta-shaded.jar
+chmod +x ojp-server-0.4.1-beta-shaded.jar
+
+# Download open source JDBC drivers
+curl -LO https://raw.githubusercontent.com/Open-J-Proxy/ojp/main/ojp-server/download-drivers.sh
 bash download-drivers.sh  # Downloads H2, PostgreSQL, MySQL, MariaDB to ojp-libs/
-java -jar ojp-server-0.3.2-snapshot-shaded.jar
+java -Duser.timezone=UTC -jar ojp-server-0.4.1-beta-shaded.jar
 ```
 
 📖 See [Executable JAR Setup Guide](documents/runnable-jar/README.md) for details.
@@ -74,7 +81,7 @@ java -jar ojp-server-0.3.2-snapshot-shaded.jar
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.1-beta</version>
 </dependency>
 ```
 
@@ -102,9 +109,11 @@ That's it! Your application now uses intelligent connection pooling through OJP.
 
 ## Alternative Setup: Executable JAR (No Docker)
 
-If Docker is not available in your environment, you can build and run OJP Server as a standalone JAR file:
+If Docker is not available in your environment, you can run OJP Server as a standalone JAR file downloaded directly from Maven Central — no source code or build tools required:
 
-📖 **[Executable JAR Setup Guide](documents/runnable-jar/README.md)** - Complete instructions for building and running OJP Server as a standalone executable JAR with all dependencies included.
+📖 **[Executable JAR Setup Guide](documents/runnable-jar/README.md)** - Complete instructions for downloading from Maven Central and running OJP Server as a standalone executable JAR with all dependencies included.
+
+> **For contributors:** If you need to build the JAR from source, see [Building from Source](documents/runnable-jar/BUILDING_FROM_SOURCE.md).
 
 ---
 
@@ -126,6 +135,7 @@ If Docker is not available in your environment, you can build and run OJP Server
 * **SQL Query Enhancement**: ⚠️ **EXPERIMENTAL (NOT RECOMMENDED)** - Optional SQL enhancer with Apache Calcite for query optimization. **Disabled by default.** Has known limitations with traditional JDBC databases (PostgreSQL, MySQL, Oracle, SQL Server). See [configuration documentation](documents/configuration/ojp-server-configuration.md#sql-enhancer-and-schema-loader-settings) for details.
 
 ### Further documents
+- [Docker Deployment Guide](documents/configuration/DOCKER_DEPLOYMENT.md) - Comprehensive guide for deploying OJP Server with Docker, including JVM parameter configuration, production examples, and troubleshooting.
 - [Drop-In External Libraries Support](documents/configuration/DRIVERS_AND_LIBS.md) - Add proprietary database drivers and libraries (Oracle JDBC, Oracle UCP, SQL Server, DB2) without recompiling.
 - [SSL/TLS Certificate Configuration Guide](documents/configuration/ssl-tls-certificate-placeholders.md) - Configure SSL/TLS certificates with server-side property placeholders for PostgreSQL, MySQL, Oracle, SQL Server, and DB2.
 - [Architectural decision records (ADRs)](documents/ADRs) - Technical decisions and rationale behind OJP's architecture.
@@ -144,6 +154,12 @@ If Docker is not available in your environment, you can build and run OJP Server
 
 ## Vision
 Provide a free and open-source solution for a relational database-agnostic proxy connection pool. The project is designed to help efficiently manage database connections in microservices, event-driven architectures, or serverless environments while maintaining high scalability and performance.
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned releases and upcoming features, including the path to 1.0.0 (production ready).
 
 ---
 

@@ -18,7 +18,7 @@ public class ServerConfiguration {
     // Configuration keys
     private static final String SERVER_PORT_KEY = "ojp.server.port";
     private static final String PROMETHEUS_PORT_KEY = "ojp.prometheus.port";
-    private static final String OPENTELEMETRY_ENABLED_KEY = "ojp.opentelemetry.enabled";
+    private static final String OPENTELEMETRY_ENABLED_KEY = "ojp.telemetry.enabled";
     private static final String OPENTELEMETRY_ENDPOINT_KEY = "ojp.opentelemetry.endpoint";
     private static final String THREAD_POOL_SIZE_KEY = "ojp.server.threadPoolSize";
     private static final String MAX_REQUEST_SIZE_KEY = "ojp.server.maxRequestSize";
@@ -57,6 +57,18 @@ public class ServerConfiguration {
     private static final String SESSION_TIMEOUT_MINUTES_KEY = "ojp.server.sessionCleanup.timeoutMinutes";
     private static final String SESSION_CLEANUP_INTERVAL_MINUTES_KEY = "ojp.server.sessionCleanup.intervalMinutes";
     
+    // Tracing configuration keys
+    private static final String TRACING_ENABLED_KEY = "ojp.tracing.enabled";
+    private static final String TRACING_ENDPOINT_KEY = "ojp.tracing.endpoint";
+    private static final String TRACING_EXPORTER_KEY = "ojp.tracing.exporter";
+    private static final String TRACING_SERVICE_NAME_KEY = "ojp.tracing.serviceName";
+    private static final String TRACING_SAMPLE_RATE_KEY = "ojp.tracing.sampleRate";
+
+    // Telemetry metrics configuration keys
+    private static final String TELEMETRY_GRPC_METRICS_ENABLED_KEY = "ojp.telemetry.grpc.metrics.enabled";
+    private static final String TELEMETRY_POOL_METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
+    private static final String TELEMETRY_CACHE_METRICS_ENABLED_KEY = "ojp.telemetry.cache.metrics.enabled";
+
     // TLS configuration keys
     private static final String TLS_ENABLED_KEY = "ojp.server.tls.enabled";
     private static final String TLS_KEYSTORE_PATH_KEY = "ojp.server.tls.keystore.path";
@@ -82,7 +94,7 @@ public class ServerConfiguration {
     public static final List<String> DEFAULT_PROMETHEUS_ALLOWED_IPS = List.of(IpWhitelistValidator.ALLOW_ALL_IPS); // Allow all by default
     public static final long DEFAULT_CIRCUIT_BREAKER_TIMEOUT = 60000; // 60 seconds
     public static final int DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 3; // 3 failures before opening the circuit breaker.
-    public static final boolean DEFAULT_SLOW_QUERY_SEGREGATION_ENABLED = true; // Enable slow query segregation by default
+    public static final boolean DEFAULT_SLOW_QUERY_SEGREGATION_ENABLED = false; // Disabled by default, opt-in
     public static final int DEFAULT_SLOW_QUERY_SLOT_PERCENTAGE = 20; // 20% of slots for slow queries
     public static final long DEFAULT_SLOW_QUERY_IDLE_TIMEOUT = 10000; // 10 seconds idle timeout
     public static final long DEFAULT_SLOW_QUERY_SLOW_SLOT_TIMEOUT = 120000; // 120 seconds slow slot timeout
@@ -113,6 +125,18 @@ public class ServerConfiguration {
     public static final long DEFAULT_SESSION_TIMEOUT_MINUTES = 30; // 30 minutes session timeout
     public static final long DEFAULT_SESSION_CLEANUP_INTERVAL_MINUTES = 5; // Run cleanup every 5 minutes
     
+    // Tracing default values
+    public static final boolean DEFAULT_TRACING_ENABLED = false; // Disabled by default, opt-in
+    public static final String DEFAULT_TRACING_ENDPOINT = "http://localhost:9411/api/v2/spans"; // Zipkin default
+    public static final String DEFAULT_TRACING_EXPORTER = "zipkin"; // "zipkin" or "otlp"
+    public static final String DEFAULT_TRACING_SERVICE_NAME = "ojp-server";
+    public static final double DEFAULT_TRACING_SAMPLE_RATE = 1.0; // 100% sampling when enabled
+
+    // Telemetry metrics default values
+    public static final boolean DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
+    public static final boolean DEFAULT_TELEMETRY_POOL_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
+    public static final boolean DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
+
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
     public static final boolean DEFAULT_TLS_CLIENT_AUTH_REQUIRED = false; // mTLS disabled by default
@@ -167,6 +191,18 @@ public class ServerConfiguration {
     private final long sessionTimeoutMinutes;
     private final long sessionCleanupIntervalMinutes;
     
+    // Tracing configuration
+    private final boolean tracingEnabled;
+    private final String tracingEndpoint;
+    private final String tracingExporter;
+    private final String tracingServiceName;
+    private final double tracingSampleRate;
+
+    // Telemetry metrics configuration
+    private final boolean telemetryGrpcMetricsEnabled;
+    private final boolean telemetryPoolMetricsEnabled;
+    private final boolean telemetryCacheMetricsEnabled;
+
     // TLS configuration
     private final boolean tlsEnabled;
     private final String tlsKeystorePath;
@@ -230,6 +266,18 @@ public class ServerConfiguration {
         this.tlsTruststoreType = getStringProperty(TLS_TRUSTSTORE_TYPE_KEY, "JKS");
         this.tlsClientAuthRequired = getBooleanProperty(TLS_CLIENT_AUTH_REQUIRED_KEY, DEFAULT_TLS_CLIENT_AUTH_REQUIRED);
 
+        // Tracing configuration
+        this.tracingEnabled = getBooleanProperty(TRACING_ENABLED_KEY, DEFAULT_TRACING_ENABLED);
+        this.tracingEndpoint = getStringProperty(TRACING_ENDPOINT_KEY, DEFAULT_TRACING_ENDPOINT);
+        this.tracingExporter = getStringProperty(TRACING_EXPORTER_KEY, DEFAULT_TRACING_EXPORTER);
+        this.tracingServiceName = getStringProperty(TRACING_SERVICE_NAME_KEY, DEFAULT_TRACING_SERVICE_NAME);
+        this.tracingSampleRate = getDoubleProperty(TRACING_SAMPLE_RATE_KEY, DEFAULT_TRACING_SAMPLE_RATE);
+
+        // Telemetry metrics configuration
+        this.telemetryGrpcMetricsEnabled = getBooleanProperty(TELEMETRY_GRPC_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED);
+        this.telemetryPoolMetricsEnabled = getBooleanProperty(TELEMETRY_POOL_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_POOL_METRICS_ENABLED);
+        this.telemetryCacheMetricsEnabled = getBooleanProperty(TELEMETRY_CACHE_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED);
+
         logConfigurationSummary();
     }
 
@@ -288,6 +336,19 @@ public class ServerConfiguration {
     private boolean getBooleanProperty(String key, boolean defaultValue) {
         String value = getStringProperty(key, String.valueOf(defaultValue));
         return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * Gets a double property value with validation.
+     */
+    private double getDoubleProperty(String key, double defaultValue) {
+        String value = getStringProperty(key, String.valueOf(defaultValue));
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            logger.warn("Invalid double value for property '{}': {}, using default: {}", key, value, defaultValue);
+            return defaultValue;
+        }
     }
 
     /**
@@ -350,6 +411,14 @@ public class ServerConfiguration {
             logger.info("  TLS Client Auth Required (mTLS): {}", tlsClientAuthRequired);
             logger.info("  TLS Keystore Type: {}", tlsKeystoreType);
             logger.info("  TLS Truststore Type: {}", tlsTruststoreType);
+        }
+        logger.info("Tracing Configuration:");
+        logger.info("  Tracing Enabled: {}", tracingEnabled);
+        if (tracingEnabled) {
+            logger.info("  Tracing Exporter: {}", tracingExporter);
+            logger.info("  Tracing Endpoint: {}", tracingEndpoint);
+            logger.info("  Tracing Service Name: {}", tracingServiceName);
+            logger.info("  Tracing Sample Rate: {}", tracingSampleRate);
         }
     }
     
@@ -547,6 +616,38 @@ public class ServerConfiguration {
     
     public boolean isTlsClientAuthRequired() {
         return tlsClientAuthRequired;
+    }
+
+    public boolean isTracingEnabled() {
+        return tracingEnabled;
+    }
+
+    public String getTracingEndpoint() {
+        return tracingEndpoint;
+    }
+
+    public String getTracingExporter() {
+        return tracingExporter;
+    }
+
+    public String getTracingServiceName() {
+        return tracingServiceName;
+    }
+
+    public double getTracingSampleRate() {
+        return tracingSampleRate;
+    }
+
+    public boolean isTelemetryGrpcMetricsEnabled() {
+        return telemetryGrpcMetricsEnabled;
+    }
+
+    public boolean isTelemetryPoolMetricsEnabled() {
+        return telemetryPoolMetricsEnabled;
+    }
+    
+    public boolean isTelemetryCacheMetricsEnabled() {
+        return telemetryCacheMetricsEnabled;
     }
     
 }

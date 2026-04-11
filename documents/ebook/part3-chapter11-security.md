@@ -80,12 +80,12 @@ Start the OJP Server with the certificate paths:
 
 ```bash
 # Using JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.sslrootcert=/etc/ojp/certs/ca-cert.pem
 
 # Or using environment variables
 export OJP_SERVER_SSLROOTCERT=/etc/ojp/certs/ca-cert.pem
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 **SSL Mode Reference:**
@@ -137,7 +137,7 @@ Start the OJP Server with certificate paths:
 
 ```bash
 # Using JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.mysql.truststore=file:///etc/ojp/certs/mysql/truststore.jks \
   -Dojp.server.mysql.truststorePassword=changeit \
   -Dojp.server.mysql.keystore=file:///etc/ojp/certs/mysql/keystore.jks \
@@ -146,7 +146,7 @@ java -jar ojp-server.jar \
 # Or using environment variables
 export OJP_SERVER_MYSQL_TRUSTSTORE=file:///etc/ojp/certs/mysql/truststore.jks
 export OJP_SERVER_MYSQL_TRUSTSTOREPASSWORD=changeit
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 MySQL typically uses Java keystores (JKS format) rather than PEM files:
@@ -176,14 +176,14 @@ Start the OJP Server with Oracle SSL configuration:
 
 ```bash
 # Using JVM properties (Oracle JDBC driver reads these automatically)
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Doracle.net.wallet_location=/etc/ojp/wallet \
   -Doracle.net.ssl_server_dn_match=true \
   -Djavax.net.ssl.trustStore=/etc/ojp/wallet/truststore.jks \
   -Djavax.net.ssl.trustStorePassword=changeit
 
 # Or with placeholder support
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.oracle.wallet=/etc/ojp/wallet
 ```
 
@@ -216,7 +216,7 @@ Start the OJP Server with certificate paths:
 
 ```bash
 # Using JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Dojp.server.sqlserver.truststore=/etc/ojp/certs/sqlserver/truststore.jks \
   -Dojp.server.sqlserver.truststorePassword=changeit \
   -Dojp.server.sqlserver.clientcert=/etc/ojp/certs/sqlserver/client-cert.pem \
@@ -225,14 +225,14 @@ java -jar ojp-server.jar \
 # Or using environment variables
 export OJP_SERVER_SQLSERVER_TRUSTSTORE=/etc/ojp/certs/sqlserver/truststore.jks
 export OJP_SERVER_SQLSERVER_TRUSTSTOREPASSWORD=changeit
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 ### SSL Certificate Path Placeholders
 
 One of the challenges with SSL/TLS configuration in OJP deployments is that certificate files reside on the OJP Server, not on client machines. Hardcoding certificate paths in JDBC connection URLs is inflexible and makes it difficult to manage certificates across different environments (development, staging, production).
 
-OJP Server 0.4.0-beta+ introduces **property placeholder support** that allows you to use placeholders like `${ojp.server.sslrootcert}` in JDBC URLs. The server automatically resolves these placeholders to actual certificate paths at runtime using JVM system properties or environment variables.
+OJP Server 0.4.1-beta+ introduces **property placeholder support** that allows you to use placeholders like `${ojp.server.sslrootcert}` in JDBC URLs. The server automatically resolves these placeholders to actual certificate paths at runtime using JVM system properties or environment variables.
 
 **How It Works:**
 
@@ -245,11 +245,11 @@ OJP Server 0.4.0-beta+ introduces **property placeholder support** that allows y
 2. **Server Configuration**: Start the OJP Server with JVM properties or environment variables:
    ```bash
    # Using JVM properties
-   java -jar ojp-server.jar -Dojp.server.sslrootcert=/etc/ojp/certs/ca-cert.pem
+   java -Duser.timezone=UTC -jar ojp-server.jar -Dojp.server.sslrootcert=/etc/ojp/certs/ca-cert.pem
    
    # Or using environment variables (property names converted to uppercase with underscores)
    export OJP_SERVER_SSLROOTCERT=/etc/ojp/certs/ca-cert.pem
-   java -jar ojp-server.jar
+   java -Duser.timezone=UTC -jar ojp-server.jar
    ```
 
 3. **Runtime Resolution**: When the server receives the connection request, it resolves `${ojp.server.sslrootcert}` to `/etc/ojp/certs/ca-cert.pem` before establishing the database connection.
@@ -312,7 +312,7 @@ Oracle (JVM-based without placeholders):
 ojp.datasource.url=jdbc:ojp[localhost:1059]_oracle:thin:@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCPS)(HOST=dbhost)(PORT=2484))(CONNECT_DATA=(SERVICE_NAME=myservice)))
 
 # Server started with JVM properties (no placeholders needed)
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Doracle.net.wallet_location=/etc/ojp/wallet \
   -Doracle.net.ssl_server_dn_match=true
 ```
@@ -336,7 +336,7 @@ Some databases, particularly **Oracle**, support reading SSL configuration direc
 
 For Oracle, you can configure SSL entirely through JVM properties:
 ```bash
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC -jar ojp-server.jar \
   -Doracle.net.wallet_location=/etc/ojp/wallet \
   -Doracle.net.tns_admin=/etc/ojp/tns \
   -Doracle.net.ssl_server_dn_match=true \
@@ -571,7 +571,7 @@ export OJP_SERVER_TLS_TRUSTSTORE_PATH=/etc/ojp/tls/server-truststore.jks
 export OJP_SERVER_TLS_TRUSTSTORE_PASSWORD=changeit
 export OJP_SERVER_TLS_CLIENTAUTHREQUIRED=true
 
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 **Configuration Properties Reference:**

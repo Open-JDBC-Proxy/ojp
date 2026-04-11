@@ -125,7 +125,7 @@ MySQL and MariaDB are widely deployed databases with excellent performance chara
 
 ### Driver Configuration
 
-MySQL and MariaDB drivers are included by default. Use the appropriate driver for your database:
+MySQL and MariaDB drivers must be downloaded before use. Use the `download-drivers.sh` script to get them. Use the appropriate driver for your database:
 
 **MySQL URL:**
 ```
@@ -480,11 +480,11 @@ SELECT max_workers_count FROM sys.dm_os_sys_info;
 
 ## H2 Database
 
-H2 is a lightweight Java database perfect for development and testing. It's included by default in OJP.
+H2 is a lightweight Java database perfect for development and testing. Download the H2 driver using the `download-drivers.sh` script before starting OJP.
 
 ### Driver Configuration
 
-H2 driver is included, no additional setup needed.
+Download the H2 driver using the provided script, then no additional configuration is needed.
 
 **In-Memory Database:**
 ```

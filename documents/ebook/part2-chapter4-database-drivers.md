@@ -18,41 +18,40 @@ OJP Server supports popular open-source databases. You must download the drivers
 
 ### Included Databases
 
-**[IMAGE PROMPT 1]**: Create an infographic showing the four included open-source databases:
+**[IMAGE PROMPT 1]**: Create an infographic showing the four supported open-source databases:
 - H2 (with logo) - Embedded/file-based
 - PostgreSQL (with logo) - Enterprise-grade
 - MySQL (with logo) - Widely-used
 - MariaDB (with logo) - MySQL-compatible
-Show each with a checkmark indicating "included by default"
+Show each with a download arrow indicating "download via script"
 Use professional database vendor style with clean icons
-Modern "batteries included" theme
+Modern "drop-in driver" theme
 
 ```mermaid
 graph TB
-    subgraph "Open Source Drivers - Included"
+    subgraph "Open Source Drivers - Download via Script"
     H2[H2 Database<br/>v2.3.232<br/>Embedded/File-based]
     PG[PostgreSQL<br/>v42.7.8<br/>Enterprise RDBMS]
     MY[MySQL<br/>v9.5.0<br/>Popular Open Source]
     MA[MariaDB<br/>v3.5.2<br/>MySQL Compatible]
     end
     
-    subgraph "OJP Docker Image"
-    DOCKER[Pre-installed<br/>Ready to Use]
+    subgraph "ojp-libs Directory"
+    LIBS[Place JARs here<br/>Mount as Volume]
     end
     
-    H2 --> DOCKER
-    PG --> DOCKER
-    MY --> DOCKER
-    MA --> DOCKER
+    H2 --> LIBS
+    PG --> LIBS
+    MY --> LIBS
+    MA --> LIBS
     
     style H2 fill:#1e5b8e
     style PG fill:#336791
     style MY fill:#4479a1
     style MA fill:#003545
-    style DOCKER fill:#4caf50
+    style LIBS fill:#4caf50
 ```
 
-These drivers are:
 These drivers must be downloaded before deployment. For runnable JAR deployments, use the download script. For Docker deployments, download drivers and mount them as a volume. All drivers are tested and verified to work correctly with OJP, and they're kept up-to-date with the latest stable versions from Maven Central.
 
 ### Using Docker with Open Source Drivers
@@ -77,7 +76,7 @@ bash download-drivers.sh ../ojp-libs
 cd ..
 
 # Step 2: Pull the OJP image
-docker pull rrobetti/ojp:0.3.1-beta
+docker pull rrobetti/ojp:0.4.0-beta
 
 # Step 3: Run OJP Server with drivers mounted
 docker run -d \
@@ -85,7 +84,7 @@ docker run -d \
   -p 1059:1059 \
   -p 9159:9159 \
   -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.3.1-beta
+  rrobetti/ojp:0.4.0-beta
 
 # Step 4: Check logs to verify driver loading
 docker logs ojp-server | grep "driver"
@@ -130,7 +129,7 @@ docker run -d \
   -p 1059:1059 \
   -p 9159:9159 \
   -v $(pwd)/my-drivers:/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.3.1-beta
+  rrobetti/ojp:0.4.0-beta
 
 # Step 5: Verify your drivers loaded
 docker logs ojp-server | grep "driver"
@@ -149,30 +148,6 @@ docker logs ojp-server | grep "driver"
 - **Legacy support**: Deploy older driver versions for legacy databases
 - **Optimization**: Load only the drivers you actually use
 - **Testing**: Try new driver versions before committing to production
-
-**Alternative: Build Custom Image**:
-
-For production deployments where you want to bake drivers into your container image permanently:
-
-```dockerfile
-FROM rrobetti/ojp:0.3.1-beta
-
-# Remove bundled drivers
-RUN rm -rf /opt/ojp/ojp-libs/*.jar
-
-# Add your specific drivers (open-source or proprietary)
-COPY drivers/*.jar /opt/ojp/ojp-libs/
-```
-
-```bash
-# Build your custom image
-docker build -t my-company/ojp:custom-drivers .
-
-# Deploy with your driver configuration locked in
-docker run -d -p 1059:1059 my-company/ojp:custom-drivers
-```
-
-This approach is ideal when you want to version and distribute a standardized OJP configuration with specific driver versions through your container registry.
 
 ### Automatic Driver Download (Runnable JAR)
 
@@ -216,7 +191,7 @@ The script handles everything automatically. It downloads drivers from Maven Cen
 bash download-drivers.sh /opt/ojp/drivers
 
 # Update server startup
-java -Dojp.libs.path=/opt/ojp/drivers -jar ojp-server.jar
+java -Duser.timezone=UTC -Dojp.libs.path=/opt/ojp/drivers -jar ojp-server.jar
 ```
 
 ### Driver Verification
@@ -313,7 +288,7 @@ graph LR
 | Oracle | ojdbc11.jar | [Oracle JDBC Downloads](https://www.oracle.com/database/technologies/jdbc-downloads.html) |
 | SQL Server | mssql-jdbc-*.jar | [Microsoft JDBC Downloads](https://learn.microsoft.com/en-us/sql/connect/jdbc/download-microsoft-jdbc-driver-for-sql-server) |
 | DB2 | db2jcc*.jar | IBM Support / DB2 installation |
-| CockroachDB | postgresql-*.jar | Compatible with PostgreSQL driver (included!) |
+| CockroachDB | postgresql-*.jar | Compatible with PostgreSQL driver (download via script) |
 
 ### Oracle Database Setup
 
@@ -346,7 +321,7 @@ ls -lh ojp-libs/ojdbc11.jar
 **Runnable JAR with Oracle**:
 
 ```bash
-java -jar ojp-server-0.3.1-beta-shaded.jar
+java -Duser.timezone=UTC -jar ojp-server-0.4.0-beta-shaded.jar
 # Server will automatically load ojdbc11.jar from ./ojp-libs
 ```
 
@@ -362,7 +337,7 @@ docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.3.1-beta
+  rrobetti/ojp:0.4.0-beta
 ```
 
 #### Oracle with UCP (Optional - Advanced)
@@ -502,7 +477,7 @@ Professional compatibility guide
 Good news! CockroachDB uses the PostgreSQL wire protocol:
 
 ```java
-// CockroachDB works with the included PostgreSQL driver!
+// CockroachDB works with the downloaded PostgreSQL driver!
 String url = "jdbc:ojp[localhost:1059]_postgresql://localhost:26257/mydb?" +
              "sslmode=disable";
 Connection conn = DriverManager.getConnection(url, "root", "");
@@ -513,7 +488,7 @@ String clusterUrl = "jdbc:ojp[localhost:1059]_postgresql://" +
                     "sslmode=require&load_balance=true";
 ```
 
-**No additional driver required** - the included PostgreSQL driver works out of the box!
+**No additional driver required** - CockroachDB works with the PostgreSQL driver (download via `download-drivers.sh`).
 
 ---
 
@@ -656,7 +631,7 @@ java -Dojp.libs.path=/opt/ojp/drivers \
 ```bash
 # Alternative: use environment variable
 export OJP_LIBS_PATH=/opt/ojp/drivers
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 **Docker Volume Mount**:
@@ -665,7 +640,7 @@ java -jar ojp-server.jar
 # Mount external directory
 docker run -d \
   -v /host/path/to/libs:/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.3.1-beta
+  rrobetti/ojp:0.4.0-beta
 ```
 
 **Kubernetes ConfigMap** (for small JARs):
@@ -710,7 +685,7 @@ Perfect for development and testing:
 
 ```bash
 # No separate database needed!
-# H2 driver is included
+# H2 driver must be downloaded first (see download-drivers.sh)
 
 # File-based H2 database
 String url = "jdbc:ojp[localhost:1059]_h2:~/testdb";
@@ -780,7 +755,7 @@ version: '3.8'
 
 services:
   ojp-server:
-    image: rrobetti/ojp:0.3.1-beta
+    image: rrobetti/ojp:0.4.0-beta
     ports:
       - "1059:1059"
       - "9159:9159"
@@ -947,14 +922,13 @@ public class OjpDriverTest {
 
 You now have complete knowledge of database driver configuration for OJP:
 
-✅ **Open Source Drivers**: H2, PostgreSQL, MySQL, MariaDB included by default  
+✅ **Open Source Drivers**: H2, PostgreSQL, MySQL, MariaDB via `download-drivers.sh`  
 ✅ **Proprietary Drivers**: Oracle, SQL Server, DB2 via drop-in mechanism  
 ✅ **Flexible Loading**: ojp-libs directory with automatic discovery  
 ✅ **Testing Strategies**: Docker Compose, Testcontainers, manual verification  
 
 **Key Takeaways**:
-- Docker images are "batteries included" for open-source databases
-- Use `download-drivers.sh` for runnable JAR deployments
+- Use `download-drivers.sh` to download open-source drivers for both Docker and runnable JAR deployments
 - Add proprietary drivers by placing JARs in `ojp-libs` directory
 - No recompilation needed - drivers loaded automatically at startup
 - Test your setup with simple connection tests

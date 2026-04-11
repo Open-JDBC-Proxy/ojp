@@ -4,6 +4,7 @@ import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.TransactionStatus;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.grpc.server.cache.CacheConfiguration;
 
 import javax.sql.XAConnection;
 import java.sql.CallableStatement;
@@ -23,6 +24,24 @@ public class SessionManagerImpl implements SessionManager {
 
     private Map<String, String> connectionHashMap = new ConcurrentHashMap<>();
     private Map<String, Session> sessionMap = new ConcurrentHashMap<>();
+    private final Map<String, CacheConfiguration> cacheConfigurationMap;
+
+    /**
+     * Default constructor - no cache configuration support.
+     * Used for backward compatibility with existing code.
+     */
+    public SessionManagerImpl() {
+        this(null);
+    }
+
+    /**
+     * Constructor with cache configuration map.
+     * 
+     * @param cacheConfigurationMap Map of connection hash to cache configuration (can be null)
+     */
+    public SessionManagerImpl(Map<String, CacheConfiguration> cacheConfigurationMap) {
+        this.cacheConfigurationMap = cacheConfigurationMap;
+    }
 
     @Override
     public void registerClientUUID(String connectionHash, String clientUUID) {
@@ -33,7 +52,9 @@ public class SessionManagerImpl implements SessionManager {
     @Override
     public SessionInfo createSession(String clientUUID, Connection connection) {
         log.info("Create session for client uuid " + clientUUID);
-        Session session = new Session(connection, connectionHashMap.get(clientUUID), clientUUID);
+        String connectionHash = connectionHashMap.get(clientUUID);
+        CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
+        Session session = new Session(connection, connectionHash, clientUUID, false, null, cacheConfig);
         log.info("Session " + session.getSessionUUID() + " created for client uuid " + clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
@@ -42,7 +63,9 @@ public class SessionManagerImpl implements SessionManager {
     @Override
     public SessionInfo createXASession(String clientUUID, Connection connection, XAConnection xaConnection) {
         log.info("Create XA session for client uuid " + clientUUID);
-        Session session = new Session(connection, connectionHashMap.get(clientUUID), clientUUID, true, xaConnection);
+        String connectionHash = connectionHashMap.get(clientUUID);
+        CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
+        Session session = new Session(connection, connectionHash, clientUUID, true, xaConnection, cacheConfig);
         log.info("XA Session " + session.getSessionUUID() + " created for client uuid " + clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
@@ -51,11 +74,26 @@ public class SessionManagerImpl implements SessionManager {
     @Override
     public SessionInfo createDeferredXASession(String clientUUID, String connectionHash) {
         log.info("Create deferred XA session for client uuid " + clientUUID);
+        CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
         // Create session without XAConnection - will be bound later via bindXAConnection()
-        Session session = new Session(null, connectionHash, clientUUID, true, null);
+        Session session = new Session(null, connectionHash, clientUUID, true, null, cacheConfig);
         log.info("Deferred XA Session " + session.getSessionUUID() + " created for client uuid " + clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
+    }
+
+    /**
+     * Retrieves cache configuration for the given connection hash.
+     * Returns null if no configuration is found or if cache configuration map is not set.
+     * 
+     * @param connectionHash the connection hash
+     * @return the cache configuration, or null if not found
+     */
+    private CacheConfiguration getCacheConfiguration(String connectionHash) {
+        if (cacheConfigurationMap == null || connectionHash == null) {
+            return null;
+        }
+        return cacheConfigurationMap.get(connectionHash);
     }
 
     @Override

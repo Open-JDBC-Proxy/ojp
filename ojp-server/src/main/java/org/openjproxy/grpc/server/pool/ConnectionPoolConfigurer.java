@@ -127,7 +127,10 @@ public class ConnectionPoolConfigurer {
             log.info("Cluster health changed for {}, healthy servers: {}, triggering pool rebalancing", 
                     connHash, healthyServerCount);
             
-            // Update the pool coordinator with new healthy server count
+            // Update the pool coordinator with new healthy server count.
+            // Use the returned allocation to avoid a race condition where a concurrent
+            // calculatePoolSizes() call could overwrite the map entry before applyPoolSizeChanges
+            // reads it back via getPoolAllocation().
             poolCoordinator.updateHealthyServers(connHash, healthyServerCount);
             
             // Apply new pool sizes to existing HikariDataSource if provided

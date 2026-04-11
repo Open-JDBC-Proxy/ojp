@@ -828,11 +828,328 @@ public DataSource createDataSource(PoolConfig config) throws SQLException {
 }
 ```
 
-### Documentation and Support
+## 12.7 Implementing Telemetry for Custom Providers
 
-Comprehensive documentation makes the difference between a provider that sees adoption and one that languishes unused. Document supported configuration properties with examples, provide performance characteristics and benchmarks, explain error messages and troubleshooting steps, include migration guides from standard providers, and maintain a changelog across provider versions.
+OJP's telemetry infrastructure provides comprehensive observability into connection pool behavior through OpenTelemetry metrics. When implementing a custom pool provider—whether for standard connections or XA distributed transactions—integrating with this telemetry system gives operators visibility into your pool's performance and health alongside OJP's built-in providers.
 
-Consider creating example configurations for common scenarios. Users shouldn't need to reverse-engineer your provider's behavior from source code.
+### Understanding OJP's Telemetry Architecture
+
+OJP uses OpenTelemetry as its observability foundation, exporting metrics through Prometheus for visualization in Grafana and other monitoring systems. The telemetry system operates on a three-tier configuration model: a master switch (`ojp.telemetry.enabled`) controls whether the OpenTelemetry SDK initializes at all, while granular flags (`ojp.telemetry.grpc.metrics.enabled` and `ojp.telemetry.pool.metrics.enabled`) control specific metric categories within an initialized system.
+
+For custom providers, this means your metrics implementation should check these configuration flags and respect user preferences. The system provides a globally registered OpenTelemetry instance through `OpenTelemetryHolder`, eliminating the need to manage OpenTelemetry lifecycle in your provider code.
+
+### Telemetry for Standard Connection Pool Providers
+
+Standard connection pool providers should follow the pattern established by HikariCP's integration. The key is obtaining the global OpenTelemetry instance and creating gauges that track your pool's current state:
+
+```java
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.ObservableDoubleGauge;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
+
+public class CustomConnectionPoolProvider implements ConnectionPoolProvider {
+    
+    @Override
+    public DataSource createDataSource(PoolConfig config) throws SQLException {
+        // Create your pool
+        CustomDataSource ds = createPool(config);
+        
+        // Initialize metrics if enabled
+        if (isTelemetryEnabled() && isPoolMetricsEnabled()) {
+            String poolName = config.getPoolName() != null 
+                ? config.getPoolName() : "custom-pool";
+            initializeMetrics(ds, poolName);
+        }
+        
+        return ds;
+    }
+    
+    private void initializeMetrics(CustomDataSource ds, String poolName) {
+        try {
+            OpenTelemetry openTelemetry = getOpenTelemetryInstance();
+            if (openTelemetry == null) {
+                return; // OpenTelemetry not available
+            }
+            
+            Meter meter = openTelemetry.getMeter("ojp-custom-pool");
+            Attributes attributes = Attributes.of(
+                AttributeKey.stringKey("pool.name"), poolName
+            );
+            
+            // Active connections gauge
+            meter.gaugeBuilder("ojp.custom.pool.connections.active")
+                .setDescription("Number of active connections currently in use")
+                .buildWithCallback(measurement -> {
+                    measurement.record(ds.getActiveConnections(), attributes);
+                });
+            
+            // Idle connections gauge
+            meter.gaugeBuilder("ojp.custom.pool.connections.idle")
+                .setDescription("Number of idle connections available in the pool")
+                .buildWithCallback(measurement -> {
+                    measurement.record(ds.getIdleConnections(), attributes);
+                });
+            
+            // Pending threads gauge
+            meter.gaugeBuilder("ojp.custom.pool.connections.pending")
+                .setDescription("Number of threads waiting for connections")
+                .buildWithCallback(measurement -> {
+                    measurement.record(ds.getPendingThreads(), attributes);
+                });
+            
+            // Pool size limits
+            meter.gaugeBuilder("ojp.custom.pool.connections.max")
+                .setDescription("Maximum pool size")
+                .buildWithCallback(measurement -> {
+                    measurement.record(ds.getMaxPoolSize(), attributes);
+                });
+                
+            meter.gaugeBuilder("ojp.custom.pool.connections.min")
+                .setDescription("Minimum idle connections")
+                .buildWithCallback(measurement -> {
+                    measurement.record(ds.getMinIdle(), attributes);
+                });
+            
+            log.info("Initialized OpenTelemetry metrics for pool: {}", poolName);
+            
+        } catch (Exception e) {
+            log.warn("Failed to initialize metrics for pool {}: {}", 
+                poolName, e.getMessage());
+        }
+    }
+    
+    private boolean isTelemetryEnabled() {
+        return Boolean.parseBoolean(
+            System.getProperty("ojp.telemetry.enabled", "true")
+        );
+    }
+    
+    private boolean isPoolMetricsEnabled() {
+        return Boolean.parseBoolean(
+            System.getProperty("ojp.telemetry.pool.metrics.enabled", "true")
+        );
+    }
+    
+    private OpenTelemetry getOpenTelemetryInstance() {
+        try {
+            // Use reflection to avoid hard dependency
+            Class<?> holderClass = Class.forName(
+                "org.openjproxy.xa.pool.commons.metrics.OpenTelemetryHolder"
+            );
+            Method getInstance = holderClass.getMethod("getInstance");
+            return (OpenTelemetry) getInstance.invoke(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}
+```
+
+### Telemetry for XA Pool Providers
+
+XA pool providers should leverage the `PoolMetrics` abstraction layer that Commons Pool 2 uses. This provides a consistent interface for metrics recording and automatically handles the OpenTelemetry integration:
+
+```java
+import org.openjproxy.xa.pool.commons.metrics.PoolMetrics;
+import org.openjproxy.xa.pool.commons.metrics.PoolMetricsFactory;
+
+public class CustomXAPoolProvider implements XAConnectionPoolProvider {
+    
+    @Override
+    public XADataSource createPooledXADataSource(Map<String, String> config) throws Exception {
+        // Create underlying XADataSource
+        XADataSource underlying = createUnderlyingXADataSource(config);
+        
+        // Wrap with pooling and metrics
+        return new CustomPooledXADataSource(underlying, config);
+    }
+}
+
+class CustomPooledXADataSource implements XADataSource {
+    private final XADataSource underlying;
+    private final PoolMetrics metrics;
+    private final CustomPool pool;
+    
+    public CustomPooledXADataSource(XADataSource underlying, Map<String, String> config) {
+        this.underlying = underlying;
+        
+        // Initialize metrics using factory - handles OpenTelemetry detection
+        this.metrics = PoolMetricsFactory.create(config, null);
+        
+        // Create your pool implementation
+        this.pool = new CustomPool(underlying, config, metrics);
+    }
+    
+    @Override
+    public XAConnection getXAConnection() throws SQLException {
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            XAConnection conn = pool.borrowConnection();
+            
+            // Record successful acquisition
+            metrics.recordConnectionBorrowed();
+            metrics.recordAcquisitionTime(System.currentTimeMillis() - startTime);
+            
+            // Update gauge values
+            updateGauges();
+            
+            return conn;
+        } catch (SQLException e) {
+            if (pool.isExhausted()) {
+                metrics.recordPoolExhausted();
+            }
+            throw e;
+        }
+    }
+    
+    public void returnConnection(XAConnection conn) throws SQLException {
+        pool.returnConnection(conn);
+        metrics.recordConnectionReturned();
+        updateGauges();
+    }
+    
+    private void updateGauges() {
+        metrics.updateActive(pool.getActiveCount());
+        metrics.updateIdle(pool.getIdleCount());
+        metrics.updatePending(pool.getWaitingThreads());
+        metrics.updateMax(pool.getMaxSize());
+        metrics.updateMin(pool.getMinSize());
+        metrics.updateCreated(pool.getTotalCreated());
+        metrics.updateDestroyed(pool.getTotalDestroyed());
+    }
+}
+```
+
+### Standard Metric Naming Convention
+
+To ensure consistency across all pool providers and enable unified monitoring, follow these naming conventions:
+
+**For standard connection pools:**
+- `ojp.<provider-id>.pool.connections.active` - Currently borrowed connections
+- `ojp.<provider-id>.pool.connections.idle` - Available idle connections  
+- `ojp.<provider-id>.pool.connections.total` - Total managed connections
+- `ojp.<provider-id>.pool.connections.pending` - Threads waiting for connections
+- `ojp.<provider-id>.pool.connections.max` - Maximum pool size
+- `ojp.<provider-id>.pool.connections.min` - Minimum idle connections
+
+**For XA connection pools:**
+- `ojp.<provider-id>.xa.pool.connections.active` - Active XA connections
+- `ojp.<provider-id>.xa.pool.connections.idle` - Idle XA connections
+- `ojp.<provider-id>.xa.pool.connections.utilization` - Pool utilization percentage
+- `ojp.<provider-id>.xa.pool.connections.exhausted` - Counter of exhaustion events
+- `ojp.<provider-id>.xa.pool.connections.validation.failed` - Failed validations
+- `ojp.<provider-id>.xa.pool.connections.leaks.detected` - Detected connection leaks
+
+Replace `<provider-id>` with your provider's ID (e.g., `hikari`, `dbcp`, `custom`). All metrics should include a `pool.name` attribute to distinguish between multiple pools of the same type.
+
+### Metric Types and Usage
+
+OpenTelemetry provides several metric types, each suited for different use cases:
+
+**Gauges** represent a current snapshot value that can go up or down. Use gauges for pool state like active connection count, idle connection count, and thread wait count. Gauges are implemented as callbacks that OpenTelemetry invokes when metrics are collected, so they always reflect the current state without your code needing to push updates.
+
+**Counters** represent cumulative values that only increase. Use counters for events like total connections created, pool exhaustion occurrences, validation failures, and detected leaks. Counters provide the raw data for calculating rates (connections created per second) and identifying trends over time.
+
+**Histograms** (not shown in examples) track distributions of values. Consider using histograms for connection acquisition time if you need percentile analysis rather than just totals.
+
+### Configuration Integration
+
+Your provider's metrics should respect OJP's telemetry configuration hierarchy:
+
+```java
+private boolean shouldInitializeMetrics() {
+    // Check master switch first
+    String telemetryEnabled = System.getProperty("ojp.telemetry.enabled");
+    if (telemetryEnabled != null && !Boolean.parseBoolean(telemetryEnabled)) {
+        return false; // Telemetry completely disabled
+    }
+    
+    // Check pool metrics flag
+    String poolMetricsEnabled = System.getProperty("ojp.telemetry.pool.metrics.enabled");
+    if (poolMetricsEnabled != null && !Boolean.parseBoolean(poolMetricsEnabled)) {
+        return false; // Pool metrics specifically disabled
+    }
+    
+    // Also check if user explicitly disabled metrics for this pool type
+    String providerMetrics = System.getProperty(
+        "ojp.telemetry." + getId() + ".metrics.enabled"
+    );
+    if (providerMetrics != null && !Boolean.parseBoolean(providerMetrics)) {
+        return false; // Provider-specific disable
+    }
+    
+    return true; // Metrics should be initialized
+}
+```
+
+### Testing Your Telemetry Implementation
+
+Verify your metrics integration works correctly across these scenarios:
+
+```java
+@Test
+public void testMetricsIntegration() throws Exception {
+    // Enable telemetry
+    System.setProperty("ojp.telemetry.enabled", "true");
+    System.setProperty("ojp.telemetry.pool.metrics.enabled", "true");
+    
+    // Register test OpenTelemetry instance
+    OpenTelemetry testOtel = createTestOpenTelemetry();
+    OpenTelemetryHolder.register(testOtel);
+    
+    // Create pool
+    PoolConfig config = PoolConfig.builder()
+        .url("jdbc:test://localhost")
+        .poolName("test-pool")
+        .build();
+    DataSource ds = createDataSource(config);
+    
+    // Execute operations
+    try (Connection conn = ds.getConnection()) {
+        // Use connection
+    }
+    
+    // Verify metrics were recorded
+    assertMetricExists("ojp.custom.pool.connections.active", "test-pool");
+    assertMetricGreaterThan("ojp.custom.pool.connections.total", 0);
+}
+
+@Test
+public void testMetricsDisabled() throws Exception {
+    // Disable pool metrics
+    System.setProperty("ojp.telemetry.pool.metrics.enabled", "false");
+    
+    // Create pool
+    DataSource ds = createDataSource(config);
+    
+    // Metrics should not be initialized
+    assertMetricNotExists("ojp.custom.pool.connections.active");
+}
+```
+
+### Documentation Requirements
+
+When publishing a custom provider with telemetry support, document these aspects:
+
+1. **Available Metrics**: List all metrics your provider exposes with descriptions, types (gauge/counter), and example values
+2. **Configuration**: Explain how to enable/disable metrics and any provider-specific metric settings
+3. **Prometheus Output**: Show example Prometheus-formatted output so users know what to expect
+4. **Grafana Integration**: Provide sample PromQL queries for common monitoring scenarios
+5. **Performance Impact**: Document the overhead of metrics collection in your implementation
+
+### Reference Implementations
+
+For complete examples of telemetry integration:
+
+- **HikariCP Provider**: See `ojp-datasource-hikari` module for standard connection pool metrics using HikariCP's native `MetricsTrackerFactory`
+- **Commons Pool 2 XA Provider**: See `ojp-xa-pool-commons` module for XA pool metrics using the `PoolMetrics` abstraction layer
+- **Metrics Documentation**: Review `ojp-xa-pool-commons/METRICS.md` for comprehensive metrics reference
+- **Telemetry Guide**: Chapter 13 covers OJP's complete telemetry architecture and monitoring best practices
+
+By integrating with OJP's telemetry infrastructure, your custom provider gains operational visibility comparable to built-in providers, enabling operators to monitor pool health, diagnose issues, and optimize performance across their entire OJP deployment.
 
 ## 12.8 The Future of Pool Abstraction
 

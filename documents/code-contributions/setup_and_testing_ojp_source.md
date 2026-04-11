@@ -59,6 +59,48 @@
    ```
 **Note:** By default, all database tests (including H2) are disabled. To run specific database tests locally, use the appropriate enable flags (e.g., `-DenableH2Tests=true`, `-DenablePostgresTests=true`). To run the full set of integration tests, you have to run all the databases locally. Follow the instructions at [Run Local Databases](../../documents/environment-setup/run-local-databases.md)
 
+### Running Integration Tests from IDE
+
+When running integration tests via IDEs (IntelliJ IDEA, Eclipse, VSCode, etc.) against Docker containers of ojp-server, you must configure the following JVM parameters:
+
+```
+-Dfile.encoding=UTF-8
+-Duser.timezone=UTC
+```
+
+**Why these parameters are required:**
+- **`-Dfile.encoding=UTF-8`**: Ensures consistent character encoding across different environments and prevents encoding-related test failures when handling database data with special characters.
+- **`-Duser.timezone=UTC`**: Standardizes timezone handling to prevent time-related test failures due to local timezone differences.
+
+**How to configure in your IDE:**
+
+**IntelliJ IDEA:**
+1. Go to Run → Edit Configurations
+2. Select your test configuration (or create a new JUnit configuration)
+3. In the "VM options" field, add: `-Dfile.encoding=UTF-8 -Duser.timezone=UTC`
+4. Apply and run your tests
+
+**Eclipse:**
+1. Right-click on your test → Run As → Run Configurations
+2. Select your JUnit configuration
+3. Go to the "Arguments" tab
+4. In the "VM arguments" section, add: `-Dfile.encoding=UTF-8 -Duser.timezone=UTC`
+5. Apply and run your tests
+
+**VSCode:**
+1. Open `.vscode/settings.json` in your project
+2. Add or modify the Java test configuration:
+   ```json
+   {
+     "java.test.config": {
+       "vmArgs": ["-Dfile.encoding=UTF-8", "-Duser.timezone=UTC"]
+     }
+   }
+   ```
+3. Run your tests
+
+**Note:** These parameters are automatically set in Maven Surefire plugin configuration for command-line test execution, but IDE test runners require manual configuration.
+
 ### Databases with integration tests
 We have comprehensive JDBC integration tests with OJP for the following databases:
 - Postgres
@@ -89,7 +131,7 @@ DB2 integration tests use the IBM JDBC driver which is not included in OJP depen
 For detailed DB2 instructions, see [DB2 Testing Guide](../../documents/environment-setup/db2-testing-guide.md).
 
 ### CockroachDB Database Setup (Optional)
-CockroachDB integration tests use the PostgreSQL JDBC driver which is already included in OJP dependencies.
+CockroachDB integration tests use the PostgreSQL JDBC driver. Starting from version 0.4.0-beta, you must download drivers and place them in the `ojp-libs` folder.
 For detailed CockroachDB setup instructions, see [CockroachDB Testing Guide](../../documents/environment-setup/cockroachdb-testing-guide.md).
 
 

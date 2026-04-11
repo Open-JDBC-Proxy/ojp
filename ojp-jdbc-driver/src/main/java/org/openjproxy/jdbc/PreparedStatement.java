@@ -139,6 +139,9 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         this.checkClosed();
         log.info("Executing add batch for -> {}", this.sql);
         Map<String, Object> properties = new HashMap<>();
+        if (this.properties != null) {
+            properties.putAll(this.properties);
+        }
         properties.put(CommonConstants.PREPARED_STATEMENT_ADD_BATCH_FLAG, Boolean.TRUE);
         OpResult result = this.statementService.executeUpdate(this.connection.getSession(), this.sql,
                 new ArrayList<>(this.paramsMap.values()), this.getStatementUUID(), properties);

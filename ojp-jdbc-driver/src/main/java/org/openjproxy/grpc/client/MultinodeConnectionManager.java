@@ -491,9 +491,12 @@ public class MultinodeConnectionManager {
                     log.info("Attempting to recover unhealthy server {} during connect()", server.getAddress());
                     try {
                         createChannelAndStub(server);
-                        server.setHealthy(true);
-                        server.setLastFailureTime(0);
-                        log.info("Successfully recovered server {} during connect()", server.getAddress());
+                        log.info("Re-created gRPC channel for server {} during connect(), will mark healthy only after successful connect()", server.getAddress());
+                        // Do NOT mark server healthy here - the server's DB connection pool may not be
+                        // ready yet even though the gRPC port is listening (root cause of excess failures:
+                        // premature health marking causes all threads to pile onto the recovering server
+                        // before any DB slot is available, producing far more failures than pool size).
+                        // The server will be marked healthy at line 520 after connect() succeeds.
                         // Continue to attempt connection below
                     } catch (Exception e) {
                         server.setLastFailureTime(currentTime);

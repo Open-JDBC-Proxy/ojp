@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -40,6 +41,30 @@ class OjpServerTelemetryTest {
 
 		assertEquals(RESPONSE_CODE_OK, connection.getResponseCode());
 		assertEquals("text/plain; version=0.0.4; charset=utf-8", connection.getContentType());
+	}
+
+	@Test
+	void shouldCreateNoOpGrpcTelemetryWhenDisabled() {
+		OjpServerTelemetry instrument = new OjpServerTelemetry();
+		GrpcTelemetry noOp = instrument.createNoOpGrpcTelemetry();
+
+		assertNotNull(noOp);
+		assertNotNull(noOp.newServerInterceptor());
+		assertNotNull(noOp.newClientInterceptor());
+	}
+
+	@Test
+	void shouldCreateGrpcTelemetryWithTracingDisabledByDefault() {
+		OjpServerTelemetry instrument = new OjpServerTelemetry();
+		// tracing disabled — no exporter is configured; must not throw
+		GrpcTelemetry telemetry = instrument.createGrpcTelemetry(
+				9192,
+				List.of(IpWhitelistValidator.ALLOW_ALL_IPS),
+				false, "zipkin", "http://localhost:9411/api/v2/spans", "ojp-server", 1.0,
+				true, true); // grpcMetricsEnabled, poolMetricsEnabled
+
+		assertNotNull(telemetry);
+		assertNotNull(telemetry.newServerInterceptor());
 	}
 
 }

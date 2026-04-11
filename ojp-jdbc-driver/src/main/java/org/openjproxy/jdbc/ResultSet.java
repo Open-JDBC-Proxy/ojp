@@ -178,6 +178,16 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead == null) {
             return false;
         }
+        if (lastValueRead instanceof Boolean) {
+            return (Boolean) lastValueRead;
+        }
+        if (lastValueRead instanceof Number) {
+            return ((Number) lastValueRead).intValue() != 0;
+        }
+        if (lastValueRead instanceof String) {
+            String s = (String) lastValueRead;
+            return "true".equalsIgnoreCase(s) || "1".equals(s);
+        }
         return (boolean) lastValueRead;
     }
 
@@ -192,6 +202,8 @@ public class ResultSet extends RemoteProxyResultSet {
             return 0;
         } else if (lastValueRead instanceof byte[]) {
             return ((byte[]) lastValueRead)[0];
+        } else if (lastValueRead instanceof Boolean) {
+            return (boolean) lastValueRead ? (byte) 1 : (byte) 0;
         } else if (lastValueRead instanceof Short) {
             return (byte)(short) lastValueRead;
         } else if (lastValueRead instanceof Integer) {
@@ -209,6 +221,8 @@ public class ResultSet extends RemoteProxyResultSet {
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
         if (lastValueRead == null) {
             return 0;
+        } else if (lastValueRead instanceof Boolean) {
+            return (boolean) lastValueRead ? (short) 1 : (short) 0;
         } else if (lastValueRead instanceof Integer) {
             return (short)(int) lastValueRead;
         }
@@ -234,6 +248,8 @@ public class ResultSet extends RemoteProxyResultSet {
         } else if (value instanceof Short) {
             Short sValue = (Short) value;
             return sValue.intValue();
+        } else if (value instanceof Boolean) {
+            return (boolean) value ? 1 : 0;
         } else if (value instanceof Date) {
             Date dValue = (Date) value;
             LocalDate ld = LocalDate.ofEpochDay(dValue.getTime());
@@ -263,6 +279,9 @@ public class ResultSet extends RemoteProxyResultSet {
         if (lastValueRead instanceof BigInteger) {
             return ((BigInteger) lastValueRead).longValue();
         }
+        if (lastValueRead instanceof Boolean) {
+            return (boolean) lastValueRead ? 1L : 0L;
+        }
         if (lastValueRead instanceof Integer) {
             return ((Integer) lastValueRead).longValue();
         }
@@ -287,6 +306,9 @@ public class ResultSet extends RemoteProxyResultSet {
             BigDecimal bdValue = (BigDecimal) value;
             return bdValue.floatValue();
         }
+        if (value instanceof Boolean) {
+            return (boolean) value ? 1.0f : 0.0f;
+        }
         return (float) value;
     }
 
@@ -304,6 +326,9 @@ public class ResultSet extends RemoteProxyResultSet {
         if (value instanceof BigDecimal) {
             BigDecimal bdValue = (BigDecimal) value;
             return bdValue.doubleValue();
+        }
+        if (value instanceof Boolean) {
+            return (boolean) value ? 1.0d : 0.0d;
         }
         return (double) value;
     }

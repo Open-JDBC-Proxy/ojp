@@ -580,7 +580,8 @@ export OJP_SQL_ENHANCER_CACHE_SIZE=5000
 ## Using JVM System Properties
 
 ```bash
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC \
+  -jar ojp-server.jar \
   -Dojp.sql.enhancer.enabled=true \
   -Dojp.sql.enhancer.mode=OPTIMIZE \
   -Dojp.sql.enhancer.dialect=POSTGRESQL \

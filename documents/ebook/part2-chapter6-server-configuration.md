@@ -44,7 +44,8 @@ Here's how you configure these core settings:
 
 ```bash
 # Using JVM system properties
-java -Dojp.server.port=9059 \
+java -Duser.timezone=UTC \
+     -Dojp.server.port=9059 \
      -Dojp.prometheus.port=9091 \
      -Dojp.server.threadPoolSize=100 \
      -Dojp.server.maxRequestSize=8388608 \
@@ -60,7 +61,7 @@ export OJP_PROMETHEUS_PORT=9091
 export OJP_SERVER_THREADPOOLSIZE=100
 export OJP_SERVER_MAXREQUESTSIZE=8388608
 export OJP_SERVER_CONNECTIONIDLETIMEOUT=60000
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 ```mermaid
@@ -98,7 +99,8 @@ A common pattern is to allow gRPC connections from your application network whil
 ```bash
 # Restrict gRPC to internal application network
 # Allow Prometheus from monitoring subnet only
-java -Dojp.server.allowedIps="10.0.0.0/8,172.16.0.0/12" \
+java -Duser.timezone=UTC \
+     -Dojp.server.allowedIps="10.0.0.0/8,172.16.0.0/12" \
      -Dojp.prometheus.allowedIps="192.168.100.0/24" \
      -jar ojp-server.jar
 ```
@@ -178,39 +180,62 @@ graph LR
 
 ## 6.5 OpenTelemetry Integration
 
-Modern observability goes beyond logs. OJP integrates with OpenTelemetry to provide metrics through Prometheus. The server automatically instruments gRPC operations, providing insights into request processing and server performance.
+Modern observability goes beyond logs. OJP integrates with OpenTelemetry to provide comprehensive metrics through Prometheus, covering both gRPC operations and connection pool behavior. The server automatically instruments gRPC communications and all supported pool types (XA, HikariCP, DBCP), providing deep insights into request processing, pool health, and server performance.
 
-**Note**: Currently, OJP exports metrics via Prometheus but does not export distributed traces. The OpenTelemetry integration focuses on providing operational metrics such as request rates, error rates, and latency through the Prometheus endpoint.
+**Note**: OJP exports metrics via Prometheus and also supports distributed tracing via OpenTelemetry. Metrics are enabled by default; distributed tracing must be explicitly enabled via configuration (see Chapter 13 for full tracing configuration details). The OpenTelemetry integration provides operational metrics such as request rates, error rates, and latency through the Prometheus endpoint, as well as distributed traces to Zipkin or OTLP-compatible backends such as Jaeger and Grafana Tempo.
 
-OpenTelemetry support is enabled by default, making the Prometheus metrics endpoint available at the configured port (default 9159). The server automatically instruments all gRPC operations, creating metrics for connection acquisition, query execution, and server resource usage.
 
-**[IMAGE PROMPT: Create a metrics dashboard visualization showing Prometheus metrics from OJP Server. Display panels for: "Request Rate" (line graph), "Connection Pool Usage" (gauge), "Query Latency p95/p99" (histogram), "Error Rate" (area chart). Use modern Grafana-style UI with dark theme, multiple time series, and clear metric labels. Style: Modern observability dashboard with color-coded metrics and real-time graphs.]**
+OpenTelemetry support is enabled by default, making the Prometheus metrics endpoint available at the configured port (default 9159). The server provides separate control over different metric categories, allowing you to enable or disable gRPC and pool metrics independently.
 
-The default configuration provides metrics through the Prometheus HTTP endpoint. You can enable or disable OpenTelemetry as needed:
+**[IMAGE PROMPT: Create a metrics dashboard visualization showing Prometheus metrics from OJP Server. Display panels for: "Request Rate" (line graph), "Connection Pool Usage" (gauge showing active/idle/max), "Pool Utilization %" (multi-pool comparison), "Query Latency p95/p99" (histogram), "Error Rate" (area chart), "Pool Health" (stat panel showing exhaustion/leaks). Use modern Grafana-style UI with dark theme, multiple time series, and clear metric labels. Style: Modern observability dashboard with color-coded metrics and real-time graphs.]**
+
+The configuration provides three levels of control:
 
 ```bash
-# Enable OpenTelemetry (default)
--Dojp.opentelemetry.enabled=true
+# Master switch - controls OpenTelemetry infrastructure
+-Dojp.telemetry.enabled=true
 
-# Disable telemetry for performance-critical scenarios
--Dojp.opentelemetry.enabled=false
+# Granular control over metric categories (both default to true when telemetry is enabled)
+-Dojp.telemetry.grpc.metrics.enabled=true      # gRPC server metrics
+-Dojp.telemetry.pool.metrics.enabled=true      # Connection pool metrics (XA, HikariCP, DBCP)
+
+# Disable telemetry completely for performance-critical scenarios
+-Dojp.telemetry.enabled=false
 ```
 
-The metrics available through Prometheus include standard gRPC instrumentation metrics such as request counts, request durations, and error rates. These metrics integrate well with Prometheus-based monitoring stacks and can be visualized in Grafana or other observability platforms.
+This three-tier approach lets you optimize your observability setup. The master switch (`ojp.telemetry.enabled`) controls whether the OpenTelemetry SDK and Prometheus server initialize at all. When disabled, the system uses no-op telemetry with zero overhead. The granular flags (`ojp.telemetry.grpc.metrics.enabled`, `ojp.telemetry.pool.metrics.enabled`) control which metrics are collected within an already-initialized OpenTelemetry system, allowing you to focus on the metrics that matter most for your deployment.
+
+### Available Metrics
+
+**gRPC Metrics** - When gRPC metrics are enabled, you'll see standard gRPC instrumentation covering request counts, request durations, error rates, and method-level breakdowns. These help you understand how efficiently applications communicate with OJP.
+
+**Pool Metrics** - When pool metrics are enabled, OJP exposes comprehensive metrics for all pool types:
+- XA Pools: Active/idle connections, utilization %, pending threads, lifecycle events (created/destroyed), exhaustion events, validation failures, leak detection, and acquisition time statistics
+- HikariCP Pools: Active/idle/total connections, pending threads, max/min pool sizes
+- DBCP Pools: Similar metrics to HikariCP for consistency
+
+All pool metrics are tagged with the pool name, enabling multi-pool monitoring in environments with multiple databases. The metrics follow the same patterns as HikariCP's native metrics, providing familiarity for teams already monitoring HikariCP deployments.
+
+For detailed information about available metrics, monitoring best practices, and Grafana dashboard examples, see Chapter 13: Telemetry and Monitoring.
 
 ```mermaid
 sequenceDiagram
     participant App
     participant OJP
+    participant Pool
+    participant Database
     participant Prometheus
     
     App->>OJP: Execute Query
-    OJP->>OJP: Record Metrics
+    OJP->>OJP: Record gRPC Metrics
+    OJP->>Pool: Get Connection
+    Pool->>Pool: Record Pool Metrics
+    Pool-->>OJP: Connection
     OJP->>Database: Database Query
     Database-->>OJP: Result
     OJP-->>App: Complete Response
     Prometheus->>OJP: Scrape :9159/metrics
-    OJP-->>Prometheus: Metrics Data
+    OJP-->>Prometheus: gRPC + Pool Metrics
     Prometheus->>Prometheus: Store & Index
 ```
 
@@ -289,7 +314,7 @@ Slow query segregation can be beneficial because it provides advantages with min
 # Transactional workload: fewer slow slots
 -Dojp.server.slowQuerySegregation.slowSlotPercentage=10
 
-# Disable for consistent behavior (not recommended)
+# Disable (default behavior)
 -Dojp.server.slowQuerySegregation.enabled=false
 ```
 

@@ -263,7 +263,7 @@ This creates `./ojp-libs/` with all 4 open source drivers.
 
 **Step 3: Run OJP Server**
 ```bash
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 ### Advanced Use Cases
@@ -272,7 +272,7 @@ java -jar ojp-server.jar
 ```bash
 mkdir ojp-libs
 cp postgresql-42.7.8.jar ojp-libs/
-java -jar ojp-server.jar  # Only PostgreSQL available
+java -Duser.timezone=UTC -jar ojp-server.jar  # Only PostgreSQL available
 ```
 
 **2. Use Different Driver Version**
@@ -281,7 +281,7 @@ mkdir ojp-libs
 # Download specific version from Maven Central
 wget -O ojp-libs/postgresql-42.5.0.jar \
   https://repo1.maven.org/maven2/org/postgresql/postgresql/42.5.0/postgresql-42.5.0.jar
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 **3. Add Proprietary Drivers**
@@ -291,7 +291,7 @@ mkdir ojp-libs
 bash download-drivers.sh
 # Add Oracle driver (download manually from Oracle)
 cp ojdbc11.jar ojp-libs/
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 **4. Security Scanning**

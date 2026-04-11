@@ -6,17 +6,17 @@ This comprehensive e-book provides complete documentation for Open-J-Proxy (OJP)
 
 ## Content Overview
 
-**Total Content**: 860KB across 23 chapters + 7 appendices  
+**Total Content**: 920KB across 24 chapters + 7 appendices  
 **Visual Assets**: 237 AI-ready image prompts, 75 Mermaid diagrams  
-**Completion**: 100% (all 23 chapters written)
+**Completion**: 100% (all 24 chapters written)
 
 ## Documentation Version
 
 **Last Updated Against Main Branch Commit:**
 ```
-Commit: 05c75a6333926bda9931d6172900e6905473b927
-Date: 2026-01-19 20:50:25 +0000
-Message: Merge pull request #284 from Open-J-Proxy/copilot/evaluate-abandoned-sessions
+Commit: 4ff5e1acd388b0d4c86f5a9fdcfcad82c7745ac6
+Date: 2026-03-07
+Message: feat: Spring Boot starter module for zero-config OJP autoconfiguration
 ```
 
 ## Table of Contents
@@ -34,12 +34,13 @@ Message: Merge pull request #284 from Open-J-Proxy/copilot/evaluate-abandoned-se
 - [Chapter 6: Server Configuration](part2-chapter6-server-configuration.md)
 - [Chapter 7: Framework Integration](part2-chapter7-framework-integration.md)
 
-### Part III: Advanced Features (5 chapters)
+### Part III: Advanced Features (6 chapters)
 - [Chapter 8: Slow Query Segregation](part3-chapter8-slow-query-segregation.md)
 - [Chapter 9: Multinode Deployment](part3-chapter9-multinode-deployment.md)
 - [Chapter 10: XA Distributed Transactions](part3-chapter10-xa-transactions.md)
 - [Chapter 11: Security & Network Architecture](part3-chapter11-security.md)
 - [Chapter 12: Connection Pool Provider SPI](part3-chapter12-pool-provider-spi.md)
+- [Chapter 12a: Query Result Caching](part3-chapter12a-query-result-caching.md)
 
 ### Part IV: Operations (2 chapters)
 - [Chapter 13: Telemetry and Monitoring](part4-chapter13-telemetry.md)
@@ -90,6 +91,7 @@ Start with Chapter 3 (Quick Start Guide) for immediate hands-on experience, then
 2. Chapter 9: Multinode Deployment
 3. Chapter 10: XA Distributed Transactions
 4. Chapter 12: Connection Pool Provider SPI (SQL Enhancer, Pool Housekeeping)
+5. Chapter 12a: Query Result Caching
 
 ### For Contributors
 1. Chapter 15: Development Environment Setup

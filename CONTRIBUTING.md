@@ -179,6 +179,16 @@ mvn test -DenableH2Tests=true
 
 For setting up local databases, see [Run Local Databases](https://github.com/Open-J-Proxy/ojp/blob/main/documents/environment-setup/run-local-databases.md).
 
+**Running Tests from IDE:**
+
+When running integration tests via IDEs against Docker containers of ojp-server, configure these JVM parameters in your IDE run configuration:
+
+```
+-Dfile.encoding=UTF-8 -Duser.timezone=UTC
+```
+
+For detailed IDE-specific configuration instructions, see the [Running Integration Tests from IDE](https://github.com/Open-J-Proxy/ojp/blob/main/documents/code-contributions/setup_and_testing_ojp_source.md#running-integration-tests-from-ide) section in the setup guide.
+
 ### 4. Commit Your Changes
 
 Write clear, descriptive commit messages:

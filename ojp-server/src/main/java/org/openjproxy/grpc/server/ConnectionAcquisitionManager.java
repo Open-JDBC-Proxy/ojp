@@ -2,6 +2,8 @@ package org.openjproxy.grpc.server;
 
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.xa.pool.commons.metrics.PoolMetrics;
+import org.openjproxy.xa.pool.commons.metrics.NoOpPoolMetrics;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -36,20 +38,48 @@ public class ConnectionAcquisitionManager {
      * @throws SQLException if connection acquisition fails or times out
      */
     public static Connection acquireConnection(DataSource dataSource, String connectionHash) throws SQLException {
+        return acquireConnection(dataSource, connectionHash, NoOpPoolMetrics.INSTANCE, connectionHash);
+    }
+
+    /**
+     * Acquires a connection from the given datasource with enhanced error reporting and metrics.
+     * This overload additionally records:
+     * <ul>
+     *   <li>The queue depth (threads waiting for a connection) immediately before acquiring</li>
+     *   <li>The time spent waiting to acquire the connection</li>
+     * </ul>
+     *
+     * @param dataSource     the datasource (supports HikariCP for enhanced statistics)
+     * @param connectionHash the connection hash for logging purposes
+     * @param poolMetrics    the metrics collector to record acquisition telemetry
+     * @param poolName       the pool name label used when recording metrics
+     * @return a database connection
+     * @throws SQLException if connection acquisition fails or times out
+     */
+    public static Connection acquireConnection(DataSource dataSource, String connectionHash,
+            PoolMetrics poolMetrics, String poolName) throws SQLException {
         if (dataSource == null) {
             throw new SQLException("DataSource is null for connection hash: " + connectionHash);
         }
         
-        // Log current pool state before attempting acquisition (HikariCP-specific)
+        // Capture pool state and queue depth before attempting acquisition (HikariCP-specific)
         if (dataSource instanceof HikariDataSource) {
             HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
             try {
+                int activeConnections = hikariDataSource.getHikariPoolMXBean().getActiveConnections();
+                int idleConnections = hikariDataSource.getHikariPoolMXBean().getIdleConnections();
+                int totalConnections = hikariDataSource.getHikariPoolMXBean().getTotalConnections();
+                int threadsWaiting = hikariDataSource.getHikariPoolMXBean().getThreadsAwaitingConnection();
+                int maxPoolSize = hikariDataSource.getMaximumPoolSize();
+                int minIdle = hikariDataSource.getMinimumIdle();
+
                 log.debug("Connection acquisition attempt for hash: {} - Active: {}, Idle: {}, Total: {}, Waiting: {}", 
-                    connectionHash,
-                    hikariDataSource.getHikariPoolMXBean().getActiveConnections(),
-                    hikariDataSource.getHikariPoolMXBean().getIdleConnections(), 
-                    hikariDataSource.getHikariPoolMXBean().getTotalConnections(),
-                    hikariDataSource.getHikariPoolMXBean().getThreadsAwaitingConnection());
+                    connectionHash, activeConnections, idleConnections, totalConnections, threadsWaiting);
+
+                // Emit current pool state metrics (includes queue depth via numWaiters)
+                poolMetrics.recordPoolState(poolName,
+                        activeConnections, idleConnections, threadsWaiting,
+                        maxPoolSize, minIdle, 0L, 0L, 0L, 0L);
             } catch (Exception e) {
                 log.debug("Could not retrieve pool statistics for hash: {}", connectionHash);
             }
@@ -58,11 +88,18 @@ public class ConnectionAcquisitionManager {
                 connectionHash, dataSource.getClass().getSimpleName());
         }
         
+        long acquisitionStart = System.currentTimeMillis();
         try {
             // Use pool's built-in connection timeout - this prevents indefinite blocking
             Connection connection = dataSource.getConnection();
-            log.debug("Successfully acquired connection for hash: {} in thread: {}", 
-                connectionHash, Thread.currentThread().getName());
+            long acquisitionTimeMs = System.currentTimeMillis() - acquisitionStart;
+
+            log.debug("Successfully acquired connection for hash: {} in thread: {} (waited {}ms)", 
+                connectionHash, Thread.currentThread().getName(), acquisitionTimeMs);
+
+            // Record connection acquisition time telemetry
+            poolMetrics.recordConnectionAcquisitionTime(poolName, acquisitionTimeMs);
+
             return connection;
             
         } catch (SQLException e) {
@@ -92,6 +129,9 @@ public class ConnectionAcquisitionManager {
                 );
             }
             
+            // Record exhaustion event when acquisition fails
+            poolMetrics.recordPoolExhaustion(poolName);
+
             log.error(enhancedMessage);
             throw new SQLException(enhancedMessage, e.getSQLState(), e);
         }

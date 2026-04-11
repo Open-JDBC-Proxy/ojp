@@ -22,3 +22,6 @@ ojp-server/target/empty-libs/
 # Log files
 **/logs/*.log
 *.log
+
+# macOS hidden files
+**/.DS_Store

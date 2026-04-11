@@ -55,6 +55,9 @@ public class HandleUnpooledXAConnectionAction {
             // Store the unpooled XADataSource for this connection
             context.getXaDataSourceMap().put(connHash, xaDataSource);
             
+            // Create slow query segregation manager so SQL execution time is recorded for unpooled XA
+            CreateSlowQuerySegregationManagerAction.getInstance().execute(context, connHash, 1);
+            
             log.info("Created unpooled XADataSource for connHash: {}, database: {}", 
                     connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
             

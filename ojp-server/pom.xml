@@ -4,19 +4,20 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <name>OJP Server</name>
     <artifactId>ojp-server</artifactId>
-    <version>0.3.2-snapshot</version>
+    <version>0.4.2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.3.2-snapshot</version>
+        <version>0.4.2-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <properties>
-        <grpc.version>1.78.0</grpc.version>
-        <netty.version>4.1.130.Final</netty.version>
+        <grpc.version>1.80.0</grpc.version>
+        <netty.version>4.1.132.Final</netty.version>
         <slf4j.version>2.0.17</slf4j.version>
         <jib.plugin.version>3.4.5</jib.plugin.version>
         <maven.compiler.source>21</maven.compiler.source>
@@ -38,26 +39,26 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-grpc-commons</artifactId>
-            <version>0.3.2-snapshot</version>
+            <version>0.4.2-SNAPSHOT</version>
         </dependency>
 
         <!-- OJP Datasource API and default HikariCP provider -->
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-datasource-api</artifactId>
-            <version>0.3.2-snapshot</version>
+            <version>0.4.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-datasource-hikari</artifactId>
-            <version>0.3.2-snapshot</version>
+            <version>0.4.2-SNAPSHOT</version>
         </dependency>
         
         <!-- OJP XA Pool Commons (Phase 1 integration) -->
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-xa-pool-commons</artifactId>
-            <version>0.3.2-snapshot</version>
+            <version>0.4.2-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -130,7 +131,7 @@
         <dependency>
             <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <version>1.10.2</version>
+            <version>1.10.4</version>
         </dependency>
 
         <!-- OpenTelemetry API -->
@@ -138,7 +139,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.58.0</version>
+            <version>1.60.1</version>
         </dependency>
 
         <!-- OpenTelemetry SDK -->
@@ -146,7 +147,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk</artifactId>
-            <version>1.58.0</version>
+            <version>1.60.1</version>
         </dependency>
 
         <!-- OpenTelemetry gRPC instrumentation -->
@@ -162,7 +163,23 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-prometheus</artifactId>
-            <version>1.52.0-alpha</version>
+            <version>1.59.0-alpha</version>
+        </dependency>
+
+        <!-- Zipkin trace exporter -->
+        <!-- https://mvnrepository.com/artifact/io.opentelemetry/opentelemetry-exporter-zipkin -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-zipkin</artifactId>
+            <version>1.60.1</version>
+        </dependency>
+
+        <!-- OTLP trace exporter (alternative to Zipkin, e.g. for Jaeger/Tempo) -->
+        <!-- https://mvnrepository.com/artifact/io.opentelemetry/opentelemetry-exporter-otlp -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+            <version>1.60.1</version>
         </dependency>
 
         <!-- HTTP server for metrics endpoint -->
@@ -181,6 +198,22 @@
             <version>1.41.0</version>
         </dependency>
 
+        <!-- Caffeine Cache - High-performance caching library (ADR-008) -->
+        <!-- https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.1.8</version>
+        </dependency>
+
+        <!-- JSqlParser - SQL parsing library for table extraction (Phase 8) -->
+        <!-- https://mvnrepository.com/artifact/com.github.jsqlparser/jsqlparser -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>4.9</version>
+        </dependency>
+
         <!-- https://mvnrepository.com/artifact/junit/junit -->
         <dependency>
             <groupId>junit</groupId>
@@ -193,7 +226,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency>
 
@@ -201,7 +234,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.21.0</version>
+            <version>5.23.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -209,7 +242,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency>
 
@@ -218,6 +251,15 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <version>2.4.240</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- OpenTelemetry SDK testing utilities (InMemoryMetricReader etc.) -->
+        <!-- https://mvnrepository.com/artifact/io.opentelemetry/opentelemetry-sdk-testing -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
+            <version>1.60.1</version>
             <scope>test</scope>
         </dependency>
 
@@ -269,7 +311,7 @@
                         <image>eclipse-temurin:22-jre</image>
                     </from>
                     <to>
-                        <image>rrobetti/ojp:0.3.2-snapshot</image>
+                        <image>rrobetti/ojp:${project.version}</image>
                     </to>
                     <container>
                         <mainClass>org.openjproxy.grpc.server.GrpcServer</mainClass>
@@ -278,6 +320,7 @@
                         </ports>
                         <jvmFlags>
                             <jvmFlag>-Dojp.libs.path=/opt/ojp/ojp-libs</jvmFlag>
+                            <jvmFlag>-Duser.timezone=UTC</jvmFlag>
                         </jvmFlags>
                     </container>
                     <!-- Include open source JDBC drivers in Docker image ("batteries included") -->
@@ -292,6 +335,99 @@
                     </extraDirectories>
                 </configuration>
             </plugin>
-        </plugins>
-    </build>
+            <!-- Sources JAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.2.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Javadoc JAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <configuration>
+                    <failOnWarnings>false</failOnWarnings>
+                    <doclint>none</doclint>
+                    <excludePackageNames>org.openjproxy.grpc.server.action.streaming</excludePackageNames>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                </configuration>
+            </plugin>
+            <!--Signs the JARs for deployments-->
+            <!--<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>-->
+            <!--Deploys to maven central-->
+    <!--<plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.8.0</version>
+        <extensions>true</extensions>
+        <configuration>
+            <publishingServerId>central</publishingServerId>
+        </configuration>
+    </plugin>-->
+</plugins>
+</build>
+
+<!-- Add SCM and project info for Maven Central requirements -->
+    <scm>
+        <url>https://github.com/Open-J-Proxy/ojp</url>
+        <connection>scm:git:https://github.com/Open-J-Proxy/ojp.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com:Open-J-Proxy/ojp.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>rrobetti</id>
+            <name>Rogerio Robetti</name>
+        </developer>
+    </developers>
+
+    <url>https://github.com/Open-J-Proxy/ojp</url>
+    <description>OJP Server (Open J Proxy)</description>
+
 </project>

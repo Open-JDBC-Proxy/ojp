@@ -737,6 +737,17 @@ public class XATransactionRegistry {
             }
             contexts.clear();
             
+            // Close the pool datasource so it releases its connection pool and deregisters
+            // any OpenTelemetry metric callbacks. Without this, old callbacks accumulate in
+            // the OTel SDK each time a pool is recreated, causing DuplicateLabelsException.
+            if (poolDataSource instanceof AutoCloseable) {
+                try {
+                    ((AutoCloseable) poolDataSource).close();
+                } catch (Exception e) {
+                    log.warn("Failed to close pool datasource during registry close: {}", e.getMessage());
+                }
+            }
+            
             log.info("XA registry closed successfully");
         } catch (Exception e) {
             log.error("Error during XA registry close: {}", e.getMessage(), e);

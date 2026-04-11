@@ -14,7 +14,7 @@
 >
 > **We strongly discourage using this feature in its current state.**
 
-**Version:** 0.3.2-snapshot
+**Version:** 0.4.0-beta
 
 ---
 

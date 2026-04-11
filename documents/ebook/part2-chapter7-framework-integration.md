@@ -1,8 +1,8 @@
 # Chapter 7: Framework Integration
 
-Modern Java applications rarely use raw JDBC. Instead, they leverage frameworks like Spring Boot, Quarkus, and Micronaut that provide database integration, dependency injection, and transaction management. Integrating OJP with these frameworks is straightforward, but it requires understanding how each framework handles connection pooling and datasource configuration. The key insight is simple: OJP replaces your application's connection pool, so you must disable the framework's built-in pooling to avoid double-pooling anti-patterns.
+Modern Java applications rarely use raw JDBC. Instead, they leverage frameworks like Spring Boot, Quarkus, Micronaut, and Jakarta EE that provide database integration, dependency injection, and transaction management. Integrating OJP with these frameworks is straightforward, but it requires understanding how each framework handles connection pooling and datasource configuration. The key insight is simple: OJP replaces your application's connection pool, so you must disable the framework's built-in pooling to avoid double-pooling anti-patterns.
 
-In this chapter, we'll explore how to integrate OJP with the three most popular Java application frameworks. While the specific mechanics differ, the underlying principle remains consistent: modify your connection URL, remove local pooling, and add the OJP JDBC driver dependency. Once configured, your framework's database features work exactly as before—queries, transactions, and ORM integration all function normally. The difference happens behind the scenes, where OJP manages connections centrally instead of creating isolated pools in each application instance.
+In this chapter, we'll explore how to integrate OJP with four major Java application frameworks. While the specific mechanics differ, the underlying principle remains consistent: modify your connection URL, remove local pooling, and add the OJP JDBC driver dependency. Once configured, your framework's database features work exactly as before—queries, transactions, and ORM integration all function normally. The difference happens behind the scenes, where OJP manages connections centrally instead of creating isolated pools in each application instance.
 
 ## 7.1 Understanding Framework Integration Patterns
 
@@ -30,20 +30,76 @@ graph TD
     H --> I
 ```
 
-Let's see how this pattern applies to each major framework.
+Let's see how this pattern applies to each framework.
 
 ## 7.2 Spring Boot Integration
 
-Spring Boot is the most widely used Java framework, and integrating OJP with it showcases the typical challenges and solutions. Spring Boot applications by default include HikariCP as their connection pool implementation. This tight integration makes Spring Boot applications fast and efficient out of the box, but it also means you need to explicitly remove HikariCP when using OJP.
+Spring Boot is the most widely used Java framework, and integrating OJP with it showcases the typical challenges and solutions. Spring Boot applications by default include HikariCP as their connection pool implementation. This tight integration makes Spring Boot applications fast and efficient out of the box, but it also means you need to prevent the local pool from interfering with OJP's server-side connection management.
 
-The integration starts with your Maven or Gradle build file. You'll add the OJP JDBC driver dependency and modify your Spring Boot JDBC starter to exclude HikariCP. Maven makes this straightforward with the exclusions mechanism:
+OJP ships a dedicated Spring Boot Starter—`spring-boot-starter-ojp`—that removes all of this friction. Add a single dependency, set your OJP JDBC URL, and the starter handles everything else automatically.
+
+### Using the Spring Boot Starter (Recommended)
+
+The `spring-boot-starter-ojp` artifact provides zero-configuration Spring Boot integration for both Spring Boot 4.x (Java 17+) and Spring Boot 3.x. Replace `spring-boot-starter-jdbc` with the OJP starter:
+
+```xml
+<!-- Replace spring-boot-starter-jdbc with the OJP starter -->
+<dependency>
+    <groupId>org.openjproxy</groupId>
+    <artifactId>spring-boot-starter-ojp</artifactId>
+    <version>0.4.1-beta</version>
+</dependency>
+```
+
+With the starter on the classpath, a minimal `application.properties` is all you need:
+
+```properties
+# OJP connection URL — the only required setting
+spring.datasource.url=jdbc:ojp[localhost:1059]_postgresql://user@localhost/mydb
+spring.datasource.username=myuser
+spring.datasource.password=mypassword
+```
+
+The starter automatically detects the OJP URL and sets:
+- `spring.datasource.driver-class-name=org.openjproxy.jdbc.Driver`
+- `spring.datasource.type=org.springframework.jdbc.datasource.SimpleDriverDataSource`
+
+Setting the datasource type to `SimpleDriverDataSource` is crucial. This tells Spring Boot to obtain single connections directly rather than attempting to pool them. Since OJP already provides pooling centrally on the proxy server, this configuration avoids double-pooling while maintaining Spring's transaction management and other datasource features.
+
+**[IMAGE PROMPT: Create a side-by-side code comparison showing application.properties transformation. Left side labeled "Before OJP (manual)": Shows three explicit settings for url, driver-class-name, and type. Right side labeled "With OJP Starter": Shows only the url property, with annotations showing the two settings automatically injected by the starter. Style: Clean code comparison with syntax highlighting and arrows pointing to the automatic values.]**
+
+You can also tune the OJP server-side connection pool directly from `application.properties`:
+
+```properties
+# OJP server-side connection pool settings (forwarded to the OJP server).
+# Always use ojp.connection.pool.* in application.properties; the starter
+# auto-prefixes these with the datasource name when ojp.datasource.name is set.
+ojp.connection.pool.maximum-pool-size=20
+ojp.connection.pool.minimum-idle=5
+ojp.connection.pool.connection-timeout=30000
+ojp.connection.pool.idle-timeout=600000
+ojp.connection.pool.max-lifetime=1800000
+
+# gRPC transport settings (increase for large LOB data)
+ojp.grpc.max-inbound-message-size=16777216
+```
+
+> **Tip — Named datasource:** To target a named pool configuration on the OJP server, embed the
+> datasource name in the JDBC URL:
+> `spring.datasource.url=jdbc:ojp[localhost:1059(myApp)]_postgresql://...`
+
+The starter's `OjpSystemPropertiesBridge` bean propagates these `ojp.*` properties to JVM system properties before any DataSource bean is created, so the OJP driver's `DatasourcePropertiesLoader` picks them up with the highest precedence—overriding any `ojp.properties` file on the classpath.
+
+### Manual Configuration (Spring Boot 3.x / Java 11)
+
+If you cannot use the starter (for example, in Java 11 projects where the starter's Java 17 requirement cannot be met), the manual three-step approach still works. Add the JDBC driver dependency and exclude HikariCP explicitly:
 
 ```xml
 <!-- Add OJP JDBC Driver -->
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.0-beta</version>
 </dependency>
 
 <!-- Spring JDBC Starter WITHOUT HikariCP -->
@@ -59,14 +115,10 @@ The integration starts with your Maven or Gradle build file. You'll add the OJP 
 </dependency>
 ```
 
-With the dependencies configured, turn your attention to the application configuration. Spring Boot's `application.properties` or `application.yml` file controls datasource settings. You'll update three properties: the JDBC URL to point to OJP, the driver class name to use OJP's driver, and the datasource type to prevent pooling.
-
-**[IMAGE PROMPT: Create a side-by-side code comparison showing application.properties transformation. Left side labeled "Before OJP": Shows traditional config with `spring.datasource.url=jdbc:postgresql://localhost:5432/mydb` and default HikariCP settings. Right side labeled "With OJP": Shows `spring.datasource.url=jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb`, `spring.datasource.driver-class-name=org.openjproxy.jdbc.Driver`, and `spring.datasource.type=SimpleDriverDataSource`. Highlight the changes with arrows and annotations. Style: Clean code comparison with syntax highlighting and change indicators.]**
-
-Here's a complete configuration example:
+Then set all three datasource properties explicitly:
 
 ```properties
-# application.properties with OJP
+# application.properties — manual OJP configuration
 spring.datasource.url=jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb
 spring.datasource.driver-class-name=org.openjproxy.jdbc.Driver
 spring.datasource.type=org.springframework.jdbc.datasource.SimpleDriverDataSource
@@ -74,19 +126,17 @@ spring.datasource.username=myuser
 spring.datasource.password=mypassword
 ```
 
-The URL format deserves attention. You insert `ojp[hostname:port]_` immediately after `jdbc:`, where hostname and port identify your OJP server. The remainder of the URL is your standard database-specific JDBC URL. Spring Boot parses this URL and connects to the OJP server, which then manages the real database connections.
-
-Setting the datasource type to `SimpleDriverDataSource` is crucial. This tells Spring Boot to obtain single connections directly rather than attempting to pool them. Since OJP already provides pooling, this configuration avoids double-pooling while maintaining Spring's transaction management and other datasource features.
+The URL format inserts `ojp[hostname:port]_` immediately after `jdbc:`, where hostname and port identify your OJP server. The remainder of the URL is your standard database-specific JDBC URL.
 
 ### Spring Boot with JPA and Hibernate
 
-Spring Boot applications often use Spring Data JPA with Hibernate for object-relational mapping. The good news is that OJP integrates seamlessly with this stack. Your JPA repositories, entity mappings, and `@Transactional` annotations all work exactly as before. Hibernate doesn't know or care that connections come from OJP—it just sees standard JDBC connections.
+Spring Boot applications often use Spring Data JPA with Hibernate for object-relational mapping. The good news is that OJP integrates seamlessly with this stack regardless of whether you use the starter or manual configuration. Your JPA repositories, entity mappings, and `@Transactional` annotations all work exactly as before. Hibernate doesn't know or care that connections come from OJP—it just sees standard JDBC connections.
 
 ```properties
-# Full configuration with JPA/Hibernate
+# Full configuration with JPA/Hibernate (using the starter)
 spring.datasource.url=jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb
-spring.datasource.driver-class-name=org.openjproxy.jdbc.Driver
-spring.datasource.type=org.springframework.jdbc.datasource.SimpleDriverDataSource
+spring.datasource.username=myuser
+spring.datasource.password=mypassword
 
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 spring.jpa.hibernate.ddl-auto=validate
@@ -123,7 +173,7 @@ Start with the Maven dependency for OJP's JDBC driver:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.0-beta</version>
 </dependency>
 ```
 
@@ -216,7 +266,7 @@ The first step remains familiar—add the OJP JDBC driver dependency:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.1-beta</version>
+    <version>0.4.0-beta</version>
 </dependency>
 ```
 
@@ -369,7 +419,122 @@ graph TD
     style E fill:#fff9e1
 ```
 
-## 7.5 Framework Comparison and Trade-offs
+## 7.5 Jakarta EE Integration
+
+Jakarta EE applications can integrate with OJP using only the standard `ojp-jdbc-driver` artifact—no framework-specific adapter is needed. The overall pattern is the same as other frameworks: disable client-side connection pooling so that OJP can manage connections centrally.
+
+Jakarta EE applications typically run inside an **application server** (such as GlassFish, WildFly, Payara, Open Liberty, or TomEE). Unlike embedded-server frameworks, the datasource is usually declared at the server level and accessed by applications through **JNDI**. Jakarta EE uses **CDI + JTA** for dependency injection and transaction management, and the default JPA provider varies by server (GlassFish and Payara bundle EclipseLink; WildFly and Open Liberty use Hibernate). The examples below use GlassFish 7 as the reference implementation of Jakarta EE 10, but the same principle applies to any compliant application server—only the server-specific datasource configuration file (e.g., `glassfish-resources.xml`, `wildfly-ds.xml`, `server.xml`) differs.
+
+> A complete working example—including JAX-RS resources, CDI repositories, JPA entities, and Arquillian integration tests—is available at [ojp-framework-integration / glassfish/shopservice](https://github.com/Open-J-Proxy/ojp-framework-integration/tree/main/glassfish/shopservice).
+
+### Step 1 — Add the OJP JDBC driver dependency
+
+```xml
+<dependency>
+    <groupId>org.openjproxy</groupId>
+    <artifactId>ojp-jdbc-driver</artifactId>
+    <version>0.4.0-beta</version>
+</dependency>
+```
+
+For production, you must also copy the driver JAR to GlassFish's domain library directory so that the server-level connection pool manager can load it:
+
+```bash
+cp ojp-jdbc-driver-*.jar $GLASSFISH_HOME/domains/domain1/lib/
+```
+
+### Step 2 — Configure the datasource (GlassFish example: `WEB-INF/glassfish-resources.xml`)
+
+The datasource is configured at the server level. On GlassFish this is done via `WEB-INF/glassfish-resources.xml`; other servers use equivalent deployment descriptors (e.g., `wildfly-ds.xml` for WildFly, `server.xml` for TomEE). The key requirement on any server is to **disable client-side connection pooling** so that OJP can manage connections centrally—equivalent to `SimpleDriverDataSource` in Spring Boot or `unpooled=true` in Quarkus. On GlassFish, set `steady-pool-size="0"` and `max-connection-usage-count="1"`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE resources PUBLIC
+    "-//GlassFish.org//DTD GlassFish Application Server 3.1 Resource Definitions//EN"
+    "http://glassfish.org/dtds/glassfish-resources_1_5.dtd">
+
+<resources>
+
+    <jdbc-connection-pool
+        name="MyAppPool"
+        res-type="java.sql.Driver"
+        driver-classname="org.openjproxy.jdbc.Driver"
+        steady-pool-size="0"
+        idle-timeout-in-seconds="0"
+        max-connection-usage-count="1">
+        <property name="url"
+                  value="jdbc:ojp[localhost:1059]_postgresql://localhost/mydb"/>
+        <property name="user" value="dbuser"/>
+        <property name="password" value="dbpass"/>
+    </jdbc-connection-pool>
+
+    <jdbc-resource
+        jndi-name="jdbc/myapp"
+        pool-name="MyAppPool"/>
+
+</resources>
+```
+
+`res-type="java.sql.Driver"` tells GlassFish to use the `Driver` interface for connection creation. `steady-pool-size="0"` and `max-connection-usage-count="1"` ensure no connections are held idle and each connection is discarded after a single use, preventing GlassFish from pooling OJP virtual connections and interfering with OJP's server-side lifecycle management.
+
+### Step 3 — Reference the JNDI datasource in `META-INF/persistence.xml`
+
+```xml
+<persistence-unit name="myapp" transaction-type="JTA">
+    <jta-data-source>jdbc/myapp</jta-data-source>
+    <properties>
+        <property name="jakarta.persistence.schema-generation.database.action" value="create"/>
+    </properties>
+</persistence-unit>
+```
+
+The JNDI name (`jdbc/myapp`) must match the `jndi-name` attribute in `glassfish-resources.xml`. No OJP-specific configuration goes into `persistence.xml`—it is pure standard Jakarta EE.
+
+### Step 4 — Use CDI, JAX-RS, and JPA as usual
+
+Your application code uses only standard Jakarta EE APIs. OJP is completely transparent at the business logic layer:
+
+```java
+@ApplicationScoped
+public class UserRepository {
+
+    @PersistenceContext(unitName = "myapp")
+    private EntityManager em;
+
+    @Transactional
+    public User create(User user) {
+        em.persist(user);
+        return user;
+    }
+}
+
+@Path("/users")
+@RequestScoped
+public class UserResource {
+
+    @Inject
+    private UserRepository repository;
+
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createUser(User user) {
+        return Response.status(Response.Status.CREATED)
+                       .entity(repository.create(user)).build();
+    }
+}
+```
+
+**[IMAGE PROMPT: Create an architecture diagram for the GlassFish / Jakarta EE integration. Show a GlassFish 7 application server box containing: WAR file (with JAX-RS resources, CDI repositories, JPA entities), a JNDI registry labeled "jdbc/myapp", and GlassFish JDBC pool (with steady-pool-size=0 label). Draw an arrow from the JDBC pool through the OJP JDBC Driver (outside the server box) to the OJP Server (separate box), which connects to the Database. Label the GlassFish pool arrow "max-connection-usage-count=1 (no local pooling)". Style: Technical architecture diagram with distinct boxes for server, driver, proxy, and database.]**
+
+### Integration testing
+
+For integration testing with Arquillian and GlassFish Embedded, see the reference demo at
+[ojp-framework-integration / glassfish/shopservice](https://github.com/Open-J-Proxy/ojp-framework-integration/tree/main/glassfish/shopservice),
+which demonstrates `@DataSourceDefinition`-based datasource registration, ShrinkWrap archive setup,
+test persistence units, and required JVM flags.
+
+## 7.6 Framework Comparison and Trade-offs
 
 Each framework brings its own philosophy and trade-offs to OJP integration. Spring Boot offers the smoothest integration path because it has mature support for customizing datasource configuration. The exclusion mechanism for removing HikariCP is well-documented and widely used. Spring Boot's configuration hierarchy also makes it easy to have different settings for different environments.
 
@@ -377,9 +542,9 @@ Quarkus provides the most explicit configuration through its `unpooled=true` set
 
 Micronaut requires the most custom code with its DataSource factory pattern, but this approach gives you complete control over connection acquisition. If you need custom logic around connection creation—perhaps for multi-tenancy or dynamic datasource routing—Micronaut's factory pattern provides natural extension points.
 
-**[IMAGE PROMPT: Create a comparison matrix showing the three frameworks. Three columns (Spring Boot, Quarkus, Micronaut), rows for: "Configuration Complexity" (Low/Low/Medium), "Custom Code Required" (None/None/Factory Class), "Native Compilation" (Limited/Excellent/Good), "Ecosystem Maturity" (Highest/Growing/Moderate), "Integration Smoothness" (Smoothest/Smooth/Moderate). Use color coding: green for best, yellow for good, orange for moderate. Style: Professional comparison matrix with visual indicators.]**
+**[IMAGE PROMPT: Create a comparison matrix showing the four frameworks. Four columns (Spring Boot, Quarkus, Micronaut, GlassFish/Jakarta EE), rows for: "Configuration Complexity" (Low/Low/Medium/Medium), "Custom Code Required" (None/None/Factory Class/None), "Native Compilation" (Limited/Excellent/Good/No), "Ecosystem Maturity" (Highest/Growing/Moderate/Mature/Standard), "Integration Smoothness" (Smoothest/Smooth/Moderate/Standard). Use color coding: green for best, yellow for good, orange for moderate. Style: Professional comparison matrix with visual indicators.]**
 
-All three frameworks support the full feature set of JDBC and JPA. Transactions, connection pooling (via OJP), batch operations, and stored procedures all work correctly regardless of framework choice. The differences lie in configuration style rather than capabilities.
+All four frameworks support the full feature set of JDBC and JPA. Transactions, connection pooling (via OJP), batch operations, and stored procedures all work correctly regardless of framework choice. The differences lie in configuration style rather than capabilities.
 
 ### Performance Considerations
 
@@ -395,9 +560,11 @@ graph LR
     B -->|Spring Boot| C[Transaction Manager]
     B -->|Quarkus| D[Transaction Manager]
     B -->|Micronaut| E[Transaction Manager]
+    B -->|Jakarta EE| K[JTA Transaction Manager]
     C --> F[OJP Driver]
     D --> F
     E --> F
+    K --> F
     F --> G[OJP Server]
     G --> H[Database]
     H --> G
@@ -405,7 +572,7 @@ graph LR
     F --> I[Same Performance]
 ```
 
-## 7.6 Integration Best Practices
+## 7.7 Integration Best Practices
 
 Successful OJP integration across frameworks follows common patterns. First, always verify that local connection pooling is completely disabled. Check your dependency tree to ensure no pooling libraries are included. Run your application with debug logging and observe connection acquisition—you should see OJP driver activity, not local pool creation.
 
@@ -431,7 +598,7 @@ Fourth, leverage your framework's transaction management properly. Use `@Transac
 
 Finally, test your integration thoroughly. Write integration tests that exercise database operations through your framework's repository layer. Verify that transactions commit and rollback correctly, that connection leaks don't occur, and that concurrent requests don't interfere with each other. These tests give you confidence that OJP integration works correctly in your specific application context.
 
-## 7.7 Migration from Existing Applications
+## 7.8 Migration from Existing Applications
 
 If you're adding OJP to an existing application, the migration process is straightforward but requires careful testing. Start with a non-production environment where you can experiment safely. Make a checklist of the configuration changes needed for your specific framework.
 
@@ -465,12 +632,12 @@ graph TD
 
 ## Summary
 
-Integrating OJP with modern Java frameworks is straightforward once you understand the core principle: disable local connection pooling and configure the OJP JDBC driver. Spring Boot, Quarkus, and Micronaut all support this integration, though each uses different configuration mechanisms.
+Integrating OJP with modern Java frameworks is straightforward once you understand the core principle: disable local connection pooling and configure the OJP JDBC driver. Spring Boot, Quarkus, Micronaut, and Jakarta EE application servers all support this integration, though each uses different configuration mechanisms.
 
-Spring Boot users exclude HikariCP and use SimpleDriverDataSource. Quarkus users enable unpooled JDBC mode. Micronaut users create a custom DataSource factory. All three approaches achieve the same goal: creating single connections that connect to OJP rather than maintaining local connection pools.
+Spring Boot users have the easiest path: add the `spring-boot-starter-ojp` dependency and set a single connection URL. The starter's auto-configuration automatically selects the correct driver and datasource type, and its `OjpSystemPropertiesBridge` forwards any `ojp.*` properties from `application.properties` to the driver without a separate `ojp.properties` file. For Java 11 projects that cannot use the starter, the manual path—exclude HikariCP, add the driver, set `SimpleDriverDataSource`—achieves the same result. Quarkus users enable unpooled JDBC mode. Micronaut users create a custom DataSource factory. Jakarta EE users configure the application server datasource with client-side pooling disabled, which achieves the same unpooled effect using the server's own connection pool tuning knobs. All approaches achieve the same goal: creating single connections that connect to OJP rather than maintaining local connection pools.
 
 The beauty of this integration is that your application code doesn't change. Repositories, services, transactions, and ORM mappings all work exactly as before. OJP integration happens entirely at the configuration layer, making it low-risk and reversible if needed.
 
-Choose your framework based on your application requirements, not OJP compatibility—all three work excellently with OJP. Focus on properly disabling local pooling, configuring appropriate timeouts, and monitoring connection behavior to ensure your integration works correctly.
+Choose your framework based on your application requirements, not OJP compatibility—all four work excellently with OJP. Focus on properly disabling local pooling, configuring appropriate timeouts, and monitoring connection behavior to ensure your integration works correctly.
 
-**[IMAGE PROMPT: Create a summary diagram showing the three frameworks (Spring Boot, Quarkus, Micronaut logos) all connecting to a central OJP Server icon, which then connects to a database. Above each framework, show the key integration requirements in small text: "Exclude HikariCP + SimpleDriverDataSource", "Unpooled=true", "Custom DataSource Factory". Below the database, show benefits: "Centralized Pooling", "Coordinated Management", "Transparent to App Code". Style: Clean architectural summary with icons and clear relationships.]**
+**[IMAGE PROMPT: Create a summary diagram showing the four frameworks (Spring Boot, Quarkus, Micronaut, Jakarta EE logos) all connecting to a central OJP Server icon, which then connects to a database. Above Spring Boot show "spring-boot-starter-ojp (zero config)" with a green star. Above Quarkus show "Unpooled=true". Above Micronaut show "Custom DataSource Factory". Above Jakarta EE show "Server datasource (JNDI)". Below the database, show benefits: "Centralized Pooling", "Coordinated Management", "Transparent to App Code". Style: Clean architectural summary with icons and clear relationships.]**

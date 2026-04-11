@@ -122,13 +122,16 @@ public class HandleXAConnectionWithPoolingAction {
             expectedMinIdle = xaConfig.getMinimumIdle();
             poolEnabled = xaConfig.isPoolEnabled();
             
-            // Apply multinode coordination to get expected divided sizes
+            // For validation purposes, compute the initial divided pool sizes directly.
+            // Do NOT call calculatePoolSizes() here: it would overwrite the existing allocation
+            // with a fresh one (healthyServers = totalServers), resetting any health-driven state
+            // and introducing a race condition with processClusterHealth() where the allocation
+            // can be overwritten between updateHealthyServers() and the resize call, causing
+            // the pool to be resized to the wrong (pre-health-update) divided size.
             if (currentServerEndpoints != null && !currentServerEndpoints.isEmpty()) {
-                MultinodePoolCoordinator.PoolAllocation allocation = 
-                        ConnectionPoolConfigurer.getPoolCoordinator().calculatePoolSizes(
-                                connHash, expectedMaxPoolSize, expectedMinIdle, currentServerEndpoints);
-                expectedMaxPoolSize = allocation.getCurrentMaxPoolSize();
-                expectedMinIdle = allocation.getCurrentMinIdle();
+                int totalServers = currentServerEndpoints.size();
+                expectedMaxPoolSize = (int) Math.ceil((double) expectedMaxPoolSize / totalServers);
+                expectedMinIdle = (int) Math.ceil((double) expectedMinIdle / totalServers);
             }
         } catch (Exception e) {
             log.warn("Failed to calculate expected pool sizes, will skip validation: {}", e.getMessage());
@@ -171,6 +174,9 @@ public class HandleXAConnectionWithPoolingAction {
                 }
                 context.getXaRegistries().remove(connHash);
                 registry = null;
+                // Reset health tracker so the next processClusterHealth() call will re-evaluate
+                // cluster health and properly resize the new pool for current server health state.
+                context.getClusterHealthTracker().removeTracking(connHash);
             }
         }
         

@@ -2,6 +2,9 @@
 
 The OJP Server supports comprehensive configuration through both JVM system properties and environment variables. This document covers all available configuration options including server settings, connection pools, slow query segregation, and client-side configuration.
 
+> **⚠️ Important JVM Property:**  
+> Always start the server with `-Duser.timezone=UTC`. The OJP Server handles date/time values from multiple databases and client timezones. Running the JVM in UTC ensures consistent and predictable temporal conversions. Omitting this setting can cause incorrect date/time handling when clients and databases use different timezones.
+
 ## Server Configuration
 
 The server supports configuration through both JVM system properties and environment variables. JVM system properties take precedence over environment variables when both are specified.
@@ -48,7 +51,8 @@ OJP Server uses Logback for logging with fully configurable options. All logging
 
 **Production logging setup:**
 ```bash
-java -Dojp.server.logLevel=INFO \
+java -Duser.timezone=UTC \
+     -Dojp.server.logLevel=INFO \
      -Dojp.server.log.file=/var/log/ojp/server.log \
      -Dojp.server.log.maxHistory=90 \
      -Dojp.server.log.totalSizeCap=10GB \
@@ -74,7 +78,8 @@ OJP Server supports property placeholders in JDBC URLs to enable server-side SSL
 **Configuration example:**
 ```bash
 # JVM properties
-java -jar ojp-server.jar \
+java -Duser.timezone=UTC \
+  -jar ojp-server.jar \
   -Dojp.server.sslrootcert=/etc/ojp/certs/ca-cert.pem \
   -Dojp.server.sslcert=/etc/ojp/certs/client-cert.pem
 
@@ -100,8 +105,43 @@ For detailed configuration examples for each database, see [SSL/TLS Certificate 
 
 | Property                      | Environment Variable          | Type    | Default | Description                                    | Since |
 |-------------------------------|-------------------------------|---------|---------|------------------------------------------------|-------|
-| `ojp.opentelemetry.enabled`   | `OJP_OPENTELEMETRY_ENABLED`   | boolean | true    | Enable/disable OpenTelemetry instrumentation  | 0.2.0-beta |
+| `ojp.telemetry.enabled`   | `OJP_TELEMETRY_ENABLED`   | boolean | true    | Master switch: Enable/disable OpenTelemetry infrastructure (Prometheus server, MeterProvider, TracerProvider)  | 0.2.0-beta |
 | `ojp.opentelemetry.endpoint`  | `OJP_OPENTELEMETRY_ENDPOINT`  | string  | ""      | OpenTelemetry exporter endpoint (empty = default) | 0.2.0-beta |
+
+### Tracing Settings
+
+Distributed tracing is **disabled by default**. When enabled, OJP emits OpenTelemetry spans for all gRPC calls to a Zipkin or OTLP-compatible backend (e.g. Jaeger, Grafana Tempo).
+
+| Property                    | Environment Variable        | Type    | Default                                   | Description                                                   | Since          |
+|-----------------------------|-----------------------------|---------|-------------------------------------------|---------------------------------------------------------------|----------------|
+| `ojp.tracing.enabled`       | `OJP_TRACING_ENABLED`       | boolean | false                                     | Enable/disable distributed tracing (disabled by default)      | 0.4.0-beta |
+| `ojp.tracing.exporter`      | `OJP_TRACING_EXPORTER`      | string  | zipkin                                    | Trace exporter type: `zipkin` or `otlp`                      | 0.4.0-beta |
+| `ojp.tracing.endpoint`      | `OJP_TRACING_ENDPOINT`      | string  | http://localhost:9411/api/v2/spans        | Exporter endpoint URL                                         | 0.4.0-beta |
+| `ojp.tracing.serviceName`   | `OJP_TRACING_SERVICENAME`   | string  | ojp-server                                | Service name attached to all spans                           | 0.4.0-beta |
+| `ojp.tracing.sampleRate`    | `OJP_TRACING_SAMPLERATE`    | double  | 1.0                                       | Fraction of requests to sample (0.0–1.0)                     | 0.4.0-beta |
+
+#### Tracing Configuration Examples
+
+**Enable Zipkin tracing:**
+```bash
+java -Duser.timezone=UTC \
+  -jar ojp-server.jar \
+  -Dojp.tracing.enabled=true \
+  -Dojp.tracing.endpoint=http://zipkin:9411/api/v2/spans \
+  -Dojp.tracing.serviceName=my-ojp-server
+```
+
+**Enable OTLP tracing (Jaeger / Grafana Tempo / OpenTelemetry Collector):**
+```bash
+java -Duser.timezone=UTC \
+  -jar ojp-server.jar \
+  -Dojp.tracing.enabled=true \
+  -Dojp.tracing.exporter=otlp \
+  -Dojp.tracing.endpoint=http://jaeger:4317 \
+  -Dojp.tracing.sampleRate=0.1
+```
+
+For full integration examples including Docker Compose setups, see the **[Telemetry Documentation](../telemetry/README.md)**.
 
 ### Circuit Breaker Settings
 
@@ -114,7 +154,7 @@ For detailed configuration examples for each database, see [SSL/TLS Certificate 
 
 | Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |
 |----------------------------------------------------|----------------------------------------------------|---------|----------|--------------------------------------------------|-------|
-| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | true     | Enable/disable slow query segregation feature   | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | false    | Enable/disable slow query segregation feature   | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotPercentage` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTPERCENTAGE` | int     | 20       | Percentage of slots for slow operations (0-100) | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.idleTimeout`     | `OJP_SERVER_SLOWQUERYSEGREGATION_IDLETIMEOUT`     | long    | 10000    | Idle timeout for slot borrowing (milliseconds)  | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Timeout for acquiring slow operation slots (ms) | 0.2.0-beta |
@@ -164,7 +204,8 @@ The SQL Enhancer provides query optimization using Apache Calcite with real data
 **Testing/Development setup (NOT FOR PRODUCTION):**
 ```bash
 # WARNING: For testing/development only
-java -Dojp.sql.enhancer.enabled=true \
+java -Duser.timezone=UTC \
+     -Dojp.sql.enhancer.enabled=true \
      -Dojp.sql.enhancer.schema.refresh.enabled=true \
      -Dojp.sql.enhancer.schema.refresh.interval.hours=12 \
      -Dojp.sql.enhancer.schema.load.timeout.seconds=30 \
@@ -251,9 +292,10 @@ For JDBC driver and client-side connection pool configuration, see:
 Set configuration using JVM system properties when starting the server:
 
 ```bash
-java -Dojp.server.port=8080 \
+java -Duser.timezone=UTC \
+     -Dojp.server.port=8080 \
      -Dojp.prometheus.port=9091 \
-     -Dojp.opentelemetry.enabled=false \
+     -Dojp.telemetry.enabled=false \
      -Dojp.server.threadPoolSize=100 \
      -Dojp.server.circuitBreakerTimeout=120000 \
      -Dojp.server.circuitBreakerThreshold=3 \
@@ -277,7 +319,7 @@ export OJP_SERVER_CIRCUITBREAKERTHRESHOLD=3
 export OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED=true
 export OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTPERCENTAGE=25
 export OJP_SERVER_ALLOWEDIPS="192.168.1.0/24,10.0.0.1"
-java -jar ojp-server.jar
+java -Duser.timezone=UTC -jar ojp-server.jar
 ```
 
 ### 3. Docker Environment Variables
@@ -293,6 +335,27 @@ docker run -e OJP_SERVER_PORT=8080 \
            -p 9091:9091 \
            rrobetti/ojp:latest
 ```
+
+### 4. Docker with JVM Parameters (JAVA_TOOL_OPTIONS)
+
+Pass JVM parameters (heap size, system properties, GC options) using the `JAVA_TOOL_OPTIONS` environment variable:
+
+```bash
+docker run -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
+           -e OJP_SERVER_PORT=1059 \
+           -e OJP_SERVER_LOGLEVEL=INFO \
+           -p 1059:1059 \
+           -p 9159:9159 \
+           rrobetti/ojp:latest
+```
+
+The JVM automatically recognizes and applies parameters set in `JAVA_TOOL_OPTIONS`. This allows you to configure:
+- **Memory settings**: `-Xmx4g`, `-Xms2g`, `-XX:MaxMetaspaceSize=512m`
+- **System properties**: `-Dfile.encoding=UTF-8`, `-Duser.timezone=UTC`
+- **Garbage collection**: `-XX:+UseG1GC`, `-XX:MaxGCPauseMillis=200`
+- **Debugging**: `-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005`
+
+For comprehensive Docker deployment examples and best practices, see **[Docker Deployment Guide](DOCKER_DEPLOYMENT.md)**.
 
 ## IP Whitelist Configuration
 
@@ -347,7 +410,7 @@ The Slow Query Segregation feature monitors all database operations and classifi
 
 ```properties
 # Enable/disable the feature
-ojp.server.slowQuerySegregation.enabled=true
+ojp.server.slowQuerySegregation.enabled=false
 
 # Percentage of slots for slow operations (0-100)
 ojp.server.slowQuerySegregation.slowSlotPercentage=20
@@ -375,7 +438,8 @@ ojp.server.slowQuerySegregation.fastSlotTimeout=60000
 ### Development Environment
 
 ```bash
-java -Dojp.server.port=1059 \
+java -Duser.timezone=UTC \
+     -Dojp.server.port=1059 \
      -Dojp.prometheus.port=9159 \
      -Dojp.server.logLevel=DEBUG \
      -Dojp.server.log.file=logs/ojp-dev.log \
@@ -387,7 +451,8 @@ java -Dojp.server.port=1059 \
 ### Production Environment
 
 ```bash
-java -Dojp.server.port=1059 \
+java -Duser.timezone=UTC \
+     -Dojp.server.port=1059 \
      -Dojp.prometheus.port=9159 \
      -Dojp.server.logLevel=INFO \
      -Dojp.server.log.file=/var/log/ojp/server.log \
@@ -406,7 +471,8 @@ java -Dojp.server.port=1059 \
 ### High-Throughput Environment
 
 ```bash
-java -Dojp.server.port=1059 \
+java -Duser.timezone=UTC \
+     -Dojp.server.port=1059 \
      -Dojp.server.threadPoolSize=500 \
      -Dojp.server.maxRequestSize=16777216 \
      -Dojp.server.connectionIdleTimeout=60000 \
@@ -476,7 +542,7 @@ INFO org.openjproxy.grpc.server.ServerConfiguration - OJP Server Configuration:
 INFO org.openjproxy.grpc.server.ServerConfiguration -   Server Port: 1059
 INFO org.openjproxy.grpc.server.ServerConfiguration -   Prometheus Port: 9159
 INFO org.openjproxy.grpc.server.ServerConfiguration -   OpenTelemetry Enabled: true
-INFO org.openjproxy.grpc.server.ServerConfiguration -   Slow Query Segregation Enabled: true
+INFO org.openjproxy.grpc.server.ServerConfiguration -   Slow Query Segregation Enabled: false
 INFO org.openjproxy.grpc.server.ServerConfiguration -   Slow Query Slot Percentage: 20%
 ...
 ```

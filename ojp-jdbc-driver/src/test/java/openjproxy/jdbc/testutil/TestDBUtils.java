@@ -394,7 +394,13 @@ public class TestDBUtils {
                         " val_binary BINARY(4)," +
                         " val_date DATE," +
                         " val_time TIME," +
-                        " val_timestamp TIMESTAMP)";
+                        " val_timestamp TIMESTAMP," +
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," +  // OffsetDateTime
+                        " val_offsettime TIME WITH TIME ZONE)";  // OffsetTime
             } else if (sqlSyntax == SqlSyntax.POSTGRES || sqlSyntax == SqlSyntax.COCKROACHDB) {
                 // PostgreSQL/CockroachDB syntax - adjust types for PostgreSQL/CockroachDB compatibility
                 createTableSql = "CREATE TABLE " + tableName + "(" +
@@ -411,7 +417,13 @@ public class TestDBUtils {
                         " val_binary BYTEA," +
                         " val_date DATE," +
                         " val_time TIME," +
-                        " val_timestamp TIMESTAMP)";
+                        " val_timestamp TIMESTAMP," +
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," +  // OffsetDateTime
+                        " val_offsettime TIME WITH TIME ZONE)";  // OffsetTime
             } else if (sqlSyntax == SqlSyntax.ORACLE) {
                 // Oracle syntax - Oracle-specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
@@ -428,7 +440,13 @@ public class TestDBUtils {
                         " val_binary RAW(4)," +
                         " val_date DATE," +
                         " val_time TIMESTAMP," +  // Oracle DATE includes time, use TIMESTAMP for time-only
-                        " val_timestamp TIMESTAMP)";
+                        " val_timestamp TIMESTAMP," +
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIMESTAMP," +  // LocalTime (Oracle doesn't have TIME type)
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," +  // OffsetDateTime
+                        " val_offsettime TIMESTAMP WITH TIME ZONE)";  // OffsetTime
             } else if (sqlSyntax == SqlSyntax.SQLSERVER) {
                 // SQL Server syntax - SQL Server-specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
@@ -445,7 +463,13 @@ public class TestDBUtils {
                         " val_binary VARBINARY(4)," +
                         " val_date DATE," +
                         " val_time TIME," +
-                        " val_timestamp DATETIME2)";  // SQL Server uses DATETIME2 for timestamp
+                        " val_timestamp DATETIME2," +  // SQL Server uses DATETIME2 for timestamp
+                        " val_localdatetime DATETIME2," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant DATETIME2," +  // Instant
+                        " val_offsetdatetime DATETIMEOFFSET," +  // OffsetDateTime
+                        " val_offsettime DATETIMEOFFSET)";  // OffsetTime (SQL Server doesn't have TIME WITH TIME ZONE)
             } else if (sqlSyntax == SqlSyntax.DB2) {
                 // DB2 syntax - DB2-specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
@@ -462,7 +486,13 @@ public class TestDBUtils {
                         " val_binary VARBINARY(4)," +
                         " val_date DATE," +
                         " val_time TIME," +
-                        " val_timestamp TIMESTAMP)";
+                        " val_timestamp TIMESTAMP," +
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP," +  // OffsetDateTime (DB2 doesn't have TIMESTAMP WITH TIME ZONE in all versions)
+                        " val_offsettime TIMESTAMP)";  // OffsetTime
             } else { // MYSQL
                 // MySQL syntax - MySQL specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
@@ -479,7 +509,13 @@ public class TestDBUtils {
                         " val_binary BINARY(4)," +
                         " val_date DATE," +
                         " val_time TIME," +
-                        " val_timestamp TIMESTAMP)";
+                        " val_timestamp TIMESTAMP," +
+                        " val_localdatetime DATETIME," +  // LocalDateTime - MySQL uses DATETIME
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP," +  // OffsetDateTime (MySQL doesn't have timezone support in older versions)
+                        " val_offsettime TIME)";  // OffsetTime
             }
             statement.execute(createTableSql);
         }

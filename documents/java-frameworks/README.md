@@ -4,6 +4,7 @@ Each folder under this directory have detailed documentation on how to integrate
 - [Spring Boot](spring-boot/README.md)
 - [Quarkus](quarkus/README.md)
 - [Micronaut](micronaut/README.md)
+- [Jakarta EE](jakarta-ee/README.md)
 
 Note that the steps are always similar and follow 3 basic steps:
 

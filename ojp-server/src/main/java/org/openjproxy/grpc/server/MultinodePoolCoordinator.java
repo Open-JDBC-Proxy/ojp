@@ -112,10 +112,17 @@ public class MultinodePoolCoordinator {
      * Updates the number of healthy servers for a connection hash.
      * This triggers pool size recalculation.
      * 
+     * Returns the updated {@link PoolAllocation} so callers can use it directly
+     * without a second map lookup. A second lookup would be subject to a race
+     * condition where a concurrent {@code calculatePoolSizes()} call can overwrite
+     * the allocation between the update and the read, causing stale (un-updated)
+     * pool sizes to be used for resizing.
+     * 
      * @param connHash Connection hash identifying the datasource
      * @param healthyServerCount Number of currently healthy servers
+     * @return the updated PoolAllocation, or {@code null} if none exists for the given connHash
      */
-    public void updateHealthyServers(String connHash, int healthyServerCount) {
+    public PoolAllocation updateHealthyServers(String connHash, int healthyServerCount) {
         PoolAllocation allocation = poolAllocations.get(connHash);
         if (allocation != null) {
             int oldCount = allocation.getHealthyServers();
@@ -125,6 +132,7 @@ public class MultinodePoolCoordinator {
                     connHash, oldCount, healthyServerCount, 
                     allocation.getCurrentMaxPoolSize(), allocation.getCurrentMinIdle());
         }
+        return allocation;
     }
     
     /**

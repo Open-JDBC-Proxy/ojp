@@ -59,21 +59,20 @@ ojp.datasource.provider=dbcp
 | `ojp.connection.pool.connectionTimeout` | Connection timeout (ms) |
 | `ojp.connection.pool.idleTimeout` | Idle timeout (ms) |
 | `ojp.connection.pool.maxLifetime` | Max connection lifetime (ms) |
-| `ojp.datasource.name` | Logical datasource name |
 | `ojp.datasource.provider` | Provider ID (hikari, dbcp) |
 
 ### Per-Datasource Configuration
 
-For named datasources, prefix properties with the datasource name:
+For named datasources, prefix properties with the datasource name. The name is inferred from the prefix — no separate name property is needed. The prefix must match the name used in the JDBC URL (e.g., `jdbc:ojp[localhost:1059(mainApp)]_...`):
 
 ```properties
-# Default settings
+# Default settings (no prefix, used when URL has no datasource name)
 ojp.connection.pool.maximumPoolSize=20
 
-# Named datasource "mainApp"
+# Named datasource "mainApp" — name inferred from prefix
 mainApp.ojp.connection.pool.maximumPoolSize=30
 
-# Named datasource "batchJob"
+# Named datasource "batchJob" — name inferred from prefix
 batchJob.ojp.connection.pool.maximumPoolSize=5
 ```
 

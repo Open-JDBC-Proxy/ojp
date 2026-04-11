@@ -6,18 +6,18 @@
 
     <name>OJP Commons</name>
     <artifactId>ojp-grpc-commons</artifactId>
-    <version>0.3.2-snapshot</version>
+    <version>0.4.2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.3.2-snapshot</version>
+        <version>0.4.2-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <properties>
-        <grpc.version>1.78.0</grpc.version>
-        <netty.version>4.1.130.Final</netty.version>
+        <grpc.version>1.80.0</grpc.version>
+        <netty.version>4.1.132.Final</netty.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <slf4j.version>2.0.17</slf4j.version>
     </properties>
@@ -47,7 +47,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency>
 
@@ -55,7 +55,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency> 
 
@@ -146,6 +146,7 @@
                     <includes>
                         <include>**/*Test.java</include>
                     </includes>
+                    <argLine>-Dfile.encoding=UTF-8 -Duser.timezone=UTC</argLine>
                 </configuration>
             </plugin>
         </plugins>

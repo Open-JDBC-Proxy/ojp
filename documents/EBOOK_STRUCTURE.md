@@ -82,7 +82,7 @@ The e-book is designed to guide readers from understanding the core problem OJP 
   - Docker/container options
   - Network requirements
 - **3.2 Installation Options**
-  - Docker deployment (batteries included)
+  - Docker deployment (with volume-mounted drivers)
   - Runnable JAR setup
   - Building from source
 - **3.3 Your First OJP Connection**

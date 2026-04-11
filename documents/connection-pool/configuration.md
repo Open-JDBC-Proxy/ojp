@@ -43,20 +43,25 @@ ojp.connection.pool.maxLifetime=1800000
 
 ### Per-Datasource Configuration
 
-For named datasources, prefix the properties with the datasource name:
+For named datasources, prefix the properties with the datasource name. The name is inferred from the prefix itself — no separate `name` property is needed:
 
 ```properties
-# Default datasource settings
+# Default datasource settings (no prefix)
 ojp.connection.pool.maximumPoolSize=20
 ojp.connection.pool.minimumIdle=5
 
-# Named datasource "mainApp"
+# Named datasource "mainApp" — name is inferred from the prefix
 mainApp.ojp.connection.pool.maximumPoolSize=30
 mainApp.ojp.connection.pool.minimumIdle=10
 
-# Named datasource "batchJob"  
+# Named datasource "batchJob" — name is inferred from the prefix
 batchJob.ojp.connection.pool.maximumPoolSize=5
 batchJob.ojp.connection.pool.minimumIdle=1
+```
+
+The datasource name used in the JDBC URL must match the prefix used in the properties file:
+```
+jdbc:ojp[localhost:1059(mainApp)]_postgresql://db:5432/mydb
 ```
 
 ## Property Reference
@@ -71,7 +76,6 @@ batchJob.ojp.connection.pool.minimumIdle=1
 | `ojp.connection.pool.idleTimeout` | Idle timeout (ms) | 600000 |
 | `ojp.connection.pool.maxLifetime` | Max connection lifetime (ms) | 1800000 |
 | `ojp.connection.pool.defaultTransactionIsolation` | Default transaction isolation level | READ_COMMITTED |
-| `ojp.datasource.name` | Logical datasource name | default |
 
 ### Transaction Isolation Configuration
 

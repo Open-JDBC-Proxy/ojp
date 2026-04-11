@@ -6,21 +6,20 @@
 
     <name>OJP XA Pool Commons</name>
     <artifactId>ojp-xa-pool-commons</artifactId>
-    <version>0.3.2-snapshot</version>
+    <version>0.4.2-SNAPSHOT</version>
     <description>Apache Commons Pool 2 XA Connection Pool Provider for OJP</description>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.3.2-snapshot</version>
+        <version>0.4.2-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <properties>
         <slf4j.version>2.0.17</slf4j.version>
         <commons-pool2.version>2.13.1</commons-pool2.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <opentelemetry.version>1.60.1</opentelemetry.version>
     </properties>
 
     <dependencies>
@@ -40,11 +39,19 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- OpenTelemetry API for metrics -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <version>${opentelemetry.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- JUnit 5 for testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency>
 
@@ -60,7 +67,23 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.21.0</version>
+            <version>5.23.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- OpenTelemetry SDK for testing -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+            <version>${opentelemetry.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- OpenTelemetry SDK testing utilities -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
+            <version>${opentelemetry.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -125,7 +148,57 @@
                     <target>21</target>
                 </configuration>
             </plugin>
-        </plugins>
-    </build>
+            <!--Signs the JARs for deployments-->
+            <!--<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>-->
+            <!--Deploys to maven central-->
+    <!--<plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.8.0</version>
+        <extensions>true</extensions>
+        <configuration>
+            <publishingServerId>central</publishingServerId>
+        </configuration>
+    </plugin>-->
+</plugins>
+</build>
+
+<!-- Add SCM and project info for Maven Central requirements -->
+    <scm>
+        <url>https://github.com/Open-J-Proxy/ojp</url>
+        <connection>scm:git:https://github.com/Open-J-Proxy/ojp.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com:Open-J-Proxy/ojp.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>rrobetti</id>
+            <name>Rogerio Robetti</name>
+        </developer>
+    </developers>
+
+    <url>https://github.com/Open-J-Proxy/ojp</url>
 
 </project>

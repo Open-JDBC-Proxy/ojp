@@ -6,12 +6,12 @@
 
     <name>OJP JDBC Driver</name>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.3.2-snapshot</version>
+    <version>0.4.2-SNAPSHOT</version>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.3.2-snapshot</version>
+        <version>0.4.2-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -25,7 +25,7 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-grpc-commons</artifactId>
-            <version>0.3.2-snapshot</version>
+            <version>0.4.2-SNAPSHOT</version>
         </dependency>
 
 
@@ -66,7 +66,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency>
 
@@ -74,7 +74,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
-            <version>5.14.2</version>
+            <version>5.14.3</version>
             <scope>test</scope>
         </dependency>
 
@@ -107,7 +107,7 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.9</version>
+            <version>42.7.10</version>
             <scope>test</scope>
         </dependency>
 
@@ -116,7 +116,7 @@
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
-            <version>13.2.1.jre11</version>
+            <version>13.4.0.jre11</version>
             <scope>test</scope>
         </dependency>
 
@@ -133,7 +133,7 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-testcontainers</artifactId>
-            <version>0.3.2-snapshot</version>
+            <version>0.4.2-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
 
@@ -148,7 +148,7 @@
                     <!--Without order the multiple drivers used in tests will conflict (mostly for tests), if moved to use only OJP no longer needed-->
                     <runOrder>alphabetical</runOrder>
 
-                    <argLine>-Dfile.encoding=UTF-8</argLine>
+                    <argLine>-Dfile.encoding=UTF-8 -Duser.timezone=UTC</argLine>
                 </configuration>
                 <version>3.2.5</version>
             </plugin>
@@ -221,19 +221,19 @@
                 </executions>
             </plugin>-->
             <!--Deploys to maven central-->
-            <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-                <version>0.8.0</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <publishingServerId>central</publishingServerId>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <!--<plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.8.0</version>
+        <extensions>true</extensions>
+        <configuration>
+            <publishingServerId>central</publishingServerId>
+        </configuration>
+    </plugin>-->
+</plugins>
+</build>
 
-    <!-- Add SCM and project info for Maven Central requirements -->
+<!-- Add SCM and project info for Maven Central requirements -->
     <scm>
         <url>https://github.com/Open-J-Proxy/ojp</url>
         <connection>scm:git:https://github.com/Open-J-Proxy/ojp.git</connection>
@@ -253,10 +253,6 @@
         <developer>
             <id>rrobetti</id>
             <name>Rogerio Robetti</name>
-        </developer>
-        <developer>
-            <id>petruki</id>
-            <name>Roger Floriano</name>
         </developer>
     </developers>
 

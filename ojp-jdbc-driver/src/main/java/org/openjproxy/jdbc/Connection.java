@@ -408,20 +408,24 @@ public class Connection implements java.sql.Connection {
     public java.sql.PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
         log.debug("prepareStatement: {}, <int[]>", sql);
         checkValid();
+        // int[] is not a supported PropertyEntry type; convert to List<Integer> which
+        // ProtoSerialization can transport. The server converts back to int[].
+        List<Integer> indexes = Arrays.stream(columnIndexes).boxed().collect(java.util.stream.Collectors.toList());
         return new PreparedStatement(this, sql, this.statementService, this.hashMapOf(
                 List.of(CommonConstants.STATEMENT_COLUMN_INDEXES_KEY)
-                , List.of(columnIndexes)));
+                , List.of((Object) indexes)));
     }
 
     @Override
     public java.sql.PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
         log.debug("prepareStatement: {}, <String[]>", sql);
         checkValid();
-        List<Object> values = new ArrayList<>();
-        values.add(columnNames);
+        // String[] is not a supported PropertyEntry type; convert to List<String> which
+        // ProtoSerialization can transport. The server converts back to String[].
+        List<String> names = Arrays.asList(columnNames);
         return new PreparedStatement(this, sql, this.statementService, this.hashMapOf(
                 List.of(CommonConstants.STATEMENT_COLUMN_NAMES_KEY)
-                , values));
+                , List.of((Object) names)));
     }
 
     @Override

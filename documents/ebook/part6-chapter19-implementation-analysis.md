@@ -12,7 +12,7 @@ The original 70MB JAR file contained drivers for H2, PostgreSQL, MySQL, and Mari
 
 The externalization effort, completed in version 0.4.0-beta, removed these embedded dependencies, shrinking the core JAR to just 20MB—a dramatic 71% reduction. More importantly, it placed control in users' hands. Now the `ojp-libs` directory serves as the loading mechanism for all drivers, whether open-source or proprietary. Users can update drivers independently, remove unnecessary ones for compliance purposes, or even add custom patched versions without rebuilding OJP.
 
-The implementation required careful handling of class loading and reflection. The `DriverUtils` class manages driver discovery and loading, while `XADataSourceFactory` uses reflection-based instantiation to avoid compile-time dependencies. This approach maintains backward compatibility—Docker images still include all open-source drivers by default—while enabling the flexibility that enterprise users demand.
+The implementation required careful handling of class loading and reflection. The `DriverUtils` class manages driver discovery and loading, while `XADataSourceFactory` uses reflection-based instantiation to avoid compile-time dependencies. This approach maintains backward compatibility—the provided `download-drivers.sh` script makes it easy to get all open-source drivers with a single command—while enabling the flexibility that enterprise users demand.
 
 A simple bash script (`download-drivers.sh`) automates the process of retrieving drivers from Maven Central, making the setup as straightforward as running a single command. The script is idempotent, cross-platform compatible, and provides clear feedback about which drivers are present or missing.
 
@@ -34,7 +34,7 @@ graph TD
     H --> I[Server Ready]
 ```
 
-This implementation demonstrates a key principle in OJP's design philosophy: start with simplicity but architect for flexibility. The "batteries included" Docker image preserves the easy onboarding experience, while the externalization architecture accommodates enterprise requirements for control and customization.
+This implementation demonstrates a key principle in OJP's design philosophy: start with simplicity but architect for flexibility. The `download-drivers.sh` script preserves the easy onboarding experience, while the externalization architecture accommodates enterprise requirements for control and customization.
 
 ## 19.2 Pool Disable Feature
 
