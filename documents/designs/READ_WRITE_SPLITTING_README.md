@@ -6,6 +6,8 @@ This directory contains comprehensive analysis and design documentation for impl
 
 | Document | Purpose | Who Should Read |
 |----------|---------|-----------------|
+| [**User Guide**](../guides/READ_WRITE_SPLITTING_USER_GUIDE.md) | Complete setup and usage guide | All Users |
+| [**eBook Chapter**](../ebook/part3-chapter12b-read-write-splitting.md) | Narrative explanation with examples | All Users |
 | [**Executive Summary**](../../READ_WRITE_SPLITTING_SUMMARY.md) | High-level overview | Stakeholders, Decision Makers |
 | [**Technical Analysis**](./READ_WRITE_SPLITTING_ANALYSIS.md) | Detailed design & implementation plan | Architects, Developers |
 | [**Sequence Diagrams**](./read-write-splitting-sequence-diagram.md) | Runtime behavior visualization | Developers |
@@ -104,16 +106,27 @@ Ready-to-use configurations:
 - All documentation written
 - Architecture validated
 
-### ⏳ Phase 2-5: Implementation (PENDING)
-See [detailed implementation plan](./READ_WRITE_SPLITTING_ANALYSIS.md#implementation-strategy---copilot-sessions) for:
-- **Phase 2**: Core Components (3 Copilot sessions)
-- **Phase 3**: Integration (3 Copilot sessions)
-- **Phase 4**: Testing & Documentation (2 Copilot sessions)
-- **Phase 5**: Advanced Features (3 Copilot sessions, optional)
+### ✅ Phase 2: Core Components (COMPLETE - Sessions 2.1-2.3)
+- SqlClassifier with JSqlParser integration (78 tests)
+- ReadWriteRouter and ReplicaSelector (30 tests)
+- SessionContext and DataSourceRegistry (23 tests)
 
-Each session is designed for completion in a single Copilot interaction (~1-2 hours).
+### ✅ Phase 3: Integration (COMPLETE - Sessions 3.1-3.3)
+- Configuration parsing (34 tests)
+- ConnectAction integration (10 tests)
+- Transaction state tracking (8 tests)
 
-**Total Timeline**: 8-10 weeks
+### ✅ Phase 4: Testing & Documentation (PARTIAL - Session 4.1 COMPLETE)
+- Integration tests (24 tests)
+- User documentation (COMPLETE - this session)
+
+### ⏳ Phase 5: Advanced Features (PENDING - Optional)
+- SQL hints and setReadOnly()
+- Replica health monitoring
+- Observability and metrics
+
+**Status**: Phase 2-4.1 Complete (207 tests, production-ready infrastructure)  
+**Last Updated**: 2026-04-11
 
 ## 🎨 Architecture Overview
 

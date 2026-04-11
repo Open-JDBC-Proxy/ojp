@@ -367,20 +367,75 @@ The e-book is designed to guide readers from understanding the core problem OJP 
 
 ---
 
-#### Chapter 12: Circuit Breaker and Resilience
-- **12.1 Circuit Breaker Pattern**
+#### Chapter 12a: Query Result Caching
+- **12a.1 Caching Architecture**
+  - Caffeine cache integration
+  - Cache key generation
+  - Invalidation strategies
+- **12a.2 Configuration and Rules**
+  - Cache rules definition
+  - Pattern matching
+  - TTL and size limits
+  - Client-side configuration
+- **12a.3 Write Invalidation**
+  - Table-based invalidation
+  - Affected table detection
+  - Transactional consistency
+- **12a.4 Performance and Monitoring**
+  - Cache hit rates
+  - Memory management
+  - Performance benchmarks
+
+**Source Documents:**
+- documents/guides/CACHE_USER_GUIDE.md
+- documents/analysis/CACHING_IMPLEMENTATION_ANALYSIS.md
+- documents/ADRs/adr-008-use-caffeine-for-caching.md
+
+---
+
+#### Chapter 12b: Read/Write Traffic Splitting
+- **12b.1 Replication and Read Scaling**
+  - Read/write workload characteristics
+  - Database replication patterns
+  - Scaling read capacity horizontally
+- **12b.2 Intelligent Routing**
+  - SQL classification (JSqlParser)
+  - Transaction-aware routing
+  - Sticky session pattern
+  - Read-after-write consistency
+- **12b.3 Replica Selection and Failover**
+  - Round-robin load balancing
+  - Health-aware failover
+  - Graceful degradation to primary
+  - Multi-replica configurations
+- **12b.4 Configuration and Best Practices**
+  - Primary and replica setup
+  - Sticky session tuning
+  - Connection pool sizing
+  - Monitoring and troubleshooting
+
+**Source Documents:**
+- documents/guides/READ_WRITE_SPLITTING_USER_GUIDE.md
+- documents/designs/READ_WRITE_SPLITTING_ANALYSIS.md
+- documents/designs/read-write-splitting-sequence-diagram.md
+- documents/designs/read-write-splitting-configuration-templates.md
+
+---
+
+#### Chapter 12c: Circuit Breaker and Resilience
+- **12c.1 Circuit Breaker Pattern**
   - Understanding circuit breakers
   - Failure detection
   - Recovery mechanisms
-- **12.2 Configuration**
+- **12c.2 Configuration**
   - Timeout settings
   - Failure thresholds
   - Circuit states
-- **12.3 Error Handling**
+- **12c.3 Error Handling**
   - Connection-level failures
   - Database-level errors
   - Retry strategies
-- **12.4 Graceful Degradation**
+- **12c.4 Graceful Degradation**
   - Fallback strategies
   - Service continuity
   - Monitoring circuit state
