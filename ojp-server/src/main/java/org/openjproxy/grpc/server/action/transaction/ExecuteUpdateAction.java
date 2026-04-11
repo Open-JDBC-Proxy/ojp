@@ -141,6 +141,15 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             // Phase 9: Cache Invalidation (after successful update)
             org.openjproxy.grpc.server.cache.QueryCacheHelper.invalidateCacheIfEnabled(actionContext, dto.getSession(), request.getSql());
             
+            // Record write operation for read/write routing sticky sessions
+            if (dto.getSession() != null && dto.getSession().getSessionUUID() != null) {
+                org.openjproxy.grpc.server.Session session = sessionManager.getSessionByUUID(dto.getSession().getSessionUUID());
+                if (session != null) {
+                    session.recordWrite();
+                    log.debug("Recorded write operation for session {}", session.getSessionUUID());
+                }
+            }
+            
             return result;
         } finally {
             closeStatementAndConnectionIfNoSession(dto, stmt);

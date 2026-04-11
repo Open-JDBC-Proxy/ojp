@@ -65,6 +65,13 @@ public class RollbackTransactionAction implements Action<SessionInfo, SessionInf
                 throw new SQLException("Connection not found for this session");
             }
             conn.rollback();
+            
+            // Update session transaction state for read/write routing
+            org.openjproxy.grpc.server.Session session = context.getSessionManager().getSessionByUUID(sessionInfo.getSessionUUID());
+            if (session != null) {
+                session.setInTransaction(false);
+                log.debug("Session {} exited transaction state (rollback)", session.getSessionUUID());
+            }
 
             TransactionInfo transactionInfo = TransactionInfo.newBuilder()
                     .setTransactionStatus(TransactionStatus.TRX_ROLLBACK)

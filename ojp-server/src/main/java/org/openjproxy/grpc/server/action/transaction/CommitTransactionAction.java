@@ -48,6 +48,13 @@ public class CommitTransactionAction implements Action<SessionInfo, SessionInfo>
         try {
             Connection conn = context.getSessionManager().getConnection(sessionInfo);
             conn.commit();
+            
+            // Update session transaction state for read/write routing
+            org.openjproxy.grpc.server.Session session = context.getSessionManager().getSessionByUUID(sessionInfo.getSessionUUID());
+            if (session != null) {
+                session.setInTransaction(false);
+                log.debug("Session {} exited transaction state (commit)", session.getSessionUUID());
+            }
 
             TransactionInfo transactionInfo = TransactionInfo.newBuilder()
                     .setTransactionStatus(TransactionStatus.TRX_COMMITED)
