@@ -52,6 +52,13 @@ public class Session {
     private volatile long lastActivityTime;
     @Getter
     private final long creationTime;
+    
+    // Read/Write Splitting Support
+    @Getter
+    private volatile boolean inTransaction = false;  // Tracks if session is in an active transaction
+    @Getter
+    private volatile long lastWriteTimestamp = 0;  // Timestamp of last write operation (for sticky sessions)
+    private static final long DEFAULT_STICKY_SESSION_MILLIS = 5000;  // 5 seconds default
 
     public Session(Connection connection, String connectionHash, String clientUUID) {
         this(connection, connectionHash, clientUUID, false, null, null);
@@ -247,6 +254,60 @@ public class Session {
         if (this.closed) {
             throw new RuntimeException("Session is closed.");
         }
+    }
+    
+    // ========== Read/Write Splitting Methods ==========
+    
+    /**
+     * Marks the session as being in a transaction.
+     * This is called when autoCommit is set to false or when an explicit transaction begins.
+     */
+    public void setInTransaction(boolean inTransaction) {
+        this.inTransaction = inTransaction;
+        log.debug("Session {} transaction state set to: {}", sessionUUID, inTransaction);
+    }
+    
+    /**
+     * Records that a write operation occurred in this session.
+     * This updates the lastWriteTimestamp to enable sticky session behavior
+     * (routing subsequent reads to primary for a period after writes).
+     */
+    public void recordWriteOperation() {
+        this.lastWriteTimestamp = System.currentTimeMillis();
+        log.debug("Session {} recorded write operation at {}", sessionUUID, lastWriteTimestamp);
+    }
+    
+    /**
+     * Checks if the session is in sticky mode (recent write occurred).
+     * Sticky mode means reads should be routed to primary to avoid replication lag issues.
+     * 
+     * @param stickySessionMillis the duration in milliseconds to stick to primary after a write
+     * @return true if within sticky period after last write, false otherwise
+     */
+    public boolean isInStickyMode(long stickySessionMillis) {
+        if (lastWriteTimestamp == 0) {
+            return false;  // No write has occurred
+        }
+        long timeSinceWrite = System.currentTimeMillis() - lastWriteTimestamp;
+        return timeSinceWrite < stickySessionMillis;
+    }
+    
+    /**
+     * Checks if the session is in sticky mode using the default sticky session duration (5 seconds).
+     * 
+     * @return true if within default sticky period after last write, false otherwise
+     */
+    public boolean isInStickyMode() {
+        return isInStickyMode(DEFAULT_STICKY_SESSION_MILLIS);
+    }
+    
+    /**
+     * Clears the sticky session state by resetting the last write timestamp.
+     * This can be called to manually exit sticky mode.
+     */
+    public void clearStickySession() {
+        this.lastWriteTimestamp = 0;
+        log.debug("Session {} cleared sticky session state", sessionUUID);
     }
 
     public void terminate() throws SQLException {
