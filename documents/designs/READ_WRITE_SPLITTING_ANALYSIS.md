@@ -865,77 +865,307 @@ ResultSet rs = stmt.executeQuery(
 
 ---
 
-## Migration Strategy
+## Implementation Strategy - Copilot Sessions
 
-### Phase 1: Foundation (No Code Changes Yet)
+### Phase 1: Foundation ✅ COMPLETE
 
-**Goal**: Design and document the approach.
+**Status**: Analysis and design complete (this document)
 
 **Deliverables**:
-- ✅ This analysis document
-- Architecture diagrams
-- Configuration schema
-- API design for new components
-
-**Timeline**: 1 week
-
-### Phase 2: Core Implementation
-
-**Goal**: Implement SQL classification and routing infrastructure.
-
-**Tasks**:
-1. Implement `SqlClassifier` with regex-based classification
-2. Implement `ReadWriteRouter` with primary/replica selection
-3. Implement `ReplicaSelector` (round-robin strategy)
-4. Add `ReadWriteDataSourceRegistry` to manage datasources
-5. Enhance `SessionContext` with transaction and sticky session tracking
-6. Unit tests for all new components
-
-**Timeline**: 2-3 weeks
-
-### Phase 3: Integration
-
-**Goal**: Integrate routing logic into OJP server.
-
-**Tasks**:
-1. Modify `ConnectAction` to create primary and replica datasources
-2. Modify `StatementServiceImpl.executeStatement()` to use router
-3. Add transaction boundary detection
-4. Implement configuration parsing for read/write settings
-5. Integration tests with H2, PostgreSQL
-
-**Timeline**: 2 weeks
-
-### Phase 4: Configuration and Documentation
-
-**Goal**: Make feature configurable and document usage.
-
-**Tasks**:
-1. Configuration property definitions
-2. Validation and error handling
-3. User documentation with examples
-4. Migration guide for existing users
-5. Performance benchmarks
-
-**Timeline**: 1 week
-
-### Phase 5: Advanced Features
-
-**Goal**: Add optional enhancements.
-
-**Tasks**:
-1. Hint-based routing override
-2. Connection.setReadOnly() support
-3. Replica health monitoring
-4. Metrics and observability (read/write split ratio)
-5. Alternative replica selection strategies (LEAST_CONNECTIONS)
-
-**Timeline**: 2-3 weeks
-
-### Total Estimated Timeline: 8-10 weeks
+- ✅ Technical analysis document
+- ✅ Architecture diagrams  
+- ✅ Sequence diagrams
+- ✅ Configuration templates
+- ✅ API design for new components
 
 ---
 
+### Phase 2: Core Components (2-3 weeks)
+
+**Goal**: Implement routing infrastructure components
+
+#### Session 2.1: SqlClassifier Implementation
+
+**Scope**: Implement SQL statement classification logic
+
+**Tasks**:
+1. Create `SqlClassifier` interface and `RegexSqlClassifier` implementation
+2. Add classification rules for READ vs WRITE operations
+3. Handle edge cases (SELECT FOR UPDATE, RETURNING clauses, CTEs)
+4. Unit tests with 100+ test cases covering all SQL patterns
+5. Benchmark classification performance
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/SqlClassifier.java` (new)
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/RegexSqlClassifier.java` (new)
+- `ojp-server/src/test/java/org/openjproxy/grpc/server/readwrite/SqlClassifierTest.java` (new)
+
+**Success Criteria**:
+- All tests pass
+- Classification accuracy >99% on test suite
+- Classification performance <1ms per query
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+#### Session 2.2: ReadWriteRouter and ReplicaSelector
+
+**Scope**: Implement routing logic and replica selection
+
+**Tasks**:
+1. Create `ReadWriteRouter` class with datasource selection logic
+2. Implement `ReplicaSelector` interface with round-robin strategy
+3. Add health-aware replica selection (try all before primary fallback)
+4. Implement failover logic with circuit breaker pattern
+5. Unit tests for routing decisions and failover scenarios
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/ReadWriteRouter.java` (new)
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/ReplicaSelector.java` (new)
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/RoundRobinReplicaSelector.java` (new)
+- `ojp-server/src/test/java/org/openjproxy/grpc/server/readwrite/ReadWriteRouterTest.java` (new)
+- `ojp-server/src/test/java/org/openjproxy/grpc/server/readwrite/ReplicaSelectorTest.java` (new)
+
+**Success Criteria**:
+- All routing decision tests pass
+- Failover logic correctly tries all replicas before primary
+- Thread-safe replica selection
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+#### Session 2.3: SessionContext and DataSource Registry
+
+**Scope**: Enhance session tracking and datasource management
+
+**Tasks**:
+1. Enhance `SessionContext` with transaction state tracking
+2. Add sticky session support with timestamp tracking
+3. Create `ReadWriteDataSourceRegistry` for managing primary + replicas
+4. Add datasource health status tracking
+5. Unit tests for session state management
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/session/SessionContext.java` (modify)
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/ReadWriteDataSourceRegistry.java` (new)
+- `ojp-server/src/test/java/org/openjproxy/grpc/server/session/SessionContextTest.java` (modify)
+- `ojp-server/src/test/java/org/openjproxy/grpc/server/readwrite/ReadWriteDataSourceRegistryTest.java` (new)
+
+**Success Criteria**:
+- Transaction state correctly tracked
+- Sticky session expiration works
+- Registry correctly manages multiple datasources
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+---
+
+### Phase 3: Integration (2 weeks)
+
+**Goal**: Integrate routing into OJP server request flow
+
+#### Session 3.1: Configuration Parsing
+
+**Scope**: Parse and validate read/write configuration properties
+
+**Tasks**:
+1. Create `ReadWriteConfiguration` class to hold parsed config
+2. Implement configuration parser in `ConfigurationManager`
+3. Add validation logic (verify replica references valid primary)
+4. Support environment-specific overrides
+5. Unit tests for configuration parsing and validation
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/ReadWriteConfiguration.java` (new)
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/config/ConfigurationManager.java` (modify)
+- `ojp-server/src/test/java/org/openjproxy/grpc/server/readwrite/ReadWriteConfigurationTest.java` (new)
+
+**Success Criteria**:
+- All configuration formats parse correctly
+- Invalid configurations rejected with clear error messages
+- Backward compatibility: existing configs still work
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+#### Session 3.2: ConnectAction Integration
+
+**Scope**: Modify connection establishment to create primary + replica pools
+
+**Tasks**:
+1. Modify `ConnectAction` to detect read/write configuration
+2. Create primary datasource pool
+3. Create replica datasource pools based on configuration
+4. Register datasources in `ReadWriteDataSourceRegistry`
+5. Add logging for datasource creation
+6. Integration tests with H2
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/action/session/ConnectAction.java` (modify)
+- `ojp-server/src/test/java/org/openjproxy/grpc/server/action/session/ConnectActionTest.java` (modify)
+- `ojp-integration-tests/src/test/java/org/openjproxy/integration/ReadWriteSplittingIntegrationTest.java` (new)
+
+**Success Criteria**:
+- Primary and replica pools created correctly
+- Connection pooling works for both primary and replicas
+- Integration test passes with H2 in-memory databases
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+#### Session 3.3: StatementServiceImpl Integration
+
+**Scope**: Route SQL statements through ReadWriteRouter
+
+**Tasks**:
+1. Modify `StatementServiceImpl.executeStatement()` to use router
+2. Add transaction boundary detection (setAutoCommit, BEGIN, COMMIT)
+3. Update session context on transaction state changes
+4. Route queries through `ReadWriteRouter.selectDataSource()`
+5. Integration tests for read routing, write routing, transactions
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/StatementServiceImpl.java` (modify)
+- `ojp-integration-tests/src/test/java/org/openjproxy/integration/ReadWriteRoutingIntegrationTest.java` (new)
+
+**Success Criteria**:
+- Reads route to replicas
+- Writes route to primary
+- Transactions pin to primary
+- All integration tests pass
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+---
+
+### Phase 4: Testing & Documentation (1 week)
+
+**Goal**: Comprehensive testing and user documentation
+
+#### Session 4.1: Comprehensive Integration Tests
+
+**Scope**: Test all scenarios with real databases
+
+**Tasks**:
+1. Add PostgreSQL integration tests
+2. Add MySQL integration tests  
+3. Test failover scenarios (replica down)
+4. Test sticky session behavior
+5. Performance benchmarks (measure overhead)
+
+**Files to Create/Modify**:
+- `ojp-integration-tests/src/test/java/org/openjproxy/integration/PostgresReadWriteTest.java` (new)
+- `ojp-integration-tests/src/test/java/org/openjproxy/integration/MySQLReadWriteTest.java` (new)
+- `ojp-integration-tests/src/test/java/org/openjproxy/integration/FailoverTest.java` (new)
+
+**Success Criteria**:
+- All database integration tests pass
+- Failover works correctly
+- Performance overhead <5%
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+#### Session 4.2: User Documentation
+
+**Scope**: Document feature for end users
+
+**Tasks**:
+1. Create user guide with setup instructions
+2. Add troubleshooting section
+3. Document configuration properties
+4. Add migration guide for existing deployments
+5. Update main README with feature announcement
+
+**Files to Create/Modify**:
+- `documents/guides/READ_WRITE_SPLITTING_USER_GUIDE.md` (new)
+- `README.md` (modify - add feature announcement)
+- `CHANGELOG.md` (modify - add entry)
+
+**Success Criteria**:
+- Clear step-by-step setup guide
+- All configuration options documented
+- Troubleshooting covers common issues
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+---
+
+### Phase 5: Advanced Features (2-3 weeks, Optional)
+
+**Goal**: Add optional enhancements
+
+#### Session 5.1: SQL Hints and setReadOnly()
+
+**Scope**: Allow applications to override routing
+
+**Tasks**:
+1. Implement SQL hint parsing (`/*+ OJP:PRIMARY */`)
+2. Support `Connection.setReadOnly()` API
+3. Add tests for hint-based routing
+4. Document hint syntax
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/SqlHintParser.java` (new)
+- `ojp-jdbc-driver/src/main/java/org/openjproxy/jdbc/Connection.java` (modify)
+
+**Success Criteria**:
+- Hints correctly override routing
+- setReadOnly() forces replica usage
+- All tests pass
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+#### Session 5.2: Replica Health Monitoring
+
+**Scope**: Monitor and route based on replica health
+
+**Tasks**:
+1. Add health check mechanism for replicas
+2. Implement circuit breaker with recovery
+3. Remove unhealthy replicas from rotation
+4. Add health status metrics
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/readwrite/ReplicaHealthMonitor.java` (new)
+
+**Success Criteria**:
+- Unhealthy replicas excluded from routing
+- Circuit breaker opens/closes correctly
+- Health metrics exposed
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+#### Session 5.3: Observability and Metrics
+
+**Scope**: Add metrics for monitoring routing behavior
+
+**Tasks**:
+1. Add metrics for read/write split ratio
+2. Add metrics for replica selection distribution
+3. Add metrics for failover events
+4. Create Grafana dashboard
+
+**Files to Create/Modify**:
+- `ojp-server/src/main/java/org/openjproxy/grpc/server/metrics/ReadWriteMetrics.java` (new)
+- `documents/monitoring/read-write-splitting-dashboard.json` (new)
+
+**Success Criteria**:
+- All metrics collected correctly
+- Dashboard shows routing behavior
+- Metrics help diagnose issues
+
+**Estimated Time**: 1 session (~1-2 hours)
+
+---
+
+### Total Timeline Summary
+
+| Phase | Sessions | Estimated Time |
+|-------|----------|----------------|
+| Phase 1: Foundation | - | ✅ Complete |
+| Phase 2: Core Components | 3 sessions | 2-3 weeks |
+| Phase 3: Integration | 3 sessions | 2 weeks |
+| Phase 4: Testing & Documentation | 2 sessions | 1 week |
+| Phase 5: Advanced Features (Optional) | 3 sessions | 2-3 weeks |
+| **TOTAL** | **11 sessions** | **8-10 weeks** |
+
+Each session is designed to be completable in a single Copilot interaction (~1-2 hours of focused work).
 ## Future Enhancements
 
 ### 1. Advanced Load Balancing

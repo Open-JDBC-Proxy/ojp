@@ -2,287 +2,184 @@
 
 This directory contains comprehensive analysis and design documentation for implementing read/write traffic splitting in Open J Proxy (OJP).
 
-## 📋 Overview
+## 📋 Quick Links
 
-Read/write splitting is a database architecture pattern where write operations and transactions are directed to a primary database, while read-only operations are distributed across one or more read replicas. This improves scalability, performance, and resource utilization.
+| Document | Purpose | Who Should Read |
+|----------|---------|-----------------|
+| [**Executive Summary**](../../READ_WRITE_SPLITTING_SUMMARY.md) | High-level overview | Stakeholders, Decision Makers |
+| [**Technical Analysis**](./READ_WRITE_SPLITTING_ANALYSIS.md) | Detailed design & implementation plan | Architects, Developers |
+| [**Sequence Diagrams**](./read-write-splitting-sequence-diagram.md) | Runtime behavior visualization | Developers |
+| [**Configuration Templates**](./read-write-splitting-configuration-templates.md) | Setup examples | DevOps, DBAs |
+
+## 🎯 What is Read/Write Splitting?
+
+Read/write splitting routes database operations based on type:
+- **Writes** (INSERT/UPDATE/DELETE) → Primary database
+- **Reads** (SELECT) → Read replicas (distributed)
+- **Transactions** → Primary database (all operations)
+
+**Benefits**: Better scalability, performance, and resource utilization.
+
+## 🚀 Quick Start by Role
+
+### For Decision Makers
+Start with the [Executive Summary](../../READ_WRITE_SPLITTING_SUMMARY.md) to understand:
+- What the feature does
+- Why implement it in OJP
+- Implementation timeline (8-10 weeks)
+- Business benefits
+
+### For Architects
+Read the [Technical Analysis](./READ_WRITE_SPLITTING_ANALYSIS.md) to understand:
+- Implementation approaches evaluated (4 options)
+- Recommended solution: SQL Parsing with Automatic Routing
+- Architecture and component design
+- Integration with existing OJP infrastructure
+- Implementation strategy broken down into Copilot sessions
+
+### For Developers
+1. Review [Technical Analysis](./READ_WRITE_SPLITTING_ANALYSIS.md) - Component design section
+2. Study [Sequence Diagrams](./read-write-splitting-sequence-diagram.md) - Runtime behavior
+3. Check implementation phases - organized as Copilot sessions
+
+### For DevOps/DBAs
+Jump directly to [Configuration Templates](./read-write-splitting-configuration-templates.md) for:
+- PostgreSQL, MySQL, Oracle, SQL Server examples
+- Environment-specific configurations (dev/staging/prod)
+- Best practices and migration checklist
+- Troubleshooting guide
 
 ## 📚 Documentation Structure
 
-### 1. [READ_WRITE_SPLITTING_ANALYSIS.md](./READ_WRITE_SPLITTING_ANALYSIS.md)
+### 1. Executive Summary (Root Directory)
+**File**: `READ_WRITE_SPLITTING_SUMMARY.md`
 
-**Main analysis document** - Comprehensive analysis of implementation approaches and technical design.
+Quick overview with:
+- Feature description
+- High-level architecture diagram
+- Key benefits
+- Implementation status
+- Example usage
 
-**Contents:**
+### 2. Technical Analysis (This Directory)
+**File**: `READ_WRITE_SPLITTING_ANALYSIS.md`
+
+Complete technical documentation:
 - Current OJP architecture overview
 - Requirements and goals
-- 4 different implementation approaches with pros/cons
-- Recommended approach (SQL Parsing and Automatic Routing)
-- Detailed technical design with code examples
+- 4 implementation approaches with pros/cons
+- **Recommended approach**: SQL Parsing and Automatic Routing
+- Detailed component design with code examples
 - Implementation challenges and solutions
-- Migration strategy with timeline
-- Future enhancements
+- **Migration strategy**: Organized into Copilot-sized sessions (11 sessions total)
+- Future enhancements roadmap
 
-**Key Sections:**
-- Executive Summary
-- Architecture comparison
-- Component design (ReadWriteRouter, SqlClassifier, ReplicaSelector)
-- Integration points
-- 8-10 week implementation timeline
+### 3. Sequence Diagrams (This Directory)
+**File**: `read-write-splitting-sequence-diagram.md`
 
-**Start here** if you want to understand the full scope and rationale behind the implementation.
-
----
-
-### 2. [read-write-splitting-sequence-diagram.md](./read-write-splitting-sequence-diagram.md)
-
-**Visual diagrams** - Sequence diagrams illustrating how read/write splitting works in various scenarios.
-
-**Diagrams included:**
+Visual documentation with Mermaid diagrams:
 1. Simple read query routing to replica
-2. Write query routing to primary with sticky session
+2. Write query routing with sticky session
 3. Transaction pinning to primary
-4. Replica failover to primary
-5. SELECT FOR UPDATE detection as write
-6. Router decision flow diagram
+4. Replica failover scenarios
+5. SELECT FOR UPDATE detection
+6. Router decision flow
 
-**Use this** to understand the runtime behavior and flow of requests through the system.
+### 4. Configuration Templates (This Directory)
+**File**: `read-write-splitting-configuration-templates.md`
 
----
-
-### 3. [read-write-splitting-configuration-templates.md](./read-write-splitting-configuration-templates.md)
-
-**Configuration examples** - Ready-to-use configuration templates for various database setups.
-
-**Templates included:**
-1. Single primary with two read replicas (PostgreSQL)
-2. MySQL primary with three replicas
-3. Environment-specific configuration (dev/staging/prod)
-4. Mixed workload with separate pools
-5. Oracle with Active Data Guard
-6. SQL Server with Always On Availability Groups
-
-**Additional content:**
-- Configuration property reference
+Ready-to-use configurations:
+- 6 complete templates for different scenarios
+- Database-specific examples (PostgreSQL, MySQL, Oracle, SQL Server)
+- Environment-specific configs (dev/staging/prod)
+- Complete property reference
 - Best practices
 - Migration checklist
 - Troubleshooting guide
 
-**Use this** when you're ready to configure read/write splitting for your deployment.
+## 🔧 Implementation Status
 
----
+### ✅ Phase 1: Foundation (COMPLETE)
+- Analysis and design complete
+- All documentation written
+- Architecture validated
 
-## 🎯 Quick Start
+### ⏳ Phase 2-5: Implementation (PENDING)
+See [detailed implementation plan](./READ_WRITE_SPLITTING_ANALYSIS.md#implementation-strategy---copilot-sessions) for:
+- **Phase 2**: Core Components (3 Copilot sessions)
+- **Phase 3**: Integration (3 Copilot sessions)
+- **Phase 4**: Testing & Documentation (2 Copilot sessions)
+- **Phase 5**: Advanced Features (3 Copilot sessions, optional)
 
-### For Architects and Decision Makers
+Each session is designed for completion in a single Copilot interaction (~1-2 hours).
 
-1. Read the **Executive Summary** in [READ_WRITE_SPLITTING_ANALYSIS.md](./READ_WRITE_SPLITTING_ANALYSIS.md)
-2. Review the **Implementation Approaches** section to understand the options
-3. Check the **Timeline** in the Migration Strategy section
+**Total Timeline**: 8-10 weeks
 
-### For Developers
+## 🎨 Architecture Overview
 
-1. Review the **Technical Design** section in [READ_WRITE_SPLITTING_ANALYSIS.md](./READ_WRITE_SPLITTING_ANALYSIS.md)
-2. Study the **Sequence Diagrams** in [read-write-splitting-sequence-diagram.md](./read-write-splitting-sequence-diagram.md)
-3. Look at the **Code Examples** for component interfaces and implementations
+```mermaid
+flowchart LR
+    App[Application<br/>No changes] -->|JDBC| OJP[OJP Proxy<br/>+Router]
+    OJP -->|Writes| Primary[(Primary DB)]
+    OJP -->|Reads| R1[(Replica 1)]
+    OJP -->|Reads| R2[(Replica 2)]
+    
+    style OJP fill:#ffe1f5
+    style Primary fill:#ff9999
+    style R1 fill:#99ccff
+    style R2 fill:#99ccff
+```
 
-### For DevOps/Platform Engineers
+## 💡 Key Features
 
-1. Start with [read-write-splitting-configuration-templates.md](./read-write-splitting-configuration-templates.md)
-2. Choose a template matching your database setup
-3. Follow the **Migration Checklist** when deploying
+| Feature | Description |
+|---------|-------------|
+| **Transparent** | No application code changes required |
+| **Automatic** | SQL classification at proxy layer |
+| **Safe** | Conservative fallback to primary for unknowns |
+| **Smart Failover** | Tries all replicas before primary |
+| **Read-Your-Writes** | Optional sticky session after writes |
+| **Backward Compatible** | Existing deployments unchanged |
 
----
+## 📖 Example Usage
 
-## 🏗️ Implementation Status
-
-**Current Status**: ✅ Analysis Complete - Implementation Pending
-
-**Deliverables:**
-- ✅ Comprehensive architecture analysis
-- ✅ Technical design with component specifications
-- ✅ Sequence diagrams for key scenarios
-- ✅ Configuration templates for all major databases
-- ✅ Migration strategy and timeline
-- ⏳ Implementation (not started)
-
-**Estimated Timeline**: 8-10 weeks for full implementation
-
----
-
-## 🔑 Key Design Decisions
-
-### Recommended Approach: SQL Parsing and Automatic Routing
-
-**Why this approach?**
-- ✅ **Transparent**: No application code changes required
-- ✅ **Automatic**: Reads go to replicas, writes to primary
-- ✅ **Transaction-aware**: All ops in a transaction use primary
-- ✅ **Safe**: Unknown queries default to primary
-- ✅ **Backward compatible**: Opt-in feature, existing configs work
-
-**Core Components:**
-1. **SqlClassifier**: Determines if SQL is read or write
-2. **ReadWriteRouter**: Selects datasource (primary or replica)
-3. **ReplicaSelector**: Chooses which replica for read operations
-4. **SessionContext**: Tracks transaction state and sticky sessions
-
----
-
-## 📊 Architecture Comparison
-
-| Approach | Transparency | Complexity | Performance | Recommended |
-|----------|--------------|------------|-------------|-------------|
-| URL-Based Explicit | ❌ Low | ✅ Low | ✅ High | ❌ No |
-| SQL Parsing (Auto) | ✅ High | 🔶 Medium | ✅ High | ✅ **Yes** |
-| Hint-Based | 🔶 Medium | 🔶 Medium | ✅ High | 🔶 Enhancement |
-| Connection Property | 🔶 Medium | ✅ Low | ✅ High | 🔶 Enhancement |
-
-**Winner**: SQL Parsing and Automatic Routing (Approach 2)
-
----
-
-## 🔧 Configuration Example
-
-**Simple setup with 1 primary + 2 replicas:**
-
+### Configuration (Properties File)
 ```properties
-# Primary
-primary.ojp.connection.pool.maximumPoolSize=50
+# Enable read/write splitting
 primary.ojp.readwrite.enabled=true
-primary.ojp.readwrite.role=primary
-primary.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN
 primary.ojp.readwrite.stickySessionSeconds=5
 
-# Replica 1
-replica1.ojp.connection.pool.maximumPoolSize=30
+# Define replicas
 replica1.ojp.readwrite.role=replica
 replica1.ojp.readwrite.primary=primary
-replica1.ojp.connection.url=jdbc:postgresql://replica1.example.com:5432/mydb
-
-# Replica 2
-replica2.ojp.connection.pool.maximumPoolSize=30
-replica2.ojp.readwrite.role=replica
-replica2.ojp.readwrite.primary=primary
-replica2.ojp.connection.url=jdbc:postgresql://replica2.example.com:5432/mydb
+replica1.ojp.connection.url=jdbc:postgresql://replica1.example.com/db
 ```
 
-**Application code (unchanged):**
-
+### Application Code (No Changes!)
 ```java
-// No code changes needed!
-String url = "jdbc:ojp[localhost:1059(primary)]_postgresql://primary.example.com:5432/mydb";
-Connection conn = DriverManager.getConnection(url, "user", "password");
+// Existing code works unchanged
+Connection conn = DriverManager.getConnection(ojpUrl, user, password);
 
-// Reads automatically routed to replicas
+// SELECT → Automatically routes to replica
 ResultSet rs = stmt.executeQuery("SELECT * FROM users");
 
-// Writes automatically routed to primary
+// UPDATE → Automatically routes to primary
 stmt.executeUpdate("UPDATE users SET email = 'new@example.com'");
+
+// Transactions → Automatically pin to primary
+conn.setAutoCommit(false);
+stmt.executeQuery("SELECT * FOR UPDATE");  // → Primary
+stmt.executeUpdate("UPDATE ...");          // → Primary
+conn.commit();
 ```
 
----
+## 🔍 Next Steps
 
-## 🚀 Implementation Phases
-
-### Phase 1: Foundation (1 week)
-- ✅ Design and documentation (complete)
-- ✅ Architecture diagrams (complete)
-- ✅ Configuration schema (complete)
-
-### Phase 2: Core Implementation (2-3 weeks)
-- ⏳ Implement SqlClassifier
-- ⏳ Implement ReadWriteRouter
-- ⏳ Implement ReplicaSelector
-- ⏳ Add ReadWriteDataSourceRegistry
-- ⏳ Unit tests
-
-### Phase 3: Integration (2 weeks)
-- ⏳ Modify ConnectAction
-- ⏳ Modify StatementServiceImpl
-- ⏳ Transaction boundary detection
-- ⏳ Configuration parsing
-- ⏳ Integration tests
-
-### Phase 4: Configuration & Documentation (1 week)
-- ⏳ Property definitions
-- ⏳ Validation and error handling
-- ⏳ User documentation
-- ⏳ Migration guide
-- ⏳ Performance benchmarks
-
-### Phase 5: Advanced Features (2-3 weeks)
-- ⏳ Hint-based routing override
-- ⏳ Connection.setReadOnly() support
-- ⏳ Replica health monitoring
-- ⏳ Metrics and observability
-
-**Total**: 8-10 weeks
+1. **Review Documentation**: Start with the [Executive Summary](../../READ_WRITE_SPLITTING_SUMMARY.md)
+2. **Understand Design**: Read the [Technical Analysis](./READ_WRITE_SPLITTING_ANALYSIS.md)
+3. **Plan Implementation**: Follow the [session-by-session implementation plan](./READ_WRITE_SPLITTING_ANALYSIS.md#implementation-strategy---copilot-sessions)
+4. **Begin Coding**: Start with Session 2.1 (SqlClassifier implementation)
 
 ---
 
-## 🎓 Key Concepts
-
-### Transaction Handling
-- All operations within a transaction use the **primary datasource**
-- Ensures consistency and ACID properties
-- Transaction detected via `setAutoCommit(false)` or explicit `BEGIN`
-
-### Sticky Session
-- After a write, subsequent reads use **primary for N seconds**
-- Provides "read-your-writes" consistency
-- Configurable duration (default: 5 seconds)
-
-### Replica Selection
-- **Round-robin**: Fair distribution (default)
-- **Random**: Avoid patterns
-- **Least connections**: Balance load (future)
-
-### Failover
-- If replica unavailable → automatic fallback to **primary**
-- Circuit breaker prevents repeated failures
-- Health checks on connection pools
-
----
-
-## 📖 Related OJP Documentation
-
-- [OJP Components](../OJPComponents.md)
-- [Connection Pool Configuration](../configuration/ojp-jdbc-configuration.md)
-- [OJP Server Configuration](../configuration/ojp-server-configuration.md)
-- [Multinode Configuration](../multinode/README.md)
-- [Slow Query Segregation](./SLOW_QUERY_SEGREGATION.md)
-
----
-
-## 🤝 Contributing
-
-This is an analysis and design document. Implementation contributions should follow the design outlined in these documents. Key considerations:
-
-1. **Follow the recommended approach** (SQL Parsing and Automatic Routing)
-2. **Maintain backward compatibility** - feature must be opt-in
-3. **Add comprehensive tests** for SQL classification and routing logic
-4. **Document configuration** with clear examples
-5. **Consider edge cases** mentioned in the Implementation Challenges section
-
----
-
-## 📝 Questions or Feedback?
-
-For questions about the design or implementation:
-1. Review the [READ_WRITE_SPLITTING_ANALYSIS.md](./READ_WRITE_SPLITTING_ANALYSIS.md) document
-2. Check the [Troubleshooting section](./read-write-splitting-configuration-templates.md#troubleshooting) in configuration templates
-3. Open a GitHub issue with the `enhancement` label
-
----
-
-## 📅 Document Version
-
-- **Created**: February 2026
-- **Status**: Analysis Complete
-- **Next Review**: After Phase 2 implementation
-
----
-
-## 📜 License
-
-This documentation is part of the OJP project and is licensed under the Apache License 2.0.
+**Questions or Feedback?** Open an issue in the repository.
