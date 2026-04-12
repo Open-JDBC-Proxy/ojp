@@ -139,6 +139,7 @@ class ConnectActionConcurrencyTest {
                 new ConcurrentHashMap<>(),
                 new ConcurrentHashMap<>(),
                 new ConcurrentHashMap<>(),
+                null, // readWriteDataSourceRegistry
                 mock(XAConnectionPoolProvider.class),
                 new MultinodeXaCoordinator(),
                 new ClusterHealthTracker(),
