@@ -65,18 +65,10 @@ public class ReadWriteRoutingHelper {
      */
     public Connection routeQuery(DataSource primaryDatasource, Session session, String sql) throws SQLException {
         // If read/write splitting is not configured for this datasource, use primary
-        String primaryDatasourceName = registry.getPrimaryDatasourceName(session.getConnHash());
+        String primaryDatasourceName = registry.getPrimaryName(session.getConnectionHash());
         if (primaryDatasourceName == null) {
             log.debug("Read/write splitting not configured for session {}, using primary", 
                     session.getSessionUUID());
-            return primaryDatasource.getConnection();
-        }
-
-        // Get read/write configuration
-        ReadWriteConfiguration config = registry.getConfiguration(primaryDatasourceName);
-        if (config == null || !config.isEnabled()) {
-            log.debug("Read/write splitting disabled for datasource {}, using primary", 
-                    primaryDatasourceName);
             return primaryDatasource.getConnection();
         }
 
@@ -88,17 +80,13 @@ public class ReadWriteRoutingHelper {
             return primaryDatasource.getConnection();
         }
 
-        // Create router with primary + replicas
-        ReadWriteRouter router = new ReadWriteRouter(
-                primaryDatasource,
-                replicas,
-                createReplicaSelector(config),
-                sqlClassifier
-        );
+        // Create router with classifier and selector
+        // Always use round-robin strategy (future enhancement: make configurable)
+        ReadWriteRouter router = new ReadWriteRouter(sqlClassifier, new RoundRobinReplicaSelector());
 
         // Route the query
         try {
-            DataSource selectedDatasource = router.selectDataSource(sql, session);
+            DataSource selectedDatasource = router.selectDataSource(session, sql, primaryDatasource, replicas);
             Connection conn = selectedDatasource.getConnection();
             
             // Log routing decision for debugging
@@ -120,31 +108,19 @@ public class ReadWriteRoutingHelper {
     }
 
     /**
-     * Creates a replica selector based on the configuration strategy.
-     *
-     * @param config the read/write configuration
-     * @return a replica selector instance
-     */
-    private ReplicaSelector createReplicaSelector(ReadWriteConfiguration config) {
-        // For now, we only support ROUND_ROBIN strategy
-        // Future enhancement: support RANDOM, LEAST_CONNECTIONS, etc.
-        return new RoundRobinReplicaSelector();
-    }
-
-    /**
      * Checks if read/write splitting is enabled for a given session.
      *
      * @param session the session to check
      * @return true if read/write splitting is enabled, false otherwise
      */
     public boolean isReadWriteSplittingEnabled(Session session) {
-        String primaryDatasourceName = registry.getPrimaryDatasourceName(session.getConnHash());
+        String primaryDatasourceName = registry.getPrimaryName(session.getConnectionHash());
         if (primaryDatasourceName == null) {
             return false;
         }
 
-        ReadWriteConfiguration config = registry.getConfiguration(primaryDatasourceName);
-        return config != null && config.isEnabled();
+        java.util.List<DataSource> replicas = registry.getReplicas(primaryDatasourceName);
+        return replicas != null && !replicas.isEmpty();
     }
 
     /**
@@ -157,7 +133,7 @@ public class ReadWriteRoutingHelper {
      * @param session the session that executed a write
      */
     public void recordWriteOperation(Session session) {
-        session.recordWrite();
+        session.recordWriteOperation();
         log.debug("Recorded write operation for session {}, sticky mode activated", 
                 session.getSessionUUID());
     }

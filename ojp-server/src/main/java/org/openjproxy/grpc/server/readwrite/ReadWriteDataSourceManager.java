@@ -82,7 +82,7 @@ public class ReadWriteDataSourceManager {
                 datasourceName, config.getReplicaNames().size());
         
         // Register primary datasource
-        registry.registerPrimary(primaryConnHash, datasourceName, primaryDs);
+        registry.registerPrimaryMapping(primaryConnHash, datasourceName);
         
         // Create and register replica datasources
         List<String> successfulReplicas = new ArrayList<>();
@@ -90,7 +90,7 @@ public class ReadWriteDataSourceManager {
             try {
                 DataSource replicaDs = createReplicaDataSource(replicaName, props, config);
                 if (replicaDs != null) {
-                    registry.registerReplica(primaryConnHash, replicaName, replicaDs);
+                    registry.registerReplica(datasourceName, replicaDs);
                     successfulReplicas.add(replicaName);
                     log.info("Successfully created and registered replica datasource '{}'", replicaName);
                 }
@@ -173,7 +173,7 @@ public class ReadWriteDataSourceManager {
     private Properties convertPropertiesToJava(List<PropertyEntry> propertyEntries) {
         Properties props = new Properties();
         for (PropertyEntry entry : propertyEntries) {
-            props.setProperty(entry.getKey(), entry.getValue());
+            props.setProperty(entry.getKey(), entry.getStringValue());
         }
         return props;
     }

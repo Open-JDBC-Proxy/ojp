@@ -84,7 +84,7 @@ public class StartTransactionAction implements Action<SessionInfo, SessionInfo> 
             sessionConnection.setAutoCommit(Boolean.FALSE);
             
             // Update session transaction state for read/write routing
-            org.openjproxy.grpc.server.Session session = sessionManager.getSessionByUUID(activeSessionInfo.getSessionUUID());
+            org.openjproxy.grpc.server.Session session = sessionManager.getSession(activeSessionInfo);
             if (session != null) {
                 session.setInTransaction(true);
                 log.debug("Session {} entered transaction state", session.getSessionUUID());

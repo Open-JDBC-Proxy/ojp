@@ -67,7 +67,7 @@ public class RollbackTransactionAction implements Action<SessionInfo, SessionInf
             conn.rollback();
             
             // Update session transaction state for read/write routing
-            org.openjproxy.grpc.server.Session session = context.getSessionManager().getSessionByUUID(sessionInfo.getSessionUUID());
+            org.openjproxy.grpc.server.Session session = context.getSessionManager().getSession(sessionInfo);
             if (session != null) {
                 session.setInTransaction(false);
                 log.debug("Session {} exited transaction state (rollback)", session.getSessionUUID());
