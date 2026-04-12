@@ -60,6 +60,7 @@ class ConnectActionConcurrencyTest {
                 new ConcurrentHashMap<>(),
                 new ConcurrentHashMap<>(),
                 new ConcurrentHashMap<>(),
+                new org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry(),
                 mock(XAConnectionPoolProvider.class),
                 new MultinodeXaCoordinator(),
                 new ClusterHealthTracker(),
