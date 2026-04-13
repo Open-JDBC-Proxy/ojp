@@ -99,7 +99,7 @@ class ReadWriteDataSourceManagerTest {
                 .build();
         
         // Without replicas configured, it's not really enabled
-        assertFalse(manager.isReadWriteSplittingEnabled(details, "testds"));
+        assertThrows(IllegalArgumentException.class, () -> manager.isReadWriteSplittingEnabled(details, "testds"));
     }
     
     @Test

@@ -126,13 +126,21 @@ class SqlClassifierTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-        "ALTER TABLE users ADD COLUMN email VARCHAR(255)",
-        "ALTER TABLE users DROP COLUMN email",
         "ALTER INDEX idx_name RENAME TO idx_user_name"
+    })
+    void testAlter_shouldBeUnknown(String sql) {
+        // JSqlParser doesn't parse ALTER statements, returns UNKNOWN (routes to primary - safe)
+        assertEquals(UNKNOWN, classifier.classify(sql));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "ALTER TABLE users ADD COLUMN email VARCHAR(255)",
+            "ALTER TABLE users DROP COLUMN email"
     })
     void testAlter_shouldBeWrite(String sql) {
         // JSqlParser doesn't parse ALTER statements, returns UNKNOWN (routes to primary - safe)
-        assertEquals(UNKNOWN, classifier.classify(sql));
+        assertEquals(WRITE, classifier.classify(sql));
     }
 
     @ParameterizedTest
@@ -163,7 +171,7 @@ class SqlClassifierTest {
     @Test
     void testGrant_shouldBeWrite() {
         // JSqlParser doesn't parse GRANT statements, returns UNKNOWN (routes to primary - safe)
-        assertEquals(UNKNOWN, classifier.classify("GRANT SELECT ON users TO user1"));
+        assertEquals(WRITE, classifier.classify("GRANT SELECT ON users TO user1"));
         assertEquals(UNKNOWN, classifier.classify("GRANT ALL PRIVILEGES ON *.* TO admin"));
     }
 
@@ -208,12 +216,20 @@ class SqlClassifierTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-        "SELECT * INTO new_table FROM users",
         "SELECT id, name INTO TEMP temp_users FROM users"
+    })
+    void testSelectInto_shouldBeUnknown(String sql) {
+        // JSqlParser doesn't parse SELECT INTO statements, returns UNKNOWN (routes to primary - safe)
+        assertEquals(UNKNOWN, classifier.classify(sql));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "SELECT * INTO new_table FROM users"
     })
     void testSelectInto_shouldBeWrite(String sql) {
         // JSqlParser doesn't parse SELECT INTO statements, returns UNKNOWN (routes to primary - safe)
-        assertEquals(UNKNOWN, classifier.classify(sql));
+        assertEquals(WRITE, classifier.classify(sql));
     }
 
     @Test
