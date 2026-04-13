@@ -157,12 +157,12 @@ class ReadWriteDataSourceManagerTest {
         assertEquals(1, config.getReplicaNames().size());
         assertEquals("replica1", config.getReplicaNames().get(0));
         
-        // Verify registration
-        DataSource registeredPrimary = registry.getPrimaryDataSource("conn123");
-        assertNotNull(registeredPrimary);
-        assertEquals(ds, registeredPrimary);
+        // Verify registration - check primary mapping and replicas
+        String primaryName = registry.getPrimaryName("conn123");
+        assertNotNull(primaryName);
+        assertEquals("primary", primaryName);
         
-        List<DataSource> registeredReplicas = registry.getReplicaDataSources("conn123");
+        List<DataSource> registeredReplicas = registry.getReplicas("primary");
         assertNotNull(registeredReplicas);
         assertEquals(1, registeredReplicas.size());
     }
