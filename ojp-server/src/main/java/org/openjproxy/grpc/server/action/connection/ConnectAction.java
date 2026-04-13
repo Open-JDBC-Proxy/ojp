@@ -323,6 +323,12 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
      */
     private void setupReadWriteSplitting(ActionContext context, ConnectionDetails connectionDetails,
                                         String connHash, DataSource ds, String datasourceName) {
+        // Check if registry is available (may be null in test scenarios)
+        if (context.getReadWriteDataSourceRegistry() == null) {
+            log.debug("ReadWriteDataSourceRegistry not available, skipping read/write splitting setup");
+            return;
+        }
+        
         try {
             ReadWriteDataSourceManager rwManager = new ReadWriteDataSourceManager(
                     context.getReadWriteDataSourceRegistry());
