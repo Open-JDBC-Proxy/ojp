@@ -143,45 +143,45 @@ class ReadWriteDataSourceManagerTest {
     @Test
     void testSetupReadWriteSplitting_ValidConfiguration() {
         ConnectionDetails details = ConnectionDetails.newBuilder()
-                .setUrl("jdbc:h2:mem:primary")
+                .setUrl("jdbc:h2:mem:mgr_test_primary")
                 .addProperties(PropertyEntry.newBuilder()
-                        .setKey("primary.ojp.readwrite.enabled")
+                        .setKey("mgr_test_primary.ojp.readwrite.enabled")
                         .setStringValue("true")
                         .build())
                 .addProperties(PropertyEntry.newBuilder()
-                        .setKey("primary.ojp.readwrite.role")
+                        .setKey("mgr_test_primary.ojp.readwrite.role")
                         .setStringValue("primary")
                         .build())
                 .addProperties(PropertyEntry.newBuilder()
-                        .setKey("replica1.ojp.readwrite.role")
+                        .setKey("mgr_test_replica.ojp.readwrite.role")
                         .setStringValue("replica")
                         .build())
                 .addProperties(PropertyEntry.newBuilder()
-                        .setKey("replica1.ojp.readwrite.primary")
-                        .setStringValue("primary")
+                        .setKey("mgr_test_replica.ojp.readwrite.primary")
+                        .setStringValue("mgr_test_primary")
                         .build())
                 .addProperties(PropertyEntry.newBuilder()
-                        .setKey("replica1.connection.url")
-                        .setStringValue("jdbc:h2:mem:replica1;DB_CLOSE_DELAY=-1")
+                        .setKey("mgr_test_replica.connection.url")
+                        .setStringValue("jdbc:h2:mem:mgr_test_replica;DB_CLOSE_DELAY=-1")
                         .build())
                 .build();
         
         DataSource ds = mock(DataSource.class);
         ReadWriteConfiguration config = manager.setupReadWriteSplitting(
-                details, "conn123", ds, "primary");
+                details, "conn123", ds, "mgr_test_primary");
         
         assertNotNull(config);
         assertTrue(config.isEnabled());
-        assertEquals("primary", config.getPrimaryName());
+        assertEquals("mgr_test_primary", config.getPrimaryName());
         assertEquals(1, config.getReplicaNames().size());
-        assertEquals("replica1", config.getReplicaNames().get(0));
+        assertEquals("mgr_test_replica", config.getReplicaNames().get(0));
         
         // Verify registration - check primary mapping and replicas
         String primaryName = registry.getPrimaryName("conn123");
         assertNotNull(primaryName);
-        assertEquals("primary", primaryName);
+        assertEquals("mgr_test_primary", primaryName);
         
-        List<DataSource> registeredReplicas = registry.getReplicas("primary");
+        List<DataSource> registeredReplicas = registry.getReplicas("mgr_test_primary");
         assertNotNull(registeredReplicas);
         assertEquals(1, registeredReplicas.size());
     }
