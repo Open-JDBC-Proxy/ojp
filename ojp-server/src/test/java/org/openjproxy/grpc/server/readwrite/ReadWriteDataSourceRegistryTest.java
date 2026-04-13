@@ -42,7 +42,7 @@ class ReadWriteDataSourceRegistryTest {
     private DataSource createTestDataSource(String poolName) {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl("jdbc:h2:mem:" + poolName + ";DB_CLOSE_DELAY=-1");
-        config.setUsername("sa");
+        config.setUsername("SA");
         config.setPassword("");
         config.setMaximumPoolSize(2);
         config.setPoolName(poolName);
