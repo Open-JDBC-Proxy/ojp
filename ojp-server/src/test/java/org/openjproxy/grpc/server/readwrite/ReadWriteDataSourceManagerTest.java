@@ -162,7 +162,7 @@ class ReadWriteDataSourceManagerTest {
                         .build())
                 .addProperties(PropertyEntry.newBuilder()
                         .setKey("replica1.connection.url")
-                        .setStringValue("jdbc:h2:mem:replica1")
+                        .setStringValue("jdbc:h2:mem:replica1;DB_CLOSE_DELAY=-1")
                         .build())
                 .build();
         
