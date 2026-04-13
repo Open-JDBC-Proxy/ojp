@@ -2,6 +2,7 @@ package org.openjproxy.grpc.server.readwrite;
 
 import com.openjproxy.grpc.ConnectionDetails;
 import com.openjproxy.grpc.PropertyEntry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -24,8 +25,24 @@ class ReadWriteDataSourceManagerTest {
     void setUp() {
         // Clear configuration cache to ensure test isolation
         ReadWriteConfigurationParser.clearCache();
+        
+        // Create fresh instances for each test
         registry = new ReadWriteDataSourceRegistry();
+        
+        // Clear any previous state in the registry (in case of test leakage)
+        registry.clear();
+        
         manager = new ReadWriteDataSourceManager(registry);
+    }
+    
+    @AfterEach
+    void tearDown() {
+        // Clean up registry to prevent datasource leakage between tests
+        if (registry != null) {
+            registry.clear();
+        }
+        // Clear configuration cache again
+        ReadWriteConfigurationParser.clearCache();
     }
     
     @Test
