@@ -72,16 +72,16 @@ class PerDatasourceSlowQuerySegregationTest {
         // Create two different connection details with different pool sizes
         ConnectionDetails connectionDetails1 = ConnectionDetails.newBuilder()
                 .setUrl("jdbc:h2:mem:test1")
-                .setUser("test")
-                .setPassword("test")
+                .setUser("SA")
+                .setPassword("")
                 .setClientUUID("client-1")
                 .addAllProperties(ProtoConverter.propertiesToProto(propertiesMap1))
                 .build();
 
         ConnectionDetails connectionDetails2 = ConnectionDetails.newBuilder()
                 .setUrl("jdbc:h2:mem:test2")
-                .setUser("test")
-                .setPassword("test")
+                .setUser("SA")
+                .setPassword("")
                 .setClientUUID("client-2")
                 .addAllProperties(ProtoConverter.propertiesToProto(propertiesMap2))
                 .build();
@@ -155,8 +155,8 @@ class PerDatasourceSlowQuerySegregationTest {
         // Create connection
         ConnectionDetails connectionDetails = ConnectionDetails.newBuilder()
                 .setUrl("jdbc:h2:mem:test")
-                .setUser("test")
-                .setPassword("test")
+                .setUser("SA")
+                .setPassword("")
                 .setClientUUID("client-1")
                 .addAllProperties(ProtoConverter.propertiesToProto(propertiesMap))
                 .build();
