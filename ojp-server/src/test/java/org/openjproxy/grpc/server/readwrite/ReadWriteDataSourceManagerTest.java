@@ -22,6 +22,8 @@ class ReadWriteDataSourceManagerTest {
     
     @BeforeEach
     void setUp() {
+        // Clear configuration cache to ensure test isolation
+        ReadWriteConfigurationParser.clearCache();
         registry = new ReadWriteDataSourceRegistry();
         manager = new ReadWriteDataSourceManager(registry);
     }
