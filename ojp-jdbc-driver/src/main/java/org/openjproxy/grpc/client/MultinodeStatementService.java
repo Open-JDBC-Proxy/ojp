@@ -622,6 +622,11 @@ public class MultinodeStatementService implements StatementService {
      * creates a new session, the response will contain the new sessionUUID which must be
      * bound to the server that handled the request so subsequent operations are routed correctly.
      *
+     * <p>This method follows the same pattern as {@link #executeOpResultWithSessionStickinessAndBinding}:
+     * it selects a server via session affinity or round-robin, executes the operation, and then
+     * calls {@code checkAndBindSession} to register any newly-created session UUID in
+     * {@code sessionToServerMap}.
+     *
      * @param requestSessionInfo The session info for determining which server to use
      * @param operation The operation to execute
      * @return The CallResourceResponse result
