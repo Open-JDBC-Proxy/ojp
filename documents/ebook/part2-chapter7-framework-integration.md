@@ -477,6 +477,14 @@ The datasource is configured at the server level. On GlassFish this is done via 
 
 `res-type="java.sql.Driver"` tells GlassFish to use the `Driver` interface for connection creation. `steady-pool-size="0"` and `max-connection-usage-count="1"` ensure no connections are held idle and each connection is discarded after a single use, preventing GlassFish from pooling OJP virtual connections and interfering with OJP's server-side lifecycle management.
 
+#### Multinode URL in `glassfish-resources.xml`
+
+When using OJP in **multinode mode**, GlassFish's XML parser treats unescaped commas inside a
+`<property value="..."/>` attribute as property-value list separators, silently truncating the
+URL. XML-escape each comma with `&#44;`. See
+[Multinode URL in `glassfish-resources.xml`](../java-frameworks/jakarta-ee/README.md#multinode-url-in-glassfish-resourcesxml)
+in the Jakarta EE guide for the full explanation and example.
+
 ### Step 3 — Reference the JNDI datasource in `META-INF/persistence.xml`
 
 ```xml

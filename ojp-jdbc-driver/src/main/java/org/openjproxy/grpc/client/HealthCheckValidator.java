@@ -6,8 +6,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.SQLException;
-
 /**
  * Validates server health by attempting a direct connection.
  * Used to detect when a failed server has recovered.
@@ -110,10 +108,13 @@ public class HealthCheckValidator {
     }
     
     /**
-     * Validates if a server is healthy with default connection details.
-     * 
+     * Validates if a server is healthy using a lightweight heartbeat connection.
+     * Sends a CONNECT request with empty credentials; the server responds with an
+     * empty SessionInfo without creating a real session.  A successful response
+     * means the gRPC transport is reachable; an exception means it is not.
+     *
      * @param endpoint The server endpoint to validate
-     * @return true if server is healthy, false otherwise
+     * @return true if the server is reachable, false otherwise
      */
     public boolean validateServer(ServerEndpoint endpoint) {
         // Create minimal connection details for health check

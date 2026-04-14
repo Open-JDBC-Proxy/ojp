@@ -1,17 +1,13 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.ConnectionDetails;
 import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.ProtoConverter;
-import org.openjproxy.grpc.client.MultinodeConnectionManager;
-import org.openjproxy.grpc.client.MultinodeStatementService;
 import org.openjproxy.grpc.client.MultinodeUrlParser;
 import org.openjproxy.grpc.client.ServerEndpoint;
 import org.openjproxy.grpc.client.StatementService;
-import org.openjproxy.grpc.client.StatementServiceGrpcClient;
 
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -21,7 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.openjproxy.jdbc.Constants.PASSWORD;
 import static org.openjproxy.jdbc.Constants.USER;
@@ -54,17 +49,16 @@ public class Driver implements java.sql.Driver {
         
         log.debug("Parsed URL - clean: {}, dataSource: {}, dataSources: {}", cleanUrl, dataSourceName, dataSourceNames);
         
-        // Detect multinode vs single-node configuration and get the URL to use for connection
+        // Get or create the StatementService for these endpoints
         MultinodeUrlParser.ServiceAndUrl serviceAndUrl = MultinodeUrlParser.getOrCreateStatementService(cleanUrl, dataSourceNames);
         StatementService statementService = serviceAndUrl.getService();
         String connectionUrl = serviceAndUrl.getConnectionUrl();
         List<String> serverEndpoints = serviceAndUrl.getServerEndpoints();
         List<ServerEndpoint> serverEndpointsWithDatasources = serviceAndUrl.getServerEndpointsWithDatasources();
         
-        // For multinode with per-endpoint datasources, we need to handle connection differently
-        // For now, we'll use the first datasource for the initial connection setup
-        // TODO: Enhance to support per-endpoint configuration passing to servers
-        if (serverEndpointsWithDatasources != null && serverEndpointsWithDatasources.size() > 1) {
+        // Warn when multiple endpoints carry distinct datasource names so that operators
+        // are aware of the per-server routing that will be applied.
+        if (serverEndpointsWithDatasources.size() > 1) {
             boolean hasMultipleDatasources = serverEndpointsWithDatasources.stream()
                 .map(ServerEndpoint::getDataSourceName)
                 .distinct()
@@ -84,16 +78,14 @@ public class Driver implements java.sql.Driver {
         Properties ojpProperties = DatasourcePropertiesLoader.loadOjpPropertiesForDataSource(dataSourceName);
         
         ConnectionDetails.Builder connBuilder = ConnectionDetails.newBuilder()
-                .setUrl(connectionUrl)  // Use the possibly-modified URL with single endpoint
+                .setUrl(connectionUrl)
                 .setUser((String) ((info.get(USER) != null)? info.get(USER) : ""))
                 .setPassword((String) ((info.get(PASSWORD) != null) ? info.get(PASSWORD) : ""))
                 .setClientUUID(ClientUUID.getUUID());
         
-        // Add server endpoints list for multinode coordination
-        if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
-            connBuilder.addAllServerEndpoints(serverEndpoints);
-            log.info("Adding {} server endpoints to ConnectionDetails for multinode coordination", serverEndpoints.size());
-        }
+        // Always add all server endpoints for cluster coordination
+        connBuilder.addAllServerEndpoints(serverEndpoints);
+        log.info("Adding {} server endpoint(s) to ConnectionDetails", serverEndpoints.size());
         
         if (ojpProperties != null && !ojpProperties.isEmpty()) {
             // Convert Properties to Map<String, Object>

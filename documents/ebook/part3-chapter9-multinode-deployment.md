@@ -570,6 +570,8 @@ Here are common issues with multinode deployments and how to resolve them.
 
 **All connections to one server**: If all connections route to a single server despite multiple healthy servers, verify the JDBC URL format is correct with comma-separated server addresses. Check driver logs for URL parsing errors. Ensure the driver version supports multinode (all recent versions do).
 
+**Jakarta EE / GlassFish — multinode URL silently truncated**: GlassFish (and Payara) treat unescaped commas in `<property value="..."/>` attributes as property-value list separators, truncating multinode URLs after the first server address. See [Multinode URL in `glassfish-resources.xml`](../java-frameworks/jakarta-ee/README.md#multinode-url-in-glassfish-resourcesxml) in the Jakarta EE guide for the fix.
+
 **Database connection limit exceeded**: If you exceed your database connection limit, review your pool size configuration. With automatic division, the total is your configured size, but temporary overlaps during failover can cause brief spikes. Consider either increasing your database connection limit or reducing your pool size.
 
 ## Migration from Single Node

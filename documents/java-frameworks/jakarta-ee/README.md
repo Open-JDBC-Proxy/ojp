@@ -104,6 +104,29 @@ Key settings explained:
 | `steady-pool-size` | `0` | No connections are held idle — equivalent to `SimpleDriverDataSource` in Spring Boot. |
 | `max-connection-usage-count` | `1` | Each physical connection is discarded after a single use, preventing GlassFish from pooling OJP virtual connections. |
 
+### Multinode URL in `glassfish-resources.xml`
+
+When connecting to multiple OJP servers (multinode mode), the JDBC URL contains commas to
+separate server addresses (e.g. `jdbc:ojp[host1:1059,host2:1059]_...`). GlassFish's XML
+parser treats unescaped commas inside a `<property value="..."/>` attribute as
+**property-value list separators**, which silently truncates the URL after the first comma.
+
+To prevent this, escape every comma inside the `value` attribute with the XML character
+reference `&#44;`:
+
+```xml
+<property name="url"
+          value="jdbc:ojp[host1:1059&#44;host2:1059&#44;host3:1059]_postgresql://localhost/mydb"/>
+```
+
+GlassFish passes the unescaped string `jdbc:ojp[host1:1059,host2:1059,host3:1059]_postgresql://localhost/mydb`
+to the driver, which parses it correctly. No change is needed in your Java code—the driver
+always receives the fully expanded URL.
+
+> **Note:** This escaping requirement is specific to GlassFish (and Payara, which shares the
+> same XML property parsing behaviour). Other Jakarta EE servers (WildFly, Open Liberty, TomEE)
+> use different deployment descriptor formats and do not have this restriction.
+
 ---
 
 ## 3. Reference the datasource in `META-INF/persistence.xml`
@@ -360,3 +383,21 @@ by default.
 **Fix:** Add `MODE=LEGACY` to the H2 JDBC URL and set the EclipseLink target database property to
 `org.eclipse.persistence.platform.database.H2Platform` (fully-qualified name required in
 EclipseLink 4.x).
+
+### Multinode URL is silently truncated — only the first OJP server is used
+
+**Cause:** GlassFish treats unescaped commas inside a `<property value="..."/>` attribute as
+property-value list separators. A multinode URL such as
+`jdbc:ojp[host1:1059,host2:1059]_postgresql://localhost/mydb` is split at the first comma,
+so the driver receives only `jdbc:ojp[host1:1059` and fails to parse it, or silently falls
+back to a single-node connection.
+
+**Fix:** XML-escape every comma in the URL with `&#44;`:
+
+```xml
+<property name="url"
+          value="jdbc:ojp[host1:1059&#44;host2:1059&#44;host3:1059]_postgresql://localhost/mydb"/>
+```
+
+See [Multinode URL in `glassfish-resources.xml`](#multinode-url-in-glassfish-resourcesxml) for
+the full explanation.

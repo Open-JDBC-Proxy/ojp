@@ -116,9 +116,9 @@ public class OjpXADataSource implements XADataSource {
             }
 
             // Initialize StatementService - this will open the GRPC channel on first use
-            log.debug("Initializing StatementServiceGrpcClient for XA datasource: {}", dataSourceName);
+            log.debug("Initializing StatementService for XA datasource: {}", dataSourceName);
 
-            // Detect multinode vs single-node configuration and get the URL to use for connection
+            // Get or create the StatementService for the configured endpoint(s)
             MultinodeUrlParser.ServiceAndUrl serviceAndUrl = MultinodeUrlParser.getOrCreateStatementService(cleanUrl);
             statementService = serviceAndUrl.getService();
             this.serverEndpoints = serviceAndUrl.getServerEndpoints();

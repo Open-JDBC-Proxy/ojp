@@ -555,13 +555,21 @@ public class MultinodeConnectionManager {
                 }
                 
             } catch (StatusRuntimeException e) {
+                boolean isSqlError = false;
                 try {
                     GrpcExceptionHandler.handle(e);
                     lastException = new SQLException("gRPC call failed: " + e.getMessage(), e);
                 } catch (SQLException sqlEx) {
                     lastException = sqlEx;
+                    isSqlError = true; // SQL metadata present: upstream DB error, not OJP proxy failure
                 }
-                handleServerFailure(server, e);
+                if (!isSqlError) {
+                    // Only mark server unhealthy for genuine connectivity failures (no SQL metadata)
+                    handleServerFailure(server, e);
+                } else {
+                    log.debug("Not marking server {} unhealthy: database-level error during connect ({})",
+                            server.getAddress(), lastException.getMessage());
+                }
                 
                 log.warn("Connection failed to server {}: {}", 
                         server.getAddress(), lastException.getMessage());
@@ -627,7 +635,7 @@ public class MultinodeConnectionManager {
     public ServerEndpoint affinityServer(String sessionKey) throws SQLException {
         if (sessionKey == null || sessionKey.isEmpty()) {
             // No session identifier, use round-robin
-            log.warn("DIAGNOSTIC: affinityServer called with NULL or EMPTY sessionKey - routing via round-robin. " +
+            log.debug("DIAGNOSTIC: affinityServer called with NULL or EMPTY sessionKey - routing via round-robin. " +
                     "This may cause 'Connection not found' errors if queries reach wrong server. " +
                     "SessionKey value: '{}', isEmpty: {}, isNull: {}", 
                     sessionKey, 
@@ -636,10 +644,10 @@ public class MultinodeConnectionManager {
             return selectHealthyServer();
         }
         
-        log.info("Looking up server for session: {}", sessionKey);
+        log.debug("Looking up server for session: {}", sessionKey);
         ServerEndpoint sessionServer = sessionToServerMap.get(sessionKey);
         
-        log.info("=== affinityServer lookup: sessionKey={}, found server={}, total sessions in map={} ===", 
+        log.debug("=== affinityServer lookup: sessionKey={}, found server={}, total sessions in map={} ===", 
                 sessionKey, 
                 sessionServer != null ? sessionServer.getAddress() : "NOT_FOUND",
                 sessionToServerMap.size());
@@ -662,7 +670,7 @@ public class MultinodeConnectionManager {
                     "Available bound sessions: " + sessionToServerMap.keySet());
         }
         
-        log.info("Session {} is bound to server {}", sessionKey, sessionServer.getAddress());
+        log.debug("Session {} is bound to server {}", sessionKey, sessionServer.getAddress());
         
         if (!sessionServer.isHealthy()) {
             // Remove from map and throw exception - do NOT fall back to round-robin

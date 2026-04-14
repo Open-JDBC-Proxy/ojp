@@ -45,6 +45,13 @@ String url = "jdbc:ojp[db-proxy1:1059,db-proxy2:1060]_oracle:thin:@localhost:152
 Connection conn = DriverManager.getConnection(url, "user", "password");
 ```
 
+### Jakarta EE / GlassFish — XML-escape commas in `glassfish-resources.xml`
+
+GlassFish (and Payara) treat unescaped commas in `<property value="..."/>` attributes as
+property-value list separators, silently truncating multinode URLs. See
+[Multinode URL in `glassfish-resources.xml`](../java-frameworks/jakarta-ee/README.md#multinode-url-in-glassfish-resourcesxml)
+in the Jakarta EE guide for the full explanation and example.
+
 ## Configuration
 
 ### Client-Side Configuration

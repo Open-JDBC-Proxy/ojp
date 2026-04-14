@@ -154,7 +154,7 @@ public class MultinodeStatementService implements StatementService {
         
         String clusterHealth = connectionManager.generateClusterHealth();
         
-        log.info("[XA-REBALANCE-DEBUG] withClusterHealth called: connHash={}, isXA={}, original clusterHealth={}, new clusterHealth={}", 
+        log.debug("[XA-REBALANCE] withClusterHealth called: connHash={}, isXA={}, original clusterHealth={}, new clusterHealth={}", 
                 sessionInfo.getConnHash(), sessionInfo.getIsXA(), sessionInfo.getClusterHealth(), clusterHealth);
         
         SessionInfo enhanced = SessionInfo.newBuilder(sessionInfo)
@@ -400,7 +400,7 @@ public class MultinodeStatementService implements StatementService {
                 ? requestSessionInfo.getSessionUUID() : null;
         ServerEndpoint server = connectionManager.affinityServer(sessionKey);
         
-        log.info("executeWithSessionStickinessAndBinding: session={}, server={}", 
+        log.debug("executeWithSessionStickinessAndBinding: session={}, server={}", 
             requestSessionInfo != null ? requestSessionInfo.getSessionUUID() : "null", 
             server != null ? server.getAddress() : "null");
         
@@ -499,10 +499,54 @@ public class MultinodeStatementService implements StatementService {
     
     @Override
     public LobReference createLob(Connection connection, Iterator<LobDataBlock> lobDataBlock) throws SQLException {
-        SessionInfo sessionInfo = connection.getSession();
-        return executeWithSessionStickiness(sessionInfo, client -> 
-            client.createLob(connection, lobDataBlock)
-        );
+        SessionInfo requestSessionInfo = connection.getSession();
+        SessionInfo enhancedSessionInfo = withClusterHealth(requestSessionInfo);
+        String sessionKey = (enhancedSessionInfo != null && enhancedSessionInfo.getSessionUUID() != null
+                && !enhancedSessionInfo.getSessionUUID().isEmpty())
+                ? enhancedSessionInfo.getSessionUUID() : null;
+        ServerEndpoint server = connectionManager.affinityServer(sessionKey);
+
+        try {
+            MultinodeConnectionManager.ChannelAndStub channelAndStub = connectionManager.getChannelAndStub(server);
+            if (channelAndStub == null) {
+                throw new SQLException("Unable to get channel for server: " + server.getAddress());
+            }
+
+            StatementServiceGrpcClient client = getClient(server);
+            LobReference result = client.createLob(connection, lobDataBlock);
+
+            // Bind any new session UUID returned in the LobReference.
+            // This handles lazy session creation: when the server creates a session during LOB
+            // upload and returns a new sessionUUID, we must bind it so subsequent operations
+            // (e.g. executeUpdate) are routed to the same server.
+            if (result != null && result.hasSession()) {
+                checkAndBindSession(requestSessionInfo, result.getSession(), server);
+            }
+
+            return result;
+
+        } catch (StatusRuntimeException e) {
+            SQLException sqlEx;
+            try {
+                throw GrpcExceptionHandler.handle(e);
+            } catch (SQLException ex) {
+                sqlEx = ex;
+            }
+
+            if (connectionManager.isConnectionLevelError(e)) {
+                log.warn("Connection-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+                connectionManager.handleServerFailure(server, e);
+            } else {
+                log.debug("Database-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            }
+
+            throw sqlEx;
+        } catch (SQLException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SQLException("Unexpected error creating LOB on server " +
+                    server.getAddress() + ": " + e.getMessage(), e);
+        }
     }
     
     @Override
@@ -610,11 +654,86 @@ public class MultinodeStatementService implements StatementService {
         CallResourceRequest enhancedRequest = CallResourceRequest.newBuilder(request)
                 .setSession(enhancedSessionInfo)
                 .build();
-        return executeWithSessionStickiness(enhancedSessionInfo, client -> 
+        return executeCallResourceWithSessionStickinessAndBinding(enhancedSessionInfo, client ->
             client.callResource(enhancedRequest)
         );
     }
-    
+
+    /**
+     * Executes a callResource operation with session stickiness and binding check.
+     * This is needed because callResource can trigger lazy session creation on the server
+     * (e.g., for DatabaseMetaData calls before any transaction is started). When the server
+     * creates a new session, the response will contain the new sessionUUID which must be
+     * bound to the server that handled the request so subsequent operations are routed correctly.
+     *
+     * <p>This method follows the same pattern as {@link #executeOpResultWithSessionStickinessAndBinding}:
+     * it selects a server via session affinity or round-robin, executes the operation, and then
+     * calls {@code checkAndBindSession} to register any newly-created session UUID in
+     * {@code sessionToServerMap}.
+     *
+     * @param requestSessionInfo The session info for determining which server to use
+     * @param operation The operation to execute
+     * @return The CallResourceResponse result
+     * @throws SQLException if the operation fails
+     */
+    private CallResourceResponse executeCallResourceWithSessionStickinessAndBinding(
+            SessionInfo requestSessionInfo,
+            ThrowingFunction<StatementServiceGrpcClient, CallResourceResponse> operation)
+            throws SQLException {
+        String sessionKey = (requestSessionInfo != null && requestSessionInfo.getSessionUUID() != null
+                && !requestSessionInfo.getSessionUUID().isEmpty())
+                ? requestSessionInfo.getSessionUUID() : null;
+        ServerEndpoint server = connectionManager.affinityServer(sessionKey);
+
+        log.debug("executeCallResourceWithSessionStickinessAndBinding: session={}, server={}",
+                requestSessionInfo != null ? requestSessionInfo.getSessionUUID() : "null",
+                server != null ? server.getAddress() : "null");
+
+        try {
+            MultinodeConnectionManager.ChannelAndStub channelAndStub =
+                    connectionManager.getChannelAndStub(server);
+
+            if (channelAndStub == null) {
+                throw new SQLException("Unable to get channel for server: " + server.getAddress());
+            }
+
+            StatementServiceGrpcClient client = getClient(server);
+
+            CallResourceResponse result = operation.apply(client);
+
+            // Check if response contains a session and bind it.
+            // This handles the case where the server created a new session lazily (e.g.,
+            // for DatabaseMetaData calls) and the client must remember which server owns it.
+            if (result != null && result.hasSession()) {
+                checkAndBindSession(requestSessionInfo, result.getSession(), server);
+            }
+
+            return result;
+
+        } catch (StatusRuntimeException e) {
+            SQLException sqlEx;
+            try {
+                throw GrpcExceptionHandler.handle(e);
+            } catch (SQLException ex) {
+                sqlEx = ex;
+            }
+
+            if (connectionManager.isConnectionLevelError(e)) {
+                log.warn("Connection-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+                connectionManager.handleServerFailure(server, e);
+            } else {
+                log.debug("Database-level error on server {}: {}", server.getAddress(), sqlEx.getMessage());
+            }
+
+            throw sqlEx;
+        } catch (SQLException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SQLException("Unexpected error executing operation on server " +
+                    server.getAddress() + ": " + e.getMessage(), e);
+        }
+    }
+
     // XA Transaction Operations
     @Override
     public com.openjproxy.grpc.XaResponse xaStart(com.openjproxy.grpc.XaStartRequest request) throws SQLException {
@@ -763,7 +882,7 @@ public class MultinodeStatementService implements StatementService {
                 ? sessionInfo.getSessionUUID() : null;
         ServerEndpoint server = connectionManager.affinityServer(sessionKey);
         
-        log.info("executeWithSessionStickiness: session={}, server={}", 
+        log.debug("executeWithSessionStickiness: session={}, server={}", 
             sessionInfo != null ? sessionInfo.getSessionUUID() : "null", 
             server != null ? server.getAddress() : "null");
         
@@ -776,7 +895,7 @@ public class MultinodeStatementService implements StatementService {
                 throw new SQLException("Unable to get channel for server: " + server.getAddress());
             }
             
-            log.info("Got channelAndStub for server {}: blockingStub={}, asyncStub={}", 
+            log.debug("Got channelAndStub for server {}: blockingStub={}, asyncStub={}", 
                 server.getAddress(),
                 System.identityHashCode(channelAndStub.blockingStub),
                 System.identityHashCode(channelAndStub.asyncStub));
@@ -784,7 +903,7 @@ public class MultinodeStatementService implements StatementService {
             // Get or create the client for this endpoint
             StatementServiceGrpcClient client = getClient(server);
             
-            log.info("Using client for server {}, about to execute operation", server.getAddress());
+            log.debug("Using client for server {}, about to execute operation", server.getAddress());
             
             // Execute the operation
             return operation.apply(client);
