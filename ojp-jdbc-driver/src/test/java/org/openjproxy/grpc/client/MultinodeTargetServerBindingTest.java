@@ -286,4 +286,81 @@ class MultinodeTargetServerBindingTest {
             connectionManager.terminateSession(null);
         });
     }
+
+    /**
+     * Tests the bug scenario from the multinode issue report:
+     * When the server lazily creates a session (e.g., during DatabaseMetaData calls via callResource),
+     * the session UUID is returned in the response but NOT automatically bound on the client side.
+     * The fix ensures that the session is bound after callResource completes.
+     *
+     * <p>This test validates the required behavior of the connection manager:
+     * - affinityServer throws for unbound session UUIDs
+     * - After bindSession, affinityServer returns the correct server
+     */
+    @Test
+    void testLazilyCreatedSessionMustBeExplicitlyBound() throws Exception {
+        // Simulate the bug scenario:
+        // 1. connect() is called - server uses lazy allocation, no session UUID returned
+        // 2. callResource (DatabaseMetaData) is called - server creates session UUID lazily
+        // 3. Session UUID from response is NOT bound on client side (the bug)
+        // 4. Next callResource call uses the session UUID -> affinityServer throws
+        String lazySessionUUID = "e0fb8065-e4ee-4a0a-8b2d-54833a77c850";
+
+        // Verify that an unbound session UUID causes affinityServer to throw (the bug)
+        java.sql.SQLException ex = assertThrows(java.sql.SQLException.class, () -> {
+            connectionManager.affinityServer(lazySessionUUID);
+        });
+        assertTrue(ex.getMessage().contains("has no associated server"),
+                "Expected session not found error, got: " + ex.getMessage());
+
+        // After the fix: when callResource completes, checkAndBindSession is called,
+        // which calls bindSession() to register the session with the server.
+        String serverAddress = "server1:10591";
+        connectionManager.bindSession(lazySessionUUID, serverAddress);
+
+        // Now affinityServer should succeed
+        ServerEndpoint server = assertDoesNotThrow(() -> connectionManager.affinityServer(lazySessionUUID));
+        assertNotNull(server);
+        assertEquals("server1", server.getHost());
+        assertEquals(10591, server.getPort());
+    }
+
+    /**
+     * Tests that a session UUID obtained from a callResource response (lazy session creation)
+     * is correctly bound to the right server and can be reused for subsequent operations.
+     * This tests the multi-step scenario that caused the user's error in a 3-node Docker setup.
+     */
+    @Test
+    void testCallResourceSessionBindingFlowInMultinodeSetup() throws Exception {
+        // Scenario: 3-node setup (like the user's Docker Compose setup)
+        // localhost:1059, localhost:1060, localhost:1061
+        List<ServerEndpoint> dockerEndpoints = Arrays.asList(
+            new ServerEndpoint("localhost", 1059),
+            new ServerEndpoint("localhost", 1060),
+            new ServerEndpoint("localhost", 1061)
+        );
+        MultinodeConnectionManager dockerManager = new MultinodeConnectionManager(dockerEndpoints);
+
+        // Step 1: connect() returns no session UUID (lazy allocation)
+        // -> sessionToServerMap is empty
+
+        // Step 2: callResource (DatabaseMetaData) is routed to localhost:1059 via round-robin
+        // Server creates session UUID lazily
+        String newSessionUUID = "new-session-from-metadata-call";
+        String serverThatHandledRequest = "localhost:1059";
+
+        // Step 3 (THE FIX): callResource now calls checkAndBindSession -> bindSession
+        dockerManager.bindSession(newSessionUUID, serverThatHandledRequest);
+
+        // Step 4: Next operation uses session UUID -> should route to localhost:1059
+        ServerEndpoint boundServer = dockerManager.affinityServer(newSessionUUID);
+        assertNotNull(boundServer);
+        assertEquals("localhost", boundServer.getHost());
+        assertEquals(1059, boundServer.getPort());
+
+        // Step 5: Verify other sessions can still use different servers
+        dockerManager.bindSession("other-session", "localhost:1060");
+        ServerEndpoint otherServer = dockerManager.affinityServer("other-session");
+        assertEquals(1060, otherServer.getPort());
+    }
 }
