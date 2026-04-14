@@ -234,18 +234,30 @@ jobs:
       #               ojp-server-<old>     →  ojp-server-<new>  (filenames + URLs)
       #               /ojp-server/<old>/   →  /ojp-server/<new>/  (Maven Central URL path)
       #               <version><old></version>  →  <version><new></version>
+      #    Skips any match that is preceded by the word "since" (with any
+      #    characters between "since" and the version pattern), e.g.
+      #    "@since 0.5.0-beta" or "since version rrobetti/ojp:0.5.0-beta".
       # -----------------------------------------------------------------------
       - name: Update documentation to ${{ steps.versions.outputs.release }}
         run: |
           NEW="${{ steps.versions.outputs.release }}"
           echo "Updating documentation references to ${NEW}"
 
-          # Use sed with version-agnostic regex so any previous X.Y.Z-beta is replaced
-          find . -name "*.md" -not -path './.git/*' -print0 | xargs -0 sed -i \
-            -e "s|rrobetti/ojp:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta|rrobetti/ojp:${NEW}|g" \
-            -e "s|ojp-server-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta|ojp-server-${NEW}|g" \
-            -e "s|/ojp-server/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta/|/ojp-server/${NEW}/|g" \
-            -e "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta</version>|<version>${NEW}</version>|g"
+          # Use perl with version-agnostic regex so any previous X.Y.Z-beta is
+          # replaced, but occurrences preceded by "since" (with any characters
+          # in between) are left untouched.
+          # For each pattern the alternation (since\S*.*?)(PAT)|(PAT) is used:
+          #   - alternative 1 captures a "since ... PAT" sequence → kept as-is
+          #   - alternative 2 matches the bare PAT → replaced with the new version
+          export NEW
+          find . -name "*.md" -not -path './.git/*' -print0 | xargs -0 perl -i -pe '
+            my $ver = qr/[0-9]+\.[0-9]+\.[0-9]+-beta/;
+            my $NEW = $ENV{NEW};
+            s{(since\S*.*?)(rrobetti/ojp:$ver)|(rrobetti/ojp:$ver)}{defined($1) ? "$1$2" : "rrobetti/ojp:" . $NEW}ge;
+            s{(since\S*.*?)(ojp-server-$ver)|(ojp-server-$ver)}{defined($1) ? "$1$2" : "ojp-server-" . $NEW}ge;
+            s{(since\S*.*?)(/ojp-server/$ver/)|(/ojp-server/$ver/)}{defined($1) ? "$1$2" : "/ojp-server/" . $NEW . "/"}ge;
+            s{(since\S*.*?)(<version>$ver</version>)|(<version>$ver</version>)}{defined($1) ? "$1$2" : "<version>" . $NEW . "</version>"}ge;
+          '
 
           echo "Files updated:"
           git diff --name-only
