@@ -92,43 +92,45 @@ If all replicas fail simultaneously (rare but possible in disaster scenarios), O
 
 ## Configuration: Simpler Than You'd Expect
 
-Setting up read/write splitting requires just a few additions to your existing OJP datasource configuration. Here's a complete example with PostgreSQL:
+Setting up read/write splitting requires configuring the OJP server with read/write splitting properties. Datasource connections (URLs, credentials, pool settings) are established by clients through their JDBC URLs. On the server side, you only need to configure read/write splitting behavior in `ojp-server.properties`:
 
 ```properties
-# Primary database (write-capable)
-prod_primary.connection.name=prod_primary
-prod_primary.connection.url=jdbc:postgresql://db-primary.example.com:5432/myapp
-prod_primary.connection.user=app_user
-prod_primary.connection.password=primary_secret
-prod_primary.pool.maxPoolSize=25
-prod_primary.pool.minIdle=5
-
-# Enable read/write splitting
+# Primary datasource - read/write splitting configuration
+# (The actual database connection is established by the client)
 prod_primary.ojp.readwrite.enabled=true
 prod_primary.ojp.readwrite.role=primary
 prod_primary.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN
 prod_primary.ojp.readwrite.stickySessionSeconds=5
 prod_primary.ojp.readwrite.replicaFailoverToPrimary=true
 
-# First replica
-prod_replica1.connection.name=prod_replica1
-prod_replica1.connection.url=jdbc:postgresql://db-replica1.example.com:5432/myapp
-prod_replica1.connection.user=readonly_user
-prod_replica1.connection.password=readonly_secret
-prod_replica1.pool.maxPoolSize=20
-prod_replica1.pool.minIdle=3
+# First replica - read/write splitting configuration
 prod_replica1.ojp.readwrite.role=replica
 prod_replica1.ojp.readwrite.primary=prod_primary
 
-# Second replica  
-prod_replica2.connection.name=prod_replica2
-prod_replica2.connection.url=jdbc:postgresql://db-replica2.example.com:5432/myapp
-prod_replica2.connection.user=readonly_user
-prod_replica2.connection.password=readonly_secret
-prod_replica2.pool.maxPoolSize=20
-prod_replica2.pool.minIdle=3
+# Second replica - read/write splitting configuration
 prod_replica2.ojp.readwrite.role=replica
 prod_replica2.ojp.readwrite.primary=prod_primary
+```
+
+**Client-side configuration** (application connecting to OJP):
+
+```java
+// Primary connection
+String primaryUrl = "jdbc:ojp[localhost:1059]_postgresql://db-primary.example.com:5432/myapp";
+Properties primaryProps = new Properties();
+primaryProps.setProperty("user", "app_user");
+primaryProps.setProperty("password", "primary_secret");
+primaryProps.setProperty("ojp.connection.pool.maximumPoolSize", "25");
+primaryProps.setProperty("ojp.connection.pool.minimumIdle", "5");
+Connection primaryConn = DriverManager.getConnection(primaryUrl, primaryProps);
+
+// Replica connections (for when OJP needs to create replica pools)
+String replica1Url = "jdbc:ojp[localhost:1059]_postgresql://db-replica1.example.com:5432/myapp";
+Properties replica1Props = new Properties();
+replica1Props.setProperty("user", "readonly_user");
+replica1Props.setProperty("password", "readonly_secret");  
+replica1Props.setProperty("ojp.connection.pool.maximumPoolSize", "20");
+replica1Props.setProperty("ojp.connection.pool.minimumIdle", "3");
 ```
 
 Notice the `readonly_user` for replicas—this is a critical best practice. Create database users with SELECT-only permissions for replica connections. This prevents accidental writes to replicas (which would fail anyway since replicas are read-only, but explicit permissions provide defense in depth).

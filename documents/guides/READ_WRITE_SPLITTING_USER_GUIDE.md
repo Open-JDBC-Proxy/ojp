@@ -50,42 +50,44 @@ Read/Write Traffic Splitting is an advanced feature in OJP that automatically di
 Add read/write configuration to your OJP datasource properties file:
 
 ```properties
-# Primary database (write-capable)
-primary.connection.name=primary
-primary.connection.url=jdbc:postgresql://primary-db.example.com:5432/mydb
-primary.connection.user=app_user
-primary.connection.password=secret123
-primary.pool.maxPoolSize=20
-primary.pool.minIdle=5
+# Server-side configuration (ojp-server.properties)
+# Datasource connections are established client-side through JDBC URLs
+# Server only configures read/write splitting behavior
 
-# Enable read/write splitting for this datasource
+# Primary datasource - read/write splitting configuration
 primary.ojp.readwrite.enabled=true
 primary.ojp.readwrite.role=primary
 primary.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN
 primary.ojp.readwrite.stickySessionSeconds=5
 primary.ojp.readwrite.replicaFailoverToPrimary=true
 
-# Replica 1 (read-only)
-replica1.connection.name=replica1
-replica1.connection.url=jdbc:postgresql://replica1.example.com:5432/mydb
-replica1.connection.user=readonly_user
-replica1.connection.password=readonly_secret
-replica1.pool.maxPoolSize=15
-replica1.pool.minIdle=3
-
-# Configure replica1 to reference the primary
+# Replica 1 configuration
 replica1.ojp.readwrite.role=replica
 replica1.ojp.readwrite.primary=primary
 
-# Replica 2 (read-only, optional)
-replica2.connection.name=replica2
-replica2.connection.url=jdbc:postgresql://replica2.example.com:5432/mydb
-replica2.connection.user=readonly_user
-replica2.connection.password=readonly_secret
-replica2.pool.maxPoolSize=15
-replica2.pool.minIdle=3
+# Replica 2 configuration (optional)
 replica2.ojp.readwrite.role=replica
 replica2.ojp.readwrite.primary=primary
+```
+
+**Client-side configuration** - Applications connect using standard JDBC URLs:
+
+```java
+// Primary connection
+String primaryUrl = "jdbc:ojp[localhost:1059]_postgresql://primary-db.example.com:5432/mydb";
+Properties primaryProps = new Properties();
+primaryProps.setProperty("user", "app_user");
+primaryProps.setProperty("password", "secret123");
+primaryProps.setProperty("ojp.connection.pool.maximumPoolSize", "20");
+primaryProps.setProperty("ojp.connection.pool.minimumIdle", "5");
+
+// Replica connections  
+String replica1Url = "jdbc:ojp[localhost:1059]_postgresql://replica1.example.com:5432/mydb";
+Properties replica1Props = new Properties();
+replica1Props.setProperty("user", "readonly_user");
+replica1Props.setProperty("password", "readonly_secret");
+replica1Props.setProperty("ojp.connection.pool.maximumPoolSize", "15");
+replica1Props.setProperty("ojp.connection.pool.minimumIdle", "3");
 ```
 
 ### Step 2: Connect to OJP
@@ -212,23 +214,14 @@ EXEC sp_update_user @id = 123
 
 ## Configuration
 
-### Primary Database Configuration
+### Server-Side Configuration
+
+Configure read/write splitting behavior in `ojp-server.properties`. Datasource connections (URLs, credentials, pools) are established by clients through JDBC URLs.
+
+**Primary Database Configuration:**
 
 ```properties
-# Datasource identification
-<primary-name>.connection.name=<primary-name>
-<primary-name>.connection.url=jdbc:<driver>://<host>:<port>/<database>
-<primary-name>.connection.user=<username>
-<primary-name>.connection.password=<password>
-
-# Connection pool settings
-<primary-name>.pool.maxPoolSize=20
-<primary-name>.pool.minIdle=5
-<primary-name>.pool.connectionTimeout=30000
-<primary-name>.pool.idleTimeout=600000
-<primary-name>.pool.maxLifetime=1800000
-
-# Read/write splitting configuration
+# Read/write splitting configuration for primary
 <primary-name>.ojp.readwrite.enabled=true
 <primary-name>.ojp.readwrite.role=primary
 <primary-name>.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN
@@ -236,22 +229,37 @@ EXEC sp_update_user @id = 123
 <primary-name>.ojp.readwrite.replicaFailoverToPrimary=true
 ```
 
-### Replica Database Configuration
+**Replica Database Configuration:**
 
 ```properties
-# Datasource identification
-<replica-name>.connection.name=<replica-name>
-<replica-name>.connection.url=jdbc:<driver>://<host>:<port>/<database>
-<replica-name>.connection.user=<readonly-username>
-<replica-name>.connection.password=<readonly-password>
-
-# Connection pool settings (typically smaller than primary)
-<replica-name>.pool.maxPoolSize=15
-<replica-name>.pool.minIdle=3
-
-# Link to primary datasource
+# Link replica to primary datasource
 <replica-name>.ojp.readwrite.role=replica
 <replica-name>.ojp.readwrite.primary=<primary-name>
+```
+
+### Client-Side Configuration
+
+Applications establish database connections through JDBC URLs with all connection details:
+
+```java
+// Primary connection
+String primaryUrl = "jdbc:ojp[localhost:1059]_<driver>://<host>:<port>/<database>";
+Properties props = new Properties();
+props.setProperty("user", "<username>");
+props.setProperty("password", "<password>");
+props.setProperty("ojp.connection.pool.maximumPoolSize", "20");
+props.setProperty("ojp.connection.pool.minimumIdle", "5");
+props.setProperty("ojp.connection.pool.connectionTimeout", "30000");
+props.setProperty("ojp.connection.pool.idleTimeout", "600000");
+props.setProperty("ojp.connection.pool.maxLifetime", "1800000");
+
+// Replica connections
+String replicaUrl = "jdbc:ojp[localhost:1059]_<driver>://<replica-host>:<port>/<database>";
+Properties replicaProps = new Properties();
+replicaProps.setProperty("user", "<readonly-username>");
+replicaProps.setProperty("password", "<readonly-password>");
+replicaProps.setProperty("ojp.connection.pool.maximumPoolSize", "15");
+replicaProps.setProperty("ojp.connection.pool.minimumIdle", "3");
 ```
 
 ### Configuration Parameters
@@ -343,16 +351,24 @@ SHOW SLAVE STATUS\G
 - Distribute read workload across replicas
 - Total replica capacity = read workload / number of replicas
 
-**Example sizing:**
-```properties
-# Application has 100 concurrent connections
-# 80% reads, 20% writes
-# 3 replicas
+**Example sizing for client-side pools:**
+```java
+// Application has 100 concurrent connections
+// 80% reads, 20% writes, 3 replicas
 
-primary.pool.maxPoolSize=30    # 20 writes + 10 buffer
-replica1.pool.maxPoolSize=27   # 80 reads / 3 replicas
-replica2.pool.maxPoolSize=27
-replica3.pool.maxPoolSize=27
+// Primary connection pool - handles all writes + failover reads
+Properties primaryProps = new Properties();
+primaryProps.setProperty("ojp.connection.pool.maximumPoolSize", "30");  // 20 writes + 10 buffer
+
+// Replica connection pools - distribute read workload
+Properties replica1Props = new Properties();
+replica1Props.setProperty("ojp.connection.pool.maximumPoolSize", "27");  // 80 reads / 3 replicas
+
+Properties replica2Props = new Properties();
+replica2Props.setProperty("ojp.connection.pool.maximumPoolSize", "27");
+
+Properties replica3Props = new Properties();
+replica3Props.setProperty("ojp.connection.pool.maximumPoolSize", "27");
 ```
 
 ### 4. Monitor Replica Health
@@ -496,15 +512,20 @@ java.sql.SQLTransientConnectionException: HikariPool - Connection is not availab
 ```
 
 **Solutions:**
-1. Increase pool size:
-```properties
-primary.pool.maxPoolSize=30
-replica1.pool.maxPoolSize=20
+1. Increase client-side pool size:
+```java
+// Primary connection
+Properties primaryProps = new Properties();
+primaryProps.setProperty("ojp.connection.pool.maximumPoolSize", "30");
+
+// Replica connections
+Properties replica1Props = new Properties();
+replica1Props.setProperty("ojp.connection.pool.maximumPoolSize", "20");
 ```
 
 2. Reduce connection timeout:
-```properties
-primary.pool.connectionTimeout=10000
+```java
+primaryProps.setProperty("ojp.connection.pool.connectionTimeout", "10000");
 ```
 
 3. Check for connection leaks in application code
@@ -601,30 +622,36 @@ CREATE USER 'readonly_app'@'%' IDENTIFIED BY 'readonly_secret';
 GRANT SELECT ON mydb.* TO 'readonly_app'@'%';
 ```
 
-**Step 3: Add replica configuration**
+**Step 3: Add replica configuration to server**
 
-Add replica datasources to your existing configuration:
+Add read/write splitting configuration to `ojp-server.properties`:
 
 ```properties
-# Existing primary configuration (unchanged)
-mydb.connection.name=mydb
-mydb.connection.url=jdbc:postgresql://primary:5432/mydb
-mydb.connection.user=app_user
-mydb.connection.password=secret
-
-# NEW: Enable read/write splitting
+# Server-side: Enable read/write splitting for mydb
 mydb.ojp.readwrite.enabled=true
 mydb.ojp.readwrite.role=primary
 mydb.ojp.readwrite.stickySessionSeconds=5
 
-# NEW: Add replica
-mydb_replica1.connection.name=mydb_replica1
-mydb_replica1.connection.url=jdbc:postgresql://replica1:5432/mydb
-mydb_replica1.connection.user=readonly_app
-mydb_replica1.connection.password=readonly_secret
-mydb_replica1.pool.maxPoolSize=15
+# Server-side: Add replica configuration
 mydb_replica1.ojp.readwrite.role=replica
 mydb_replica1.ojp.readwrite.primary=mydb
+```
+
+**Client-side connection setup** (unchanged for primary, add replica connection):
+
+```java
+// Existing primary connection (unchanged)
+String primaryUrl = "jdbc:ojp[localhost:1059]_postgresql://primary:5432/mydb";
+Properties primaryProps = new Properties();
+primaryProps.setProperty("user", "app_user");
+primaryProps.setProperty("password", "secret");
+
+// NEW: Replica connection  
+String replicaUrl = "jdbc:ojp[localhost:1059]_postgresql://replica1:5432/mydb";
+Properties replicaProps = new Properties();
+replicaProps.setProperty("user", "readonly_app");
+replicaProps.setProperty("password", "readonly_secret");
+replicaProps.setProperty("ojp.connection.pool.maximumPoolSize", "15");
 ```
 
 **Step 4: Restart OJP server**
@@ -680,69 +707,93 @@ For zero-downtime migration:
 
 ### PostgreSQL with Streaming Replication
 
+**Server-side (`ojp-server.properties`):**
 ```properties
-# Primary (write-capable)
-pg_primary.connection.name=pg_primary
-pg_primary.connection.url=jdbc:postgresql://pg-primary.example.com:5432/myapp
-pg_primary.connection.user=app_user
-pg_primary.connection.password=secret
-pg_primary.pool.maxPoolSize=25
+# Primary configuration
 pg_primary.ojp.readwrite.enabled=true
 pg_primary.ojp.readwrite.role=primary
 pg_primary.ojp.readwrite.stickySessionSeconds=3
 
-# Replica 1
-pg_replica1.connection.name=pg_replica1
-pg_replica1.connection.url=jdbc:postgresql://pg-replica1.example.com:5432/myapp
-pg_replica1.connection.user=readonly_user
-pg_replica1.connection.password=readonly_secret
-pg_replica1.pool.maxPoolSize=20
+# Replica configuration
 pg_replica1.ojp.readwrite.role=replica
 pg_replica1.ojp.readwrite.primary=pg_primary
 ```
 
+**Client-side:**
+```java
+// Primary connection
+String primaryUrl = "jdbc:ojp[localhost:1059]_postgresql://pg-primary.example.com:5432/myapp";
+Properties primaryProps = new Properties();
+primaryProps.setProperty("user", "app_user");
+primaryProps.setProperty("password", "secret");
+primaryProps.setProperty("ojp.connection.pool.maximumPoolSize", "25");
+
+// Replica connection
+String replicaUrl = "jdbc:ojp[localhost:1059]_postgresql://pg-replica1.example.com:5432/myapp";
+Properties replicaProps = new Properties();
+replicaProps.setProperty("user", "readonly_user");
+replicaProps.setProperty("password", "readonly_secret");
+replicaProps.setProperty("ojp.connection.pool.maximumPoolSize", "20");
+```
+
 ### MySQL with Master-Slave Replication
 
+**Server-side (`ojp-server.properties`):**
 ```properties
-# Master (write-capable)
-mysql_master.connection.name=mysql_master
-mysql_master.connection.url=jdbc:mysql://mysql-master.example.com:3306/myapp
-mysql_master.connection.user=app_user
-mysql_master.connection.password=secret
-mysql_master.pool.maxPoolSize=25
+# Master configuration
 mysql_master.ojp.readwrite.enabled=true
 mysql_master.ojp.readwrite.role=primary
 
-# Slave 1
-mysql_slave1.connection.name=mysql_slave1
-mysql_slave1.connection.url=jdbc:mysql://mysql-slave1.example.com:3306/myapp
-mysql_slave1.connection.user=readonly_user
-mysql_slave1.connection.password=readonly_secret
-mysql_slave1.pool.maxPoolSize=20
+# Slave configuration
 mysql_slave1.ojp.readwrite.role=replica
 mysql_slave1.ojp.readwrite.primary=mysql_master
 ```
 
+**Client-side:**
+```java
+// Master connection
+String masterUrl = "jdbc:ojp[localhost:1059]_mysql://mysql-master.example.com:3306/myapp";
+Properties masterProps = new Properties();
+masterProps.setProperty("user", "app_user");
+masterProps.setProperty("password", "secret");
+masterProps.setProperty("ojp.connection.pool.maximumPoolSize", "25");
+
+// Slave connection
+String slaveUrl = "jdbc:ojp[localhost:1059]_mysql://mysql-slave1.example.com:3306/myapp";
+Properties slaveProps = new Properties();
+slaveProps.setProperty("user", "readonly_user");
+slaveProps.setProperty("password", "readonly_secret");
+slaveProps.setProperty("ojp.connection.pool.maximumPoolSize", "20");
+```
+
 ### Oracle with Data Guard
 
+**Server-side (`ojp-server.properties`):**
 ```properties
-# Primary database
-oracle_primary.connection.name=oracle_primary
-oracle_primary.connection.url=jdbc:oracle:thin:@//oracle-primary.example.com:1521/PRODDB
-oracle_primary.connection.user=app_user
-oracle_primary.connection.password=secret
-oracle_primary.pool.maxPoolSize=30
+# Primary database configuration
 oracle_primary.ojp.readwrite.enabled=true
 oracle_primary.ojp.readwrite.role=primary
 
-# Standby database (Active Data Guard)
-oracle_standby.connection.name=oracle_standby
-oracle_standby.connection.url=jdbc:oracle:thin:@//oracle-standby.example.com:1521/PRODDB
-oracle_standby.connection.user=readonly_user
-oracle_standby.connection.password=readonly_secret
-oracle_standby.pool.maxPoolSize=25
+# Standby database configuration (Active Data Guard)
 oracle_standby.ojp.readwrite.role=replica
 oracle_standby.ojp.readwrite.primary=oracle_primary
+```
+
+**Client-side:**
+```java
+// Primary connection
+String primaryUrl = "jdbc:ojp[localhost:1059]_oracle:thin:@//oracle-primary.example.com:1521/PRODDB";
+Properties primaryProps = new Properties();
+primaryProps.setProperty("user", "app_user");
+primaryProps.setProperty("password", "secret");
+primaryProps.setProperty("ojp.connection.pool.maximumPoolSize", "30");
+
+// Standby connection
+String standbyUrl = "jdbc:ojp[localhost:1059]_oracle:thin:@//oracle-standby.example.com:1521/PRODDB";
+Properties standbyProps = new Properties();
+standbyProps.setProperty("user", "readonly_user");
+standbyProps.setProperty("password", "readonly_secret");
+standbyProps.setProperty("ojp.connection.pool.maximumPoolSize", "25");
 ```
 
 ## Advanced Topics
