@@ -152,7 +152,8 @@ You'll see log entries like:
 │           ▼                                      ▼           │
 │  ┌─────────────────┐                  ┌──────────────────┐ │
 │  │  Primary Pool   │                  │  Replica Pools   │ │
-│  │  (HikariCP)     │                  │  (HikariCP)      │ │
+│  │  (Connection    │                  │  (Connection     │ │
+│  │   Pooling)      │                  │   Pooling)       │ │
 │  └─────────────────┘                  └──────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
            │                                      │
@@ -220,7 +221,7 @@ EXEC sp_update_user @id = 123
 <primary-name>.connection.user=<username>
 <primary-name>.connection.password=<password>
 
-# Connection pool settings (HikariCP)
+# Connection pool settings
 <primary-name>.pool.maxPoolSize=20
 <primary-name>.pool.minIdle=5
 <primary-name>.pool.connectionTimeout=30000
@@ -547,14 +548,14 @@ primary.ojp.readwrite.replicaFailoverToPrimary=true
 ### Optimize Replica Selection
 
 **Round-Robin Strategy:**
-- Overhead: ~1-2 microseconds per query
+- Minimal overhead per query
 - Thread-safe with AtomicInteger
 - No locking contention
 
 **Health Checking:**
 - Uses `Connection.isValid(5)` - 5 second timeout
 - Only checked when connection is borrowed
-- Cached by HikariCP for pool lifetime
+- Cached by connection pool for pool lifetime
 
 ### Monitor Performance Metrics
 
@@ -574,7 +575,7 @@ Track these key metrics:
 
 4. **Classification Performance**
    - SQL classification time (p50, p95, p99)
-   - Goal: < 1ms at p99
+   - Monitor and ensure minimal overhead
 
 5. **Connection Pool Utilization**
    - Primary pool: target 60-80% utilization
@@ -771,7 +772,7 @@ SELECT /* ojp:route=replica2 */ * FROM analytics_data;
 
 Read/write splitting integrates seamlessly with OJP's connection pooling:
 
-- Each datasource (primary + replicas) has independent HikariCP pool
+- Each datasource (primary + replicas) has independent connection pool
 - Pool settings configured per datasource
 - Health checking integrated with pool lifecycle
 - No additional configuration needed
@@ -803,7 +804,7 @@ A: Use a conservative `stickySessionSeconds` value that exceeds your maximum rep
 A: Currently requires OJP restart. Set `ojp.readwrite.enabled=false` and restart.
 
 **Q: Does this work with connection pooling?**  
-A: Yes, each datasource has its own connection pool (HikariCP).
+A: Yes, each datasource has its own connection pool (HikariCP or your connection pool of choice).
 
 **Q: Can I route specific queries to specific replicas?**  
 A: Not currently. Round-robin is the only supported strategy. Manual routing hints are planned for future releases.

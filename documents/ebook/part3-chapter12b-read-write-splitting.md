@@ -29,7 +29,7 @@ conn.createStatement().executeUpdate(
 // And you never had to think about routing
 ```
 
-Behind the scenes, OJP is doing something remarkable. It's parsing every SQL statement using JSqlParser—the same production-grade parser used by major database tools—classifying queries as READ, WRITE, or UNKNOWN in under half a millisecond. READ queries flow to healthy replicas in round-robin fashion. WRITE queries go straight to primary. UNKNOWN statements (like stored procedure calls) default to primary for safety.
+Behind the scenes, OJP is doing something remarkable. It's parsing every SQL statement using JSqlParser—the same production-grade parser used by major database tools—classifying queries as READ, WRITE, or UNKNOWN with minimal overhead. READ queries flow to healthy replicas in round-robin fashion. WRITE queries go straight to primary. UNKNOWN statements (like stored procedure calls) default to primary for safety.
 
 But it gets smarter. OJP knows when you're in a transaction. Even if you execute a SELECT, if it's within a transaction boundary (between BEGIN and COMMIT), it routes to primary. Why? Because transactions require consistency—all queries must see the same snapshot of data, and mixing datasources mid-transaction would violate ACID properties.
 
@@ -152,9 +152,9 @@ FLUSH PRIVILEGES;
 
 ## Performance Characteristics
 
-SQL classification using JSqlParser adds latency—but remarkably little. In production testing, classification averages under 0.5 milliseconds per query, with p99 latency under 1 millisecond. For perspective, your typical network round-trip to a database is 1-5 milliseconds, and query execution time might be 10-100 milliseconds or more. Classification overhead is essentially noise in the overall query execution time.
+SQL classification using JSqlParser adds latency—but remarkably little. Classification overhead is minimal compared to typical network round-trips (often 1-5 milliseconds) and query execution times (which can range from 10-100 milliseconds or more). For most applications, classification overhead is essentially noise in the overall query execution time.
 
-The round-robin replica selection adds even less overhead—about 1-2 microseconds thanks to Java's AtomicInteger for thread-safe counter increments. No locks, no contention, just simple arithmetic.
+The round-robin replica selection adds minimal overhead thanks to Java's AtomicInteger for thread-safe counter increments. No locks, no contention, just simple arithmetic.
 
 Connection pool health checking uses JDBC's standard `isValid()` method with a 5-second timeout. This check only happens when borrowing connections from the pool, and HikariCP caches health status, so the overhead per query is negligible.
 
@@ -168,9 +168,7 @@ What makes this feature remarkable isn't what you see—it's what you don't have
 
 **Transaction Boundary Detection**: JDBC transactions can start explicitly (BEGIN TRANSACTION) or implicitly (setAutoCommit(false) followed by the first SQL statement). OJP tracks both patterns, managing transaction state in session metadata to ensure consistent routing throughout the transaction lifecycle.
 
-**Timestamp Precision**: Sticky sessions rely on precise timestamp tracking. OJP uses System.currentTimeMillis() for write operation recording and checks elapsed time on every subsequent query. The implementation is thread-safe using volatile fields, ensuring visibility across threads without locks.
-
-**Connection Pool Integration**: Each datasource (primary plus each replica) maintains its own HikariCP connection pool with independent configuration. OJP coordinates these pools seamlessly, borrowing connections from the appropriate pool based on routing decisions while HikariCP handles all the low-level connection lifecycle management.
+**Connection Pool Integration**: Each datasource (primary plus each replica) maintains its own connection pool (HikariCP or your connection pool of choice) with independent configuration. OJP coordinates these pools seamlessly, borrowing connections from the appropriate pool based on routing decisions while the connection pool handles all the low-level connection lifecycle management.
 
 ## Real-World Impact
 
