@@ -235,7 +235,7 @@ public class MultinodeConnectionManager {
      * - For all modes: Checks unhealthy servers to see if they've recovered
      */
     private void performHealthCheck() {
-        log.debug("Performing health check on servers");
+        log.info("Performing health check on servers");
         
         // XA Mode: Proactively check healthy servers to detect failures early.
         // Only run when there are active sessions – the sole purpose of this check is to
@@ -272,7 +272,7 @@ public class MultinodeConnectionManager {
                 .collect(Collectors.toList());
         
         if (unhealthyServers.isEmpty()) {
-            log.debug("No unhealthy servers to check");
+            log.info("No unhealthy servers to check");
             return;
         }
         
@@ -295,7 +295,7 @@ public class MultinodeConnectionManager {
                 } else {
                     // Still unhealthy, update timestamp
                     endpoint.setLastFailureTime(System.currentTimeMillis());
-                    log.debug("Server {} still unhealthy", endpoint.getAddress());
+                    log.info("Server {} still unhealthy", endpoint.getAddress());
                 }
             }
         }
@@ -317,40 +317,6 @@ public class MultinodeConnectionManager {
                         e.getMessage(), e);
             }
         }
-    }
-
-    /**
-     * Invalidates a specified number of connections for a server.
-     * 
-     * @param server The server whose connections should be invalidated
-     * @param connections The list of connections for this server
-     * @param count The number of connections to invalidate
-     * @return The actual number of connections invalidated
-     */
-    private int invalidateConnectionsForServer(ServerEndpoint server, List<java.sql.Connection> connections, int count) {
-        int invalidated = 0;
-        int toInvalidate = Math.min(count, connections.size());
-        
-        for (int i = 0; i < toInvalidate; i++) {
-            java.sql.Connection conn = connections.get(i);
-            if (conn instanceof org.openjproxy.jdbc.Connection) {
-                org.openjproxy.jdbc.Connection ojpConn = (org.openjproxy.jdbc.Connection) conn;
-                ojpConn.markForceInvalid();
-                try {
-                    conn.close();
-                    invalidated++;
-                    log.debug("Invalidated and closed connection {} for server {} during rebalancing", 
-                            System.identityHashCode(conn), server.getAddress());
-                } catch (Exception e) {
-                    log.warn("Failed to close connection {} for server {} during rebalancing: {}", 
-                            System.identityHashCode(conn), server.getAddress(), e.getMessage());
-                }
-            }
-        }
-        
-        log.info("Invalidated {} of {} connections for server {} during rebalancing", 
-                invalidated, toInvalidate, server.getAddress());
-        return invalidated;
     }
     
     /**
