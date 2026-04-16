@@ -26,6 +26,12 @@ import org.springframework.core.env.Environment;
  *       where the OJP driver's {@code DatasourcePropertiesLoader} reads them with the
  *       highest precedence. Any new OJP property is forwarded automatically without
  *       code changes.</li>
+ *   <li>Registers an {@link OjpHealthCheckInitializer} bean that eagerly creates the
+ *       {@code MultinodeConnectionManager} (and therefore starts the health-check
+ *       scheduler) at application startup, rather than waiting for the first JDBC
+ *       connection. This ensures health checks begin immediately with the values
+ *       configured in {@code application.yaml}, even when no database call is made
+ *       during startup.</li>
  * </ul>
  *
  * <p>The auto-configuration is ordered before the JDBC {@code DataSourceAutoConfiguration}
@@ -76,5 +82,30 @@ public class OjpAutoConfiguration {
     public OjpSystemPropertiesBridge ojpSystemPropertiesBridge(Environment environment) {
         log.debug("Registering OjpSystemPropertiesBridge");
         return new OjpSystemPropertiesBridge(environment);
+    }
+
+    /**
+     * Registers the {@link OjpHealthCheckInitializer} bean.
+     *
+     * <p>This bean eagerly creates the {@code MultinodeConnectionManager} — and
+     * therefore starts its health-check scheduler — at Spring Boot startup.
+     * Without this bean the connection manager is only created on the first JDBC
+     * connection, which means health checks never begin in applications that do not
+     * make an immediate database call.</p>
+     *
+     * <p>The {@link OjpSystemPropertiesBridge} parameter is a required dependency
+     * that guarantees all {@code ojp.*} system properties are forwarded before the
+     * connection manager is created, so the health-check scheduler is configured
+     * with the correct interval, threshold and timeout values.</p>
+     *
+     * @param environment the Spring environment (used to read datasource URLs)
+     * @param bridge      the system-properties bridge (must be initialized first)
+     * @return the health-check initializer
+     */
+    @Bean
+    public OjpHealthCheckInitializer ojpHealthCheckInitializer(Environment environment,
+                                                               OjpSystemPropertiesBridge bridge) {
+        log.debug("Registering OjpHealthCheckInitializer");
+        return new OjpHealthCheckInitializer(environment);
     }
 }

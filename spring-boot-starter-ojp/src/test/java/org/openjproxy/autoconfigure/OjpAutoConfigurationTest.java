@@ -60,14 +60,34 @@ class OjpAutoConfigurationTest {
     @Test
     void shouldNotActivateWhenNoDatasourceUrlIsConfigured() {
         contextRunner
-                .run(context -> assertThat(context).doesNotHaveBean(OjpSystemPropertiesBridge.class));
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(OjpSystemPropertiesBridge.class);
+                    assertThat(context).doesNotHaveBean(OjpHealthCheckInitializer.class);
+                });
     }
 
     @Test
     void shouldNotActivateWhenNamedDatasourceUrlIsNotOjp() {
         contextRunner
                 .withPropertyValues("spring.datasource.catalog.url=jdbc:postgresql://localhost:5432/catalog")
-                .run(context -> assertThat(context).doesNotHaveBean(OjpSystemPropertiesBridge.class));
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(OjpSystemPropertiesBridge.class);
+                    assertThat(context).doesNotHaveBean(OjpHealthCheckInitializer.class);
+                });
+    }
+
+    @Test
+    void shouldRegisterHealthCheckInitializerWhenOjpUrlIsConfigured() {
+        contextRunner
+                .withPropertyValues("spring.datasource.url=jdbc:ojp[localhost:1059]_postgresql://user@localhost/mydb")
+                .run(context -> assertThat(context).hasSingleBean(OjpHealthCheckInitializer.class));
+    }
+
+    @Test
+    void shouldRegisterHealthCheckInitializerWhenNamedDatasourceOjpUrlIsConfigured() {
+        contextRunner
+                .withPropertyValues("spring.datasource.catalog.url=jdbc:ojp[localhost:1059]_postgresql://user@localhost/catalog")
+                .run(context -> assertThat(context).hasSingleBean(OjpHealthCheckInitializer.class));
     }
 
     @Test
