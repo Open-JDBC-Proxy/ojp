@@ -114,27 +114,12 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             returnSessionInfo = dto.getSession();
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
-            PreparedStatement ps = dto.getSession() != null && StringUtils.isNotBlank(dto.getSession().getSessionUUID())
-                    && StringUtils.isNoneBlank(request.getStatementUUID())
-                    ? sessionManager.getPreparedStatement(dto.getSession(), request.getStatementUUID())
-                    : null;
-
-            if (CollectionUtils.isNotEmpty(params) || ps != null || requiresGeneratedKeys) {
-                if (StringUtils.isNotEmpty(request.getStatementUUID()) && ps != null) {
-                    bindLobsAndParameters(sessionManager, dto, ps, params);
-                } else {
-                    ps = createAndRegisterPreparedStatement(sessionManager, dto, request, params, opResultBuilder);
-                }
-                if (StatementRequestValidator.isAddBatchOperation(request)) {
-                    psUUID = addBatchAndGetStatementUUID(sessionManager, dto, ps, request);
-                } else {
-                    updated = ps.executeUpdate();
-                }
-                stmt = ps;
-            } else {
-                stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
-                updated = stmt.executeUpdate(request.getSql());
-            }
+            
+            StatementExecutionResult executionResult = executeStatement(
+                    sessionManager, dto, request, params, requiresGeneratedKeys, opResultBuilder);
+            stmt = executionResult.statement;
+            updated = executionResult.updateCount;
+            psUUID = executionResult.statementUUID;
 
             OpResult result = buildOpResult(request, opResultBuilder, returnSessionInfo, psUUID, updated);
             
@@ -142,17 +127,100 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             org.openjproxy.grpc.server.cache.QueryCacheHelper.invalidateCacheIfEnabled(actionContext, dto.getSession(), request.getSql());
             
             // Record write operation for read/write routing sticky sessions
-            if (dto.getSession() != null) {
-                org.openjproxy.grpc.server.Session session = sessionManager.getSession(dto.getSession());
-                if (session != null) {
-                    session.recordWriteOperation();
-                    log.debug("Recorded write operation for session {}", session.getSessionUUID());
-                }
-            }
+            recordWriteOperationIfNeeded(sessionManager, dto);
             
             return result;
         } finally {
             closeStatementAndConnectionIfNoSession(dto, stmt);
+        }
+    }
+
+    /**
+     * Executes the SQL statement using either prepared statement or regular statement.
+     */
+    private StatementExecutionResult executeStatement(SessionManager sessionManager, ConnectionSessionDTO dto,
+                                                      StatementRequest request, List<Parameter> params,
+                                                      boolean requiresGeneratedKeys, OpResult.Builder opResultBuilder) throws SQLException {
+        PreparedStatement ps = retrieveExistingPreparedStatement(sessionManager, dto, request);
+
+        if (CollectionUtils.isNotEmpty(params) || ps != null || requiresGeneratedKeys) {
+            return executePreparedStatement(sessionManager, dto, request, params, ps, opResultBuilder);
+        } else {
+            return executeRegularStatement(sessionManager, dto, request);
+        }
+    }
+
+    /**
+     * Retrieves existing prepared statement if available.
+     */
+    private PreparedStatement retrieveExistingPreparedStatement(SessionManager sessionManager, ConnectionSessionDTO dto,
+                                                                StatementRequest request) throws SQLException {
+        if (dto.getSession() != null && StringUtils.isNotBlank(dto.getSession().getSessionUUID())
+                && StringUtils.isNoneBlank(request.getStatementUUID())) {
+            return sessionManager.getPreparedStatement(dto.getSession(), request.getStatementUUID());
+        }
+        return null;
+    }
+
+    /**
+     * Executes using prepared statement.
+     */
+    private StatementExecutionResult executePreparedStatement(SessionManager sessionManager, ConnectionSessionDTO dto,
+                                                               StatementRequest request, List<Parameter> params,
+                                                               PreparedStatement ps, OpResult.Builder opResultBuilder) throws SQLException {
+        if (StringUtils.isNotEmpty(request.getStatementUUID()) && ps != null) {
+            bindLobsAndParameters(sessionManager, dto, ps, params);
+        } else {
+            ps = createAndRegisterPreparedStatement(sessionManager, dto, request, params, opResultBuilder);
+        }
+        
+        String psUUID = "";
+        int updated = 0;
+        
+        if (StatementRequestValidator.isAddBatchOperation(request)) {
+            psUUID = addBatchAndGetStatementUUID(sessionManager, dto, ps, request);
+        } else {
+            updated = ps.executeUpdate();
+        }
+        
+        return new StatementExecutionResult(ps, updated, psUUID);
+    }
+
+    /**
+     * Executes using regular statement.
+     */
+    private StatementExecutionResult executeRegularStatement(SessionManager sessionManager, ConnectionSessionDTO dto,
+                                                              StatementRequest request) throws SQLException {
+        Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
+        int updated = stmt.executeUpdate(request.getSql());
+        return new StatementExecutionResult(stmt, updated, "");
+    }
+
+    /**
+     * Records write operation for session affinity if needed.
+     */
+    private void recordWriteOperationIfNeeded(SessionManager sessionManager, ConnectionSessionDTO dto) {
+        if (dto.getSession() != null) {
+            org.openjproxy.grpc.server.Session session = sessionManager.getSession(dto.getSession());
+            if (session != null) {
+                session.recordWriteOperation();
+                log.debug("Recorded write operation for session {}", session.getSessionUUID());
+            }
+        }
+    }
+
+    /**
+     * Result of statement execution.
+     */
+    private static class StatementExecutionResult {
+        final Statement statement;
+        final int updateCount;
+        final String statementUUID;
+
+        StatementExecutionResult(Statement statement, int updateCount, String statementUUID) {
+            this.statement = statement;
+            this.updateCount = updateCount;
+            this.statementUUID = statementUUID;
         }
     }
 
