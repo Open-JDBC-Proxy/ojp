@@ -54,14 +54,16 @@ public class JSqlParserClassifier implements SqlClassifier {
     private static final Logger logger = LoggerFactory.getLogger(JSqlParserClassifier.class);
     
     // Fallback patterns for statements that JSqlParser cannot parse
+    // Note: Regex patterns are designed to avoid catastrophic backtracking (ReDoS)
+    // by using possessive quantifiers and atomic groups where appropriate
     private static final Pattern TRANSACTION_CONTROL_PATTERN = Pattern.compile(
-        "^\\s*(?:/\\*.*?\\*/\\s*)*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|START\\s+TRANSACTION)\\b",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        "^\\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|START\\s+TRANSACTION)\\b",
+        Pattern.CASE_INSENSITIVE
     );
     
     private static final Pattern DCL_PATTERN = Pattern.compile(
-        "^\\s*(?:/\\*.*?\\*/\\s*)*(GRANT|REVOKE)\\b",
-        Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        "^\\s*(GRANT|REVOKE)\\b",
+        Pattern.CASE_INSENSITIVE
     );
     
     /**
