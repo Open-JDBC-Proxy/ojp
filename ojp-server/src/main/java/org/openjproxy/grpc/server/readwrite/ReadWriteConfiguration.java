@@ -92,6 +92,7 @@ public class ReadWriteConfiguration {
                     "Read/write splitting is enabled but no replicas configured for primary: " + primaryName);
         }
         
+        // stickySessionSeconds is optional - 0 means disabled, positive values enable sticky sessions
         if (stickySessionSeconds < 0) {
             throw new IllegalArgumentException("stickySessionSeconds cannot be negative: " + stickySessionSeconds);
         }

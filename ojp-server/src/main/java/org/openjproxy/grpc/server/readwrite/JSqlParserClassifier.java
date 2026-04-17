@@ -148,10 +148,7 @@ public class JSqlParserClassifier implements SqlClassifier {
         }
         
         // Check SetOperationList (UNION, INTERSECT, EXCEPT)
-        if (selectBody instanceof SetOperationList) {
-            // Set operations are read-only
-            // Note: Could check each select in the UNION, but they should all be reads
-        }
+        // Set operations are read-only, so no special handling needed
         
         // Regular SELECT - read operation
         return SqlOperationType.READ;

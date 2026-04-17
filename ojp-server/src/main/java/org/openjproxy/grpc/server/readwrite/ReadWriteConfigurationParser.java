@@ -22,9 +22,20 @@ import java.util.concurrent.ConcurrentMap;
  * replica1.ojp.readwrite.role=replica
  * replica1.ojp.readwrite.primary=primary
  * </pre>
+ * 
+ * <p><b>Spring Boot Integration:</b> When using the OJP Spring Boot starter, these properties
+ * are automatically bridged from {@code application.properties} to system properties by
+ * {@code OjpSystemPropertiesBridge}. All properties matching {@code {datasourceName}.ojp.*}
+ * are automatically forwarded, including {@code .ojp.readwrite.*} properties. No additional
+ * configuration is needed in the Spring Boot starter to support read/write splitting.
  */
 @Slf4j
 public class ReadWriteConfigurationParser {
+    
+    // Private constructor to prevent instantiation of utility class
+    private ReadWriteConfigurationParser() {
+        throw new UnsupportedOperationException("Utility class - do not instantiate");
+    }
     
     private static final String READWRITE_PREFIX = ".ojp.readwrite.";
     private static final String ENABLED_SUFFIX = "enabled";
