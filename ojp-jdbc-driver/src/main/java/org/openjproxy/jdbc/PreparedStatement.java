@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.List;
 
 import static org.openjproxy.grpc.dto.ParameterType.ARRAY;
 import static org.openjproxy.grpc.dto.ParameterType.ASCII_STREAM;
@@ -407,13 +406,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
         log.debug("setCharacterStream: {}, <Reader>, {}", parameterIndex, length);
         this.checkClosed();
-        //TODO this will require an implementation of Reader that communicates across GRPC or maybe a conversion to InputStream
-        this.paramsMap.put(parameterIndex,
-                Parameter.builder()
-                        .type(CHARACTER_READER)
-                        .index(parameterIndex)
-                        .values(Arrays.asList(reader, length))
-                        .build());
+        // Delegate to the long version for consistent behavior
+        this.setCharacterStream(parameterIndex, reader, (long) length);
     }
 
     @Override
@@ -577,13 +571,9 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
         log.debug("setNCharacterStream: {}, <Reader>, {}", parameterIndex, length);
         this.checkClosed();
-        //TODO see if can use similar/same reader communication layer as other methods that require reader
-        this.paramsMap.put(parameterIndex,
-                Parameter.builder()
-                        .type(N_CHARACTER_STREAM)
-                        .index(parameterIndex)
-                        .values(Arrays.asList(value, length))
-                        .build());
+        // NCharacterStream is similar to CharacterStream but for national character sets
+        // Use the same helper method to properly encode and stream the data
+        this.streamReaderToClob(parameterIndex, value, length);
     }
 
     @Override
@@ -602,27 +592,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
         log.debug("setClob: {}, <Reader>, {}", parameterIndex, length);
         this.checkClosed();
-        try {
-            org.openjproxy.jdbc.Clob clob = (org.openjproxy.jdbc.Clob) this.getConnection().createClob();
-            OutputStream os = clob.setAsciiStream(1);
-            int byteRead = reader.read();
-            int writtenLength = 0;
-            while (byteRead != -1 && length > writtenLength) {
-                os.write(byteRead);
-                writtenLength++;
-                byteRead = reader.read();
-            }
-            os.close();
-            this.paramsMap.put(parameterIndex,
-                    Parameter.builder()
-                            .type(CLOB)
-                            .index(parameterIndex)
-                            .values(Arrays.asList(clob.getUUID()))
-                            .build()
-            );
-        } catch (IOException e) {
-            throw new SQLException("Unable to write CLOB bytes: " + e.getMessage(), e);
-        }
+        // Use the helper method that properly handles character encoding
+        this.streamReaderToClob(parameterIndex, reader, length);
     }
 
     @Override
@@ -656,13 +627,9 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
         log.debug("setNClob: {}, <Reader>, {}", parameterIndex, length);
         this.checkClosed();
-        //TODO see if can use similar/same reader communication layer as other methods that require reader
-        this.paramsMap.put(parameterIndex,
-                Parameter.builder()
-                        .type(N_CLOB)
-                        .index(parameterIndex)
-                        .values(Arrays.asList(reader, length))
-                        .build());
+        // NClob is similar to Clob but for national character sets
+        // Use the same helper method to properly encode and stream the data
+        this.streamReaderToClob(parameterIndex, reader, length);
     }
 
     @Override
@@ -724,6 +691,9 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
         log.debug("setCharacterStream: {}, <Reader>, {}", parameterIndex, length);
         this.checkClosed();
+        // Use the same approach as setClob - stream the reader content to a Clob
+        // and store the Clob UUID. The server will handle retrieving the content.
+        this.streamReaderToClob(parameterIndex, reader, length);
     }
 
     @Override
@@ -752,12 +722,16 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
         log.debug("setCharacterStream: {}, <Reader>", parameterIndex);
         this.checkClosed();
+        // Delegate to the long version with MAX_VALUE
+        this.setCharacterStream(parameterIndex, reader, Long.MAX_VALUE);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
         log.debug("setNCharacterStream: {}, <Reader>", parameterIndex);
         this.checkClosed();
+        // Delegate to the long version with MAX_VALUE
+        this.setNCharacterStream(parameterIndex, value, Long.MAX_VALUE);
     }
 
     @Override
@@ -777,6 +751,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public void setNClob(int parameterIndex, Reader reader) throws SQLException {
         log.debug("setNClob: {}, <Reader>", parameterIndex);
         this.checkClosed();
+        // Delegate to the long version with MAX_VALUE
+        this.setNClob(parameterIndex, reader, Long.MAX_VALUE);
     }
 
     public Map<String, Object> getProperties() {
@@ -940,5 +916,101 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
+    }
+
+    /**
+     * Helper method to convert a Reader to an InputStream with UTF-8 encoding.
+     * This properly handles multi-byte characters including surrogate pairs (emoji).
+     *
+     * @param reader the Reader to convert
+     * @return an InputStream that reads bytes from the encoded characters
+     */
+    private InputStream readerToInputStream(Reader reader) {
+        return new InputStream() {
+            private byte[] buffer = null;
+            private int bufferPos = 0;
+            private final char[] charBuffer = new char[2]; // For handling surrogate pairs
+            
+            @Override
+            public int read() throws IOException {
+                // If buffer is empty or fully consumed, read next character(s) and encode
+                if (buffer == null || bufferPos >= buffer.length) {
+                    int ch = reader.read();
+                    if (ch == -1) {
+                        return -1; // End of stream
+                    }
+                    
+                    // Check if this is a high surrogate (emoji, etc)
+                    if (Character.isHighSurrogate((char) ch)) {
+                        charBuffer[0] = (char) ch;
+                        int lowSurrogate = reader.read();
+                        if (lowSurrogate == -1 || !Character.isLowSurrogate((char) lowSurrogate)) {
+                            // Invalid surrogate pair - encode the high surrogate alone
+                            buffer = new String(charBuffer, 0, 1).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                        } else {
+                            // Valid surrogate pair - encode both characters
+                            charBuffer[1] = (char) lowSurrogate;
+                            buffer = new String(charBuffer, 0, 2).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                        }
+                    } else {
+                        // Regular character (BMP) - encode single character
+                        buffer = String.valueOf((char) ch).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    }
+                    bufferPos = 0;
+                }
+                // Return next byte from buffer
+                return buffer[bufferPos++] & 0xFF;
+            }
+            
+            @Override
+            public void close() throws IOException {
+                reader.close();
+            }
+        };
+    }
+
+    /**
+     * Helper method to stream data from a Reader to a Clob by converting to InputStream.
+     * This ensures proper character encoding for multi-byte characters.
+     *
+     * @param parameterIndex the parameter index
+     * @param reader the Reader to stream from
+     * @param length the maximum number of characters to read (not bytes)
+     * @throws SQLException if an error occurs
+     */
+    private void streamReaderToClob(int parameterIndex, Reader reader, long length) throws SQLException {
+        log.debug("streamReaderToClob: {}, <Reader>, {}", parameterIndex, length);
+        try {
+            org.openjproxy.jdbc.Clob clob = (org.openjproxy.jdbc.Clob) this.getConnection().createClob();
+            OutputStream os = clob.setAsciiStream(1);
+            
+            // Read characters from the reader and write them as bytes
+            // We need to track character count, not byte count
+            long charsRead = 0;
+            long maxChars = (length > 0) ? length : Long.MAX_VALUE;
+            
+            char[] buffer = new char[8192]; // Buffer for efficient reading
+            int charsInBuffer;
+            
+            while (charsRead < maxChars && (charsInBuffer = reader.read(buffer, 0, 
+                    (int) Math.min(buffer.length, maxChars - charsRead))) != -1) {
+                // Convert characters to bytes and write
+                String str = new String(buffer, 0, charsInBuffer);
+                byte[] bytes = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                os.write(bytes);
+                charsRead += charsInBuffer;
+            }
+            os.close();
+            
+            this.paramsMap.put(parameterIndex,
+                    Parameter.builder()
+                            .type(CLOB)
+                            .index(parameterIndex)
+                            .values(Arrays.asList(clob.getUUID()))
+                            .build()
+            );
+        } catch (IOException e) {
+            throw new SQLException("Unable to write CLOB bytes: " + e.getMessage(), e);
+        }
     }
 }
