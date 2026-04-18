@@ -595,32 +595,6 @@ public class MultinodeStatementService implements StatementService {
                         }
                     }
                 }
-                
-                // Terminate secondary XA sessions (created on non-primary servers during connectToAllServers).
-                // These sessions hold backend pool slots on their respective servers and must be released
-                // to prevent pool exhaustion when reconnecting in a multinode XA scenario.
-                List<SessionInfo> secondarySessionInfos = connectionManager.getAndRemoveSecondarySessionInfos(
-                        session.getSessionUUID());
-                for (SessionInfo secondary : secondarySessionInfos) {
-                    String secondaryUUID = secondary.getSessionUUID();
-                    if (secondaryUUID == null || secondaryUUID.isEmpty()) {
-                        continue;
-                    }
-                    ServerEndpoint secondaryServer = connectionManager.getServerForSession(secondaryUUID);
-                    if (secondaryServer == null) {
-                        log.debug("Secondary session {} has no bound server, skipping termination", secondaryUUID);
-                        continue;
-                    }
-                    try {
-                        StatementServiceGrpcClient client = getClient(secondaryServer);
-                        client.terminateSession(secondary);
-                        log.info("Terminated secondary XA session {} on server {}", 
-                                secondaryUUID, secondaryServer.getAddress());
-                    } catch (Exception e) {
-                        log.warn("Error terminating secondary XA session {} on server {}: {}", 
-                                secondaryUUID, secondaryServer.getAddress(), e.getMessage());
-                    }
-                }
             } else {
                 // No session UUID - try terminating on all servers that received connect()
                 log.info("No sessionUUID, attempting termination on all connected servers");
