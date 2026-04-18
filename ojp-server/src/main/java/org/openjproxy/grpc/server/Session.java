@@ -137,6 +137,15 @@ public class Session {
     }
     
     /**
+     * Returns the backend session reference for XA pooling.
+     *
+     * @return the {@code XABackendSession} (cast appropriately), or {@code null} if not set
+     */
+    public Object getBackendSession() {
+        return backendSession;
+    }
+    
+    /**
      * Refreshes the connection reference from the backend session.
      * This is called after XA transaction sanitization to update the connection
      * reference to the new logical connection obtained from the XAConnection.

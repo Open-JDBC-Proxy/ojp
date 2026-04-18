@@ -713,6 +713,25 @@ public class XATransactionRegistry {
     }
     
     /**
+     * Returns {@code true} if there is at least one transaction context (in any state) associated
+     * with the given OJP session ID.
+     * <p>
+     * This is used to distinguish orphaned sessions (no XA transaction ever started) from sessions
+     * that have active or pending transactions.
+     * </p>
+     *
+     * @param ojpSessionId the OJP session identifier
+     * @return {@code true} if any context exists for this session, {@code false} otherwise
+     */
+    public boolean hasContextsForSession(String ojpSessionId) {
+        if (ojpSessionId == null) {
+            return false;
+        }
+        return contexts.values().stream()
+                .anyMatch(ctx -> ojpSessionId.equals(ctx.getOjpSessionId()));
+    }
+    
+    /**
      * Closes the registry and releases all resources.
      * <p>
      * Should be called during proxy shutdown or when registry needs to be recreated.

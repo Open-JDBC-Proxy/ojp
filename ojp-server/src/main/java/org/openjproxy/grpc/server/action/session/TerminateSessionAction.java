@@ -71,6 +71,14 @@ public class TerminateSessionAction implements Action<SessionInfo, SessionTermin
                     if (returnedCount > 0) {
                         log.info("Returned {} completed XA backend sessions to pool on session termination", returnedCount);
                     }
+                    
+                    // Handle orphaned sessions: a session that was created during connect() on a
+                    // non-primary server in a multinode XA scenario never receives xaStart(), so it
+                    // has no TxContext in the registry. Its borrowed XABackendSession must be
+                    // returned to the pool here to prevent permanent pool slot exhaustion.
+                    if (returnedCount == 0 && !registry.hasContextsForSession(sessionInfo.getSessionUUID())) {
+                        returnOrphanedBackendSession(context, registry, sessionInfo);
+                    }
                 } else {
                     log.warn("[XA-TERMINATE] No XA registry found for connHash={}", connHash);
                 }
@@ -86,6 +94,44 @@ public class TerminateSessionAction implements Action<SessionInfo, SessionTermin
         } catch (Exception e) {
             log.error("Unexpected error during terminateSession", e);
             sendSQLExceptionMetadata(new SQLException("Unable to terminate session: " + e.getMessage()), responseObserver);
+        }
+    }
+    
+    /**
+     * Returns the backend session of an orphaned XA session to its pool.
+     * <p>
+     * An orphaned session is one that was created on a non-primary OJP server during
+     * {@code connectToAllServers()} in a multinode XA setup, where no XA transaction
+     * (xaStart) was ever initiated on that server. As a result, no {@code TxContext}
+     * exists in the registry, and {@code returnCompletedSessions()} returns 0.
+     * Without this cleanup the borrowed {@code XABackendSession} would never be
+     * returned to CommonsPool2, eventually exhausting the pool on that server and
+     * causing subsequent {@code connect()} calls to hang.
+     * </p>
+     */
+    private void returnOrphanedBackendSession(ActionContext context, XATransactionRegistry registry, SessionInfo sessionInfo) {
+        if (context.getXaPoolProvider() == null) {
+            return;
+        }
+        org.openjproxy.grpc.server.Session session = context.getSessionManager().getSession(sessionInfo);
+        if (session == null) {
+            return;
+        }
+        Object rawBackend = session.getBackendSession();
+        if (!(rawBackend instanceof org.openjproxy.xa.pool.XABackendSession)) {
+            return;
+        }
+        org.openjproxy.xa.pool.XABackendSession backendSession =
+                (org.openjproxy.xa.pool.XABackendSession) rawBackend;
+        try {
+            context.getXaPoolProvider().returnSession(registry.getPooledXADataSource(), backendSession);
+            // Clear the reference so Session.terminate() does not attempt a second return.
+            session.setBackendSession(null);
+            log.info("[XA-TERMINATE] Returned orphaned XA backend session to pool for sessionUUID={}",
+                    sessionInfo.getSessionUUID());
+        } catch (Exception e) {
+            log.warn("[XA-TERMINATE] Failed to return orphaned XA backend session for sessionUUID={}: {}",
+                    sessionInfo.getSessionUUID(), e.getMessage());
         }
     }
 }

@@ -48,6 +48,9 @@ public class MultinodeConnectionManager {
     private final Map<ServerEndpoint, ChannelAndStub> channelMap;
     private final Map<String, ServerEndpoint> sessionToServerMap; // sessionUUID -> server
     private final Map<String, List<ServerEndpoint>> connHashToServersMap; // connHash -> list of servers that received connect()
+    // Maps primary sessionUUID -> list of secondary SessionInfos created on non-primary servers.
+    // Used to terminate orphaned sessions on secondary servers when the primary session is closed.
+    private final Map<String, List<SessionInfo>> primaryToSecondarySessionInfosMap;
     private final AtomicInteger roundRobinCounter;
     private final int retryAttempts;
     private final long retryDelayMs;
@@ -91,6 +94,7 @@ public class MultinodeConnectionManager {
         this.channelMap = new ConcurrentHashMap<>();
         this.sessionToServerMap = new ConcurrentHashMap<>();
         this.connHashToServersMap = new ConcurrentHashMap<>();
+        this.primaryToSecondarySessionInfosMap = new ConcurrentHashMap<>();
         this.roundRobinCounter = new AtomicInteger(0);
         this.retryAttempts = retryAttempts;
         this.retryDelayMs = retryDelayMs;
@@ -560,6 +564,26 @@ public class MultinodeConnectionManager {
             log.info("Tracked {} servers for connection hash {}", connectedServers.size(), primarySessionInfo.getConnHash());
         }
         
+        // For XA connections, track secondary sessions (sessions on non-primary servers).
+        // These hold backend pool slots on those servers and must be explicitly terminated
+        // when the primary session is closed to prevent pool exhaustion.
+        if (isXA && allSessionInfos.size() > 1) {
+            String primaryUUID = primarySessionInfo.getSessionUUID();
+            if (primaryUUID != null && !primaryUUID.isEmpty()) {
+                List<SessionInfo> secondarySessionInfos = new ArrayList<>();
+                for (SessionInfo si : allSessionInfos) {
+                    if (!primaryUUID.equals(si.getSessionUUID())) {
+                        secondarySessionInfos.add(si);
+                    }
+                }
+                if (!secondarySessionInfos.isEmpty()) {
+                    primaryToSecondarySessionInfosMap.put(primaryUUID, secondarySessionInfos);
+                    log.info("Tracked {} secondary XA session(s) for primary session {}", 
+                            secondarySessionInfos.size(), primaryUUID);
+                }
+            }
+        }
+        
         log.info("Connected to {} out of {} servers ({} connection)", 
                 successfulConnections, serverEndpoints.size(), isXA ? "XA" : "non-XA");
         return primarySessionInfo;
@@ -846,8 +870,21 @@ public class MultinodeConnectionManager {
         if (sessionInfo != null) {
             // Remove session binding if sessionUUID is present
             if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
-                unbindSession(sessionInfo.getSessionUUID());
-                log.debug("Removed session {} from server association map", sessionInfo.getSessionUUID());
+                String primaryUUID = sessionInfo.getSessionUUID();
+                unbindSession(primaryUUID);
+                log.debug("Removed session {} from server association map", primaryUUID);
+                
+                // Also unbind any secondary sessions that were tracked for this primary
+                List<SessionInfo> secondarySessions = primaryToSecondarySessionInfosMap.remove(primaryUUID);
+                if (secondarySessions != null) {
+                    for (SessionInfo secondary : secondarySessions) {
+                        if (secondary.getSessionUUID() != null && !secondary.getSessionUUID().isEmpty()) {
+                            unbindSession(secondary.getSessionUUID());
+                            log.debug("Removed secondary session {} from server association map", 
+                                    secondary.getSessionUUID());
+                        }
+                    }
+                }
             }
             
             // Remove connection hash mapping if present
@@ -856,6 +893,22 @@ public class MultinodeConnectionManager {
                 log.debug("Removed connection hash {} from server tracking map", sessionInfo.getConnHash());
             }
         }
+    }
+    
+    /**
+     * Returns and removes the secondary SessionInfos associated with the given primary session UUID.
+     * Secondary sessions are XA sessions created on non-primary servers during {@code connectToAllServers()}.
+     * The caller is responsible for terminating these sessions on their respective servers.
+     *
+     * @param primarySessionUUID the UUID of the primary session
+     * @return list of secondary SessionInfos, or an empty list if none exist
+     */
+    public List<SessionInfo> getAndRemoveSecondarySessionInfos(String primarySessionUUID) {
+        if (primarySessionUUID == null || primarySessionUUID.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<SessionInfo> secondary = primaryToSecondarySessionInfosMap.remove(primarySessionUUID);
+        return secondary != null ? secondary : new ArrayList<>();
     }
     
     /**
@@ -928,6 +981,20 @@ public class MultinodeConnectionManager {
         }
         
         return null;
+    }
+    
+    /**
+     * Returns the {@link ServerEndpoint} that the given session UUID is bound to, or {@code null}
+     * if the session is not currently bound to any server.
+     *
+     * @param sessionUUID the session identifier
+     * @return the bound {@link ServerEndpoint}, or {@code null} if not found
+     */
+    public ServerEndpoint getServerForSession(String sessionUUID) {
+        if (sessionUUID == null || sessionUUID.isEmpty()) {
+            return null;
+        }
+        return sessionToServerMap.get(sessionUUID);
     }
     
     /**
