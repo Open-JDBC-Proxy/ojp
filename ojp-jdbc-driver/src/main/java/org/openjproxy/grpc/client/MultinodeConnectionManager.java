@@ -3,6 +3,7 @@ package org.openjproxy.grpc.client;
 import com.openjproxy.grpc.ConnectionDetails;
 import com.openjproxy.grpc.PropertyEntry;
 import com.openjproxy.grpc.SessionInfo;
+import com.openjproxy.grpc.SessionTerminationStatus;
 import com.openjproxy.grpc.StatementServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
@@ -498,14 +499,6 @@ public class MultinodeConnectionManager {
                     primarySessionInfo = sessionInfo;
                 }
                 
-                // XA connections are strictly bound to a single OJP server for their entire
-                // lifetime (XA stickiness). Connecting to additional servers would create
-                // orphaned backend sessions on those servers that hold pool slots indefinitely
-                // without ever receiving XA operations, eventually exhausting the pool.
-                if (isXA) {
-                    break;
-                }
-                
             } catch (StatusRuntimeException e) {
                 boolean isSqlError = false;
                 try {
@@ -568,9 +561,68 @@ public class MultinodeConnectionManager {
             log.info("Tracked {} servers for connection hash {}", connectedServers.size(), primarySessionInfo.getConnHash());
         }
         
+        // For XA connections, immediately release the pool slots borrowed on non-primary servers.
+        // All servers still received the connect() RPC (which initialises their pool/registry so
+        // they are ready for failover or future XA connections), but only the chosen primary
+        // server should retain a live, slot-consuming XA session.  Leaving secondary sessions
+        // alive causes permanent pool exhaustion on those servers because:
+        //   - xaStart() / xaEnd() / xaCommit() are routed only to the primary via session stickiness
+        //   - terminateSession() likewise targets only the primary session UUID
+        //   - the secondary XABackendSessions are therefore never returned to CommonsPool2
+        // Immediately calling terminateSession() on each secondary server returns the pool slot
+        // before this method returns, so the pool is never exhausted.
+        if (isXA && allSessionInfos.size() > 1) {
+            releaseNonPrimaryXASessions(primarySessionInfo.getSessionUUID(), allSessionInfos);
+        }
+        
         log.info("Connected to {} out of {} servers ({} connection)", 
                 successfulConnections, serverEndpoints.size(), isXA ? "XA" : "non-XA");
         return primarySessionInfo;
+    }
+    
+    /**
+     * Immediately releases the pool slots borrowed on non-primary servers during an XA connect.
+     * <p>
+     * Each server that received a {@code connect()} RPC borrowed one {@code XABackendSession}
+     * from its CommonsPool2 pool. Only the primary server's session will ever receive
+     * {@code xaStart/xaEnd/xaPrepare/xaCommit} (XA stickiness routes all operations there).
+     * The non-primary sessions would therefore never be returned through the normal lifecycle,
+     * eventually exhausting those servers' pools.
+     * </p>
+     * <p>
+     * This method calls {@code terminateSession()} on each non-primary server right away,
+     * returning the pool slot before any XA operation begins.  The primary session is
+     * unaffected.
+     * </p>
+     */
+    private void releaseNonPrimaryXASessions(String primarySessionUUID, List<SessionInfo> allSessionInfos) {
+        for (SessionInfo si : allSessionInfos) {
+            String siUUID = si.getSessionUUID();
+            if (siUUID == null || siUUID.isEmpty() || siUUID.equals(primarySessionUUID)) {
+                continue;
+            }
+            // Remove from client-side tracking first
+            ServerEndpoint server = sessionToServerMap.remove(siUUID);
+            sessionTracker.unregisterSession(siUUID);
+            if (server == null) {
+                continue;
+            }
+            // Fire terminateSession() on the server so it returns the XABackendSession to pool
+            try {
+                ChannelAndStub cab = channelMap.get(server);
+                if (cab != null) {
+                    cab.blockingStub.terminateSession(si);
+                    log.info("Released XA pool slot on non-primary server {} (session {})",
+                            server.getAddress(), siUUID);
+                }
+            } catch (Exception e) {
+                // Best-effort: log but don't fail the overall connect().
+                // The server-side returnOrphanedBackendSession() safety net will handle
+                // any slot that is leaked due to this failure.
+                log.warn("Failed to release XA pool slot on non-primary server {} (session {}): {}",
+                        server.getAddress(), siUUID, e.getMessage());
+            }
+        }
     }
     
     
