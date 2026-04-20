@@ -314,16 +314,13 @@ public class MultinodeConnectionManager {
                 return sessionInfo;
 
             } catch (StatusRuntimeException e) {
-                boolean isSqlError = false;
                 try {
-                    GrpcExceptionHandler.handle(e);
-                    lastException = new SQLException("gRPC call failed: " + e.getMessage(), e);
+                    GrpcExceptionHandler.handle(e); // always throws SQLException
                 } catch (SQLException sqlEx) {
                     lastException = sqlEx;
-                    isSqlError = true;
                 }
 
-                if (!isSqlError) {
+                if (isConnectionLevelError(e)) {
                     // Connection-level failure: mark server unhealthy and try the next candidate.
                     handleServerFailure(server, e);
                     log.warn("XA connect failed on server {} with connection-level error, trying next: {}",
@@ -819,16 +816,13 @@ public class MultinodeConnectionManager {
                 }
                 
             } catch (StatusRuntimeException e) {
-                boolean isSqlError = false;
                 try {
-                    GrpcExceptionHandler.handle(e);
-                    lastException = new SQLException("gRPC call failed: " + e.getMessage(), e);
+                    GrpcExceptionHandler.handle(e); // always throws SQLException
                 } catch (SQLException sqlEx) {
                     lastException = sqlEx;
-                    isSqlError = true; // SQL metadata present: upstream DB error, not OJP proxy failure
                 }
-                if (!isSqlError) {
-                    // Only mark server unhealthy for genuine connectivity failures (no SQL metadata)
+                if (isConnectionLevelError(e)) {
+                    // Only mark server unhealthy for genuine connectivity failures
                     handleServerFailure(server, e);
                 } else {
                     log.debug("Not marking server {} unhealthy: database-level error during connect ({})",
