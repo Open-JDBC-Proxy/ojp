@@ -235,9 +235,7 @@ public class StatementServiceGrpcClient implements StatementService {
                             if (throwable instanceof StatusRuntimeException) {
                                 try {
                                     StatusRuntimeException sre = (StatusRuntimeException) throwable;
-                                    handle(sre);//To convert to SQLException if possible
-                                    sfFirstLobReference.setException(sre);
-                                    sfFinalLobReference.setException(sre); //When conversion to SQLException not possible
+                                    handle(sre); // always throws SQLException
                                 } catch (SQLException e) {
                                     sfFirstLobReference.setException(e);
                                     sfFinalLobReference.setException(e);

@@ -43,19 +43,32 @@ public class CommandExecutionHelper {
             return;
         }
 
-        // Update session activity
-        updateSessionActivity(context, request.getSession());
+        // Guard the pre-execution setup so that unexpected failures here still
+        // produce a well-formed SQL error on the client instead of an unmarshalled
+        // gRPC UNKNOWN/INTERNAL status without trailers (which Hibernate/Spring Boot
+        // may silently swallow rather than surfacing as a recognisable SQL exception).
+        String stmtHash;
+        CircuitBreaker circuitBreaker;
+        SlowQuerySegregationManager manager;
+        try {
+            // Update session activity
+            updateSessionActivity(context, request.getSession());
 
-        String stmtHash = SqlStatementXXHash.hashSqlQuery(request.getSql());
-        // Process cluster health from the request
-        ProcessClusterHealthAction.getInstance().execute(context, request.getSession());
+            stmtHash = SqlStatementXXHash.hashSqlQuery(request.getSql());
+            // Process cluster health from the request
+            ProcessClusterHealthAction.getInstance().execute(context, request.getSession());
 
+            String connHash = request.getSession().getConnHash();
+            circuitBreaker = context.getCircuitBreakerRegistry().get(connHash);
 
-        String connHash = request.getSession().getConnHash();
-        CircuitBreaker circuitBreaker = context.getCircuitBreakerRegistry().get(connHash);
+            // Get the appropriate slow query segregation manager for this datasource
+            manager = getSlowQuerySegregationManagerForConnection(context, connHash);
+        } catch (Exception setupEx) {
+            log.error("Unexpected failure during {} pre-execution setup: {}", operationName, setupEx.getMessage(), setupEx);
+            sendSQLExceptionMetadata(new SQLException("Unexpected setup error: " + setupEx.getMessage(), setupEx), responseObserver);
+            return;
+        }
 
-        // Get the appropriate slow query segregation manager for this datasource
-        SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(context, connHash);
         long sqlStartNs = System.nanoTime();
         try {
             circuitBreaker.preCheck(stmtHash);
@@ -107,11 +120,17 @@ public class CommandExecutionHelper {
         } finally {
             // Record SQL execution time for all connections (XA and non-XA) regardless of
             // manager state. This is the single authoritative place for SQL metrics.
-            String sql = request.getSql();
-            if (!sql.isEmpty()) {
-                long executionTimeMs = (System.nanoTime() - sqlStartNs) / 1_000_000L;
-                context.getSqlStatementMetrics().recordSqlExecution(
-                        sql, executionTimeMs, manager.isSlowOperation(stmtHash));
+            // Wrapped in try-catch so a metrics failure never suppresses the SQL error
+            // already sent to the client via responseObserver.onError().
+            try {
+                String sql = request.getSql();
+                if (!sql.isEmpty()) {
+                    long executionTimeMs = (System.nanoTime() - sqlStartNs) / 1_000_000L;
+                    context.getSqlStatementMetrics().recordSqlExecution(
+                            sql, executionTimeMs, manager.isSlowOperation(stmtHash));
+                }
+            } catch (Exception metricsEx) {
+                log.warn("Failed to record SQL execution metrics for {} operation: {}", operationName, metricsEx.getMessage(), metricsEx);
             }
         }
     }

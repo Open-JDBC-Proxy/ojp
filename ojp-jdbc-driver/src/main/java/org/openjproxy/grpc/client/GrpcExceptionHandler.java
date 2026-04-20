@@ -12,25 +12,40 @@ import java.sql.SQLException;
 
 public class GrpcExceptionHandler {
     /**
-     * Handler for StatusRuntimeException, converting it to a SQLException when SQL metadata returned.
+     * Converts a {@link StatusRuntimeException} from the OJP server into a checked
+     * {@link SQLException} that JDBC callers and frameworks like Hibernate can handle.
      *
-     * @param sre StatusRuntimeException
-     * @return StatusRuntimeException if SQL metadata not found just return the exception received.
-     * @throws SQLException If conversion possible.
+     * <p>When the server sends SQL error metadata in the gRPC trailing headers the
+     * original SQL error (message, SQLState, vendor code) is reconstructed.  When
+     * the metadata is absent — e.g. because the server serialisation failed or
+     * the network dropped the trailers — a generic {@link SQLException} is thrown
+     * so that the exception is always surfaced as a checked SQL error rather than
+     * leaking an unchecked {@link StatusRuntimeException} that Hibernate's DDL
+     * auto-configuration would silently swallow.
+     *
+     * @param sre the gRPC status exception received from the server
+     * @throws SQLException always — either with the original SQL details or a
+     *                      generic message containing the gRPC status code
      */
     public static StatusRuntimeException handle(StatusRuntimeException sre) throws SQLException {
         Metadata metadata = Status.trailersFromThrowable(sre);
-        SqlErrorResponse errorResponse = metadata.get(ProtoUtils.keyForProto(SqlErrorResponse.getDefaultInstance()));
-        if (errorResponse == null) {
-            return sre;
+        if (metadata != null) {
+            SqlErrorResponse errorResponse = metadata.get(ProtoUtils.keyForProto(SqlErrorResponse.getDefaultInstance()));
+            if (errorResponse != null) {
+                if (SqlErrorType.SQL_DATA_EXCEPTION.equals(errorResponse.getSqlErrorType())) {
+                    throw new SQLDataException(errorResponse.getReason(), errorResponse.getSqlState(),
+                            errorResponse.getVendorCode());
+                } else {
+                    throw new SQLException(errorResponse.getReason(), errorResponse.getSqlState(),
+                            errorResponse.getVendorCode());
+                }
+            }
         }
-        if (SqlErrorType.SQL_DATA_EXCEPTION.equals(errorResponse.getSqlErrorType())) {
-            throw new SQLDataException(errorResponse.getReason(), errorResponse.getSqlState(),
-                    errorResponse.getVendorCode());
-        } else {
-            throw new SQLException(errorResponse.getReason(), errorResponse.getSqlState(),
-                    errorResponse.getVendorCode());
-        }
+        // No SQL metadata in trailers (metadata was null, empty, or serialisation failed on the server).
+        // Throw a SQLException so callers always receive a checked exception, not an unchecked
+        // StatusRuntimeException that frameworks like Hibernate's DDL auto may silently swallow.
+        throw new SQLException("Server error: " + sre.getStatus().getDescription()
+                + " [" + sre.getStatus().getCode() + "]");
     }
     
     /**
