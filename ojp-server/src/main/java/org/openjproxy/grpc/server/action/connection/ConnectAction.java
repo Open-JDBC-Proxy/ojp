@@ -144,6 +144,18 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         DataSource ds = null;
         DataSourceConfigurationManager.DataSourceConfiguration dsConfig = null;
         
+        // Get datasource-specific configuration from client properties
+        // This needs to be done BEFORE the lock to ensure it's available for read/write splitting setup
+        try {
+            Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
+            dsConfig = DataSourceConfigurationManager.getConfiguration(clientProperties);
+        } catch (Exception e) {
+            log.error("Failed to extract datasource configuration for connection hash {}: {}", connHash, e.getMessage(), e);
+            SQLException sqlException = new SQLException("Failed to extract datasource configuration: " + e.getMessage(), e);
+            sendSQLExceptionMetadata(sqlException, responseObserver);
+            return;
+        }
+        
         // Use ReentrantLock for virtual thread compatibility.
         // Lock ONLY during pool creation/check to prevent duplicate pool creation without
         // blocking subsequent connection borrows from an already-created pool.
@@ -157,9 +169,6 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
 
             if (ds == null && unpooledDetails == null) {
                 try {
-                    // Get datasource-specific configuration from client properties
-                    Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-                    dsConfig = DataSourceConfigurationManager.getConfiguration(clientProperties);
 
                     // Check if pooling is enabled
                     if (!dsConfig.isPoolEnabled()) {
