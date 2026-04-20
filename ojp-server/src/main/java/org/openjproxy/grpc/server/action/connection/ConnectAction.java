@@ -140,22 +140,6 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
      */
     private void handleRegularConnection(ActionContext context, ConnectionDetails connectionDetails, String connHash,
                                         StreamObserver<SessionInfo> responseObserver) {
-        // Declare these variables at method scope so they're available after lock release
-        DataSource ds = null;
-        DataSourceConfigurationManager.DataSourceConfiguration dsConfig = null;
-        
-        // Get datasource-specific configuration from client properties
-        // This needs to be done BEFORE the lock to ensure it's available for read/write splitting setup
-        try {
-            Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-            dsConfig = DataSourceConfigurationManager.getConfiguration(clientProperties);
-        } catch (Exception e) {
-            log.error("Failed to extract datasource configuration for connection hash {}: {}", connHash, e.getMessage(), e);
-            SQLException sqlException = new SQLException("Failed to extract datasource configuration: " + e.getMessage(), e);
-            sendSQLExceptionMetadata(sqlException, responseObserver);
-            return;
-        }
-        
         // Use ReentrantLock for virtual thread compatibility.
         // Lock ONLY during pool creation/check to prevent duplicate pool creation without
         // blocking subsequent connection borrows from an already-created pool.
@@ -163,12 +147,16 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         lock.lock();
         try {
             // Handle non-XA connection - check if pooling is enabled
-            ds = context.getDatasourceMap().get(connHash);
+            DataSource ds = context.getDatasourceMap().get(connHash);
             UnpooledConnectionDetails unpooledDetails =
                     context.getUnpooledConnectionDetailsMap().get(connHash);
 
             if (ds == null && unpooledDetails == null) {
                 try {
+                    // Get datasource-specific configuration from client properties
+                    Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
+                    DataSourceConfigurationManager.DataSourceConfiguration dsConfig =
+                            DataSourceConfigurationManager.getConfiguration(clientProperties);
 
                     // Check if pooling is enabled
                     if (!dsConfig.isPoolEnabled()) {
@@ -243,6 +231,9 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                                 dsConfig.getDataSourceName(), connHash,
                                 ConnectionPoolProviderRegistry.getDefaultProvider().map(p -> p.id()).orElse("unknown"),
                                 maxPoolSize, minIdle);
+                        
+                        // Setup read/write splitting if configured
+                        setupReadWriteSplitting(context, connectionDetails, connHash, ds, dsConfig.getDataSourceName());
                     }
 
                 } catch (Exception e) {
@@ -254,13 +245,6 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
             }
         } finally {
             lock.unlock();
-        }
-        
-        // Setup read/write splitting if configured
-        // This is done AFTER releasing the lock to avoid holding the lock while creating replica datasources
-        // which may involve network I/O and connection pool initialization
-        if (ds != null && dsConfig != null) {
-            setupReadWriteSplitting(context, connectionDetails, connHash, ds, dsConfig.getDataSourceName());
         }
 
         // Process cluster health from ConnectionDetails if provided.
