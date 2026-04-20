@@ -231,9 +231,6 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                                 dsConfig.getDataSourceName(), connHash,
                                 ConnectionPoolProviderRegistry.getDefaultProvider().map(p -> p.id()).orElse("unknown"),
                                 maxPoolSize, minIdle);
-                        
-                        // Setup read/write splitting if configured
-                        setupReadWriteSplitting(context, connectionDetails, connHash, ds, dsConfig.getDataSourceName());
                     }
 
                 } catch (Exception e) {
@@ -245,6 +242,13 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
             }
         } finally {
             lock.unlock();
+        }
+        
+        // Setup read/write splitting if configured
+        // This is done AFTER releasing the lock to avoid holding the lock while creating replica datasources
+        // which may involve network I/O and connection pool initialization
+        if (ds != null && dsConfig != null) {
+            setupReadWriteSplitting(context, connectionDetails, connHash, ds, dsConfig.getDataSourceName());
         }
 
         // Process cluster health from ConnectionDetails if provided.
