@@ -20,11 +20,17 @@ import java.util.Set;
  * defaults when an OJP JDBC URL is detected.
  *
  * <p>When any datasource URL starts with {@code jdbc:ojp}, this post-processor injects
- * the following defaults for that datasource (only when not already explicitly set by the
- * user):</p>
+ * the following defaults (only when not already explicitly set by the user):</p>
  * <ul>
  *   <li>{@code spring.datasource[.{name}].driver-class-name=org.openjproxy.jdbc.Driver}</li>
  *   <li>{@code spring.datasource[.{name}].type=org.springframework.jdbc.datasource.SimpleDriverDataSource}</li>
+ *   <li>{@code spring.jpa.properties.hibernate.hbm2ddl.halt_on_error=true} — ensures that
+ *       Hibernate DDL schema-management errors (e.g. SQL syntax errors caused by reserved
+ *       keywords used as unquoted table names) abort application startup with a clear
+ *       exception rather than being silently swallowed by Hibernate's default
+ *       {@code ExceptionHandlerLogAndContinue} policy, which would allow the application
+ *       to start in a broken state.  Override this property explicitly in your
+ *       {@code application.properties} if you need the log-and-continue behaviour.</li>
  * </ul>
  *
  * <p>Both the default datasource URL ({@code spring.datasource.url}) and named datasource
@@ -56,16 +62,20 @@ public class OjpEnvironmentPostProcessor implements EnvironmentPostProcessor, Or
     static final String DATASOURCE_TYPE = "spring.datasource.type";
     static final String OJP_DRIVER_CLASS = "org.openjproxy.jdbc.Driver";
     static final String SIMPLE_DRIVER_DATASOURCE = "org.springframework.jdbc.datasource.SimpleDriverDataSource";
+    static final String HIBERNATE_HALT_ON_ERROR = "spring.jpa.properties.hibernate.hbm2ddl.halt_on_error";
     private static final String DATASOURCE_PROP_PREFIX = "spring.datasource.";
     private static final String URL_SUFFIX = ".url";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         Map<String, Object> defaults = new LinkedHashMap<>();
+        boolean ojpDetected = false;
 
         // Process the default datasource URL
-        processUrl(environment, "spring.datasource.url",
-                DRIVER_CLASS_NAME, DATASOURCE_TYPE, defaults);
+        if (processUrl(environment, "spring.datasource.url",
+                DRIVER_CLASS_NAME, DATASOURCE_TYPE, defaults)) {
+            ojpDetected = true;
+        }
 
         // Process named datasource URLs (spring.datasource.{name}.url)
         Set<String> seenUrlProperties = new LinkedHashSet<>();
@@ -75,13 +85,26 @@ public class OjpEnvironmentPostProcessor implements EnvironmentPostProcessor, Or
                 for (String propName : enumerable.getPropertyNames()) {
                     if (isNamedDatasourceUrlProperty(propName) && seenUrlProperties.add(propName)) {
                         String dsPrefix = propName.substring(0, propName.lastIndexOf('.') + 1);
-                        processUrl(environment, propName,
+                        if (processUrl(environment, propName,
                                 dsPrefix + "driver-class-name",
                                 dsPrefix + "type",
-                                defaults);
+                                defaults)) {
+                            ojpDetected = true;
+                        }
                     }
                 }
             }
+        }
+
+        // When OJP is detected, default halt_on_error=true so that Hibernate DDL errors
+        // abort startup with a clear exception rather than being silently swallowed by
+        // Hibernate's ExceptionHandlerLogAndContinue (the default), which would let the
+        // application start in a broken state.  Users can override this in their own
+        // application.properties with spring.jpa.properties.hibernate.hbm2ddl.halt_on_error=false.
+        if (ojpDetected && !environment.containsProperty(HIBERNATE_HALT_ON_ERROR)) {
+            defaults.put(HIBERNATE_HALT_ON_ERROR, "true");
+            log.debug("Setting default: {}=true (DDL errors will halt startup; override to suppress)",
+                    HIBERNATE_HALT_ON_ERROR);
         }
 
         if (!defaults.isEmpty()) {
@@ -95,12 +118,12 @@ public class OjpEnvironmentPostProcessor implements EnvironmentPostProcessor, Or
         OjpSystemPropertiesBridge.applyOjpSystemProperties(environment);
     }
 
-    private void processUrl(ConfigurableEnvironment environment, String urlProperty,
+    private boolean processUrl(ConfigurableEnvironment environment, String urlProperty,
                             String driverProperty, String typeProperty,
                             Map<String, Object> defaults) {
         String url = environment.getProperty(urlProperty);
         if (url == null || !url.startsWith(OJP_URL_PREFIX)) {
-            return;
+            return false;
         }
 
         log.debug("OJP JDBC URL detected: {}. Applying OJP datasource defaults.", url);
@@ -114,6 +137,8 @@ public class OjpEnvironmentPostProcessor implements EnvironmentPostProcessor, Or
             defaults.put(typeProperty, SIMPLE_DRIVER_DATASOURCE);
             log.debug("Setting default: {}={}", typeProperty, SIMPLE_DRIVER_DATASOURCE);
         }
+
+        return true;
     }
 
     private boolean isNamedDatasourceUrlProperty(String name) {

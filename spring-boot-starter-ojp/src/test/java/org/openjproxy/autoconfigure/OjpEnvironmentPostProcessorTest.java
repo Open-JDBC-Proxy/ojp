@@ -89,6 +89,7 @@ class OjpEnvironmentPostProcessorTest {
 
         assertNull(environment.getProperty(OjpEnvironmentPostProcessor.DRIVER_CLASS_NAME));
         assertNull(environment.getProperty(OjpEnvironmentPostProcessor.DATASOURCE_TYPE));
+        assertNull(environment.getProperty(OjpEnvironmentPostProcessor.HIBERNATE_HALT_ON_ERROR));
     }
 
     @Test
@@ -99,6 +100,7 @@ class OjpEnvironmentPostProcessorTest {
 
         assertNull(environment.getProperty(OjpEnvironmentPostProcessor.DRIVER_CLASS_NAME));
         assertNull(environment.getProperty(OjpEnvironmentPostProcessor.DATASOURCE_TYPE));
+        assertNull(environment.getProperty(OjpEnvironmentPostProcessor.HIBERNATE_HALT_ON_ERROR));
     }
 
     @ParameterizedTest
@@ -164,6 +166,55 @@ class OjpEnvironmentPostProcessorTest {
                 environment.getProperty("spring.datasource.catalog.driver-class-name"));
         assertEquals(OjpEnvironmentPostProcessor.SIMPLE_DRIVER_DATASOURCE,
                 environment.getProperty("spring.datasource.catalog.type"));
+    }
+
+    // ---- hibernate halt_on_error default ----------------------------------------
+
+    @Test
+    void shouldSetHaltOnErrorWhenOjpUrlIsPresent() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setProperty("spring.datasource.url",
+                "jdbc:ojp[localhost:1059]_postgresql://user@localhost/mydb");
+
+        processor.postProcessEnvironment(environment, application);
+
+        assertEquals("true",
+                environment.getProperty(OjpEnvironmentPostProcessor.HIBERNATE_HALT_ON_ERROR));
+    }
+
+    @Test
+    void shouldSetHaltOnErrorWhenNamedDatasourceOjpUrlIsPresent() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setProperty("spring.datasource.catalog.url",
+                "jdbc:ojp[localhost:1059]_postgresql://user@localhost/catalog");
+
+        processor.postProcessEnvironment(environment, application);
+
+        assertEquals("true",
+                environment.getProperty(OjpEnvironmentPostProcessor.HIBERNATE_HALT_ON_ERROR));
+    }
+
+    @Test
+    void shouldNotOverrideExplicitHaltOnErrorFalse() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setProperty("spring.datasource.url",
+                "jdbc:ojp[localhost:1059]_postgresql://user@localhost/mydb");
+        environment.setProperty(OjpEnvironmentPostProcessor.HIBERNATE_HALT_ON_ERROR, "false");
+
+        processor.postProcessEnvironment(environment, application);
+
+        assertEquals("false",
+                environment.getProperty(OjpEnvironmentPostProcessor.HIBERNATE_HALT_ON_ERROR));
+    }
+
+    @Test
+    void shouldNotSetHaltOnErrorWhenNoOjpUrl() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/mydb");
+
+        processor.postProcessEnvironment(environment, application);
+
+        assertNull(environment.getProperty(OjpEnvironmentPostProcessor.HIBERNATE_HALT_ON_ERROR));
     }
 
     // ---- health-check / multinode system property bridging ------------------
