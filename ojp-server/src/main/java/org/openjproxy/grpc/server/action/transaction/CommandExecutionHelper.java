@@ -44,9 +44,9 @@ public class CommandExecutionHelper {
         }
 
         // Guard the pre-execution setup so that unexpected failures here still
-        // produce a well-formed SQL error on the client instead of an unmarshalled
+        // produce a well-formed SQL error on the client instead of a bare
         // gRPC UNKNOWN/INTERNAL status without trailers (which Hibernate/Spring Boot
-        // may silently swallow rather than surfacing as a recognisable SQL exception).
+        // may silently swallow rather than surfacing as a recognizable SQL exception).
         String stmtHash;
         CircuitBreaker circuitBreaker;
         SlowQuerySegregationManager manager;
