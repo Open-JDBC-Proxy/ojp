@@ -38,12 +38,15 @@ class MultinodeConnectionManagerErrorHandlingTest {
     }
 
     @Test
-    void testCancelledErrorsMarkUnhealthy() throws Exception {
-        StatusRuntimeException cancelledEx = 
+    void testCancelledDoesNotMarkUnhealthy() throws Exception {
+        // CANCELLED is gRPC's code for client-initiated cancellation and must NOT be treated as
+        // a server connectivity failure. SQL exceptions from the OJP server are sent with
+        // Status.INTERNAL (not CANCELLED), so CANCELLED should never mark a server unhealthy.
+        StatusRuntimeException cancelledEx =
                 new StatusRuntimeException(Status.CANCELLED.withDescription("Connection cancelled"));
-        
+
         boolean shouldMark = invokeIsConnectionLevelError(cancelledEx);
-        assertTrue(shouldMark, "CANCELLED should mark server unhealthy");
+        assertFalse(shouldMark, "CANCELLED should not mark server unhealthy");
     }
 
     @Test

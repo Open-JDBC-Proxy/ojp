@@ -71,7 +71,7 @@ public class ServerEndpoint {
      */
     public void markUnhealthy() {
         this.healthy = false;
-        this.lastFailureTime = System.currentTimeMillis();
+        this.lastFailureTime = System.nanoTime();
     }
 
     @Override

@@ -84,7 +84,7 @@ public class SchemaLoader {
             throws SQLException {
         log.info("Loading schema metadata for catalog: {}, schema: {}", catalogName, schemaName);
         
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         DatabaseMetaData metaData = connection.getMetaData();
         
         // Load all tables
@@ -118,7 +118,7 @@ public class SchemaLoader {
             }
         }
         
-        long duration = System.currentTimeMillis() - startTime;
+        long duration = (System.nanoTime() - startTime) / 1_000_000L;
         
         if (tables.isEmpty()) {
             log.warn("No tables found in catalog: {}, schema: {}. Schema may be empty or inaccessible.", catalogName, schemaName);

@@ -15,6 +15,7 @@ import org.openjproxy.grpc.server.MultinodeXaCoordinator;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
+import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
 import org.openjproxy.grpc.server.readwrite.ReadWriteConfiguration;
@@ -245,7 +246,21 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         } finally {
             lock.unlock();
         }
-        
+
+        // Process cluster health from ConnectionDetails if provided.
+        // This supports the driver's proactive cluster health push: after detecting a peer
+        // server failure or recovery, the driver calls connect() on healthy servers with an
+        // updated clusterHealth embedded in ConnectionDetails.  Because the pool may already
+        // exist on those servers (no-op for pool creation), we process the cluster health
+        // here so the server can resize its pool even when no SQL operations are active.
+        if (!connectionDetails.getClusterHealth().isEmpty()) {
+            SessionInfo clusterHealthSession = SessionInfo.newBuilder()
+                    .setConnHash(connHash)
+                    .setClusterHealth(connectionDetails.getClusterHealth())
+                    .build();
+            ProcessClusterHealthAction.getInstance().execute(context, clusterHealthSession);
+        }
+
         // Parse and store cache configuration from properties
         if (connectionDetails.getPropertiesCount() > 0) {
             try {

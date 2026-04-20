@@ -33,7 +33,7 @@ public class MultinodeTestHelper {
         totalFailedQueries.incrementAndGet();
         
         // Check if this is a connectivity-related failure using the shared handler logic
-        // 1. Connection-level errors (UNAVAILABLE, DEADLINE_EXCEEDED, CANCELLED, etc.)
+        // 1. Connection-level errors (UNAVAILABLE, DEADLINE_EXCEEDED, etc.)
         // 2. Session invalidation errors - indirect result of server unavailability
         boolean isConnectivityRelated = GrpcExceptionHandler.isConnectionLevelError(e) || 
                                         GrpcExceptionHandler.isSessionInvalidationError(e);

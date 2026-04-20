@@ -87,6 +87,12 @@ public class OjpEnvironmentPostProcessor implements EnvironmentPostProcessor, Or
         if (!defaults.isEmpty()) {
             environment.getPropertySources().addLast(new MapPropertySource(OJP_DATASOURCE_DEFAULTS, defaults));
         }
+
+        // Bridge all ojp.* properties to JVM system properties immediately — before any
+        // Spring bean (including OjpSystemPropertiesBridge) is created — so that
+        // HealthCheckConfig and other driver components see the correct values when the
+        // first JDBC connection is established, regardless of bean-initialization order.
+        OjpSystemPropertiesBridge.applyOjpSystemProperties(environment);
     }
 
     private void processUrl(ConfigurableEnvironment environment, String urlProperty,

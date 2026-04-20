@@ -34,6 +34,27 @@ public class GrpcExceptionHandler {
     }
     
     /**
+     * Determines if an exception signals that the server has no pool for the current
+     * connection hash and the client must reconnect.
+     *
+     * <p>The server emits {@code Status.NOT_FOUND} when {@code SessionConnectionHelper}
+     * throws {@link org.openjproxy.grpc.server.PoolNotFoundException}. This happens when
+     * the server restarts and loses its in-memory datasource map, or when a client
+     * sends SQL without having first called {@code connect()}.
+     *
+     * @param exception the exception to inspect
+     * @return {@code true} if the driver should invalidate its cached connHash,
+     *         issue a fresh {@code connect()} RPC, and retry the SQL call
+     */
+    public static boolean isPoolNotFoundException(Exception exception) {
+        if (exception instanceof StatusRuntimeException) {
+            StatusRuntimeException sre = (StatusRuntimeException) exception;
+            return sre.getStatus().getCode() == Status.Code.NOT_FOUND;
+        }
+        return false;
+    }
+
+    /**
      * Determines if an exception represents a session invalidation error.
      * Session invalidation occurs when the health checker removes session bindings
      * after detecting server failure. These sessions are permanently lost.
@@ -61,13 +82,14 @@ public class GrpcExceptionHandler {
      * Connection-level errors include:
      * - UNAVAILABLE: Server not reachable
      * - DEADLINE_EXCEEDED: Request timeout
-     * - CANCELLED: Connection cancelled
      * - UNKNOWN: Connection-related unknown errors
-     * 
+     *
      * Database-level errors (e.g., table not found, syntax errors) do not indicate server unavailability.
      * Pool exhaustion errors do NOT indicate server unavailability - they indicate resource limits, not connectivity issues.
      * Session invalidation errors do NOT indicate server unavailability - they indicate the session was lost/expired.
-     * 
+     * SQL exceptions from the server are sent with {@code Status.INTERNAL} and carry SQL metadata in the trailers;
+     * they must NOT be treated as connectivity failures.
+     *
      * @param exception The exception to check
      * @return true if this is a connection-level error indicating server unavailability
      */
@@ -79,7 +101,6 @@ public class GrpcExceptionHandler {
             // Only these status codes indicate connection-level failures
             return code == Status.Code.UNAVAILABLE ||
                    code == Status.Code.DEADLINE_EXCEEDED ||
-                   code == Status.Code.CANCELLED ||
                    (code == Status.Code.UNKNOWN && 
                     statusException.getMessage() != null && 
                     (statusException.getMessage().contains("connection") || 

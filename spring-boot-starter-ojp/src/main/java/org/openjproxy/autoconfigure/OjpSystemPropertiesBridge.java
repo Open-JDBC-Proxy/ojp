@@ -67,21 +67,50 @@ public class OjpSystemPropertiesBridge {
             log.warn("Environment is not a ConfigurableEnvironment; OJP system properties will not be applied.");
             return;
         }
+        applyOjpSystemProperties(configurableEnvironment);
+    }
+
+    /**
+     * Iterates all {@code ojp.*} and {@code {poolName}.ojp.*} keys in the supplied
+     * {@link ConfigurableEnvironment}, converts kebab-case names to camelCase, and sets
+     * them as JVM system properties so the OJP JDBC driver can read them before the first
+     * connection is established.
+     *
+     * <p>This static variant is called by {@link OjpEnvironmentPostProcessor} during
+     * Spring Boot's environment-preparation phase — before any beans are created — to
+     * guarantee that settings such as {@code ojp.health.check.interval} are available to
+     * the driver regardless of bean-initialization order.</p>
+     *
+     * <p>Only non-null values are written, and existing system properties (e.g. set via
+     * {@code -D} JVM flags) are never overridden.</p>
+     */
+    static void applyOjpSystemProperties(ConfigurableEnvironment configurableEnvironment) {
         Set<String> processed = new HashSet<>();
         for (PropertySource<?> source : configurableEnvironment.getPropertySources()) {
             if (source instanceof EnumerablePropertySource<?> enumerable) {
-                for (String name : enumerable.getPropertyNames()) {
-                    if (processed.add(name)) {
-                        String sysKey = toSystemPropertyKey(name);
-                        if (sysKey != null) {
-                            String value = environment.getProperty(name);
-                            if (value != null) {
-                                setIfAbsent(sysKey, value);
-                            }
-                        }
-                    }
-                }
+                processEnumerableSource(enumerable, processed, configurableEnvironment);
             }
+        }
+    }
+
+    private static void processEnumerableSource(EnumerablePropertySource<?> source,
+                                                Set<String> processed,
+                                                ConfigurableEnvironment env) {
+        for (String name : source.getPropertyNames()) {
+            if (processed.add(name)) {
+                forwardOjpProperty(name, env);
+            }
+        }
+    }
+
+    private static void forwardOjpProperty(String name, ConfigurableEnvironment env) {
+        String sysKey = toSystemPropertyKey(name);
+        if (sysKey == null) {
+            return;
+        }
+        String value = env.getProperty(name);
+        if (value != null) {
+            setSystemPropertyIfAbsent(sysKey, value);
         }
     }
 
@@ -136,7 +165,7 @@ public class OjpSystemPropertiesBridge {
         return result.toString();
     }
 
-    private void setIfAbsent(String key, String value) {
+    private static void setSystemPropertyIfAbsent(String key, String value) {
         if (System.getProperty(key) == null) {
             System.setProperty(key, value);
             log.debug("Set OJP system property: {}={}", key, value);

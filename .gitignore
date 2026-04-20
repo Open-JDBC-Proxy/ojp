@@ -1,5 +1,5 @@
-# ignore all files in any directory named target
-*/target/
+# ignore all files in any directory named target (all nesting levels, including root)
+**/target/
 
 # ignore all files in any directory named .idea
 */.idea/

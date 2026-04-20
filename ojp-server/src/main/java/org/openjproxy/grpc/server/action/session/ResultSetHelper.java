@@ -108,6 +108,17 @@ public class ResultSetHelper {
 
                 // Postgres uses type BYTEA which translates to type VARBINARY
                 switch (colType) {
+                    case Types.OTHER: {
+                        // PostgreSQL reports JSON and JSONB columns as Types.OTHER.
+                        // Use getString() which is supported by all JDBC drivers for JSON columns
+                        // and returns the JSON text directly without vendor-specific wrapper objects.
+                        if ("json".equalsIgnoreCase(colTypeName) || "jsonb".equalsIgnoreCase(colTypeName)) {
+                            currentValue = rs.getString(i + 1);
+                        } else {
+                            currentValue = rs.getObject(i + 1);
+                        }
+                        break;
+                    }
                     case Types.VARBINARY: {
                         if (isSQLOrDB2) {
                             resultSetMode = CommonConstants.RESULT_SET_ROW_BY_ROW_MODE;
@@ -164,7 +175,13 @@ public class ResultSetHelper {
                         break;
                     }
                     default: {
-                        currentValue = rs.getObject(i + 1);
+                        // Oracle 21c+ native JSON columns use a vendor-specific type code (not Types.OTHER).
+                        // Detect them by column type name and use getString() to return plain JSON text.
+                        if ("json".equalsIgnoreCase(colTypeName)) {
+                            currentValue = rs.getString(i + 1);
+                        } else {
+                            currentValue = rs.getObject(i + 1);
+                        }
                         // com.microsoft.sqlserver.jdbc.DateTimeOffset special case as per it does not
                         // implement any standar java.sql interface.
                         if ("datetimeoffset".equalsIgnoreCase(colTypeName) && colType == -155) {

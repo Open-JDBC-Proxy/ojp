@@ -156,7 +156,7 @@ class MultinodeUrlParserTest {
         assertEquals(0, endpoint.getLastFailureTime());
 
         endpoint.setHealthy(false);
-        endpoint.setLastFailureTime(System.currentTimeMillis());
+        endpoint.setLastFailureTime(System.nanoTime());
 
         assertFalse(endpoint.isHealthy());
         assertTrue(endpoint.getLastFailureTime() > 0);

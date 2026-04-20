@@ -18,7 +18,6 @@ changelog:
     labels:
       - ignore-for-release
       - dependencies
-      - automated-pr
   categories:
     - title: "🚀 New Features"
       labels:
@@ -51,3 +50,5 @@ changelog:
       labels:
         - dependency-update
     - title: "Other Changes"
+      labels:
+        - "*"

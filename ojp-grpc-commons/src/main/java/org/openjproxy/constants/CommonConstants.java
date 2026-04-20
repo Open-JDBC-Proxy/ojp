@@ -69,6 +69,7 @@ public class CommonConstants {
     // XA Transaction settings
     public static final int DEFAULT_MAX_XA_TRANSACTIONS = 50;  // Maximum concurrent XA transactions
     public static final long DEFAULT_XA_START_TIMEOUT_MILLIS = 60000;  // 60 seconds timeout for acquiring XA slot
+    public static final long DEFAULT_XA_RECOVER_TIMEOUT_MS = 30_000L; // 30 seconds deadline for xaRecover() gRPC call
     
     // Multinode configuration defaults - addressing PR #39 review comment #1
     public static final int DEFAULT_MULTINODE_RETRY_ATTEMPTS = -1;  // -1 = retry indefinitely

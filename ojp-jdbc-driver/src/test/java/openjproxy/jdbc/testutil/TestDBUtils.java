@@ -622,6 +622,27 @@ public class TestDBUtils {
     }
 
     /**
+     * Creates a PostgreSQL-specific JSON/JSONB test table.
+     *
+     * @param connection The database connection
+     * @param tableName  The name of the table to create
+     * @throws SQLException if table creation fails
+     */
+    public static void createPostgresJsonTestTable(Connection connection, String tableName) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("DROP TABLE IF EXISTS " + tableName);
+            statement.execute(
+                    "CREATE TABLE " + tableName + "(" +
+                    " id SERIAL PRIMARY KEY," +
+                    " json_col JSON," +
+                    " jsonb_col JSONB," +
+                    " json_null_col JSON" +
+                    ")"
+            );
+        }
+    }
+
+    /**
      * Creates a SQL Server-specific test table with SQL Server unique data types.
      *
      * @param connection The database connection

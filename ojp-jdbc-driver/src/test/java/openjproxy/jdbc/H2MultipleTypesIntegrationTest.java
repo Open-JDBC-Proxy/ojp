@@ -267,6 +267,100 @@ class H2MultipleTypesIntegrationTest {
     }
 
     /**
+     * Tests that Calendar-based getTimestamp/getDate/getTime overloads work correctly
+     * for LocalDateTime/LocalDate/LocalTime columns.
+     *
+     * <p>This reproduces the failure described in the issue: Hibernate's TimestampJdbcType
+     * calls {@code getTimestamp(columnIndex, calendar)} (not plain {@code getTimestamp(columnIndex)})
+     * when reading any TIMESTAMP column mapped to a {@code LocalDateTime} entity field.
+     * Previously those overloads threw {@code RuntimeException("Not implemented")}.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void calendarOverloadsWorkForLocalDateTimeColumns(String driverClass, String url, String user, String pwd) throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        Connection conn = DriverManager.getConnection(url, user, pwd);
+
+        try {
+            // Create a minimal table that mirrors the entity described in the issue
+            try {
+                conn.createStatement().execute("DROP TABLE calendar_overload_test");
+            } catch (SQLException ignored) {
+                // table may not exist yet
+            }
+            conn.createStatement().execute(
+                    "CREATE TABLE calendar_overload_test (" +
+                    "  id INT PRIMARY KEY," +
+                    "  created_at TIMESTAMP," +
+                    "  val_date DATE," +
+                    "  val_time TIME" +
+                    ")"
+            );
+
+            LocalDateTime expectedLdt = LocalDateTime.of(2025, 6, 15, 10, 30, 45);
+            LocalDate expectedLd = LocalDate.of(2025, 6, 15);
+            LocalTime expectedLt = LocalTime.of(10, 30, 45);
+
+            java.sql.PreparedStatement psInsert = conn.prepareStatement(
+                    "INSERT INTO calendar_overload_test (id, created_at, val_date, val_time) VALUES (?, ?, ?, ?)"
+            );
+            psInsert.setInt(1, 1);
+            psInsert.setObject(2, expectedLdt, Types.TIMESTAMP);
+            psInsert.setObject(3, expectedLd, Types.DATE);
+            psInsert.setObject(4, expectedLt, Types.TIME);
+            psInsert.executeUpdate();
+
+            java.sql.PreparedStatement psSelect = conn.prepareStatement(
+                    "SELECT id, created_at, val_date, val_time FROM calendar_overload_test WHERE id = ?"
+            );
+            psSelect.setInt(1, 1);
+            ResultSet rs = psSelect.executeQuery();
+            assertTrue(rs.next());
+
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+
+            // --- getTimestamp(int, Calendar) ---
+            // This is what Hibernate's TimestampJdbcType calls for @Column LocalDateTime fields
+            Timestamp tsFromIndex = rs.getTimestamp(2, cal);
+            assertNotNull(tsFromIndex, "getTimestamp(int, Calendar) must not return null for a LocalDateTime column");
+            assertEquals(expectedLdt, tsFromIndex.toLocalDateTime());
+
+            // --- getTimestamp(String, Calendar) ---
+            Timestamp tsFromLabel = rs.getTimestamp("created_at", cal);
+            assertNotNull(tsFromLabel, "getTimestamp(String, Calendar) must not return null for a LocalDateTime column");
+            assertEquals(expectedLdt, tsFromLabel.toLocalDateTime());
+
+            // --- getDate(int, Calendar) ---
+            Date dateFromIndex = rs.getDate(3, cal);
+            assertNotNull(dateFromIndex, "getDate(int, Calendar) must not return null for a DATE column");
+            assertEquals(expectedLd, dateFromIndex.toLocalDate());
+
+            // --- getDate(String, Calendar) ---
+            Date dateFromLabel = rs.getDate("val_date", cal);
+            assertNotNull(dateFromLabel, "getDate(String, Calendar) must not return null for a DATE column");
+            assertEquals(expectedLd, dateFromLabel.toLocalDate());
+
+            // --- getTime(int, Calendar) ---
+            Time timeFromIndex = rs.getTime(4, cal);
+            assertNotNull(timeFromIndex, "getTime(int, Calendar) must not return null for a TIME column");
+            assertEquals(expectedLt, timeFromIndex.toLocalTime());
+
+            // --- getTime(String, Calendar) ---
+            Time timeFromLabel = rs.getTime("val_time", cal);
+            assertNotNull(timeFromLabel, "getTime(String, Calendar) must not return null for a TIME column");
+            assertEquals(expectedLt, timeFromLabel.toLocalTime());
+
+            rs.close();
+            psSelect.close();
+            psInsert.close();
+
+            conn.createStatement().execute("DROP TABLE calendar_overload_test");
+        } finally {
+            conn.close();
+        }
+    }
+
+    /**
      * Tests java.time types that may have partial or lossy support in H2.
      * Instant - H2 may convert through Timestamp (no direct Instant column type).
      * This test documents expected behavior - success with conversion or database error.

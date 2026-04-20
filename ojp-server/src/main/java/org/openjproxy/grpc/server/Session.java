@@ -77,7 +77,7 @@ public class Session {
         this.cacheConfiguration = cacheConfiguration;  // Can be null
         this.sessionUUID = UUID.randomUUID().toString();
         this.closed = false;
-        this.creationTime = System.currentTimeMillis();
+        this.creationTime = System.nanoTime();
         this.lastActivityTime = this.creationTime;
         this.resultSetMap = new ConcurrentHashMap<>();
         this.statementMap = new ConcurrentHashMap<>();
@@ -367,7 +367,7 @@ public class Session {
      * to prevent premature cleanup of active sessions.
      */
     public void updateActivity() {
-        this.lastActivityTime = System.currentTimeMillis();
+        this.lastActivityTime = System.nanoTime();
     }
 
     /**
@@ -377,7 +377,7 @@ public class Session {
      * @return true if the session has been inactive for longer than the timeout, false otherwise
      */
     public boolean isInactive(long timeoutMillis) {
-        long inactiveDuration = System.currentTimeMillis() - this.lastActivityTime;
+        long inactiveDuration = (System.nanoTime() - this.lastActivityTime) / 1_000_000L;
         return inactiveDuration > timeoutMillis;
     }
 
@@ -387,6 +387,6 @@ public class Session {
      * @return milliseconds since last activity
      */
     public long getInactiveDuration() {
-        return System.currentTimeMillis() - this.lastActivityTime;
+        return (System.nanoTime() - this.lastActivityTime) / 1_000_000L;
     }
 }

@@ -143,19 +143,19 @@ public class SlowQuerySegregationManager {
      * Returns the execution time in milliseconds so the caller can record metrics.
      */
     private <T> T executeAndMonitor(String operationHash, String sql, SegregatedOperation<T> operation) throws Exception {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         
         try {
             T result = operation.execute();
             
             // Record execution time for performance classification only
-            long executionTime = System.currentTimeMillis() - startTime;
+            long executionTime = (System.nanoTime() - startTime) / 1_000_000L;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
             
             return result;
         } catch (Exception e) {
             // Still record execution time even for failed operations for monitoring purposes
-            long executionTime = System.currentTimeMillis() - startTime;
+            long executionTime = (System.nanoTime() - startTime) / 1_000_000L;
             performanceMonitor.recordExecutionTime(operationHash, executionTime);
             throw e;
         }

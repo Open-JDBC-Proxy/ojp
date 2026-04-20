@@ -490,7 +490,7 @@ public class SqlEnhancerEngine {
         // Track metrics
         totalQueriesProcessed.incrementAndGet();
         
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         SqlEnhancementResult result;
         
         try {
@@ -586,8 +586,8 @@ public class SqlEnhancerEngine {
             }
         }
         
-        long endTime = System.currentTimeMillis();
-        long duration = endTime - startTime;
+        long endTime = System.nanoTime();
+        long duration = (endTime - startTime) / 1_000_000L;
         
         // Log performance if it took significant time
         if (duration > 50) {
@@ -671,7 +671,7 @@ public class SqlEnhancerEngine {
             return SqlEnhancementResult.success(sql, false);
         }
         
-        long optimizationStartTime = System.currentTimeMillis();
+        long optimizationStartTime = System.nanoTime();
         
         try {
             // Convert SQL → RelNode
@@ -689,8 +689,8 @@ public class SqlEnhancerEngine {
             try {
                 String optimizedSql = converter.convertToSql(optimizedNode);
                 
-                long optimizationEndTime = System.currentTimeMillis();
-                long optimizationTime = optimizationEndTime - optimizationStartTime;
+                long optimizationEndTime = System.nanoTime();
+                long optimizationTime = (optimizationEndTime - optimizationStartTime) / 1_000_000L;
                 
                 // Check if SQL was actually modified
                 boolean wasModified = !sql.trim().equalsIgnoreCase(optimizedSql.trim());
@@ -714,7 +714,7 @@ public class SqlEnhancerEngine {
                 
             } catch (RelationalAlgebraConverter.SqlGenerationException e) {
                 log.debug("SQL generation failed, marking as failed optimization: {}", e.getMessage());
-                long optimizationTime = System.currentTimeMillis() - optimizationStartTime;
+                long optimizationTime = (System.nanoTime() - optimizationStartTime) / 1_000_000L;
                 totalOptimizationFailures.incrementAndGet();
                 failedOptimizations.add(sql);
                 // Return original SQL with optimization metadata even though generation failed

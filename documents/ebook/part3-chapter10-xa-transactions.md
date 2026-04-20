@@ -12,6 +12,25 @@ Before diving into how OJP implements XA, let's understand what XA transactions 
 
 > "When you need to update a customer's account and their audit log simultaneously, and both live in different databases, you need more than hope. You need XA."
 
+#### Why XA Connections Must Be Checked More Aggressively Than Regular Connections
+
+Before diving into the technical details, it helps to understand intuitively why XA connections demand far more proactive health management than ordinary JDBC connections.
+
+**The Two-Store Analogy**
+
+Imagine you're buying a birthday gift that requires two items from two different stores — a cake from **Store A** and candles from **Store B**. You tell both stores: *"Hold these for me, I'll pay for both together or neither."* That's an XA transaction.
+
+Now imagine Store A catches fire and burns down while you're walking between them.
+
+- **Without XA (regular connection):** You were only buying from one store. You go in, get your item, pay, leave. If the store burns down *after* you paid, that's the store's problem. If it burns down *before*, you just go somewhere else. Simple.
+- **With XA (distributed transaction):** Store A is holding your cake, Store B is holding your candles. The moment Store A burns down, **Store B is stuck in limbo** — it's holding those candles indefinitely, refusing to sell them to anyone else, waiting for a final decision that can never come.
+
+This is why XA connections must be checked aggressively: OJP needs to immediately tell Store B *"the deal is off, release the candles"* the moment Store A goes down, instead of waiting for the next customer to discover the mess.
+
+> **One-line summary:** Regular connections fail *loudly and locally* when you use them. XA connections fail *silently and globally* — infecting the transaction manager and other participants — so they must be killed proactively the moment a server goes down.
+
+---
+
 Consider a banking application that needs to transfer money between accounts. In a traditional setup with a single database, this is straightforward—start a transaction, debit one account, credit the other, and commit. The database ensures atomicity automatically. But what if these accounts live in different database instances? Perhaps you've sharded your data for scalability, or maybe you're running a microservices architecture where different services own different databases.
 
 This is where XA transactions shine. XA (eXtended Architecture) is a standard protocol developed by The Open Group that coordinates transactions across multiple resources. It implements what's called Two-Phase Commit (2PC), a protocol that ensures all participants in a distributed transaction either commit their changes together or roll back together—no exceptions.
@@ -122,11 +141,23 @@ sequenceDiagram
 
 OJP implements XA support through a sophisticated architecture that combines client-side JDBC XA interfaces with server-side connection pooling. This design provides the best of both worlds: JDBC XA specification compliance on the client side and efficient connection reuse on the server side.
 
+> **connect() behaviour — XA vs non-XA at a glance**
+>
+> | Mode | connect() RPC | Servers contacted |
+> |------|--------------|-------------------|
+> | Non-XA (1st call) | Issued once, result cached | All servers |
+> | Non-XA (subsequent calls) | **Skipped** — built from cache | None |
+> | XA (every `getXAConnection()`) | Issued each time | **One** (least-loaded) |
+>
+> XA sessions must bind to a specific server for the lifetime of the `XAConnection`
+> (the 2PC protocol requires this), so each call needs a real `connect()` RPC.
+> The single-server model avoids creating wasteful backend pools on every cluster node.
+
 ### Client-Side Components
 
 On the client side, OJP provides three primary classes that implement the JDBC XA interfaces. These classes handle the translation between JDBC XA method calls and OJP's gRPC protocol.
 
-The `OjpXADataSource` class implements `javax.sql.XADataSource` and serves as your application's entry point for XA connections. When you call `getXAConnection()`, it establishes a gRPC connection to an OJP Server with the `isXA=true` flag. This flag tells the server to use XA-capable backend session pooling rather than the regular HikariCP pool or other regular connection pool provider used for non-XA connections.
+The `OjpXADataSource` class implements `javax.sql.XADataSource` and serves as your application's entry point for XA connections. When you call `getXAConnection()`, it selects a single healthy server using the **least-connections strategy** (round-robin when loads are equal) and sends one `connect()` gRPC RPC with the `isXA=true` flag to that server. Only that one server creates an XA-capable backend pool for this connection — no unnecessary pool creation on the other nodes. Successive `getXAConnection()` calls are automatically directed to whichever server currently carries the lightest XA session load, so the cluster stays balanced as your application opens more XA connections.
 
 The `OjpXAConnection` class wraps the server-side XA session and provides both the `XAResource` for transaction control and the `Connection` for SQL execution. It maintains the session information and routes all XA operations and SQL statements through the gRPC channel to the server.
 
@@ -255,7 +286,7 @@ ojp.xa.connection.pool.maxLifetime=1800000
 
 The `ojp.xa.connection.pool.enabled` property controls whether XA connections use server-side pooling. When set to `true` (the default), OJP maintains a pool of backend XA sessions using Apache Commons Pool 2, providing the performance benefits described earlier in this chapter. When set to `false`, OJP creates XA connections on demand without pooling—this can be useful for testing, debugging, or specialized scenarios where you need direct XA connection creation. In production environments, pooling should remain enabled for optimal performance.
 
-In a multinode deployment, OJP automatically divides the pool size among servers. For example, with two servers and `ojp.xa.connection.pool.maxTotal=22`, each server maintains a pool of 11 sessions. When a server fails, the remaining servers automatically expand their pools to compensate, and when the failed server recovers, pools rebalance back to their original sizes.
+In a multinode deployment, each `getXAConnection()` call connects to exactly one server — the least-loaded one at that moment. Pool sizes are therefore divided by the cluster size: with two servers and `ojp.xa.connection.pool.maxTotal=22`, each server maintains a pool of 11 sessions. When a server fails, the remaining servers automatically expand their pools to compensate, and when the failed server recovers, pools rebalance back to their original sizes.
 
 For basic programmatic setup, you create an `OjpXADataSource` instead of a regular `OjpDataSource`. The URL format follows the OJP standard, supporting both single-server and multinode configurations:
 

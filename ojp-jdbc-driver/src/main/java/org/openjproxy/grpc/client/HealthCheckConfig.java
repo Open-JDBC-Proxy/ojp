@@ -60,11 +60,6 @@ public class HealthCheckConfig {
      * @return HealthCheckConfig instance with loaded or default values
      */
     public static HealthCheckConfig loadFromProperties(Properties props) {
-        if (props == null) {
-            log.debug("No properties provided, using default health check configuration");
-            return createDefault();
-        }
-        
         long interval = getLongProperty(props, PROP_HEALTH_CHECK_INTERVAL, DEFAULT_HEALTH_CHECK_INTERVAL_MS);
         long threshold = getLongProperty(props, PROP_HEALTH_CHECK_THRESHOLD, DEFAULT_HEALTH_CHECK_THRESHOLD_MS);
         int timeout = getIntProperty(props, PROP_HEALTH_CHECK_TIMEOUT, DEFAULT_HEALTH_CHECK_TIMEOUT_MS);
@@ -96,13 +91,35 @@ public class HealthCheckConfig {
         );
     }
     
+    /**
+     * Resolves a property value using system properties as the highest-priority source,
+     * then falling back to the supplied {@link Properties} object (typically from
+     * {@code ojp.properties}), and finally returning {@code null} if neither has a value.
+     *
+     * <p>This mirrors the precedence order used by {@code GrpcClientConfig} and
+     * {@code DatasourcePropertiesLoader}, ensuring that properties set in Spring Boot's
+     * {@code application.yml} (forwarded to system properties by
+     * {@code OjpSystemPropertiesBridge}) or via {@code -D} JVM flags always take effect.</p>
+     */
+    private static String resolveValue(Properties props, String key) {
+        String sysProp = System.getProperty(key);
+        if (sysProp != null && !sysProp.trim().isEmpty()) {
+            return sysProp.trim();
+        }
+        if (props == null) {
+            return null;
+        }
+        String fileProp = props.getProperty(key);
+        return (fileProp != null && !fileProp.trim().isEmpty()) ? fileProp.trim() : null;
+    }
+
     private static long getLongProperty(Properties props, String key, long defaultValue) {
-        String value = props.getProperty(key);
-        if (value == null || value.trim().isEmpty()) {
+        String value = resolveValue(props, key);
+        if (value == null) {
             return defaultValue;
         }
         try {
-            long longValue = Long.parseLong(value.trim());
+            long longValue = parseDurationMs(value);
             if (longValue < 0) {
                 log.warn("Invalid negative value for {}: {}, using default: {}", key, value, defaultValue);
                 return defaultValue;
@@ -115,38 +132,64 @@ public class HealthCheckConfig {
     }
     
     private static int getIntProperty(Properties props, String key, int defaultValue) {
-        String value = props.getProperty(key);
-        if (value == null || value.trim().isEmpty()) {
+        String value = resolveValue(props, key);
+        if (value == null) {
             return defaultValue;
         }
         try {
-            int intValue = Integer.parseInt(value.trim());
-            if (intValue < 0) {
-                log.warn("Invalid negative value for {}: {}, using default: {}", key, value, defaultValue);
+            long longValue = parseDurationMs(value);
+            if (longValue < 0 || longValue > Integer.MAX_VALUE) {
+                log.warn("Invalid value for {}: {}, using default: {}", key, value, defaultValue);
                 return defaultValue;
             }
-            return intValue;
+            return (int) longValue;
         } catch (NumberFormatException e) {
             log.warn("Invalid value for {}: {}, using default: {}", key, value, defaultValue);
             return defaultValue;
         }
     }
+
+    /**
+     * Parses a duration string into milliseconds.
+     * Supported formats:
+     * <ul>
+     *   <li>Plain integer — treated as milliseconds (e.g. {@code 5000})</li>
+     *   <li>{@code <n>ms} — milliseconds (e.g. {@code 500ms})</li>
+     *   <li>{@code <n>s}  — seconds (e.g. {@code 10s})</li>
+     *   <li>{@code <n>m}  — minutes (e.g. {@code 2m})</li>
+     * </ul>
+     *
+     * @param value trimmed property value string
+     * @return duration in milliseconds
+     * @throws NumberFormatException if the value cannot be parsed
+     */
+    static long parseDurationMs(String value) {
+        if (value.endsWith("ms")) {
+            return Long.parseLong(value.substring(0, value.length() - 2).trim());
+        } else if (value.endsWith("m")) {
+            return Long.parseLong(value.substring(0, value.length() - 1).trim()) * 60_000L;
+        } else if (value.endsWith("s")) {
+            return Long.parseLong(value.substring(0, value.length() - 1).trim()) * 1_000L;
+        } else {
+            return Long.parseLong(value);
+        }
+    }
     
     private static boolean getBooleanProperty(Properties props, String key, boolean defaultValue) {
-        String value = props.getProperty(key);
-        if (value == null || value.trim().isEmpty()) {
+        String value = resolveValue(props, key);
+        if (value == null) {
             return defaultValue;
         }
-        return Boolean.parseBoolean(value.trim());
+        return Boolean.parseBoolean(value);
     }
     
     private static double getDoubleProperty(Properties props, String key, double defaultValue) {
-        String value = props.getProperty(key);
-        if (value == null || value.trim().isEmpty()) {
+        String value = resolveValue(props, key);
+        if (value == null) {
             return defaultValue;
         }
         try {
-            double doubleValue = Double.parseDouble(value.trim());
+            double doubleValue = Double.parseDouble(value);
             if (doubleValue < 0.0 || doubleValue > 1.0) {
                 log.warn("Invalid value for {}: {} (must be 0.0-1.0), using default: {}", key, value, defaultValue);
                 return defaultValue;

@@ -20,7 +20,7 @@ Replace any existing `spring-boot-starter-jdbc` in your `pom.xml` with the OJP s
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>spring-boot-starter-ojp</artifactId>
-    <version>0.4.1-beta</version>
+    <version>0.4.7-beta</version>
 </dependency>
 ```
 
@@ -28,7 +28,24 @@ Replace any existing `spring-boot-starter-jdbc` in your `pom.xml` with the OJP s
 > The OJP Spring Boot Starter includes the necessary Spring JDBC support without a local connection
 > pool, and automatically configures `SimpleDriverDataSource` to create connections on demand.
 
-### 2. Set your connection URL in `application.properties`
+### 2. Set your connection URL in `application.yml` or `application.properties`
+
+> **No `ojp.properties` file needed!** When you use the Spring Boot Starter, all OJP configuration
+> goes directly into your `application.yml` or `application.properties`. The starter automatically
+> bridges every `ojp.*` property from Spring's environment to the OJP JDBC driver — no separate
+> `ojp.properties` file is required.
+
+**`application.yml` (recommended):**
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:ojp[localhost:1059]_postgresql://user@localhost/mydb
+    username: user
+    password: secret
+```
+
+**`application.properties` (alternative):**
 
 ```properties
 # OJP connection URL: jdbc:ojp[<ojp-host>:<ojp-port>]_<actual-driver-url>
@@ -43,7 +60,22 @@ That is all! The starter automatically sets:
 
 ### 3. Optional: Fine-tune the OJP server-side connection pool
 
-OJP's connection pool lives on the proxy server. You can tune it directly from `application.properties`:
+OJP's connection pool lives on the proxy server. You can tune it directly from `application.yml`:
+
+```yaml
+ojp:
+  connection:
+    pool:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  grpc:
+    max-inbound-message-size: 16777216
+```
+
+Or in `application.properties`:
 
 ```properties
 # OJP server-side connection pool settings (forwarded to the OJP server via gRPC)
@@ -56,6 +88,34 @@ ojp.connection.pool.max-lifetime=1800000
 # gRPC transport settings (increase for large LOB data)
 ojp.grpc.max-inbound-message-size=16777216
 ```
+
+#### Property naming: kebab-case and camelCase are equivalent
+
+Spring Boot (and the OJP starter) normalises property names, so **kebab-case and camelCase spellings are identical** — use whichever style your team finds most readable:
+
+```yaml
+# These two spellings are exactly equivalent — choose whichever your team prefers:
+
+# kebab-case (Spring Boot convention, recommended for application.yml)
+ojp:
+  multinode:
+    retry-attempts: -1
+
+# camelCase (matches the underlying OJP property names)
+# ojp:
+#   multinode:
+#     retryAttempts: -1
+```
+
+```properties
+# Likewise in application.properties:
+ojp.multinode.retry-attempts=-1   # same as below
+ojp.multinode.retryAttempts=-1
+```
+
+> **Recommendation:** Pick the style that is most readable for your team and apply it consistently
+> across your project. Kebab-case is the Spring Boot convention and is generally preferred in
+> `application.yml`, while camelCase matches the underlying OJP property names more closely.
 
 > **Tip — Named datasource:** To use a named datasource pool configuration on the server, embed the
 > name directly in the JDBC URL using parentheses:
@@ -86,7 +146,7 @@ If you cannot use the starter (e.g., Java 11 projects), follow these steps:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.1-beta</version>
+    <version>0.4.7-beta</version>
 </dependency>
 ```
 
@@ -117,6 +177,48 @@ spring.datasource.type=org.springframework.jdbc.datasource.SimpleDriverDataSourc
 
 The OJP URL pattern is `jdbc:ojp[host:port]_<actualDriver>://...`. You just need to prepend
 `ojp[host:port]_` immediately after `jdbc:` in your existing URL.
+
+---
+
+## Multinode Health Check Configuration
+
+When using OJP in a [multinode setup](../../multinode/README.md), the health checker is **enabled by
+default**. You can configure or disable it directly in `application.yml`:
+
+```yaml
+ojp:
+  redistribution:
+    enabled: true              # set to false to disable the health checker entirely
+  health:
+    check:
+      interval: 5s             # how often to probe a failed server (default: 5s)
+      threshold: 5s            # how long a server must stay healthy before recovery (default: 5s)
+      timeout: 5s              # gRPC deadline per probe (default: 5s)
+```
+
+To **disable** the periodic health checker completely:
+
+```yaml
+ojp:
+  redistribution:
+    enabled: false
+```
+
+### Viewing Health Check Logs
+
+Health check activity is logged under the `org.openjproxy.grpc.client` package. Enable it in
+`application.yml`:
+
+```yaml
+logging:
+  level:
+    org.openjproxy.grpc.client: DEBUG
+```
+
+- `INFO` — server recovery/failure and redistribution events
+- `DEBUG` — individual probe results for each health check cycle
+
+For full details on health check options see the [Multinode Configuration Guide](../../multinode/README.md).
 
 ---
 

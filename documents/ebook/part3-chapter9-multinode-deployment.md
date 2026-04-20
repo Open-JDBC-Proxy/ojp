@@ -90,36 +90,59 @@ When your application requests a connection using a multinode URL, the JDBC driv
 
 First, the driver parses the URL and extracts the list of server addresses. It maintains state about each server: whether it's healthy, how many connections it currently has, and when it was last checked. This state persists across connection requests, so the driver learns and remembers each server's characteristics.
 
-When establishing a new connection, the driver evaluates which servers are currently available. It pings each server (or uses cached health information from recent requests) to determine if it's responsive. Servers that fail health checks are temporarily marked as unhealthy and bypassed for new connections.
+#### Non-XA (regular) connections — connect() RPC skip
+
+For ordinary JDBC connections, the driver calls the `connect()` gRPC RPC exactly **once** per unique `(url, user, password, dataSourceName)` combination. This first call fans out to **all** servers so that every node in the cluster learns the datasource configuration and is ready to serve SQL operations. After the call returns, the driver caches the `connHash` returned by the server client-side.
+
+Every subsequent `getConnection()` call for the same credentials is fulfilled **locally** from that cache — no gRPC round-trip, no network latency. The driver constructs the `SessionInfo` directly from the cached value and immediately returns a functional JDBC connection. This means that in a typical application that opens thousands of connections over its lifetime, only the very first connection pays the cost of a gRPC `connect()` call.
+
+```
+1st getConnection()  →  connect() RPC to all servers  →  connHash cached
+2nd getConnection()  →  local SessionInfo from cache   (no RPC)
+3rd getConnection()  →  local SessionInfo from cache   (no RPC)
+…
+```
+
+**Pool-Lost Recovery**: If a server restarts and loses its pool state, it responds to the next SQL operation with `NOT_FOUND`. The driver detects this, invalidates the cached `connHash`, issues a fresh `connect()` RPC to recreate the pool, and retries the SQL call — all transparently to your application.
+
+#### XA connections — single least-loaded server
+
+For XA (`getXAConnection()`) connections, the driver sends one `connect()` RPC to a **single** server chosen by the least-connections strategy (round-robin when loads are equal). Since an XA session binds to that server for its entire lifetime, there is no benefit in contacting every node. Successive `getXAConnection()` calls are automatically directed to whichever server currently carries the lightest XA session load, keeping the cluster balanced without any explicit configuration.
+
+If the chosen server fails with a connection-level error it is marked unhealthy and the next-best candidate is tried automatically. Database-level errors (authentication, configuration) surface immediately.
 
 Among the healthy servers, the driver selects one based on its load-aware selection algorithm. By default (and you should use this default), operations are sent to the server with the fewest active connections. This approach naturally balances load across servers and prevents any single server from becoming a hotspot.
 
 The gRPC connection to each OJP Server is established once when the driver first connects, creating a multiplexed pipe that handles multiple virtual connections (connection handles) on the client side. When a server is selected for a database operation, the driver sends the operation request over the existing gRPC connection to that server. The load-aware selection decides which server's gRPC pipe receives each operation, not which gRPC connection to establish. If an operation fails—perhaps the server went down between the health check and the request—the driver automatically retries with another healthy server. This retry logic happens transparently; your application simply sees a successful connection (after a slight delay) or an error if all servers are unavailable.
 
-> **AI Image Prompt**: Create a flowchart showing the connection establishment decision process. Start with "Connection Request", flow through "Parse URL", "Check Server Health", "Select Server (Least Loaded)", "Establish gRPC Connection", with decision diamonds for "Servers Available?" and "Connection Successful?". Show retry loops and final outcomes. Use green paths for success and red paths for failure scenarios.
+> **AI Image Prompt**: Create a flowchart showing the connection establishment decision process. Start with "Connection Request", branch on "XA or non-XA?". Non-XA branch: "connHash in cache?" → Yes → "Build SessionInfo locally (no RPC)"; No → "connect() RPC to ALL servers" → "Cache connHash". XA branch: "Select least-loaded server" → "connect() RPC to ONE server" → "Bind session to server". Show pool-lost recovery as a dashed loop: "NOT_FOUND response" → "Invalidate cache" → "Reconnect" → "Retry". Use green paths for success and red paths for failure scenarios.
 
 ```mermaid
 sequenceDiagram
     participant App
     participant Driver
-    participant SessionTracker
+    participant ConnHashCache
     participant Server1
     participant Server2
     participant Server3
     
     Note over Driver,Server3: gRPC connections already established (multiplexed pipes)
     
-    App->>Driver: getConnection()
-    Driver->>Driver: Parse multinode URL
-    Driver->>SessionTracker: Get session counts (local)
-    SessionTracker-->>Driver: Server1: 5, Server2: 3, Server3: timeout
+    App->>Driver: getConnection() [1st call]
+    Driver->>ConnHashCache: connHash cached?
+    ConnHashCache-->>Driver: No
+    Driver->>Server1: connect() RPC (seed all servers)
+    Driver->>Server2: connect() RPC
+    Driver->>Server3: connect() RPC
+    Server1-->>Driver: connHash=abc123
+    Driver->>ConnHashCache: cache connHash=abc123
+    Driver-->>App: Return connection (SessionInfo built)
     
-    Note over Driver: Select Server2 (least loaded, 3 sessions)
-    
-    Driver->>Server2: Request DB connection (via existing gRPC pipe)
-    Server2-->>Driver: Connection handle returned
-    Driver->>SessionTracker: Register session to Server2
-    Driver-->>App: Return connection
+    App->>Driver: getConnection() [2nd call]
+    Driver->>ConnHashCache: connHash cached?
+    ConnHashCache-->>Driver: abc123
+    Note over Driver: Build SessionInfo locally — no RPC
+    Driver-->>App: Return connection (zero gRPC overhead)
 ```
 
 ### Session Stickiness and Affinity

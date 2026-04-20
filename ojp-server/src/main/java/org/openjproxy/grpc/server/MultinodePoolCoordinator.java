@@ -21,6 +21,19 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MultinodePoolCoordinator {
     
     private final Map<String, PoolAllocation> poolAllocations = new ConcurrentHashMap<>();
+
+    /**
+     * Stores the most-recent healthy-server count received via {@link #updateHealthyServers}
+     * for a connHash that does not yet have a {@link PoolAllocation} (i.e. the pool has not
+     * been created yet).  {@link #calculatePoolSizes} consumes this entry so that the pool is
+     * born at the correct (expanded) size even when cluster-health pushes arrive before the
+     * first {@code ConnectAction} for that connHash.
+     *
+     * <p>This race is most visible after a server restart: the driver reconnects and pushes
+     * cluster-health information via {@code StartTransactionAction} before the new
+     * {@code ConnectAction} that actually creates the pool has been processed.</p>
+     */
+    private final Map<String, Integer> pendingHealthyServers = new ConcurrentHashMap<>();
     
     /**
      * Represents the pool allocation for a connection hash (dataSource).
@@ -96,8 +109,40 @@ public class MultinodePoolCoordinator {
         
         int serverCount = serverEndpoints.size();
         
-        // Create allocation with divided pool sizes
+        // Create allocation with divided pool sizes.
+        // Health counts may have been received before the allocation existed (e.g. a cluster-health
+        // push arrives before the ConnectAction that creates the pool, or the server was restarted
+        // and the driver pushes health state via StartTransactionAction before reconnecting via
+        // ConnectAction).  We handle two complementary cases:
+        //
+        //   1. An existing allocation already has healthyServers < totalServers — preserve that
+        //      count so a subsequent calculatePoolSizes() call (e.g. from a new ConnectAction)
+        //      does not reset it back to totalServers.
+        //
+        //   2. No allocation exists yet but updateHealthyServers() was called while the map was
+        //      empty — a "pending" count is stored in pendingHealthyServers.  We consume it here
+        //      so the pool is created at the correct (expanded) size immediately.
         PoolAllocation allocation = new PoolAllocation(requestedMaxPoolSize, requestedMinIdle, serverCount);
+        PoolAllocation existingAllocation = poolAllocations.get(connHash);
+        if (existingAllocation != null && existingAllocation.getHealthyServers() < serverCount) {
+            allocation.updateHealthyServerCount(existingAllocation.getHealthyServers());
+            log.info("Preserved healthyServers={} from prior allocation for {} when creating new pool",
+                    existingAllocation.getHealthyServers(), connHash);
+        } else {
+            // Consume any pending health count that arrived before the allocation was created.
+            Integer pending = pendingHealthyServers.remove(connHash);
+            if (pending != null) {
+                int effective = Math.max(1, Math.min(pending, serverCount));
+                if (effective < serverCount) {
+                    allocation.updateHealthyServerCount(effective);
+                    log.info("Applied pending healthyServers={} (raw={}) from pre-pool health update for {} when creating new pool",
+                            effective, pending, connHash);
+                } else {
+                    log.debug("Pending healthyServers={} (raw={}) for {} equals totalServers={}, using divided pool sizes",
+                            effective, pending, connHash, serverCount);
+                }
+            }
+        }
         
         poolAllocations.put(connHash, allocation);
         
@@ -131,6 +176,13 @@ public class MultinodePoolCoordinator {
             log.info("Updated healthy server count for {}: {} -> {}, pool sizes: max={}, min={}", 
                     connHash, oldCount, healthyServerCount, 
                     allocation.getCurrentMaxPoolSize(), allocation.getCurrentMinIdle());
+        } else {
+            // No allocation yet (pool has not been created for this connHash — e.g. the server
+            // was just restarted).  Store the raw count so calculatePoolSizes() can apply it
+            // when the pool is eventually created by a ConnectAction.
+            pendingHealthyServers.put(connHash, healthyServerCount);
+            log.info("No pool allocation found for {} - storing pending healthyServers={} for later pool creation",
+                    connHash, healthyServerCount);
         }
         return allocation;
     }
@@ -152,6 +204,7 @@ public class MultinodePoolCoordinator {
      */
     public void removeAllocation(String connHash) {
         poolAllocations.remove(connHash);
+        pendingHealthyServers.remove(connHash);
         log.debug("Removed pool allocation for {}", connHash);
     }
     

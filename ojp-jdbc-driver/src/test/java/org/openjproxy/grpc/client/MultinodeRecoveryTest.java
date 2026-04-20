@@ -171,7 +171,7 @@ class MultinodeRecoveryTest {
         props.setProperty("user", POSTGRES_USER);
         props.setProperty("password", POSTGRES_PASSWORD);
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         int queryCount = 20;
 
         for (int i = 0; i < queryCount; i++) {
@@ -183,7 +183,7 @@ class MultinodeRecoveryTest {
             }
         }
 
-        long duration = System.currentTimeMillis() - startTime;
+        long duration = (System.nanoTime() - startTime) / 1_000_000L;
         long avgTimePerQuery = duration / queryCount;
 
         // Just verify queries complete in reasonable time (not a strict performance test)

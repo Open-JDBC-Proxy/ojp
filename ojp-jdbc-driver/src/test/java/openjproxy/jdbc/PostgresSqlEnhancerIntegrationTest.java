@@ -231,17 +231,17 @@ public class PostgresSqlEnhancerIntegrationTest {
         // Execute query on enhanced server
         log.info("");
         log.info("Step 4: Executing on ENHANCED server (port {}, SQL enhancer enabled)...", PORT_ENHANCED);
-        long startEnhanced = System.currentTimeMillis();
+        long startEnhanced = System.nanoTime();
         String resultEnhanced = executeAndCollectResults(urlEnhanced);
-        long timeEnhanced = System.currentTimeMillis() - startEnhanced;
+        long timeEnhanced = (System.nanoTime() - startEnhanced) / 1_000_000L;
         log.info("✓ Enhanced server completed in {} ms", timeEnhanced);
 
         // Execute query on baseline server
         log.info("");
         log.info("Step 5: Executing on BASELINE server (port {}, SQL enhancer disabled)...", PORT_BASELINE);
-        long startBaseline = System.currentTimeMillis();
+        long startBaseline = System.nanoTime();
         String resultBaseline = executeAndCollectResults(urlBaseline);
-        long timeBaseline = System.currentTimeMillis() - startBaseline;
+        long timeBaseline = (System.nanoTime() - startBaseline) / 1_000_000L;
         log.info("✓ Baseline server completed in {} ms", timeBaseline);
 
         // Verify results are identical

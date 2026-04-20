@@ -26,7 +26,9 @@ OJP provides comprehensive XA (distributed transaction) support with backend ses
 - **Backend Session Pooling**: Server-side pooling of XAConnection and backend sessions using Apache Commons Pool 2
 - **Dual-Condition Lifecycle**: Sessions returned to pool only when BOTH transaction complete AND OJP XAConnection closed
 - **Dynamic Pool Rebalancing**: Automatic pool resizing based on cluster health and server failures
-- **Unified Connection Model**: Both XA and non-XA connections connect to ALL servers for optimal failover
+- **Single-Server XA Connect**: Each `getXAConnection()` binds to exactly one least-loaded server — no unnecessary pool creation on other nodes
+- **Non-XA connect() RPC Skip**: After the first successful non-XA `connect()`, the `connHash` is cached client-side; subsequent JDBC connections are built locally with zero gRPC overhead
+- **Pool-Lost Recovery**: If the server returns `NOT_FOUND` (pool lost after restart), the driver invalidates the cache, re-issues `connect()`, and retries transparently
 - **Connection Reuse**: Physical PostgreSQL connections stay open and reused across multiple XA transactions
 
 ### Architecture Principles
@@ -35,12 +37,17 @@ OJP provides comprehensive XA (distributed transaction) support with backend ses
    - **Application Side**: Applications may use HikariCP or other pools to pool OJP JDBC connections
    - **Server Side**: Apache Commons Pool 2 (XA) or HikariCP (non-XA) pools PostgreSQL backend sessions via SPIs
 
-2. **Pooling Contract**:
+2. **Connection Strategy**:
+   - **XA**: Each `getXAConnection()` sends one `connect()` RPC to the single least-loaded server; the session binds to that server for its lifetime
+   - **Non-XA first call**: Fans out `connect()` to all servers so every node learns the datasource; caches the returned `connHash`
+   - **Non-XA subsequent calls**: Built locally from the `connHash` cache — no gRPC round-trip
+
+3. **Pooling Contract**:
    - Pool's `makeObject()` → `open()` creates physical PostgreSQL XAConnection
    - Pool's `passivateObject()` → `reset()` cleans state, keeps connection open
    - Pool's `destroyObject()` → `close()` destroys physical connection (eviction only)
 
-3. **XA Spec Compliance**:
+4. **XA Spec Compliance**:
    - Sessions support multiple sequential XA transactions
    - Connection properties persist across transaction boundaries
    - No connection recreation between transactions (JDBC XA requirement)
@@ -55,8 +62,8 @@ OJP provides comprehensive XA (distributed transaction) support with backend ses
 Client Application
     ↓
 OjpXADataSource.getXAConnection()
-    ↓
-[gRPC Call] StatementService.connect(isXA=true)
+    ↓ (select single least-loaded server via SessionTracker)
+[gRPC Call] StatementService.connect(isXA=true) → ONE server
     ↓
 OJP Server - CommonsPool2XADataSource
     ↓ borrowSession()
@@ -432,12 +439,21 @@ public XABackendSession connect(ConnectionDetails details) {
 
 ## Multinode XA Support
 
-### Unified Connection Model
+### XA Connection Model: Single Least-Loaded Server
 
-Both XA and non-XA connections connect to **ALL** servers:
-- Eliminates XA-specific connection path complexity
-- Faster XA failover (sessions already on all servers)
-- Consistent load balancing for all connection types
+Each XA `getXAConnection()` call connects to exactly **one** server, chosen by the
+least-connections strategy (round-robin when loads are equal):
+
+- Avoids creating unnecessary backend pools on every node for a single-server transaction
+- XA sessions are bound to their server for the lifetime of the `XAConnection`
+- Successive `getXAConnection()` calls are automatically spread across the cluster
+  as the `SessionTracker` counts grow on the chosen servers
+
+**Contrast with non-XA (regular JDBC `getConnection()`):**  
+The first non-XA `connect()` call fans out to **all** servers so every node learns
+about the datasource configuration.  Subsequent calls are served from a local
+`connHash` cache — no gRPC round-trip at all (see *Non-XA connect() RPC Skip*
+below).
 
 ### Load-Aware Selection
 
@@ -560,6 +576,51 @@ org.openjproxy:type=CommonsPool2XADataSource,name=localhost:5432
 - MaxTotal: Maximum pool size
 - MinIdle: Minimum idle sessions maintained
 - MaxWaitMillis: Borrow timeout
+```
+
+---
+
+## Non-XA connect() RPC Skip and Pool-Lost Recovery
+
+### connect() RPC Skip Optimisation
+
+For regular (non-XA) connections, the `connect()` gRPC RPC is only sent **once**
+per unique `(url, user, password, dataSourceName)` combination.  After the first
+successful call the driver caches the returned `connHash` client-side.  All
+subsequent `DriverManager.getConnection()` / `DataSource.getConnection()` calls
+are fulfilled locally from that cache — no gRPC round-trip.
+
+```
+1st getConnection()  →  connect() RPC → ALL servers seeded → connHash cached
+2nd getConnection()  →  local SessionInfo built from cache  (no RPC)
+3rd getConnection()  →  local SessionInfo built from cache  (no RPC)
+…
+```
+
+The first call still fans out to every server so all nodes receive the datasource
+configuration and can serve subsequent SQL operations without extra setup.
+
+### Pool-Lost Recovery (NOT_FOUND)
+
+When an OJP Server restarts it loses its in-memory datasource map.  The driver
+detects this through the `Status.NOT_FOUND` gRPC status code:
+
+1. Server throws `PoolNotFoundException` (no pool for the received `connHash`).
+2. `CommandExecutionHelper` maps it to `Status.NOT_FOUND`.
+3. The driver receives `NOT_FOUND`, invalidates the cached `connHash`, and
+   calls a fresh `connect()` RPC to recreate the pool on the server.
+4. The failed SQL call is retried once on the same server — transparent to
+   the application.
+
+This recovery is only applied to stateless (no active session UUID) calls.  If an
+active transaction was in progress on the restarted server, the appropriate
+`SQLException` is surfaced to the application so it can retry the business logic.
+
+**Log messages to expect** (at `WARN` level):
+```
+NOT_FOUND from server proxy1.example.com:1059 – pool lost, reconnecting and retrying
+Invalidated cached connHash <hash> (pool lost on server)
+Re-cached connHash <hash> after reconnect
 ```
 
 ---

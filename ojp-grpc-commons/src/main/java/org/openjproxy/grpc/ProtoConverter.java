@@ -421,6 +421,13 @@ public class ProtoConverter {
             } catch (org.openjproxy.grpc.transport.ProtoSerialization.SerializationException e) {
                 throw new RuntimeException("Failed to serialize Map/List/Properties to protobuf", e);
             }
+        } else if (isJsonWrapperObject(value)) {
+            // Database-specific JSON wrapper types (e.g., org.postgresql.util.PGobject,
+            // oracle.sql.json.OracleJsonValue and its subclasses). These objects are not
+            // in the standard Java API, so we detect them by class name to avoid compile-time
+            // dependencies on vendor JDBC libraries. Calling toString() on them returns the
+            // JSON text, which is the correct value to transport.
+            builder.setStringValue(value.toString());
         } else {
             // For all other complex types, throw an exception as they are not supported
             // Only primitives, Maps, Lists, Properties, and null are supported for transport
@@ -432,6 +439,26 @@ public class ProtoConverter {
         return builder.build();
     }
     
+    /**
+     * Returns true if {@code value} is a vendor-specific JSON wrapper object that can be
+     * safely serialised by calling {@link Object#toString()}, which returns the JSON text.
+     * <p>
+     * Detected types (by class name, to avoid compile-time vendor JDBC dependencies):
+     * <ul>
+     *   <li>{@code org.postgresql.util.PGobject} — PostgreSQL JSON / JSONB / other custom types</li>
+     *   <li>{@code oracle.sql.json.OracleJsonValue} and its subclasses — Oracle 21c+ native JSON</li>
+     * </ul>
+     * </p>
+     */
+    private static boolean isJsonWrapperObject(Object value) {
+        if (value == null) {
+            return false;
+        }
+        String className = value.getClass().getName();
+        return "org.postgresql.util.PGobject".equals(className)
+                || className.startsWith("oracle.sql.json.Oracle");
+    }
+
     /**
      * Convert java.sql.Timestamp with ZoneId to ParameterValue with TimestampWithZone.
      * 

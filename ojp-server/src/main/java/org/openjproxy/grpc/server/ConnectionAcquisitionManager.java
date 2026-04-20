@@ -88,11 +88,11 @@ public class ConnectionAcquisitionManager {
                 connectionHash, dataSource.getClass().getSimpleName());
         }
         
-        long acquisitionStart = System.currentTimeMillis();
+        long acquisitionStart = System.nanoTime();
         try {
             // Use pool's built-in connection timeout - this prevents indefinite blocking
             Connection connection = dataSource.getConnection();
-            long acquisitionTimeMs = System.currentTimeMillis() - acquisitionStart;
+            long acquisitionTimeMs = (System.nanoTime() - acquisitionStart) / 1_000_000L;
 
             log.debug("Successfully acquired connection for hash: {} in thread: {} (waited {}ms)", 
                 connectionHash, Thread.currentThread().getName(), acquisitionTimeMs);

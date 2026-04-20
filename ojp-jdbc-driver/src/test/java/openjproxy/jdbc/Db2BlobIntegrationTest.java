@@ -117,7 +117,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
             largeData[i] = (byte) (i % 256);
         }
 
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
 
         // Insert multiple BLOB records
         PreparedStatement psInsert = conn.prepareStatement(
@@ -130,10 +130,10 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
             psInsert.executeUpdate();
         }
 
-        long insertTime = System.currentTimeMillis() - startTime;
+        long insertTime = (System.nanoTime() - startTime) / 1_000_000L;
         
         // Retrieve BLOB records
-        startTime = System.currentTimeMillis();
+        startTime = System.nanoTime();
         
         PreparedStatement psSelect = conn.prepareStatement(
                 "SELECT id, data_blob FROM " + tableName + " ORDER BY id"
@@ -149,7 +149,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
             count++;
         }
         
-        long retrieveTime = System.currentTimeMillis() - startTime;
+        long retrieveTime = (System.nanoTime() - startTime) / 1_000_000L;
         
         assertEquals(10, count);
         

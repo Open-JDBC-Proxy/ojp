@@ -601,7 +601,7 @@ imagePullSecrets:
 ```yaml
 image:
   repository: rrobetti/ojp
-  tag: "0.4.1-beta"
+  tag: "0.4.2-beta"
   pullPolicy: IfNotPresent
 ```
 

@@ -84,7 +84,7 @@ if [ "$COMMAND" = "push" ]; then
         echo ""
         echo -e "${GREEN}✓ Docker image built and pushed successfully!${NC}"
         echo ""
-        echo -e "${BLUE}Image: rrobetti/ojp:0.4.1-beta${NC}"
+        echo -e "${BLUE}Image: rrobetti/ojp:0.4.2-beta${NC}"
         echo -e "${BLUE}Includes: H2, PostgreSQL, MySQL, MariaDB drivers${NC}"
     else
         echo ""
@@ -100,11 +100,11 @@ elif [ "$COMMAND" = "build" ]; then
         echo ""
         echo -e "${GREEN}✓ Docker image built successfully!${NC}"
         echo ""
-        echo -e "${BLUE}Image: rrobetti/ojp:0.4.1-beta${NC}"
+        echo -e "${BLUE}Image: rrobetti/ojp:0.4.2-beta${NC}"
         echo -e "${BLUE}Includes: H2, PostgreSQL, MySQL, MariaDB drivers${NC}"
         echo ""
         echo -e "${GREEN}You can now run the image:${NC}"
-        echo -e "  ${YELLOW}docker run -d -p 1059:1059 --name ojp rrobetti/ojp:0.4.1-beta${NC}"
+        echo -e "  ${YELLOW}docker run -d -p 1059:1059 --name ojp rrobetti/ojp:0.4.2-beta${NC}"
     else
         echo ""
         echo -e "${RED}Failed to build Docker image!${NC}"

@@ -3,10 +3,12 @@ package org.openjproxy.grpc.server.action.transaction;
 import com.openjproxy.grpc.OpResult;
 import com.openjproxy.grpc.SqlErrorType;
 import com.openjproxy.grpc.StatementRequest;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.server.CircuitBreaker;
+import org.openjproxy.grpc.server.PoolNotFoundException;
 import org.openjproxy.grpc.server.SlowQuerySegregationManager;
 import org.openjproxy.grpc.server.SqlStatementXXHash;
 import org.openjproxy.grpc.server.action.ActionContext;
@@ -54,7 +56,7 @@ public class CommandExecutionHelper {
 
         // Get the appropriate slow query segregation manager for this datasource
         SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(context, connHash);
-        long sqlStartMs = System.currentTimeMillis();
+        long sqlStartNs = System.nanoTime();
         try {
             circuitBreaker.preCheck(stmtHash);
 
@@ -81,6 +83,16 @@ public class CommandExecutionHelper {
             log.error("SQL failure during {} execution: {}",
                     operationName, e.getMessage(), e);
             sendSQLExceptionMetadata(e, responseObserver);
+        } catch (PoolNotFoundException e) {
+            // Pool was not found for this connection hash. The server may have restarted
+            // and lost its in-memory pool state. Signal the client to reconnect via
+            // Status.NOT_FOUND so that the driver can transparently redo connect() and
+            // retry the SQL call without surfacing an error to the application.
+            log.warn("Pool not found during {} execution, signalling client to reconnect: {}",
+                    operationName, e.getMessage());
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage())
+                    .asRuntimeException());
         } catch (Exception e) {
             log.error("Unexpected failure during {} execution: {}",
                     operationName, e.getMessage(), e);
@@ -97,7 +109,7 @@ public class CommandExecutionHelper {
             // manager state. This is the single authoritative place for SQL metrics.
             String sql = request.getSql();
             if (!sql.isEmpty()) {
-                long executionTimeMs = System.currentTimeMillis() - sqlStartMs;
+                long executionTimeMs = (System.nanoTime() - sqlStartNs) / 1_000_000L;
                 context.getSqlStatementMetrics().recordSqlExecution(
                         sql, executionTimeMs, manager.isSlowOperation(stmtHash));
             }

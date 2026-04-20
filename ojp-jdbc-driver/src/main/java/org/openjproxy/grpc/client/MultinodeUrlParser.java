@@ -2,12 +2,14 @@ package org.openjproxy.grpc.client;
 
 import lombok.Getter;
 import org.openjproxy.constants.CommonConstants;
+import org.openjproxy.jdbc.DatasourcePropertiesLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,16 +76,21 @@ public class MultinodeUrlParser {
         StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
             log.debug("Creating MultinodeStatementService for endpoints: {}",
                     MultinodeUrlParser.formatServerList(endpoints));
-            MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(endpoints);
-
-            // Always wire in XAConnectionRedistributor so it is ready for dynamic server
-            // addition/removal regardless of the initial endpoint count.
-            HealthCheckConfig healthConfig = connectionManager.getHealthCheckConfig();
-            if (healthConfig != null) {
-                XAConnectionRedistributor redistributor = new XAConnectionRedistributor(connectionManager, healthConfig);
-                connectionManager.setXaConnectionRedistributor(redistributor);
-                log.info("XAConnectionRedistributor wired into MultinodeConnectionManager ({} endpoints)", endpoints.size());
-            }
+            Properties rawProperties = DatasourcePropertiesLoader.loadOjpProperties();
+            HealthCheckConfig healthConfig = HealthCheckConfig.loadFromProperties(rawProperties);
+            int retryAttempts = readIntProperty(rawProperties,
+                    CommonConstants.MULTINODE_RETRY_ATTEMPTS_PROPERTY,
+                    CommonConstants.DEFAULT_MULTINODE_RETRY_ATTEMPTS);
+            long retryDelayMs = readLongProperty(rawProperties,
+                    CommonConstants.MULTINODE_RETRY_DELAY_PROPERTY,
+                    CommonConstants.DEFAULT_MULTINODE_RETRY_DELAY_MS);
+            MultinodeConnectionManager connectionManager = new MultinodeConnectionManager(endpoints,
+                    retryAttempts,
+                    retryDelayMs,
+                    healthConfig);
+            XAConnectionRedistributor redistributor = new XAConnectionRedistributor(connectionManager, healthConfig);
+            connectionManager.setXaConnectionRedistributor(redistributor);
+            log.info("XAConnectionRedistributor wired into MultinodeConnectionManager ({} endpoints)", endpoints.size());
 
             return new MultinodeStatementService(connectionManager, url);
         });
@@ -229,5 +236,45 @@ public class MultinodeUrlParser {
         // Replace the entire [server1:port1,server2:port2,...] section with [singleHost:singlePort]
         // The pattern includes "ojp" so we need to keep it in the replacement
         return url.replaceAll(CommonConstants.OJP_REGEX_PATTERN, "ojp[" + endpoint.getAddress() + "]");
+    }
+
+    /**
+     * Reads an integer property, checking system properties first (highest priority),
+     * then the supplied properties file, then falling back to the default.
+     */
+    private static int readIntProperty(Properties props, String key, int defaultValue) {
+        String sysProp = System.getProperty(key);
+        String raw = (sysProp != null && !sysProp.trim().isEmpty())
+                ? sysProp.trim()
+                : (props != null ? props.getProperty(key) : null);
+        if (raw == null || raw.trim().isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid value for {}: {}, using default: {}", key, raw, defaultValue);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Reads a long property, checking system properties first (highest priority),
+     * then the supplied properties file, then falling back to the default.
+     */
+    private static long readLongProperty(Properties props, String key, long defaultValue) {
+        String sysProp = System.getProperty(key);
+        String raw = (sysProp != null && !sysProp.trim().isEmpty())
+                ? sysProp.trim()
+                : (props != null ? props.getProperty(key) : null);
+        if (raw == null || raw.trim().isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid value for {}: {}, using default: {}", key, raw, defaultValue);
+            return defaultValue;
+        }
     }
 }

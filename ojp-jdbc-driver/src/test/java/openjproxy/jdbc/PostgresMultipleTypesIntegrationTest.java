@@ -428,6 +428,80 @@ public class PostgresMultipleTypesIntegrationTest {
     }
 
     /**
+     * Tests full roundtrip support for PostgreSQL JSON and JSONB column types.
+     * <p>
+     * PostgreSQL reports JSON and JSONB columns with {@code Types.OTHER} (JDBC type 1111).
+     * OJP detects these columns by type name and uses {@code getString()} to return the
+     * JSON text, avoiding the vendor-specific {@code PGobject} wrapper.
+     * </p>
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/postgres_connection.csv")
+    void testPostgresJsonTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+        assumeFalse(!isTestEnabled, "Postgres tests are disabled");
+
+        Connection conn = DriverManager.getConnection(url, user, pwd);
+
+        System.out.println("Testing PostgreSQL JSON/JSONB types for url -> " + url);
+
+        TestDBUtils.createPostgresJsonTestTable(conn, "test_postgres_json");
+
+        // Insert JSON, JSONB, and a NULL JSON value
+        java.sql.PreparedStatement psInsert = conn.prepareStatement(
+                "INSERT INTO test_postgres_json (json_col, jsonb_col, json_null_col) VALUES (?::json, ?::jsonb, ?)"
+        );
+
+        String jsonValue  = "{\"key\": \"value\", \"number\": 42}";
+        String jsonbValue = "{\"active\": true, \"tags\": [\"a\", \"b\"]}";
+
+        psInsert.setString(1, jsonValue);
+        psInsert.setString(2, jsonbValue);
+        psInsert.setNull(3, Types.OTHER);
+
+        psInsert.executeUpdate();
+
+        // Select all three columns and validate the roundtrip
+        java.sql.PreparedStatement psSelect = conn.prepareStatement(
+                "SELECT json_col, jsonb_col, json_null_col FROM test_postgres_json WHERE id = 1"
+        );
+        ResultSet resultSet = psSelect.executeQuery();
+
+        assertTrue(resultSet.next());
+
+        // JSON column: content must be preserved (PostgreSQL may normalise whitespace)
+        String retrievedJson = resultSet.getString("json_col");
+        assertNotNull(retrievedJson, "JSON column should not be null");
+        assertTrue(retrievedJson.contains("key") && retrievedJson.contains("value") && retrievedJson.contains("42"),
+                "JSON column should contain the expected keys and values, got: " + retrievedJson);
+
+        // JSONB column: PostgreSQL may reorder keys, so check individual values
+        String retrievedJsonb = resultSet.getString("jsonb_col");
+        assertNotNull(retrievedJsonb, "JSONB column should not be null");
+        assertTrue(retrievedJsonb.contains("active") && retrievedJsonb.contains("true"),
+                "JSONB column should contain expected values, got: " + retrievedJsonb);
+
+        // NULL JSON column must round-trip as null
+        assertNull(resultSet.getString("json_null_col"), "NULL JSON column should return null");
+
+        resultSet.close();
+        psSelect.close();
+
+        // Test the PostgreSQL JSON extraction operators -> and ->>
+        java.sql.PreparedStatement psOperator = conn.prepareStatement(
+                "SELECT json_col->>'key' AS key_value FROM test_postgres_json WHERE id = 1"
+        );
+        ResultSet rsOperator = psOperator.executeQuery();
+        assertTrue(rsOperator.next());
+        assertEquals("value", rsOperator.getString("key_value"),
+                "JSON text-extraction operator ->> should return the expected string value");
+        rsOperator.close();
+        psOperator.close();
+
+        psInsert.close();
+        conn.close();
+    }
+
+    /**
      * Helper method to convert hex string to byte array
      */
     private static byte[] hexStringToByteArray(String hex) {

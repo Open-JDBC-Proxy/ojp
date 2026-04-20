@@ -193,7 +193,7 @@ apply the appropriate label before merging it. A fixed **Artifacts** footer
 
 | Current (SNAPSHOT) | Released as | Next dev |
 |--------------------|-------------|----------|
-| `0.4.1-SNAPSHOT` | `0.4.1-beta` | `0.4.2-SNAPSHOT` |
+| `0.4.1-SNAPSHOT` | `0.4.2-beta` | `0.4.2-SNAPSHOT` |
 | `0.5.0-SNAPSHOT` | `0.5.0-beta` | `0.5.1-SNAPSHOT` |
 | `1.0.0-SNAPSHOT` | `1.0.0-GA` ¹ | `1.0.1-SNAPSHOT` |
 
@@ -243,11 +243,11 @@ Use this process only when the automated workflow is unavailable.
 ### Step 1 — Update versions
 
 ```bash
-# Replace 0.4.1-SNAPSHOT with the desired release version (e.g. 0.4.1-beta)
-mvn versions:set -DnewVersion=0.4.1-beta -DprocessAllModules=true -DgenerateBackupPoms=false
+# Replace 0.4.1-SNAPSHOT with the desired release version (e.g. 0.4.2-beta)
+mvn versions:set -DnewVersion=0.4.2-beta -DprocessAllModules=true -DgenerateBackupPoms=false
 ```
 
-Verify that all `pom.xml` files (root + modules) now show `0.4.1-beta`.
+Verify that all `pom.xml` files (root + modules) now show `0.4.2-beta`.
 
 ### Step 2 — Enable release plugins
 
@@ -310,8 +310,8 @@ Verify at <https://hub.docker.com/r/rrobetti/ojp>.
 
 ```bash
 git add -A
-git commit -m "chore(release): prepare release 0.4.1-beta"
-git tag -a v0.4.1-beta -m "Release 0.4.1-beta"
+git commit -m "chore(release): prepare release 0.4.2-beta"
+git tag -a v0.4.2-beta -m "Release 0.4.2-beta"
 ```
 
 ### Step 8 — Re-comment the release plugins
@@ -326,12 +326,12 @@ mvn versions:set -DnewVersion=0.4.2-SNAPSHOT -DprocessAllModules=true -Dgenerate
 git add -A
 git commit -m "chore(release): prepare next development iteration 0.4.2-SNAPSHOT"
 git push origin main
-git push origin v0.4.1-beta
+git push origin v0.4.2-beta
 ```
 
 ### Step 10 — Create GitHub Release
 
-Go to **GitHub → Releases → Draft a new release**, select the tag `v0.4.1-beta`,
+Go to **GitHub → Releases → Draft a new release**, select the tag `v0.4.2-beta`,
 and click **Generate release notes** to auto-populate the body from merged PRs
 since the previous release. Review and publish.
 

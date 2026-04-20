@@ -53,7 +53,7 @@ public class SchemaCache {
         }
         
         this.currentSchema = newSchema;
-        this.lastRefreshTimestamp = System.currentTimeMillis();
+        this.lastRefreshTimestamp = System.nanoTime();
         
         log.info("Schema cache updated with {} tables, loaded at timestamp: {}", 
                 newSchema.getTables().size(), newSchema.getLoadTimestamp());
@@ -70,7 +70,7 @@ public class SchemaCache {
             return false; // Refresh disabled
         }
         
-        long timeSinceLastRefresh = System.currentTimeMillis() - lastRefreshTimestamp;
+        long timeSinceLastRefresh = (System.nanoTime() - lastRefreshTimestamp) / 1_000_000L;
         return timeSinceLastRefresh >= refreshIntervalMillis;
     }
     

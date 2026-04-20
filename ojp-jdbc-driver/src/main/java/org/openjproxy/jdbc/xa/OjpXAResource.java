@@ -231,11 +231,44 @@ public class OjpXAResource implements XAResource {
                     .map(this::fromXidProto)
                     .toArray(Xid[]::new);
         } catch (Exception e) {
+            if (isTransientRecoverError(e)) {
+                // Transient errors (deadline exceeded, server unavailable) must surface as
+                // XAER_RMFAIL rather than XAER_RMERR.  XAER_RMFAIL tells the transaction
+                // manager that the resource manager is temporarily unreachable and that it
+                // should retry later (e.g. after periodicRecoveryPeriod), whereas XAER_RMERR
+                // signals a permanent failure that can cause the recovery scan to be abandoned.
+                log.warn("XA recover failed with transient error, will retry later: {}", e.getMessage());
+                XAException xae = new XAException(XAException.XAER_RMFAIL);
+                xae.initCause(e);
+                throw xae;
+            }
             log.error("Error in recover", e);
             XAException xae = new XAException(XAException.XAER_RMERR);
             xae.initCause(e);
             throw xae;
         }
+    }
+
+    /**
+     * Returns true when an exception from xaRecover() represents a transient condition
+     * (timeout, server temporarily unavailable) rather than a permanent resource-manager error.
+     * Walks the cause chain to find any gRPC StatusRuntimeException whose status code
+     * indicates a transient failure.
+     *
+     * @param e the exception thrown by statementService.xaRecover()
+     * @return true if the error is transient and recovery should be retried later
+     */
+    private static boolean isTransientRecoverError(Exception e) {
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof StatusRuntimeException) {
+                io.grpc.Status.Code code = ((StatusRuntimeException) cause).getStatus().getCode();
+                return code == io.grpc.Status.Code.DEADLINE_EXCEEDED
+                        || code == io.grpc.Status.Code.UNAVAILABLE;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     @Override

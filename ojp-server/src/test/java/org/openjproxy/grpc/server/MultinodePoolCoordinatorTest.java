@@ -141,8 +141,10 @@ class MultinodePoolCoordinatorTest {
         assertEquals(ONE, returned.getHealthyServers());
         assertEquals(TWENTY, returned.getCurrentMaxPoolSize()); // All load on 1 server
 
-        // Simulate the race: another thread calls calculatePoolSizes(), overwriting the map
-        // with a fresh allocation (healthyServers = totalServers = 2).
+        // Simulate the race: another thread calls calculatePoolSizes() (e.g. pool creation
+        // via ConnectAction arrives after the cluster-health update was already applied).
+        // The new allocation must PRESERVE the healthyServers count from the existing one so
+        // the pool is created at the correct expanded size immediately.
         coordinator.calculatePoolSizes("conn1", TWENTY, FOUR, servers);
 
         // The returned allocation from updateHealthyServers still reflects the correct (updated)
@@ -150,10 +152,10 @@ class MultinodePoolCoordinatorTest {
         assertEquals(ONE, returned.getHealthyServers());
         assertEquals(TWENTY, returned.getCurrentMaxPoolSize()); // Still correct!
 
-        // The map now has the fresh allocation with healthyServers = 2
+        // The map allocation also preserves healthyServers=1 so the pool is born at full size.
         MultinodePoolCoordinator.PoolAllocation mapAllocation = coordinator.getPoolAllocation("conn1");
-        assertEquals(TWO, mapAllocation.getHealthyServers());
-        assertEquals(TEN, mapAllocation.getCurrentMaxPoolSize());
+        assertEquals(ONE, mapAllocation.getHealthyServers());
+        assertEquals(TWENTY, mapAllocation.getCurrentMaxPoolSize());
     }
 
     @Test
@@ -164,5 +166,92 @@ class MultinodePoolCoordinatorTest {
         MultinodePoolCoordinator.PoolAllocation returned = coordinator.updateHealthyServers("missing", ONE);
 
         assertNull(returned, "updateHealthyServers should return null when no allocation exists");
+    }
+
+    /**
+     * Regression test for the race where cluster-health pushes arrive on a freshly-restarted
+     * server BEFORE the ConnectAction that creates the pool.
+     *
+     * <p>Sequence observed in CI (Multinode Integration Test Run 5):
+     * <ol>
+     *   <li>Server is restarted — all state is fresh, no PoolAllocation exists.</li>
+     *   <li>Driver reconnects and pushes health (healthy=0 then healthy=1) via
+     *       StartTransactionAction / ProcessClusterHealthAction before sending ConnectAction.</li>
+     *   <li>updateHealthyServers() returns null (no allocation yet) and was previously a no-op;
+     *       the pending count is now stored in pendingHealthyServers.</li>
+     *   <li>ConnectAction fires and calls calculatePoolSizes() — it must pick up the pending
+     *       count and create the pool at the expanded size (max=totalMax, not max=totalMax/n).</li>
+     * </ol>
+     * </p>
+     */
+    @Test
+    void testHealthUpdateBeforePoolCreationIsAppliedWhenPoolIsCreated() {
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+
+        List<String> servers = Arrays.asList("server1:1059", "server2:1059");
+
+        // Step 1: health updates arrive before pool creation — no allocation yet
+        assertNull(coordinator.updateHealthyServers("conn1", 0));   // transient "0 healthy"
+        assertNull(coordinator.updateHealthyServers("conn1", ONE)); // settled: 1 healthy (degraded)
+
+        // Step 2: ConnectAction creates the pool — must use pending healthyServers=1
+        MultinodePoolCoordinator.PoolAllocation allocation =
+                coordinator.calculatePoolSizes("conn1", TWENTY, FOUR, servers);
+
+        // Pool must be born at the expanded (full) size, not the divided size
+        assertEquals(ONE, allocation.getHealthyServers());
+        assertEquals(TWENTY, allocation.getCurrentMaxPoolSize()); // 20 / 1 = 20, not 11
+
+        // The pending entry must be consumed (no stale state for a future calculatePoolSizes call)
+        coordinator.calculatePoolSizes("conn1", TWENTY, FOUR, servers);
+        MultinodePoolCoordinator.PoolAllocation secondAlloc = coordinator.getPoolAllocation("conn1");
+        // Second call preserves healthyServers=1 via the existingAllocation path (not pending)
+        assertEquals(ONE, secondAlloc.getHealthyServers());
+        assertEquals(TWENTY, secondAlloc.getCurrentMaxPoolSize());
+    }
+
+    /**
+     * Verifies that a pending health count of "all servers healthy" does NOT expand the pool
+     * size (pool should use divided sizes, not full size).
+     */
+    @Test
+    void testPendingHealthUpdateWithAllServersHealthyUsesDividedSizes() {
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+
+        List<String> servers = Arrays.asList("server1:1059", "server2:1059");
+
+        // Pending count = 2 (all healthy) — should be treated as full cluster
+        assertNull(coordinator.updateHealthyServers("conn1", TWO));
+
+        MultinodePoolCoordinator.PoolAllocation allocation =
+                coordinator.calculatePoolSizes("conn1", TWENTY, FOUR, servers);
+
+        // Divided sizes: 20/2 = 10
+        assertEquals(TWO, allocation.getHealthyServers());
+        assertEquals(TEN, allocation.getCurrentMaxPoolSize());
+    }
+
+    /**
+     * Verifies that removeAllocation also clears the pending health entry so a subsequent
+     * calculatePoolSizes() call for the same connHash is not affected by stale pending state.
+     */
+    @Test
+    void testRemoveAllocationClearsPendingHealth() {
+        MultinodePoolCoordinator coordinator = new MultinodePoolCoordinator();
+
+        List<String> servers = Arrays.asList("server1:1059", "server2:1059");
+
+        // Store pending health
+        assertNull(coordinator.updateHealthyServers("conn1", ONE));
+
+        // removeAllocation must purge the pending entry too
+        coordinator.removeAllocation("conn1");
+
+        // Now calculatePoolSizes should NOT use the stale pending count
+        MultinodePoolCoordinator.PoolAllocation allocation =
+                coordinator.calculatePoolSizes("conn1", TWENTY, FOUR, servers);
+
+        assertEquals(TWO, allocation.getHealthyServers());
+        assertEquals(TEN, allocation.getCurrentMaxPoolSize());
     }
 }

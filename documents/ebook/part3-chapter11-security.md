@@ -232,7 +232,7 @@ java -Duser.timezone=UTC -jar ojp-server.jar
 
 One of the challenges with SSL/TLS configuration in OJP deployments is that certificate files reside on the OJP Server, not on client machines. Hardcoding certificate paths in JDBC connection URLs is inflexible and makes it difficult to manage certificates across different environments (development, staging, production).
 
-OJP Server 0.4.1-beta+ introduces **property placeholder support** that allows you to use placeholders like `${ojp.server.sslrootcert}` in JDBC URLs. The server automatically resolves these placeholders to actual certificate paths at runtime using JVM system properties or environment variables.
+OJP Server 0.4.2-beta+ introduces **property placeholder support** that allows you to use placeholders like `${ojp.server.sslrootcert}` in JDBC URLs. The server automatically resolves these placeholders to actual certificate paths at runtime using JVM system properties or environment variables.
 
 **How It Works:**
 

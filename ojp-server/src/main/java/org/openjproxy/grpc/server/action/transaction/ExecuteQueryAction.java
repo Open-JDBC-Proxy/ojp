@@ -97,7 +97,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
         }
 
         // Phase 2: SQL Enhancement with timing
-        long enhancementStartTime = System.currentTimeMillis();
+        long enhancementStartTime = System.nanoTime();
 
         var sqlEnhancerEngine = actionContext.getSqlEnhancerEngine();
         var datasourceMap = actionContext.getDatasourceMap();
@@ -137,7 +137,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
             org.openjproxy.grpc.server.sql.SqlEnhancementResult result = sqlEnhancerEngine.enhance(sql);
             sql = result.getEnhancedSql();
 
-            long enhancementDuration = System.currentTimeMillis() - enhancementStartTime;
+            long enhancementDuration = (System.nanoTime() - enhancementStartTime) / 1_000_000L;
 
             if (result.isModified()) {
                 log.debug("SQL was enhanced in {}ms: {} -> {}", enhancementDuration,

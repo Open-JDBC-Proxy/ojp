@@ -53,6 +53,14 @@ public class MultinodeConnectionManager {
     private final long retryDelayMs;
     private final List<ServerHealthListener> healthListeners; // Phase 2: Listeners for server health changes
     
+    // connHash cache for the connect()-RPC-skip optimisation (non-XA only).
+    // Key  : connectionKey  = url + "|" + user + "|" + password + "|" + dataSourceName
+    // Value: connHash string returned by the server on the first successful connect()
+    private final Map<String, String> connHashByConnectionKey;
+    // Stores the full ConnectionDetails per connHash so that we can re-issue a real
+    // connect() call when the server signals NOT_FOUND (pool lost on server restart).
+    private final Map<String, ConnectionDetails> connectionDetailsByConnHash;
+    
     // Health check and redistribution support
     private final HealthCheckConfig healthCheckConfig;
     private final AtomicLong lastHealthCheckTimestamp;
@@ -91,6 +99,8 @@ public class MultinodeConnectionManager {
         this.channelMap = new ConcurrentHashMap<>();
         this.sessionToServerMap = new ConcurrentHashMap<>();
         this.connHashToServersMap = new ConcurrentHashMap<>();
+        this.connHashByConnectionKey = new ConcurrentHashMap<>();
+        this.connectionDetailsByConnHash = new ConcurrentHashMap<>();
         this.roundRobinCounter = new AtomicInteger(0);
         this.retryAttempts = retryAttempts;
         this.retryDelayMs = retryDelayMs;
@@ -117,6 +127,7 @@ public class MultinodeConnectionManager {
             this.healthCheckScheduler.scheduleAtFixedRate(
                 () -> {
                     try {
+                        lastHealthCheckTimestamp.set(System.nanoTime());
                         performHealthCheck();
                     } catch (Exception e) {
                         log.warn("Periodic health check failed: {}", e.getMessage());
@@ -145,7 +156,7 @@ public class MultinodeConnectionManager {
             } catch (Exception e) {
                 log.warn("Failed to initialize connection to {}: {}", endpoint.getAddress(), e.getMessage());
                 endpoint.markUnhealthy();
-                endpoint.setLastFailureTime(System.currentTimeMillis());
+                endpoint.setLastFailureTime(System.nanoTime());
             }
         }
     }
@@ -181,53 +192,249 @@ public class MultinodeConnectionManager {
     
     /**
      * Establishes a connection by calling connect() on servers.
-     * 
-     * UNIFIED MODE (always enabled):
-     * - Both XA and non-XA connections connect to ALL servers
-     * - Ensures all servers have datasource configuration for improved failover
-     * - Sessions tracked via SessionTracker for accurate load balancing
-     * - Each session bound directly to the ServerEndpoint it was created on
-     * 
-     * Returns the SessionInfo from the successful connection.
+     *
+     * <p><b>XA connections</b> are sent to a <em>single</em> selected healthy server
+     * (chosen by the same load-aware / round-robin strategy used for all SQL operations).
+     * Connecting to all servers would waste resources by creating unnecessary XA pools
+     * on every node for what is a single-server transaction.</p>
+     *
+     * <p><b>Non-XA connections</b> use a cached connHash after the first successful
+     * connect, so subsequent JDBC {@code Connection} objects are created without any
+     * gRPC round-trip.  If the server later returns {@code NOT_FOUND} (pool lost after
+     * restart), the cache is invalidated and a real connect() is re-issued transparently.</p>
+     *
+     * @return the SessionInfo from the successful connection
      */
     public SessionInfo connect(ConnectionDetails connectionDetails) throws SQLException {
         boolean isXA = connectionDetails.getIsXA();
-        
-        log.info("=== connect() called: isXA={} (unified mode always enabled) ===", isXA);
-        
-        // Try to trigger health check (time-based, non-blocking)
-        if (healthCheckConfig.isRedistributionEnabled()) {
-            tryTriggerHealthCheck();
+
+        log.info("=== connect() called: isXA={} ===", isXA);
+
+        if (isXA) {
+            // XA: connect to exactly one server (load-balanced / round-robin selection).
+            log.debug("XA connection: connecting to single selected server");
+            return connectToSingleServer(connectionDetails);
         }
-        
-        // UNIFIED MODE: Both XA and non-XA connect to all servers
-        log.debug("Connecting to all servers for {} connection", isXA ? "XA" : "non-XA");
-        return connectToAllServers(connectionDetails);
+
+        // Non-XA: attempt to use the cached connHash to avoid the round-trip.
+        String connectionKey = computeConnectionKey(connectionDetails);
+        String cachedConnHash = connHashByConnectionKey.get(connectionKey);
+
+        if (cachedConnHash != null) {
+            // Fast path: build SessionInfo locally without contacting the server.
+            log.debug("Non-XA connect() skipping RPC – using cached connHash for key ending in '...{}'",
+                    connectionKey.substring(Math.max(0, connectionKey.length() - 20)));
+            return buildLocalSessionInfo(cachedConnHash, connectionDetails.getClientUUID());
+        }
+
+        // First time (or after cache invalidation): do the real connect().
+        log.debug("Non-XA connect(): no cached connHash, performing real connect() RPC");
+        SessionInfo sessionInfo = connectToAllServers(connectionDetails);
+
+        // Cache the connHash so future connect() calls can skip the RPC.
+        if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
+            connHashByConnectionKey.put(connectionKey, sessionInfo.getConnHash());
+            connectionDetailsByConnHash.put(sessionInfo.getConnHash(), connectionDetails);
+            log.info("Non-XA connHash cached for fast subsequent connects (connHash={})", sessionInfo.getConnHash());
+        }
+
+        return sessionInfo;
     }
-    
+
     /**
-     * Attempts to trigger a health check if enough time has elapsed since the last check.
-     * Uses compareAndSet to ensure only one thread executes the health check.
-     * Non-blocking - if another thread is already doing a health check, this returns immediately.
+     * Calls {@code connect()} on a single server selected by the configured strategy
+     * (least-connections, falling back to round-robin when loads are equal).
+     * Used exclusively for XA connections.
+     *
+     * <p>Each new XA connection binds to exactly one server.  The least-connections
+     * strategy ensures that successive XA connections are distributed evenly across
+     * the cluster: the first connection goes to an arbitrary server (all counts 0,
+     * so round-robin applies); each subsequent one goes to whichever server currently
+     * has the lowest XA session count, balancing the load automatically.</p>
+     *
+     * <p>If the chosen server fails with a connection-level error it is marked
+     * unhealthy and the next-best server is tried, until one succeeds or all
+     * candidates are exhausted.  Only ONE server ends up with a pool created for
+     * this connection.</p>
      */
-    private void tryTriggerHealthCheck() {
-        long now = System.currentTimeMillis();
-        long lastCheck = lastHealthCheckTimestamp.get();
-        long elapsed = now - lastCheck;
-        
-        // Only check if interval has passed
-        if (elapsed >= healthCheckConfig.getHealthCheckIntervalMs()) {
-            // Atomic update - only one thread succeeds
-            if (lastHealthCheckTimestamp.compareAndSet(lastCheck, now)) {
+    private SessionInfo connectToSingleServer(ConnectionDetails connectionDetails) throws SQLException {
+        List<ServerEndpoint> attempted = new ArrayList<>();
+        SQLException lastException = null;
+
+        while (true) {
+            // Re-evaluate the best server on every attempt so we skip newly-marked-unhealthy ones.
+            List<ServerEndpoint> healthyServers = serverEndpoints.stream()
+                    .filter(ep -> ep.isHealthy() && !attempted.contains(ep))
+                    .collect(Collectors.toList());
+
+            if (healthyServers.isEmpty()) {
+                String msg = "No healthy servers available for XA connection"
+                        + (lastException != null ? ". Last error: " + lastException.getMessage() : "");
+                throw new SQLException(msg);
+            }
+
+            // Pick the least-loaded server among the remaining candidates.
+            ServerEndpoint server = healthCheckConfig.isLoadAwareSelectionEnabled()
+                    ? selectByLeastConnections(healthyServers)
+                    : selectByRoundRobin(healthyServers);
+
+            if (server == null) {
+                throw new SQLException("No server could be selected for XA connection");
+            }
+
+            attempted.add(server);
+
+            try {
+                ChannelAndStub channelAndStub = channelMap.get(server);
+                if (channelAndStub == null) {
+                    channelAndStub = createChannelAndStub(server);
+                }
+
+                log.info("XA connect: trying server {} ({} attempted so far)", server.getAddress(), attempted.size());
+                SessionInfo sessionInfo = channelAndStub.blockingStub.connect(connectionDetails);
+
+                // Mark server healthy on success
+                server.setHealthy(true);
+                server.setLastFailureTime(0);
+
+                // Bind the XA session to the server that created it
+                if (sessionInfo.getSessionUUID() != null && !sessionInfo.getSessionUUID().isEmpty()) {
+                    sessionToServerMap.put(sessionInfo.getSessionUUID(), server);
+                    sessionTracker.registerSession(sessionInfo.getSessionUUID(), server);
+                    log.info("XA session {} bound to server {}", sessionInfo.getSessionUUID(), server.getAddress());
+                }
+
+                // Track which server received connect() for this connHash (for terminateSession cleanup)
+                if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
+                    connHashToServersMap.put(sessionInfo.getConnHash(), List.of(server));
+                    log.info("Tracked server {} for XA connHash {}", server.getAddress(), sessionInfo.getConnHash());
+                }
+
+                log.info("XA connect succeeded on server {}", server.getAddress());
+                return sessionInfo;
+
+            } catch (StatusRuntimeException e) {
+                boolean isSqlError = false;
                 try {
-                    performHealthCheck();
-                } catch (Exception e) {
-                    log.warn("Health check failed: {}", e.getMessage());
-                    // Don't fail the connection attempt - health check is best effort
+                    GrpcExceptionHandler.handle(e);
+                    lastException = new SQLException("gRPC call failed: " + e.getMessage(), e);
+                } catch (SQLException sqlEx) {
+                    lastException = sqlEx;
+                    isSqlError = true;
+                }
+
+                if (!isSqlError) {
+                    // Connection-level failure: mark server unhealthy and try the next candidate.
+                    handleServerFailure(server, e);
+                    log.warn("XA connect failed on server {} with connection-level error, trying next: {}",
+                            server.getAddress(), lastException.getMessage());
+                } else {
+                    // Database-level failure (auth, config, etc.): no point trying other servers.
+                    log.warn("XA connect failed on server {} with database-level error, not retrying: {}",
+                            server.getAddress(), lastException.getMessage());
+                    throw lastException;
                 }
             }
         }
     }
+    
+    /**
+     * Computes a stable cache key from the connection parameters that the server
+     * uses to compute its own {@code connHash}.  The key is intentionally kept as
+     * a plain string (not hashed) because it is only used as an in-process map key.
+     */
+    private String computeConnectionKey(ConnectionDetails connectionDetails) {
+        String dataSourceName = extractDataSourceName(connectionDetails);
+        return connectionDetails.getUrl() + "|" + connectionDetails.getUser()
+                + "|" + connectionDetails.getPassword() + "|" + dataSourceName;
+    }
+    
+    /**
+     * Extracts the {@code ojp.datasource.name} property from ConnectionDetails,
+     * returning {@code "default"} when absent.
+     */
+    private String extractDataSourceName(ConnectionDetails connectionDetails) {
+        for (com.openjproxy.grpc.PropertyEntry entry : connectionDetails.getPropertiesList()) {
+            if ("ojp.datasource.name".equals(entry.getKey())) {
+                return entry.getStringValue();
+            }
+        }
+        return "default";
+    }
+    
+    /**
+     * Builds a non-XA SessionInfo locally from a cached connHash.
+     * This mirrors what the server returns for a regular (non-XA) connect():
+     * connHash + clientUUID, no sessionUUID (lazy allocation).
+     */
+    private SessionInfo buildLocalSessionInfo(String connHash, String clientUUID) {
+        return SessionInfo.newBuilder()
+                .setConnHash(connHash)
+                .setClientUUID(clientUUID)
+                .setIsXA(false)
+                .build();
+    }
+    
+    /**
+     * Invalidates the cached connHash for a given connHash value.
+     *
+     * <p>Called by {@link MultinodeStatementService} when the server returns
+     * {@code Status.NOT_FOUND} to signal that the pool for this connHash no
+     * longer exists (e.g. after a server restart).  After invalidation the next
+     * {@link #connect} call will perform a real gRPC RPC to recreate the pool.</p>
+     *
+     * @param connHash the connHash whose cache entry should be removed
+     */
+    public void invalidateConnHash(String connHash) {
+        if (connHash == null || connHash.isEmpty()) {
+            return;
+        }
+        // Keep the connectionDetailsByConnHash entry so that reconnectForConnHash() can
+        // look up the original ConnectionDetails and re-issue connect(). Only the
+        // connection-key → connHash cache is cleared so the next getConnection() call
+        // performs a real connect() RPC instead of using the stale cached hash.
+        ConnectionDetails stored = connectionDetailsByConnHash.get(connHash);
+        if (stored != null) {
+            String key = computeConnectionKey(stored);
+            connHashByConnectionKey.remove(key);
+            log.info("Invalidated cached connHash {} (pool lost on server)", connHash);
+        }
+    }
+    
+    /**
+     * Re-issues a real {@code connect()} RPC for the given connHash after the server
+     * has signalled that the pool no longer exists.
+     *
+     * <p>This is the reconnect leg of the NOT_FOUND retry loop in
+     * {@link MultinodeStatementService}.  The stored {@link ConnectionDetails} are
+     * used so the caller does not need to know the original credentials.</p>
+     *
+     * @param connHash the connHash for which to reconnect
+     * @return the new SessionInfo, or {@code null} if no stored ConnectionDetails exist
+     * @throws SQLException if the connect() RPC fails
+     */
+    public SessionInfo reconnectForConnHash(String connHash) throws SQLException {
+        ConnectionDetails stored = connectionDetailsByConnHash.get(connHash);
+        if (stored == null) {
+            log.warn("reconnectForConnHash: no stored ConnectionDetails for connHash {}", connHash);
+            return null;
+        }
+        log.info("Reconnecting after NOT_FOUND for connHash {}", connHash);
+        SessionInfo sessionInfo = connectToAllServers(stored);
+        if (sessionInfo.getConnHash() != null && !sessionInfo.getConnHash().isEmpty()) {
+            String key = computeConnectionKey(stored);
+            connHashByConnectionKey.put(key, sessionInfo.getConnHash());
+            connectionDetailsByConnHash.put(sessionInfo.getConnHash(), stored);
+            // Remove the old connHash entry now that it has been replaced by the new one.
+            // Skip the removal when the server returned the same hash (deterministic case).
+            if (!connHash.equals(sessionInfo.getConnHash())) {
+                connectionDetailsByConnHash.remove(connHash);
+            }
+            log.info("Re-cached connHash {} after reconnect (replaced {})", sessionInfo.getConnHash(), connHash);
+        }
+        return sessionInfo;
+    }
+    
     
     /**
      * Performs health check on all servers.
@@ -235,28 +442,40 @@ public class MultinodeConnectionManager {
      * - For all modes: Checks unhealthy servers to see if they've recovered
      */
     private void performHealthCheck() {
-        log.debug("Performing health check on servers");
+        log.info("Performing health check on servers");
         
-        // XA Mode: Proactively check healthy servers to detect failures early
-        // This ensures sessions are invalidated even if no active operations are hitting the server
-        if (xaConnectionRedistributor != null) {
+        // Proactively check healthy servers to detect failures early.
+        // Run when there are active XA sessions OR cached non-XA connection details.
+        // This ensures both XA and non-XA pools adapt promptly when a server goes down.
+        // The guard prevents spurious "No healthy servers" errors on the very first
+        // connect() call before any server has been contacted.
+        boolean hasActiveSessions = !sessionToServerMap.isEmpty();
+        boolean hasNonXaConnections = !connectionDetailsByConnHash.isEmpty();
+        if (hasActiveSessions || hasNonXaConnections) {
             List<ServerEndpoint> healthyServers = serverEndpoints.stream()
                     .filter(ServerEndpoint::isHealthy)
                     .collect(Collectors.toList());
             
             for (ServerEndpoint endpoint : healthyServers) {
                 if (!validateServer(endpoint)) {
-                    log.info("XA Health check: Server {} has become unhealthy", endpoint.getAddress());
+                    log.info("Health check: Server {} has become unhealthy", endpoint.getAddress());
                     
                     // Mark server unhealthy
                     endpoint.setHealthy(false);
-                    endpoint.setLastFailureTime(System.currentTimeMillis());
+                    endpoint.setLastFailureTime(System.nanoTime());
                     
                     // XA Mode: Immediately invalidate sessions and connections for the failed server
-                    invalidateSessionsAndConnectionsForFailedServer(endpoint);
+                    if (hasActiveSessions) {
+                        invalidateSessionsAndConnectionsForFailedServer(endpoint);
+                    }
                     
                     // Notify listeners
                     notifyServerUnhealthy(endpoint, new Exception("Health check failed"));
+
+                    // Proactively push the updated cluster health to remaining healthy servers
+                    // so they resize their pools immediately, even when no SQL operations are
+                    // in flight to carry the update via SessionInfo.
+                    pushClusterHealthToAllHealthyServers();
                 }
             }
         }
@@ -267,7 +486,7 @@ public class MultinodeConnectionManager {
                 .collect(Collectors.toList());
         
         if (unhealthyServers.isEmpty()) {
-            log.debug("No unhealthy servers to check");
+            log.info("No unhealthy servers to check");
             return;
         }
         
@@ -277,26 +496,44 @@ public class MultinodeConnectionManager {
         
         // Check each unhealthy server
         for (ServerEndpoint endpoint : unhealthyServers) {
-            long timeSinceFailure = System.currentTimeMillis() - endpoint.getLastFailureTime();
+            long timeSinceFailure = (System.nanoTime() - endpoint.getLastFailureTime()) / 1_000_000L;
             
             // Only check if enough time has passed since last failure
             if (timeSinceFailure >= healthCheckConfig.getHealthCheckThresholdMs()) {
                 if (validateServer(endpoint)) {
+                    // For non-XA connections: proactively re-initialize pools BEFORE marking the
+                    // server healthy. Non-XA connect() calls are cached after the first successful
+                    // connect(), so the recovered server never receives a connect() RPC from
+                    // subsequent JDBC connections. Without this step, the server would be marked
+                    // healthy and begin receiving queries before its HikariCP pool exists, causing
+                    // NOT_FOUND errors for every thread that already holds a cached connHash.
+                    // Pre-creating the pool here closes that window entirely.
+                    if (!connectionDetailsByConnHash.isEmpty()) {
+                        reinitializePoolOnRecoveredServer(endpoint);
+                    }
+
                     log.info("Server {} has recovered", endpoint.getAddress());
-                    
+
                     endpoint.markHealthy();
                     recoveredServers.add(endpoint);
+
+                    // Proactively push the updated cluster health to all now-healthy servers
+                    // (including the just-recovered one) so their pools resize immediately.
+                    // This also causes peer servers that were running at expanded capacity
+                    // to shrink back down without waiting for SQL operations to carry the update.
+                    pushClusterHealthToAllHealthyServers();
+
                     notifyServerRecovered(endpoint);
                 } else {
                     // Still unhealthy, update timestamp
-                    endpoint.setLastFailureTime(System.currentTimeMillis());
-                    log.debug("Server {} still unhealthy", endpoint.getAddress());
+                    endpoint.setLastFailureTime(System.nanoTime());
+                    log.info("Server {} still unhealthy", endpoint.getAddress());
                 }
             }
         }
-        
-        // For non-XA mode: trigger connection redistribution when servers recover
-        // XA mode handles redistribution differently (through invalidation), so skip it
+
+        // For non-XA mode: trigger connection redistribution when servers recover.
+        // XA mode handles redistribution via notifyServerRecovered() → XAConnectionRedistributor.
         if (!recoveredServers.isEmpty() && xaConnectionRedistributor == null && healthCheckConfig.isRedistributionEnabled()) {
             log.info("Triggering connection redistribution for {} recovered server(s)", 
                     recoveredServers.size());
@@ -315,37 +552,64 @@ public class MultinodeConnectionManager {
     }
 
     /**
-     * Invalidates a specified number of connections for a server.
-     * 
-     * @param server The server whose connections should be invalidated
-     * @param connections The list of connections for this server
-     * @param count The number of connections to invalidate
-     * @return The actual number of connections invalidated
+     * Re-initializes the connection pool on a recovered server for non-XA connections.
+     *
+     * <p>When a server restarts, it loses all in-memory pool state. The non-XA
+     * connect()-caching optimisation means that subsequent JDBC connections never
+     * call the server's {@code connect()} RPC, so the recovered server would not
+     * receive a pool until the NOT_FOUND retry path is triggered by the first SQL
+     * request routed to it.</p>
+     *
+     * <p>By proactively calling {@code connect()} here - before the updated
+     * {@code clusterHealth} value propagates to other servers via {@link SessionInfo}
+     * in SQL operations - we ensure:</p>
+     * <ol>
+     *   <li>The recovered server creates its HikariCP pool immediately (with the
+     *       correct divided pool size).</li>
+     *   <li>HikariCP starts pre-warming connections on the recovered server.</li>
+     *   <li>Other servers only reduce their pool sizes (via {@code clusterHealth}
+     *       in the next SQL call) after the recovered server is already accepting
+     *       connections, preventing a temporary drop in total connections.</li>
+     * </ol>
+     *
+     * @param recoveredServer the server endpoint that has just been marked healthy
      */
-    private int invalidateConnectionsForServer(ServerEndpoint server, List<java.sql.Connection> connections, int count) {
-        int invalidated = 0;
-        int toInvalidate = Math.min(count, connections.size());
-        
-        for (int i = 0; i < toInvalidate; i++) {
-            java.sql.Connection conn = connections.get(i);
-            if (conn instanceof org.openjproxy.jdbc.Connection) {
-                org.openjproxy.jdbc.Connection ojpConn = (org.openjproxy.jdbc.Connection) conn;
-                ojpConn.markForceInvalid();
-                try {
-                    conn.close();
-                    invalidated++;
-                    log.debug("Invalidated and closed connection {} for server {} during rebalancing", 
-                            System.identityHashCode(conn), server.getAddress());
-                } catch (Exception e) {
-                    log.warn("Failed to close connection {} for server {} during rebalancing: {}", 
-                            System.identityHashCode(conn), server.getAddress(), e.getMessage());
-                }
+    private void reinitializePoolOnRecoveredServer(ServerEndpoint recoveredServer) {
+        if (connectionDetailsByConnHash.isEmpty()) {
+            log.debug("No stored connection details; skipping pool re-initialization on {}",
+                    recoveredServer.getAddress());
+            return;
+        }
+
+        log.info("Re-initializing pool(s) on recovered server {}", recoveredServer.getAddress());
+
+        // Resolve the channel once for this server (not per connection hash)
+        ChannelAndStub channelAndStub = channelMap.get(recoveredServer);
+        if (channelAndStub == null) {
+            try {
+                channelAndStub = createChannelAndStub(recoveredServer);
+            } catch (Exception e) {
+                log.warn("Failed to obtain channel to recovered server {}; skipping pool re-initialization: {}",
+                        recoveredServer.getAddress(), e.getMessage());
+                return;
             }
         }
-        
-        log.info("Invalidated {} of {} connections for server {} during rebalancing", 
-                invalidated, toInvalidate, server.getAddress());
-        return invalidated;
+
+        for (Map.Entry<String, ConnectionDetails> entry : connectionDetailsByConnHash.entrySet()) {
+            String connHash = entry.getKey();
+            ConnectionDetails connectionDetails = entry.getValue();
+
+            try {
+                log.info("Calling connect() on recovered server {} for connHash {}",
+                        recoveredServer.getAddress(), connHash);
+                channelAndStub.blockingStub.connect(connectionDetails);
+                log.info("Pool re-initialized on recovered server {} for connHash {}",
+                        recoveredServer.getAddress(), connHash);
+            } catch (Exception e) {
+                log.warn("Failed to re-initialize pool on recovered server {} for connHash {}: {}",
+                        recoveredServer.getAddress(), connHash, e.getMessage());
+            }
+        }
     }
     
     /**
@@ -486,8 +750,8 @@ public class MultinodeConnectionManager {
         for (ServerEndpoint server : serverEndpoints) {
             if (!server.isHealthy()) {
                 // Attempt to recover unhealthy servers if enough time has passed
-                long currentTime = System.currentTimeMillis();
-                if ((currentTime - server.getLastFailureTime()) > retryDelayMs) {
+                long currentTime = System.nanoTime();
+                if ((currentTime - server.getLastFailureTime()) / 1_000_000L > retryDelayMs) {
                     log.info("Attempting to recover unhealthy server {} during connect()", server.getAddress());
                     try {
                         createChannelAndStub(server);
@@ -823,8 +1087,10 @@ public class MultinodeConnectionManager {
             return;
         }
         
+        // Capture the previous health state so we can detect a healthy→unhealthy transition.
+        boolean wasHealthy = endpoint.isHealthy();
         endpoint.setHealthy(false);
-        endpoint.setLastFailureTime(System.currentTimeMillis());
+        endpoint.setLastFailureTime(System.nanoTime());
         
         log.warn("Marked server {} as unhealthy due to connection-level error: {}", 
                 endpoint.getAddress(), exception.getMessage());
@@ -837,7 +1103,30 @@ public class MultinodeConnectionManager {
         
         // Phase 2: Notify listeners that server became unhealthy
         notifyServerUnhealthy(endpoint, exception);
-        
+
+        // Push the updated cluster health to surviving servers so they can expand their
+        // connection pools immediately.
+        //
+        // Without this, pushClusterHealthToAllHealthyServers() is only called by the
+        // periodic health checker when it *itself* detects a server going unhealthy.
+        // But when a query thread detects the failure first (via handleServerFailure),
+        // the server is already marked unhealthy before the health checker runs.
+        // The health checker's proactive loop skips already-unhealthy servers, so the
+        // push never happens and surviving servers never resize their pools.
+        //
+        // Only push on the genuine healthy→unhealthy transition to avoid redundant
+        // pushes when handleServerFailure is called multiple times for the same server.
+        // Submit to the background scheduler to avoid blocking the calling query thread.
+        if (wasHealthy && healthCheckScheduler != null) {
+            healthCheckScheduler.submit(() -> {
+                try {
+                    pushClusterHealthToAllHealthyServers();
+                } catch (Exception e) {
+                    log.warn("Failed to push cluster health after server failure detection: {}", e.getMessage());
+                }
+            });
+        }
+
         // Remove the failed channel from the map and shut it down gracefully
         // Using shutdown() instead of shutdownNow() allows in-flight operations to complete
         ChannelAndStub channelAndStub = channelMap.remove(endpoint);
@@ -858,10 +1147,10 @@ public class MultinodeConnectionManager {
      * Connection-level errors include:
      * - UNAVAILABLE: Server not reachable
      * - DEADLINE_EXCEEDED: Request timeout
-     * - CANCELLED: Connection cancelled
      * - UNKNOWN: Connection-related unknown errors
-     * 
+     *
      * Database-level errors (e.g., table not found, syntax errors) do not mark servers unhealthy.
+     * SQL exceptions from the server are sent with {@code Status.INTERNAL} and are NOT connection-level errors.
      * Pool exhaustion errors do NOT mark servers unhealthy - they indicate resource limits, not connectivity issues.
      */
     public boolean isConnectionLevelError(Exception exception) {
@@ -869,11 +1158,11 @@ public class MultinodeConnectionManager {
     }
     
     private void attemptServerRecovery() {
-        long currentTime = System.currentTimeMillis();
+        long currentTime = System.nanoTime();
         
         for (ServerEndpoint endpoint : serverEndpoints) {
             if (!endpoint.isHealthy() && 
-                (currentTime - endpoint.getLastFailureTime()) > retryDelayMs) {
+                (currentTime - endpoint.getLastFailureTime()) / 1_000_000L > retryDelayMs) {
                 
                 try {
                     log.debug("Attempting to recover server {}", endpoint.getAddress());
@@ -1069,6 +1358,71 @@ public class MultinodeConnectionManager {
         return sessionToServerMap.containsKey(sessionUUID);
     }
     
+    /**
+     * Proactively pushes the current cluster health to all healthy servers via a lightweight
+     * {@code connect()} RPC that embeds the current {@code clusterHealth} in
+     * {@link ConnectionDetails}.
+     *
+     * <p>This is called whenever the health checker detects a server becoming unhealthy or
+     * recovering.  Without this push, pool resizing on healthy servers depends entirely on
+     * active SQL operations carrying the {@code clusterHealth} field in {@link SessionInfo}.
+     * If the application has no in-flight queries at the moment of the topology change (e.g.
+     * the integration-test threads have all finished), the surviving server(s) would never
+     * receive the signal and their pools would remain sized for the old cluster configuration
+     * indefinitely.</p>
+     *
+     * <p>The server-side {@code ConnectAction} handles a non-empty {@code clusterHealth} in
+     * {@code ConnectionDetails} even when the pool already exists, triggering
+     * {@code ProcessClusterHealthAction} so the pool resizes without requiring any SQL
+     * activity.</p>
+     */
+    private void pushClusterHealthToAllHealthyServers() {
+        if (connectionDetailsByConnHash.isEmpty()) {
+            log.debug("No stored connection details; skipping proactive cluster health push");
+            return;
+        }
+
+        String currentClusterHealth = generateClusterHealth();
+        List<ServerEndpoint> healthyServers = serverEndpoints.stream()
+                .filter(ServerEndpoint::isHealthy)
+                .collect(Collectors.toList());
+
+        if (healthyServers.isEmpty()) {
+            log.debug("No healthy servers to push cluster health to");
+            return;
+        }
+
+        log.info("Proactively pushing cluster health '{}' to {} healthy server(s)",
+                currentClusterHealth, healthyServers.size());
+
+        for (ServerEndpoint server : healthyServers) {
+            ChannelAndStub channelAndStub = channelMap.get(server);
+            if (channelAndStub == null) {
+                log.debug("No channel for server {}; skipping cluster health push", server.getAddress());
+                continue;
+            }
+
+            for (Map.Entry<String, ConnectionDetails> entry : connectionDetailsByConnHash.entrySet()) {
+                String connHash = entry.getKey();
+                ConnectionDetails storedDetails = entry.getValue();
+                ConnectionDetails updatedDetails = ConnectionDetails.newBuilder(storedDetails)
+                        .setClusterHealth(currentClusterHealth)
+                        .build();
+
+                try {
+                    channelAndStub.blockingStub
+                            .withDeadlineAfter(healthCheckConfig.getHealthCheckTimeoutMs(), TimeUnit.MILLISECONDS)
+                            .connect(updatedDetails);
+                    log.info("Pushed cluster health '{}' to server {} for connHash {}",
+                            currentClusterHealth, server.getAddress(), connHash);
+                } catch (Exception e) {
+                    log.warn("Failed to push cluster health to server {} for connHash {}: {}",
+                            server.getAddress(), connHash, e.getMessage());
+                }
+            }
+        }
+    }
+
     /**
      * Shuts down all connections.
      */

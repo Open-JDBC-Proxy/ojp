@@ -30,6 +30,7 @@ import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -547,7 +548,14 @@ public class StatementServiceGrpcClient implements StatementService {
     @Override
     public com.openjproxy.grpc.XaRecoverResponse xaRecover(com.openjproxy.grpc.XaRecoverRequest request) throws SQLException {
         try {
-            return this.statemetServiceBlockingStub.xaRecover(request);
+            // Apply a deadline so that a slow or hung server cannot block Narayana's
+            // PeriodicRecovery thread indefinitely.  If the deadline is exceeded,
+            // OjpXAResource.recover() translates the resulting DEADLINE_EXCEEDED status
+            // to XAException(XAER_RMFAIL) so that Narayana retries after its normal
+            // periodicRecoveryPeriod rather than treating the failure as permanent.
+            return this.statemetServiceBlockingStub
+                    .withDeadlineAfter(org.openjproxy.constants.CommonConstants.DEFAULT_XA_RECOVER_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                    .xaRecover(request);
         } catch (StatusRuntimeException e) {
             throw handle(e);
         } catch (Exception e) {

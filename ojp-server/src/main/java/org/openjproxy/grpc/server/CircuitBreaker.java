@@ -25,14 +25,14 @@ public class CircuitBreaker {
             lastError = error;
             int failures = failureCount.incrementAndGet();
             if (failures >= failureThreshold) {
-                openUntil.updateAndGet(prev -> Math.max(prev, System.currentTimeMillis() + openMs));
+                openUntil.updateAndGet(prev -> Math.max(prev, System.nanoTime() + openMs * 1_000_000L));
             }
         }
 
         public boolean isOpen() {
             long until = openUntil.get();
             if (failureCount.get() < failureThreshold) return false;
-            if (System.currentTimeMillis() > until) {
+            if (System.nanoTime() > until) {
                 return false;
             }
             return true;
@@ -40,7 +40,7 @@ public class CircuitBreaker {
 
         public boolean tryReset() {
             long until = openUntil.get();
-            if (System.currentTimeMillis() > until && failureCount.get() >= failureThreshold) {
+            if (System.nanoTime() > until && failureCount.get() >= failureThreshold) {
                 return true;
             }
             return false;

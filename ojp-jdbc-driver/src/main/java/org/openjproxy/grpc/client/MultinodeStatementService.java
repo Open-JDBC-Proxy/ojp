@@ -226,6 +226,10 @@ public class MultinodeStatementService implements StatementService {
     /**
      * Executes an operation that returns OpResult with session stickiness and binding check.
      * This wrapper handles binding newly-created sessions to servers.
+     *
+     * <p>If the server returns {@code Status.NOT_FOUND} (pool lost on server restart) and
+     * the request has no active session, the driver invalidates its cached connHash,
+     * issues a fresh {@code connect()} RPC, and retries the operation once transparently.</p>
      * 
      * @param requestSessionInfo The session info for determining which server to use
      * @param operation The operation to execute
@@ -268,6 +272,42 @@ public class MultinodeStatementService implements StatementService {
             return result;
             
         } catch (StatusRuntimeException e) {
+            // Pool-not-found: the server restarted and lost pool state.
+            // Reconnect (recreates the pool) and retry the operation once.
+            // This is only safe for stateless (no session UUID) calls: if a
+            // session was already in progress the transaction is lost and the
+            // application must handle that itself.
+            if (GrpcExceptionHandler.isPoolNotFoundException(e)
+                    && (requestSessionInfo == null || requestSessionInfo.getSessionUUID().isEmpty())) {
+                log.warn("NOT_FOUND from server {} – pool lost, reconnecting and retrying", server.getAddress());
+                String connHash = requestSessionInfo != null ? requestSessionInfo.getConnHash() : null;
+                if (connHash != null) {
+                    connectionManager.invalidateConnHash(connHash);
+                    connectionManager.reconnectForConnHash(connHash);
+                }
+                // Retry once after reconnect (let any exception from retry propagate naturally)
+                try {
+                    StatementServiceGrpcClient retryClient = getClient(server);
+                    OpResult result = operation.apply(retryClient);
+                    if (result != null && result.hasSession()) {
+                        checkAndBindSession(requestSessionInfo, result.getSession(), server);
+                    }
+                    return result;
+                } catch (StatusRuntimeException retryEx) {
+                    SQLException sqlEx;
+                    try {
+                        throw GrpcExceptionHandler.handle(retryEx);
+                    } catch (SQLException ex) {
+                        sqlEx = ex;
+                    }
+                    throw sqlEx;
+                } catch (SQLException retryEx) {
+                    throw retryEx;
+                } catch (Exception retryEx) {
+                    throw new SQLException("Retry after reconnect failed: " + retryEx.getMessage(), retryEx);
+                }
+            }
+            
             // Let GrpcExceptionHandler convert the exception
             SQLException sqlEx;
             try {
@@ -296,6 +336,10 @@ public class MultinodeStatementService implements StatementService {
     /**
      * Executes an operation that returns Iterator<OpResult> with session stickiness and binding check.
      * This wrapper handles binding newly-created sessions to servers by checking the first result.
+     *
+     * <p>If the server returns {@code Status.NOT_FOUND} (pool lost on server restart) and
+     * the request has no active session, the driver invalidates its cached connHash,
+     * issues a fresh {@code connect()} RPC, and retries the operation once transparently.</p>
      * 
      * @param requestSessionInfo The session info for determining which server to use
      * @param operation The operation to execute
@@ -327,7 +371,8 @@ public class MultinodeStatementService implements StatementService {
             StatementServiceGrpcClient client = getClient(server);
             
             // Execute the operation
-            Iterator<OpResult> resultIterator = operation.apply(client);
+            Iterator<OpResult> resultIterator = tryExecuteIteratorWithPoolRecovery(
+                    requestSessionInfo, server, client, operation);
             
             // Wrap the iterator to check and bind session from the first result
             return new Iterator<OpResult>() {
@@ -380,6 +425,31 @@ public class MultinodeStatementService implements StatementService {
             throw e;
         } catch (Exception e) {
             throw new SQLException("Unexpected error executing operation: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Attempts to execute a query operation, handling pool-not-found by reconnecting and retrying once.
+     */
+    private Iterator<OpResult> tryExecuteIteratorWithPoolRecovery(
+            SessionInfo requestSessionInfo,
+            ServerEndpoint server,
+            StatementServiceGrpcClient client,
+            ThrowingFunction<StatementServiceGrpcClient, Iterator<OpResult>> operation) throws Exception {
+        try {
+            return operation.apply(client);
+        } catch (StatusRuntimeException e) {
+            if (GrpcExceptionHandler.isPoolNotFoundException(e)
+                    && (requestSessionInfo == null || requestSessionInfo.getSessionUUID().isEmpty())) {
+                log.warn("NOT_FOUND from server {} – pool lost, reconnecting and retrying query", server.getAddress());
+                String connHash = requestSessionInfo != null ? requestSessionInfo.getConnHash() : null;
+                if (connHash != null) {
+                    connectionManager.invalidateConnHash(connHash);
+                    connectionManager.reconnectForConnHash(connHash);
+                }
+                return operation.apply(getClient(server));
+            }
+            throw e;
         }
     }
     

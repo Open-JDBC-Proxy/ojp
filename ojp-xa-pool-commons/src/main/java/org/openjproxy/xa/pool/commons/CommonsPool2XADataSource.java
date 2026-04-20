@@ -169,7 +169,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
         log.info("[XA-POOL-BORROW] Attempting to borrow session (state BEFORE: active={}, idle={}, maxTotal={}, maxIdle={}, minIdle={})",
                 pool.getNumActive(), pool.getNumIdle(), pool.getMaxTotal(), pool.getMaxIdle(), pool.getMinIdle());
         
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         
         try {
             XABackendSession session = pool.borrowObject();
@@ -188,7 +188,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
             }
             
             // Record acquisition time
-            long duration = System.currentTimeMillis() - startTime;
+            long duration = (System.nanoTime() - startTime) / 1_000_000L;
             poolMetrics.recordConnectionAcquisitionTime(poolName, duration);
             
             // Update pool state metrics

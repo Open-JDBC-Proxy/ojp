@@ -87,7 +87,7 @@ public class SlotManager {
             return true; // If disabled, always allow
         }
         
-        lastSlowActivity.set(System.currentTimeMillis());
+        lastSlowActivity.set(System.nanoTime());
         
         // First try to acquire immediately without waiting
         if (slowOperationSemaphore.tryAcquire()) {
@@ -130,7 +130,7 @@ public class SlotManager {
             return true; // If disabled, always allow
         }
         
-        lastFastActivity.set(System.currentTimeMillis());
+        lastFastActivity.set(System.nanoTime());
         
         // First try to acquire immediately without waiting
         if (fastOperationSemaphore.tryAcquire()) {
@@ -213,7 +213,7 @@ public class SlotManager {
      * Checks if the fast pool has been idle long enough to allow borrowing for slow operations.
      */
     private boolean canBorrowFromFastToSlow() {
-        long currentTime = System.currentTimeMillis();
+        long currentTime = System.nanoTime();
         long lastActivity = lastFastActivity.get();
         
         // Pool must have had activity to be considered for borrowing
@@ -221,7 +221,7 @@ public class SlotManager {
             return false;
         }
         
-        long fastIdleTime = currentTime - lastActivity;
+        long fastIdleTime = (currentTime - lastActivity) / 1_000_000L;
         boolean hasAvailableSlots = fastOperationSemaphore.availablePermits() > 0;
         boolean isIdle = fastIdleTime >= idleTimeoutMs;
         
@@ -232,7 +232,7 @@ public class SlotManager {
      * Checks if the slow pool has been idle long enough to allow borrowing for fast operations.
      */
     private boolean canBorrowFromSlowToFast() {
-        long currentTime = System.currentTimeMillis();
+        long currentTime = System.nanoTime();
         long lastActivity = lastSlowActivity.get();
         
         // Pool must have had activity to be considered for borrowing  
@@ -240,7 +240,7 @@ public class SlotManager {
             return false;
         }
         
-        long slowIdleTime = currentTime - lastActivity;
+        long slowIdleTime = (currentTime - lastActivity) / 1_000_000L;
         boolean hasAvailableSlots = slowOperationSemaphore.availablePermits() > 0;
         boolean isIdle = slowIdleTime >= idleTimeoutMs;
         

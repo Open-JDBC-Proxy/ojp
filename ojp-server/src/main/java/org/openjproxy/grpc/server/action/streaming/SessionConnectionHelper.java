@@ -6,6 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.ConnectionAcquisitionManager;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
+import org.openjproxy.grpc.server.PoolNotFoundException;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.grpc.server.action.ActionContext;
 
@@ -162,7 +163,10 @@ public class SessionConnectionHelper {
                     // Pooled mode: acquire from datasource (HikariCP by default)
                     DataSource dataSource = context.getDatasourceMap().get(connHash);
                     if (dataSource == null) {
-                        throw new SQLException("No datasource found for connection hash: " + connHash);
+                        // Signal the client to reconnect. NOT_FOUND is caught by
+                        // CommandExecutionHelper and translated to Status.NOT_FOUND so that the
+                        // driver can transparently reconnect and retry the SQL call.
+                        throw new PoolNotFoundException(connHash);
                     }
 
                     try {

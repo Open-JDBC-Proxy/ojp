@@ -66,14 +66,79 @@ ojp.connection.pool.idleTimeout=300000
 ojp.connection.pool.maxLifetime=900000
 ojp.connection.pool.connectionTimeout=15000
 
-# Multinode configuration (configurable via properties)
-ojp.multinode.retryAttempts=-1        # -1 for infinite retry, or positive number
-ojp.multinode.retryDelayMs=5000       # milliseconds between retry attempts
+# Failover retry configuration
+ojp.multinode.retryAttempts=-1    # -1 for infinite retry, or a positive integer
+ojp.multinode.retryDelayMs=5000   # milliseconds between retry attempts
 
 # Load-aware server selection
-ojp.loadaware.selection.enabled=true  # Enable load-aware selection (default: true)
-                                       # When enabled, new connections go to the server with fewest active connections
-                                       # When disabled, uses legacy round-robin distribution
+ojp.loadaware.selection.enabled=true  # routes new connections to the least-loaded server (default: true)
+                                       # set to false to use round-robin instead
+
+# Health check and server recovery
+# Duration values accept: plain integer (ms), or suffixed string — 500ms, 10s, 2m
+ojp.health.check.interval=5s          # how often to probe a failed server for recovery (default: 5s)
+ojp.health.check.threshold=5s         # how long a server must stay healthy before being marked recovered (default: 5s)
+ojp.health.check.timeout=5s           # gRPC deadline for each individual health-probe call (default: 5s)
+ojp.redistribution.enabled=true       # enable the periodic health checker and connection redistribution on server recovery (default: true)
+                                       # set to false to disable the periodic health checker entirely
+ojp.redistribution.idleRebalanceFraction=1.0  # fraction of idle connections to rebalance per cycle (0.0–1.0)
+ojp.redistribution.maxClosePerRecovery=100    # max connections to close per recovery cycle
+```
+
+#### Enabling and Disabling the Health Check
+
+The periodic health checker is **enabled by default** (`ojp.redistribution.enabled=true`). It runs on a background thread named `ojp-health-checker` and periodically probes unhealthy servers so they can rejoin the cluster automatically.
+
+To **disable** the health checker entirely (e.g., for simpler single-datacenter setups where you manage failover externally), set:
+
+```properties
+ojp.redistribution.enabled=false
+```
+
+When the health checker is disabled:
+- No background thread is started.
+- Failed servers are never automatically recovered — they remain marked as `DOWN` for the lifetime of the connection manager.
+- Connection redistribution on server recovery does not occur.
+
+> **Note:** Disabling the health checker does not affect failover for non-session requests. The driver still routes new requests around unhealthy servers; it simply will not automatically restore a failed server back to the pool.
+
+#### Getting Logs from the Health Checker
+
+Health check activity is logged by the OJP JDBC driver using SLF4J under the `org.openjproxy.grpc.client` package. To enable health check logging, configure your logging framework to set the appropriate log level for this package.
+
+**Spring Boot (`application.yml` / `application.properties`):**
+
+```yaml
+logging:
+  level:
+    org.openjproxy.grpc.client: DEBUG
+```
+
+or in `application.properties`:
+
+```properties
+logging.level.org.openjproxy.grpc.client=DEBUG
+```
+
+**Logback (`logback.xml` / `logback-spring.xml`):**
+
+```xml
+<logger name="org.openjproxy.grpc.client" level="DEBUG"/>
+```
+
+**Via JVM system property (any framework):**
+
+```shell
+-Dorg.slf4j.simpleLogger.log.org.openjproxy.grpc.client=debug
+```
+
+At `INFO` level you will see server recovery and redistribution events. At `DEBUG` level you will also see individual probe results for each health check cycle. Example log output:
+
+```
+[INFO]  MultinodeConnectionManager - Performing health check on servers
+[DEBUG] HealthCheckValidator - Server proxy1.example.com:1059 heartbeat health check PASSED
+[DEBUG] HealthCheckValidator - Server proxy2.example.com:1059 heartbeat health check FAILED: UNAVAILABLE
+[INFO]  MultinodeConnectionManager - Successfully recovered server proxy2.example.com:1059
 ```
 
 **For environment-specific configuration** (development, staging, production), see:
@@ -102,9 +167,11 @@ This automatic coordination prevents exceeding database connection or transactio
 ### Connection Establishment
 
 1. **URL Parsing**: The JDBC driver parses the comma-separated list of server addresses
-2. **Initial Connection**: The driver attempts to connect to servers using load-aware selection
-3. **Health Tracking**: Each server's health status is monitored continuously
-4. **Load Balancing**: New connections are distributed across healthy servers based on their current load
+2. **Non-XA first connect**: Fans `connect()` RPC out to ALL servers so every node learns the datasource configuration; caches the returned `connHash` client-side
+3. **Non-XA subsequent connects**: Built locally from the cached `connHash` — **no gRPC round-trip**
+4. **XA connect**: Sends one `connect()` RPC to a **single** least-loaded server; that server becomes the exclusive owner of the XA session
+5. **Health Tracking**: Each server's health status is monitored continuously
+6. **Load Balancing**: New connections are distributed across healthy servers based on their current load
 
 ### Session Management
 
@@ -114,9 +181,11 @@ This automatic coordination prevents exceeding database connection or transactio
 
 ### Request Routing
 
-- **Non-Session Requests**: Routed using load-aware selection (default) or round-robin if disabled
+- **Non-Session Requests (non-XA)**: Second and subsequent `getConnection()` calls are served from a local `connHash` cache with zero gRPC overhead; only the very first call (or a post-restart reconnect) issues a real `connect()` RPC
+- **XA Connections**: Each `getXAConnection()` issues one `connect()` RPC to the single least-loaded server; subsequent `getXAConnection()` calls balance across the cluster automatically as session counts update
 - **Session-Bound Requests**: Always routed to the specific server associated with the session
 - **Transaction Requests**: Always routed to the session's server to maintain ACID properties
+- **Pool-Lost Recovery**: If the server returns `NOT_FOUND` (e.g. after restart), the driver invalidates its `connHash` cache, re-issues `connect()`, and retries the SQL call transparently
 
 ### Load-Aware Server Selection
 

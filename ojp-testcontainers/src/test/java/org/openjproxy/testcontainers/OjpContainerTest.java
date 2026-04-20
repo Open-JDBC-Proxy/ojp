@@ -26,7 +26,7 @@ class OjpContainerTest {
 
     @Test
     void testConstructorWithImageTag() {
-        try (OjpContainer container = new OjpContainer("0.4.1-beta")) {
+        try (OjpContainer container = new OjpContainer("0.4.2-beta")) {
             assertNotNull(container);
             assertEquals(1, container.getExposedPorts().size());
             assertTrue(container.getExposedPorts().contains(1059));
@@ -35,7 +35,7 @@ class OjpContainerTest {
 
     @Test
     void testConstructorWithDockerImageName() {
-        DockerImageName imageName = DockerImageName.parse("rrobetti/ojp:0.4.1-beta");
+        DockerImageName imageName = DockerImageName.parse("rrobetti/ojp:0.4.2-beta");
         try (OjpContainer container = new OjpContainer(imageName)) {
             assertNotNull(container);
             assertEquals(1, container.getExposedPorts().size());

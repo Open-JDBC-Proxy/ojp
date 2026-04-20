@@ -57,7 +57,7 @@ class XASessionInvalidationTest {
         
         // Mark server2 as unhealthy
         server2.setHealthy(false);
-        server2.setLastFailureTime(System.currentTimeMillis() - 35000); // 35 seconds ago
+        server2.setLastFailureTime(System.nanoTime() - 35_000_000_000L); // 35 seconds ago
         
         // Trigger health check (which will mark server2 as recovered and invalidate sessions)
         // We need to make the server appear healthy when validated

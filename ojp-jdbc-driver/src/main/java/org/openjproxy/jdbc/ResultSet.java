@@ -33,6 +33,8 @@ import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
@@ -401,6 +403,9 @@ public class ResultSet extends RemoteProxyResultSet {
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
         if (lastValueRead == null) {
             return null;
+        }
+        if (lastValueRead instanceof LocalDateTime) {
+            return Timestamp.valueOf((LocalDateTime) lastValueRead);
         }
         return (Timestamp) lastValueRead;
     }
@@ -1496,8 +1501,20 @@ public class ResultSet extends RemoteProxyResultSet {
         if (this.inProxyMode) {
             return super.getDate(columnIndex, cal);
         }
-        lastValueRead = null;
-        throw new RuntimeException("Not implemented");
+        lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
+        if (lastValueRead == null) {
+            return null;
+        }
+        if (lastValueRead instanceof Timestamp) {
+            return new Date(((Timestamp) lastValueRead).getTime());
+        }
+        if (lastValueRead instanceof LocalDate) {
+            return Date.valueOf((LocalDate) lastValueRead);
+        }
+        if (lastValueRead instanceof LocalDateTime) {
+            return Date.valueOf(((LocalDateTime) lastValueRead).toLocalDate());
+        }
+        return (Date) lastValueRead;
     }
 
     @Override
@@ -1506,8 +1523,7 @@ public class ResultSet extends RemoteProxyResultSet {
         if (this.inProxyMode) {
             return super.getDate(columnLabel, cal);
         }
-        lastValueRead = null;
-        throw new RuntimeException("Not implemented");
+        return this.getDate(this.labelsMap.get(columnLabel.toUpperCase()) + 1, cal);
     }
 
     @Override
@@ -1516,8 +1532,17 @@ public class ResultSet extends RemoteProxyResultSet {
         if (this.inProxyMode) {
             return super.getTime(columnIndex, cal);
         }
-        lastValueRead = null;
-        throw new RuntimeException("Not implemented");
+        lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
+        if (lastValueRead == null) {
+            return null;
+        }
+        if (lastValueRead instanceof LocalTime) {
+            return Time.valueOf((LocalTime) lastValueRead);
+        }
+        if (lastValueRead instanceof LocalDateTime) {
+            return Time.valueOf(((LocalDateTime) lastValueRead).toLocalTime());
+        }
+        return (Time) lastValueRead;
     }
 
     @Override
@@ -1526,8 +1551,7 @@ public class ResultSet extends RemoteProxyResultSet {
         if (this.inProxyMode) {
             return super.getTime(columnLabel, cal);
         }
-        lastValueRead = null;
-        throw new RuntimeException("Not implemented");
+        return this.getTime(this.labelsMap.get(columnLabel.toUpperCase()) + 1, cal);
     }
 
     @Override
@@ -1536,8 +1560,14 @@ public class ResultSet extends RemoteProxyResultSet {
         if (this.inProxyMode) {
             return super.getTimestamp(columnIndex, cal);
         }
-        lastValueRead = null;
-        throw new RuntimeException("Not implemented");
+        lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
+        if (lastValueRead == null) {
+            return null;
+        }
+        if (lastValueRead instanceof LocalDateTime) {
+            return Timestamp.valueOf((LocalDateTime) lastValueRead);
+        }
+        return (Timestamp) lastValueRead;
     }
 
     @Override
@@ -1546,8 +1576,7 @@ public class ResultSet extends RemoteProxyResultSet {
         if (this.inProxyMode) {
             return super.getTimestamp(columnLabel, cal);
         }
-        lastValueRead = null;
-        throw new RuntimeException("Not implemented");
+        return this.getTimestamp(this.labelsMap.get(columnLabel.toUpperCase()) + 1, cal);
     }
 
     @Override

@@ -285,15 +285,23 @@ Three servers is the recommended minimum because it provides better fault tolera
 The driver performs health checks to detect failed servers. The default configuration works for most scenarios:
 
 ```properties
-# Health check interval (default: 30 seconds)
-ojp.healthcheck.interval.seconds=30
+# How often to check whether a failed server has recovered (default: 5s)
+ojp.health.check.interval=5s
 
-# Health check timeout (default: 5 seconds)
-ojp.healthcheck.timeout.seconds=5
+# How long a server must be continuously healthy before it is marked recovered (default: 5s)
+ojp.health.check.threshold=5s
 
-# Unhealthy threshold (consecutive failures before marking unhealthy)
-ojp.healthcheck.unhealthy.threshold=3
+# Timeout for each individual health-probe call (default: 5s)
+ojp.health.check.timeout=5s
+
+# Use load-aware server selection — routes new connections to the least-loaded server (default: true)
+ojp.loadaware.selection.enabled=true
+
+# Enable connection redistribution when a server recovers (default: true)
+ojp.redistribution.enabled=true
 ```
+
+Duration values accept a plain integer (milliseconds) or a suffixed string: `500ms`, `10s`, `2m`.
 
 ---
 

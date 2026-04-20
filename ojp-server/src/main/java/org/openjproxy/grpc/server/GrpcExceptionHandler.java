@@ -37,7 +37,7 @@ public class GrpcExceptionHandler {
         Metadata metadata = new Metadata();
         try {
             SqlErrorResponse.Builder responseBuilder = SqlErrorResponse.newBuilder()
-                    .setReason(e.getMessage())
+                    .setReason(e.getMessage() != null ? e.getMessage() : "")
                     .setSqlErrorType(sqlErrorType)
                     .setVendorCode(e.getErrorCode());
             if (e.getSQLState() != null) {
@@ -50,6 +50,6 @@ public class GrpcExceptionHandler {
         } catch (RuntimeException re) {
             log.error("Failed while sending error to client: " + re.getMessage() + ": " + e.getMessage(), e);
         }
-        streamObserver.onError(Status.CANCELLED.asRuntimeException(metadata));
+        streamObserver.onError(Status.INTERNAL.asRuntimeException(metadata));
     }
 }
