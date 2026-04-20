@@ -140,6 +140,10 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
      */
     private void handleRegularConnection(ActionContext context, ConnectionDetails connectionDetails, String connHash,
                                         StreamObserver<SessionInfo> responseObserver) {
+        // Declare these variables at method scope so they're available after lock release
+        DataSource ds = null;
+        DataSourceConfigurationManager.DataSourceConfiguration dsConfig = null;
+        
         // Use ReentrantLock for virtual thread compatibility.
         // Lock ONLY during pool creation/check to prevent duplicate pool creation without
         // blocking subsequent connection borrows from an already-created pool.
@@ -147,7 +151,7 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         lock.lock();
         try {
             // Handle non-XA connection - check if pooling is enabled
-            DataSource ds = context.getDatasourceMap().get(connHash);
+            ds = context.getDatasourceMap().get(connHash);
             UnpooledConnectionDetails unpooledDetails =
                     context.getUnpooledConnectionDetailsMap().get(connHash);
 
@@ -155,8 +159,7 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                 try {
                     // Get datasource-specific configuration from client properties
                     Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-                    DataSourceConfigurationManager.DataSourceConfiguration dsConfig =
-                            DataSourceConfigurationManager.getConfiguration(clientProperties);
+                    dsConfig = DataSourceConfigurationManager.getConfiguration(clientProperties);
 
                     // Check if pooling is enabled
                     if (!dsConfig.isPoolEnabled()) {
