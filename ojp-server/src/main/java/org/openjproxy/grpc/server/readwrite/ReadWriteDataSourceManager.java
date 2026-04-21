@@ -121,13 +121,14 @@ public class ReadWriteDataSourceManager {
      * @return DataSource for the replica, or null if configuration is invalid
      */
     private DataSource createReplicaDataSource(String replicaName, Properties props, ReadWriteConfiguration primaryConfig) {
-        // Extract replica-specific properties
-        String replicaPrefix = replicaName + ".";
+        // Extract replica-specific properties with ojp. prefix
+        String replicaPrefix = replicaName + ".ojp.";
         
         // Get replica URL (required)
         String replicaUrl = props.getProperty(replicaPrefix + "connection.url");
         if (replicaUrl == null || replicaUrl.trim().isEmpty()) {
-            log.error("No connection URL configured for replica '{}', skipping", replicaName);
+            log.error("No connection URL configured for replica '{}' (looked for {}.connection.url), skipping", 
+                    replicaName, replicaPrefix);
             return null;
         }
         
