@@ -1,4 +1,4 @@
-package org.openjproxy.grpc.server.readwrite;
+package openjproxy.jdbc;
 
 import org.junit.jupiter.api.*;
 import java.sql.*;
