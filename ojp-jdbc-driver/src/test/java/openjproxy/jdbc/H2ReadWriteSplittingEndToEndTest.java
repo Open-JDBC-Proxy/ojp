@@ -1,10 +1,7 @@
 package openjproxy.jdbc;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openjproxy.testcontainers.OjpContainer;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -23,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * These tests validate read/write routing through the complete OJP stack:
  * <ol>
  *   <li>Client connects using OJP JDBC driver (jdbc:ojp[...]...)</li>
- *   <li>Driver sends gRPC requests to OJP server</li>
+ *   <li>Driver sends gRPC requests to OJP server (localhost:1059)</li>
  *   <li>Server reads read/write configuration from client properties</li>
  *   <li>Server routes queries to primary or replica based on SQL classification</li>
  * </ol>
@@ -65,8 +62,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * <h3>Test Execution</h3>
  * <p>
- * Tests only run when <code>-DenableH2Tests=true</code> is passed to Maven, following OJP
- * testing standards for H2 integration tests.
+ * These tests require an OJP server running on localhost:1059. They are typically run with
+ * <code>-DenableH2Tests=true</code> flag, following OJP testing standards for H2 integration tests.
  * </p>
  * 
  * @see ConnectAction#setupReadWriteSplitting
@@ -76,30 +73,11 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class H2ReadWriteSplittingEndToEndTest {
     
-    private static OjpContainer ojpContainer;
-    private static String ojpConnectionString;
-    private static String user = "sa";
-    private static String password = "";
+    private static final String OJP_HOST = "localhost:1059";
+    private static final String USER = "sa";
+    private static final String PASSWORD = "";
     
     private Connection connection;
-
-    @BeforeAll
-    static void setupClass() {
-        // Start OJP container
-        ojpContainer = new OjpContainer();
-        ojpContainer.start();
-        
-        // Get the connection string for OJP
-        ojpConnectionString = ojpContainer.getOjpConnectionString();
-        System.out.println("OJP Container started for read/write splitting tests at: " + ojpConnectionString);
-    }
-    
-    @AfterAll
-    static void teardownClass() {
-        if (ojpContainer != null) {
-            ojpContainer.stop();
-        }
-    }
 
     @AfterEach
     void tearDown() throws Exception {
@@ -112,11 +90,11 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     private void setupDatabases() throws SQLException {
         // Build OJP URL prefix
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         
         // Setup PRIMARY database
         String primaryUrl = ojpPrefix + "h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
-        try (Connection conn = DriverManager.getConnection(primaryUrl, user, password);
+        try (Connection conn = DriverManager.getConnection(primaryUrl, USER, PASSWORD);
              Statement stmt = conn.createStatement()) {
             try {
                 stmt.execute("DROP TABLE IF EXISTS test_data");
@@ -127,7 +105,7 @@ public class H2ReadWriteSplittingEndToEndTest {
         
         // Setup REPLICA database
         String replicaUrl = ojpPrefix + "h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1";
-        try (Connection conn = DriverManager.getConnection(replicaUrl, user, password);
+        try (Connection conn = DriverManager.getConnection(replicaUrl, USER, PASSWORD);
              Statement stmt = conn.createStatement()) {
             try {
                 stmt.execute("DROP TABLE IF EXISTS test_data");
@@ -147,7 +125,7 @@ public class H2ReadWriteSplittingEndToEndTest {
         setupDatabases();
         
         // Build OJP JDBC URL for datasource WITHOUT sticky session
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=non_sticky_ds" +
                 "&non_sticky_ds.ojp.readwrite.enabled=true" +
@@ -155,11 +133,11 @@ public class H2ReadWriteSplittingEndToEndTest {
                 "&non_sticky_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN" +
                 "&non_sticky_ds.ojp.readwrite.stickySessionSeconds=0" +
                 "&replica1.ojp.connection.url=" + ojpPrefix + "h2:mem:rw_e2e_replica" +
-                "&replica1.ojp.connection.user=" + user +
-                "&replica1.ojp.connection.password=" + password +
+                "&replica1.ojp.connection.user=" + USER +
+                "&replica1.ojp.connection.password=" + PASSWORD +
                 "&replica1.ojp.readwrite.primary=non_sticky_ds";
         
-        connection = DriverManager.getConnection(ojpUrl, user, password);
+        connection = DriverManager.getConnection(ojpUrl, USER, PASSWORD);
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery("SELECT id, name, source FROM test_data")) {
             
@@ -185,7 +163,7 @@ public class H2ReadWriteSplittingEndToEndTest {
     void testInsertGoesToPrimary() throws SQLException {
         setupDatabases();
         
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=non_sticky_ds" +
                 "&non_sticky_ds.ojp.readwrite.enabled=true" +
@@ -193,11 +171,11 @@ public class H2ReadWriteSplittingEndToEndTest {
                 "&non_sticky_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN" +
                 "&non_sticky_ds.ojp.readwrite.stickySessionSeconds=0" +
                 "&replica1.ojp.connection.url=" + ojpPrefix + "h2:mem:rw_e2e_replica" +
-                "&replica1.ojp.connection.user=" + user +
-                "&replica1.ojp.connection.password=" + password +
+                "&replica1.ojp.connection.user=" + USER +
+                "&replica1.ojp.connection.password=" + PASSWORD +
                 "&replica1.ojp.readwrite.primary=non_sticky_ds";
         
-        connection = DriverManager.getConnection(ojpUrl, user, password);
+        connection = DriverManager.getConnection(ojpUrl, USER, PASSWORD);
         try (Statement stmt = connection.createStatement()) {
             // Insert a new record
             int rowsAffected = stmt.executeUpdate("INSERT INTO test_data VALUES (3, 'NEW_DATA', 'inserted')");
@@ -205,7 +183,7 @@ public class H2ReadWriteSplittingEndToEndTest {
             
             // Verify the insert went to primary by checking if it exists in primary database
             String primaryUrl = ojpPrefix + "h2:mem:rw_e2e_primary";
-            try (Connection verifyConn = DriverManager.getConnection(primaryUrl, user, password);
+            try (Connection verifyConn = DriverManager.getConnection(primaryUrl, USER, PASSWORD);
                  Statement verifyStmt = verifyConn.createStatement();
                  ResultSet rs = verifyStmt.executeQuery("SELECT COUNT(*) as cnt FROM test_data WHERE id=3")) {
                 
@@ -225,7 +203,7 @@ public class H2ReadWriteSplittingEndToEndTest {
     void testStickySession_ReadYourWrites() throws SQLException {
         setupDatabases();
         
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=sticky_ds" +
                 "&sticky_ds.ojp.readwrite.enabled=true" +
@@ -233,11 +211,11 @@ public class H2ReadWriteSplittingEndToEndTest {
                 "&sticky_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN" +
                 "&sticky_ds.ojp.readwrite.stickySessionSeconds=5" +
                 "&replica1.ojp.connection.url=" + ojpPrefix + "h2:mem:rw_e2e_replica" +
-                "&replica1.ojp.connection.user=" + user +
-                "&replica1.ojp.connection.password=" + password +
+                "&replica1.ojp.connection.user=" + USER +
+                "&replica1.ojp.connection.password=" + PASSWORD +
                 "&replica1.ojp.readwrite.primary=sticky_ds";
         
-        connection = DriverManager.getConnection(ojpUrl, user, password);
+        connection = DriverManager.getConnection(ojpUrl, USER, PASSWORD);
         try (Statement stmt = connection.createStatement()) {
             // Perform a write (INSERT)
             stmt.executeUpdate("INSERT INTO test_data VALUES (10, 'STICKY_DATA', 'sticky_test')");
@@ -263,7 +241,7 @@ public class H2ReadWriteSplittingEndToEndTest {
     void testStickySession_ExpiresAfterTimeout() throws Exception {
         setupDatabases();
         
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         // Use 2-second sticky window for faster test
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=sticky_expire_ds" +
@@ -272,11 +250,11 @@ public class H2ReadWriteSplittingEndToEndTest {
                 "&sticky_expire_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN" +
                 "&sticky_expire_ds.ojp.readwrite.stickySessionSeconds=2" +
                 "&replica1.ojp.connection.url=" + ojpPrefix + "h2:mem:rw_e2e_replica" +
-                "&replica1.ojp.connection.user=" + user +
-                "&replica1.ojp.connection.password=" + password +
+                "&replica1.ojp.connection.user=" + USER +
+                "&replica1.ojp.connection.password=" + PASSWORD +
                 "&replica1.ojp.readwrite.primary=sticky_expire_ds";
         
-        connection = DriverManager.getConnection(ojpUrl, user, password);
+        connection = DriverManager.getConnection(ojpUrl, USER, PASSWORD);
         try (Statement stmt = connection.createStatement()) {
             // Perform a write to trigger sticky session
             stmt.executeUpdate("INSERT INTO test_data VALUES (11, 'EXPIRE_DATA', 'expire_test')");
@@ -305,7 +283,7 @@ public class H2ReadWriteSplittingEndToEndTest {
     void testTransaction_AllOperationsGoToPrimary() throws SQLException {
         setupDatabases();
         
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=tx_ds" +
                 "&tx_ds.ojp.readwrite.enabled=true" +
@@ -313,11 +291,11 @@ public class H2ReadWriteSplittingEndToEndTest {
                 "&tx_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN" +
                 "&tx_ds.ojp.readwrite.stickySessionSeconds=0" +
                 "&replica1.ojp.connection.url=" + ojpPrefix + "h2:mem:rw_e2e_replica" +
-                "&replica1.ojp.connection.user=" + user +
-                "&replica1.ojp.connection.password=" + password +
+                "&replica1.ojp.connection.user=" + USER +
+                "&replica1.ojp.connection.password=" + PASSWORD +
                 "&replica1.ojp.readwrite.primary=tx_ds";
         
-        connection = DriverManager.getConnection(ojpUrl, user, password);
+        connection = DriverManager.getConnection(ojpUrl, USER, PASSWORD);
         connection.setAutoCommit(false);
         
         try (Statement stmt = connection.createStatement()) {
@@ -349,7 +327,7 @@ public class H2ReadWriteSplittingEndToEndTest {
     void testUpdateGoesToPrimary() throws SQLException {
         setupDatabases();
         
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=update_ds" +
                 "&update_ds.ojp.readwrite.enabled=true" +
@@ -357,11 +335,11 @@ public class H2ReadWriteSplittingEndToEndTest {
                 "&update_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN" +
                 "&update_ds.ojp.readwrite.stickySessionSeconds=0" +
                 "&replica1.ojp.connection.url=" + ojpPrefix + "h2:mem:rw_e2e_replica" +
-                "&replica1.ojp.connection.user=" + user +
-                "&replica1.ojp.connection.password=" + password +
+                "&replica1.ojp.connection.user=" + USER +
+                "&replica1.ojp.connection.password=" + PASSWORD +
                 "&replica1.ojp.readwrite.primary=update_ds";
         
-        connection = DriverManager.getConnection(ojpUrl, user, password);
+        connection = DriverManager.getConnection(ojpUrl, USER, PASSWORD);
         try (Statement stmt = connection.createStatement()) {
             // Update existing record in primary
             int rowsAffected = stmt.executeUpdate("UPDATE test_data SET name='UPDATED_PRIMARY' WHERE id=1");
@@ -369,7 +347,7 @@ public class H2ReadWriteSplittingEndToEndTest {
             
             // Verify the update went to primary
             String primaryUrl = ojpPrefix + "h2:mem:rw_e2e_primary";
-            try (Connection verifyConn = DriverManager.getConnection(primaryUrl, user, password);
+            try (Connection verifyConn = DriverManager.getConnection(primaryUrl, USER, PASSWORD);
                  Statement verifyStmt = verifyConn.createStatement();
                  ResultSet rs = verifyStmt.executeQuery("SELECT name FROM test_data WHERE id=1")) {
                 
@@ -389,11 +367,11 @@ public class H2ReadWriteSplittingEndToEndTest {
     void testDeleteGoesToPrimary() throws SQLException {
         setupDatabases();
         
-        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
+        String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
         
         // First, add a record to primary that we'll delete
         String primaryUrl = ojpPrefix + "h2:mem:rw_e2e_primary";
-        try (Connection setupConn = DriverManager.getConnection(primaryUrl, user, password);
+        try (Connection setupConn = DriverManager.getConnection(primaryUrl, USER, PASSWORD);
              Statement setupStmt = setupConn.createStatement()) {
             setupStmt.executeUpdate("INSERT INTO test_data VALUES (13, 'TO_DELETE', 'delete_test')");
         }
@@ -405,18 +383,18 @@ public class H2ReadWriteSplittingEndToEndTest {
                 "&delete_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN" +
                 "&delete_ds.ojp.readwrite.stickySessionSeconds=0" +
                 "&replica1.ojp.connection.url=" + ojpPrefix + "h2:mem:rw_e2e_replica" +
-                "&replica1.ojp.connection.user=" + user +
-                "&replica1.ojp.connection.password=" + password +
+                "&replica1.ojp.connection.user=" + USER +
+                "&replica1.ojp.connection.password=" + PASSWORD +
                 "&replica1.ojp.readwrite.primary=delete_ds";
         
-        connection = DriverManager.getConnection(ojpUrl, user, password);
+        connection = DriverManager.getConnection(ojpUrl, USER, PASSWORD);
         try (Statement stmt = connection.createStatement()) {
             // Delete the record
             int rowsAffected = stmt.executeUpdate("DELETE FROM test_data WHERE id=13");
             assertEquals(1, rowsAffected, "DELETE should affect 1 row");
             
             // Verify the delete happened on primary
-            try (Connection verifyConn = DriverManager.getConnection(primaryUrl, user, password);
+            try (Connection verifyConn = DriverManager.getConnection(primaryUrl, USER, PASSWORD);
                  Statement verifyStmt = verifyConn.createStatement();
                  ResultSet rs = verifyStmt.executeQuery("SELECT COUNT(*) as cnt FROM test_data WHERE id=13")) {
                 
