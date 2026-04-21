@@ -161,7 +161,7 @@ class ReadWriteDataSourceManagerTest {
                         .setStringValue("mgr_test_primary")
                         .build())
                 .addProperties(PropertyEntry.newBuilder()
-                        .setKey("mgr_test_replica.connection.url")
+                        .setKey("mgr_test_replica.ojp.connection.url")
                         .setStringValue("jdbc:h2:mem:mgr_test_replica;DB_CLOSE_DELAY=-1")
                         .build())
                 .build();
