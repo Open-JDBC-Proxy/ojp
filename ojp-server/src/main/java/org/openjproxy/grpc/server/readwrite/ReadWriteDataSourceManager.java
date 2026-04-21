@@ -144,8 +144,9 @@ public class ReadWriteDataSourceManager {
         long maxLifetime = getLongProperty(props, replicaPrefix + "pool.maxLifetime", 1800000);
         
         try {
+            // Replica URL is a raw JDBC URL (not OJP format), so use it directly
             PoolConfig poolConfig = PoolConfig.builder()
-                    .url(UrlParser.parseUrl(replicaUrl))
+                    .url(replicaUrl)  // Use raw JDBC URL directly, not parsed through UrlParser
                     .username(replicaUser)
                     .password(replicaPassword)
                     .maxPoolSize(maxPoolSize)
