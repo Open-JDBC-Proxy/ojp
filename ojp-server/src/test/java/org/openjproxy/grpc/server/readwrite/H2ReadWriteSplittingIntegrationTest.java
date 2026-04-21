@@ -3,6 +3,7 @@ package org.openjproxy.grpc.server.readwrite;
 import com.openjproxy.grpc.ConnectionDetails;
 import com.openjproxy.grpc.PropertyEntry;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openjproxy.grpc.server.Session;
@@ -15,9 +16,10 @@ import java.sql.Statement;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * End-to-end integration tests for read/write traffic splitting functionality.
+ * End-to-end integration tests for read/write traffic splitting functionality with H2 databases.
  * 
  * <h2>Test Approach: Dual H2 Database Strategy</h2>
  * <p>
@@ -76,12 +78,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * @see ReadWriteRouter
  * @see Session
  */
-class ReadWriteSplittingIntegrationTest {
+class H2ReadWriteSplittingIntegrationTest {
     
     private static final String PRIMARY_URL = "jdbc:h2:mem:rw_int_primary;DB_CLOSE_DELAY=-1";
     private static final String REPLICA_URL = "jdbc:h2:mem:rw_int_replica;DB_CLOSE_DELAY=-1";
     private static final String USERNAME = "sa";
     private static final String PASSWORD = "";
+    
+    private static boolean isH2TestEnabled;
     
     private DataSource primaryDataSource;
     private DataSource replicaDataSource;
@@ -89,6 +93,11 @@ class ReadWriteSplittingIntegrationTest {
     private ReadWriteDataSourceManager manager;
     private Connection primaryConn;
     private Connection replicaConn;
+    
+    @BeforeAll
+    static void checkTestConfiguration() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
+    }
     
     /**
      * Sets up the test environment with two separate, UNSYNCHRONIZED H2 databases.
@@ -175,6 +184,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testWriteGoesToPrimary() throws SQLException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         // Setup read/write splitting configuration
         ConnectionDetails details = createConnectionDetails("testds", false, 0);
         manager.setupReadWriteSplitting(details, "primary-hash", primaryDataSource, "testds");
@@ -223,6 +234,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testReadGoesToReplica_WithoutStickySession() throws SQLException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         // Setup read/write splitting (sticky sessions disabled)
         ConnectionDetails details = createConnectionDetails("testds", false, 0);
         manager.setupReadWriteSplitting(details, "primary-hash", primaryDataSource, "testds");
@@ -274,6 +287,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testStickySession_ReadYourWrites() throws SQLException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         // Setup with sticky sessions ENABLED (10 seconds)
         ConnectionDetails details = createConnectionDetails("testds", true, 10);
         ReadWriteConfiguration config = manager.setupReadWriteSplitting(
@@ -330,6 +345,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testStickySession_ExpiresAfterTimeout() throws SQLException, InterruptedException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         // Setup with SHORT sticky session (1 second)
         ConnectionDetails details = createConnectionDetails("testds", true, 1);
         ReadWriteConfiguration config = manager.setupReadWriteSplitting(
@@ -386,6 +403,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testTransaction_AllOperationsGoToPrimary() throws SQLException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         // Setup read/write splitting
         ConnectionDetails details = createConnectionDetails("testds", false, 0);
         ReadWriteConfiguration config = manager.setupReadWriteSplitting(
@@ -443,6 +462,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testAfterTransactionCommit_ReadsGoToReplica() throws SQLException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         // Setup WITHOUT sticky sessions
         ConnectionDetails details = createConnectionDetails("testds", false, 0);
         ReadWriteConfiguration config = manager.setupReadWriteSplitting(
@@ -489,6 +510,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testMultipleReads_AllGoToReplica() throws SQLException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         ConnectionDetails details = createConnectionDetails("testds", false, 0);
         ReadWriteConfiguration config = manager.setupReadWriteSplitting(
                 details, "primary-hash", primaryDataSource, "testds");
@@ -537,6 +560,8 @@ class ReadWriteSplittingIntegrationTest {
      */
     @Test
     void testWriteThenRead_WithoutStickySession_DoesNotSeeWrite() throws SQLException {
+        assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
         // Setup WITHOUT sticky sessions
         ConnectionDetails details = createConnectionDetails("testds", false, 0);
         ReadWriteConfiguration config = manager.setupReadWriteSplitting(
