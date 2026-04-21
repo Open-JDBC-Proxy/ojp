@@ -89,9 +89,6 @@ class H2ReadWriteSplittingEndToEndTest {
     
     private static boolean isH2TestEnabled;
     
-    private Connection primarySetupConn;
-    private Connection replicaSetupConn;
-    
     @BeforeAll
     static void checkTestConfiguration() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
@@ -104,20 +101,24 @@ class H2ReadWriteSplittingEndToEndTest {
     void setupDatabases() throws SQLException {
         assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         
-        // Create primary database with id=1 data
-        primarySetupConn = DriverManager.getConnection(
-                "jdbc:h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1", "sa", "");
+        // Populate PRIMARY database using OJP connection
+        // This ensures we're using the same H2 VM instance that OJP server will use
+        String primaryOjpUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1" +
+                "?ojp.datasource.name=setup_primary";
         
-        try (Statement stmt = primarySetupConn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection(primaryOjpUrl, "sa", "");
+             Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE TABLE test_data (id INT PRIMARY KEY, name VARCHAR(100), source VARCHAR(50))");
             stmt.execute("INSERT INTO test_data VALUES (1, 'PRIMARY_DATA', 'primary')");
         }
         
-        // Create replica database with id=2 data  
-        replicaSetupConn = DriverManager.getConnection(
-                "jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1", "sa", "");
+        // Populate REPLICA database using OJP connection
+        // This ensures we're using the same H2 VM instance that OJP server will use
+        String replicaOjpUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1" +
+                "?ojp.datasource.name=setup_replica";
         
-        try (Statement stmt = replicaSetupConn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection(replicaOjpUrl, "sa", "");
+             Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE TABLE test_data (id INT PRIMARY KEY, name VARCHAR(100), source VARCHAR(50))");
             stmt.execute("INSERT INTO test_data VALUES (2, 'REPLICA_DATA', 'replica')");
         }
@@ -125,18 +126,25 @@ class H2ReadWriteSplittingEndToEndTest {
     
     @AfterAll
     void teardownDatabases() throws SQLException {
-        if (primarySetupConn != null && !primarySetupConn.isClosed()) {
-            try (Statement stmt = primarySetupConn.createStatement()) {
-                stmt.execute("DROP TABLE IF EXISTS test_data");
-            }
-            primarySetupConn.close();
+        // Cleanup using OJP connections to match setup
+        String primaryOjpUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_primary" +
+                "?ojp.datasource.name=teardown_primary";
+        
+        try (Connection conn = DriverManager.getConnection(primaryOjpUrl, "sa", "");
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS test_data");
+        } catch (SQLException e) {
+            // Ignore cleanup errors
         }
         
-        if (replicaSetupConn != null && !replicaSetupConn.isClosed()) {
-            try (Statement stmt = replicaSetupConn.createStatement()) {
-                stmt.execute("DROP TABLE IF EXISTS test_data");
-            }
-            replicaSetupConn.close();
+        String replicaOjpUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_replica" +
+                "?ojp.datasource.name=teardown_replica";
+        
+        try (Connection conn = DriverManager.getConnection(replicaOjpUrl, "sa", "");
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS test_data");
+        } catch (SQLException e) {
+            // Ignore cleanup errors
         }
     }
     
@@ -201,20 +209,26 @@ class H2ReadWriteSplittingEndToEndTest {
                 int rowsInserted = stmt.executeUpdate("INSERT INTO test_data VALUES (100, 'NEW_DATA', 'inserted')");
                 assertEquals(1, rowsInserted, "Should insert 1 row");
             }
-            
-            // Verify the insert went to primary by checking primary directly
-            try (Statement stmt = primarySetupConn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 100")) {
-                assertTrue(rs.next());
-                assertEquals(1, rs.getInt(1), "INSERT should have gone to primary database");
-            }
-            
-            // Verify the insert did NOT go to replica
-            try (Statement stmt = replicaSetupConn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 100")) {
-                assertTrue(rs.next());
-                assertEquals(0, rs.getInt(1), "INSERT should NOT have gone to replica database");
-            }
+        }
+        
+        // Verify the insert went to primary by checking primary via OJP
+        String primaryCheckUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_primary" +
+                "?ojp.datasource.name=verify_primary";
+        try (Connection conn = DriverManager.getConnection(primaryCheckUrl, "sa", "");
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 100")) {
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt(1), "INSERT should have gone to primary database");
+        }
+        
+        // Verify the insert did NOT go to replica by checking replica via OJP
+        String replicaCheckUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_replica" +
+                "?ojp.datasource.name=verify_replica";
+        try (Connection conn = DriverManager.getConnection(replicaCheckUrl, "sa", "");
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 100")) {
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1), "INSERT should NOT have gone to replica database");
         }
     }
     
@@ -372,13 +386,16 @@ class H2ReadWriteSplittingEndToEndTest {
                 int rowsUpdated = stmt.executeUpdate("UPDATE test_data SET name = 'UPDATED' WHERE id = 1");
                 assertEquals(1, rowsUpdated, "Should update 1 row on primary");
             }
-            
-            // Verify update went to primary
-            try (Statement stmt = primarySetupConn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT name FROM test_data WHERE id = 1")) {
-                assertTrue(rs.next());
-                assertEquals("UPDATED", rs.getString("name"), "UPDATE should have modified primary");
-            }
+        }
+        
+        // Verify update went to primary using OJP connection
+        String primaryCheckUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_primary" +
+                "?ojp.datasource.name=verify_update_primary";
+        try (Connection conn = DriverManager.getConnection(primaryCheckUrl, "sa", "");
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT name FROM test_data WHERE id = 1")) {
+            assertTrue(rs.next());
+            assertEquals("UPDATED", rs.getString("name"), "UPDATE should have modified primary");
         }
     }
     
@@ -400,8 +417,11 @@ class H2ReadWriteSplittingEndToEndTest {
                 "&replica1.ojp.connection.password=" +
                 "&replica1.ojp.readwrite.primary=delete_ds";
         
-        // First insert a row to delete
-        try (Statement stmt = primarySetupConn.createStatement()) {
+        // First insert a row to delete using OJP connection to primary
+        String primaryInsertUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_primary" +
+                "?ojp.datasource.name=setup_delete_primary";
+        try (Connection conn = DriverManager.getConnection(primaryInsertUrl, "sa", "");
+             Statement stmt = conn.createStatement()) {
             stmt.execute("INSERT INTO test_data VALUES (500, 'TO_DELETE', 'delete_test')");
         }
         
@@ -410,13 +430,16 @@ class H2ReadWriteSplittingEndToEndTest {
                 int rowsDeleted = stmt.executeUpdate("DELETE FROM test_data WHERE id = 500");
                 assertEquals(1, rowsDeleted, "Should delete 1 row from primary");
             }
-            
-            // Verify deletion from primary
-            try (Statement stmt = primarySetupConn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 500")) {
-                assertTrue(rs.next());
-                assertEquals(0, rs.getInt(1), "DELETE should have removed row from primary");
-            }
+        }
+        
+        // Verify deletion from primary using OJP connection
+        String primaryCheckUrl = "jdbc:ojp[localhost:50051]jdbc:h2:mem:rw_e2e_primary" +
+                "?ojp.datasource.name=verify_delete_primary";
+        try (Connection conn = DriverManager.getConnection(primaryCheckUrl, "sa", "");
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 500")) {
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1), "DELETE should have removed row from primary");
         }
     }
 }
