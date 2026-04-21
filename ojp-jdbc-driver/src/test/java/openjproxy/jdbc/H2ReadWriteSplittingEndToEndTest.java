@@ -1,10 +1,10 @@
 package openjproxy.jdbc;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.api.Test;
+import org.openjproxy.testcontainers.OjpContainer;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -76,13 +76,29 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class H2ReadWriteSplittingEndToEndTest {
     
-    private static boolean isH2TestEnabled;
+    private static OjpContainer ojpContainer;
+    private static String ojpConnectionString;
+    private static String user = "sa";
+    private static String password = "";
     
     private Connection connection;
 
     @BeforeAll
     static void setupClass() {
-        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
+        // Start OJP container
+        ojpContainer = new OjpContainer();
+        ojpContainer.start();
+        
+        // Get the connection string for OJP
+        ojpConnectionString = ojpContainer.getOjpConnectionString();
+        System.out.println("OJP Container started for read/write splitting tests at: " + ojpConnectionString);
+    }
+    
+    @AfterAll
+    static void teardownClass() {
+        if (ojpContainer != null) {
+            ojpContainer.stop();
+        }
     }
 
     @AfterEach
@@ -94,14 +110,9 @@ public class H2ReadWriteSplittingEndToEndTest {
      * Sets up the test environment by creating two separate H2 databases with different data.
      * This must be called at the start of each test method.
      */
-    private void setupDatabases(String driverClass, String baseUrl, String user, String password) throws SQLException {
-        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
-        
-        // Extract the base JDBC URL pattern and construct primary/replica databases
-        // baseUrl format: jdbc:ojp[localhost:1059]_h2:~/test
-        // We need to create: jdbc:ojp[localhost:1059]_h2:mem:rw_e2e_primary and _replica
-        
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+    private void setupDatabases() throws SQLException {
+        // Build OJP URL prefix
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         
         // Setup PRIMARY database
         String primaryUrl = ojpPrefix + "h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
@@ -131,13 +142,12 @@ public class H2ReadWriteSplittingEndToEndTest {
      * 
      * <p>Expected behavior: SELECT should return id=2 (replica data), not id=1 (primary data)</p>
      */
-    @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
-    void testSelectGoesToReplica_WithoutStickySession(String driverClass, String baseUrl, String user, String password) throws SQLException {
-        setupDatabases(driverClass, baseUrl, user, password);
+    @Test
+    void testSelectGoesToReplica_WithoutStickySession() throws SQLException {
+        setupDatabases();
         
         // Build OJP JDBC URL for datasource WITHOUT sticky session
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=non_sticky_ds" +
                 "&non_sticky_ds.ojp.readwrite.enabled=true" +
@@ -170,12 +180,12 @@ public class H2ReadWriteSplittingEndToEndTest {
      * 
      * <p>Expected behavior: INSERT executes on primary (id=1 database)</p>
      */
-    @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
-    void testInsertGoesToPrimary(String driverClass, String baseUrl, String user, String password) throws SQLException {
-        setupDatabases(driverClass, baseUrl, user, password);
+    @Test
+    
+    void testInsertGoesToPrimary() throws SQLException {
+        setupDatabases();
         
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=non_sticky_ds" +
                 "&non_sticky_ds.ojp.readwrite.enabled=true" +
@@ -210,12 +220,12 @@ public class H2ReadWriteSplittingEndToEndTest {
      * 
      * <p>Expected behavior: After INSERT, immediate SELECT should return id=1 (primary data)</p>
      */
-    @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
-    void testStickySession_ReadYourWrites(String driverClass, String baseUrl, String user, String password) throws SQLException {
-        setupDatabases(driverClass, baseUrl, user, password);
+    @Test
+    
+    void testStickySession_ReadYourWrites() throws SQLException {
+        setupDatabases();
         
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=sticky_ds" +
                 "&sticky_ds.ojp.readwrite.enabled=true" +
@@ -248,12 +258,12 @@ public class H2ReadWriteSplittingEndToEndTest {
      * 
      * <p>Expected behavior: After timeout, reads should return to replica (id=2)</p>
      */
-    @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
-    void testStickySession_ExpiresAfterTimeout(String driverClass, String baseUrl, String user, String password) throws Exception {
-        setupDatabases(driverClass, baseUrl, user, password);
+    @Test
+    
+    void testStickySession_ExpiresAfterTimeout() throws Exception {
+        setupDatabases();
         
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         // Use 2-second sticky window for faster test
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=sticky_expire_ds" +
@@ -290,12 +300,12 @@ public class H2ReadWriteSplittingEndToEndTest {
      * 
      * <p>Expected behavior: All reads within transaction should return primary data (id=1)</p>
      */
-    @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
-    void testTransaction_AllOperationsGoToPrimary(String driverClass, String baseUrl, String user, String password) throws SQLException {
-        setupDatabases(driverClass, baseUrl, user, password);
+    @Test
+    
+    void testTransaction_AllOperationsGoToPrimary() throws SQLException {
+        setupDatabases();
         
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=tx_ds" +
                 "&tx_ds.ojp.readwrite.enabled=true" +
@@ -334,12 +344,12 @@ public class H2ReadWriteSplittingEndToEndTest {
      * 
      * <p>Expected behavior: UPDATE executes on primary database</p>
      */
-    @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
-    void testUpdateGoesToPrimary(String driverClass, String baseUrl, String user, String password) throws SQLException {
-        setupDatabases(driverClass, baseUrl, user, password);
+    @Test
+    
+    void testUpdateGoesToPrimary() throws SQLException {
+        setupDatabases();
         
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
                 "?ojp.datasource.name=update_ds" +
                 "&update_ds.ojp.readwrite.enabled=true" +
@@ -374,12 +384,12 @@ public class H2ReadWriteSplittingEndToEndTest {
      * 
      * <p>Expected behavior: DELETE executes on primary database</p>
      */
-    @ParameterizedTest
-    @CsvFileSource(resources = "/h2_connection.csv")
-    void testDeleteGoesToPrimary(String driverClass, String baseUrl, String user, String password) throws SQLException {
-        setupDatabases(driverClass, baseUrl, user, password);
+    @Test
+    
+    void testDeleteGoesToPrimary() throws SQLException {
+        setupDatabases();
         
-        String ojpPrefix = baseUrl.substring(0, baseUrl.lastIndexOf("_") + 1);
+        String ojpPrefix = "jdbc:ojp[" + ojpConnectionString + "]_";
         
         // First, add a record to primary that we'll delete
         String primaryUrl = ojpPrefix + "h2:mem:rw_e2e_primary";
