@@ -17,6 +17,12 @@ import java.util.Properties;
  * For example, properties prefixed with {@code mainApp.ojp.connection.pool.*} belong to
  * the datasource named {@code mainApp}. Unprefixed {@code ojp.connection.pool.*} properties
  * belong to the implicit {@code "default"} datasource.
+ *
+ * <p>All {@code *.ojp.*} properties (e.g. read/write splitting, replica connection URLs) are
+ * forwarded to the server with their full keys intact so that server-side parsers such as
+ * {@code ReadWriteConfigurationParser} can find them. Pool and XA properties for the primary
+ * datasource are additionally forwarded with the datasource prefix stripped for backward
+ * compatibility with existing server-side pool configuration readers.
  */
 @Slf4j
 public class DatasourcePropertiesLoader {
@@ -65,8 +71,15 @@ public class DatasourcePropertiesLoader {
                                              String prefixDot, boolean isDefault) {
         boolean found = false;
         for (String key : source.stringPropertyNames()) {
-            if (hasPrefixedOjpKey(key, prefixDot)) {
-                result.setProperty(key.substring(prefixDot.length()), source.getProperty(key));
+            String value = source.getProperty(key);
+            if (hasPrefixedPoolOrXaKey(key, prefixDot)) {
+                // Pool and XA properties for this datasource: strip prefix for backward compat
+                result.setProperty(key.substring(prefixDot.length()), value);
+                found = true;
+            } else if (isPrefixedOjpKey(key)) {
+                // All other *.ojp.* properties (read/write, replica configs, etc.): keep full key
+                // so that server-side parsers can locate them by their exact property names.
+                result.setProperty(key, value);
                 found = true;
             }
         }
@@ -78,10 +91,13 @@ public class DatasourcePropertiesLoader {
     private static void applySystemProperties(Properties result, String prefixDot, boolean isDefault) {
         for (String key : System.getProperties().stringPropertyNames()) {
             String value = System.getProperty(key);
-            if (hasPrefixedOjpKey(key, prefixDot)) {
+            if (hasPrefixedPoolOrXaKey(key, prefixDot)) {
                 String std = key.substring(prefixDot.length());
                 result.setProperty(std, value);
                 log.debug("Overriding property from system property: {} = {}", std, value);
+            } else if (isPrefixedOjpKey(key)) {
+                result.setProperty(key, value);
+                log.debug("Setting property from system property (full key): {} = {}", key, value);
             } else if (isDefault && isUnprefixedOjpKey(key)) {
                 result.setProperty(key, value);
                 log.debug("Overriding property from system property: {} = {}", key, value);
@@ -93,10 +109,13 @@ public class DatasourcePropertiesLoader {
         for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
             String key = entry.getKey().toLowerCase().replace('_', '.');
             String value = entry.getValue();
-            if (hasPrefixedOjpKey(key, prefixDot)) {
+            if (hasPrefixedPoolOrXaKey(key, prefixDot)) {
                 String std = key.substring(prefixDot.length());
                 result.setProperty(std, value);
                 log.debug("Overriding property from environment variable: {} = {}", std, value);
+            } else if (isPrefixedOjpKey(key)) {
+                result.setProperty(key, value);
+                log.debug("Setting property from environment variable (full key): {} = {}", key, value);
             } else if (isDefault && isUnprefixedOjpKey(key)) {
                 result.setProperty(key, value);
                 log.debug("Overriding property from environment variable: {} = {}", key, value);
@@ -104,12 +123,25 @@ public class DatasourcePropertiesLoader {
         }
     }
 
-    private static boolean hasPrefixedOjpKey(String key, String prefixDot) {
+    /**
+     * Returns true for pool or XA properties belonging to the given datasource prefix.
+     * These are stripped of their prefix when added to the result for backward compatibility.
+     */
+    private static boolean hasPrefixedPoolOrXaKey(String key, String prefixDot) {
         return key.startsWith(prefixDot + OJP_POOL_PREFIX) || key.startsWith(prefixDot + OJP_XA_PREFIX);
     }
 
+    /**
+     * Returns true for any property that contains {@code .ojp.} in its key, i.e. any prefixed
+     * OJP property regardless of the datasource name prefix.  These are forwarded with their
+     * full key so that server-side parsers (e.g. read/write splitting) can find them.
+     */
+    private static boolean isPrefixedOjpKey(String key) {
+        return key.contains(".ojp.");
+    }
+
     private static boolean isUnprefixedOjpKey(String key) {
-        return key.startsWith(OJP_POOL_PREFIX) || key.startsWith(OJP_XA_PREFIX);
+        return key.startsWith("ojp.");
     }
 
     private static void copyUnprefixedOjpProperties(Properties target, Properties source) {

@@ -87,13 +87,31 @@ public class Driver implements java.sql.Driver {
         connBuilder.addAllServerEndpoints(serverEndpoints);
         log.info("Adding {} server endpoint(s) to ConnectionDetails", serverEndpoints.size());
         
+        // Build the properties map: start with ojp.properties file entries, then overlay
+        // any extra properties supplied directly by the caller via DriverManager.getConnection(url, info).
+        // Caller-supplied properties take precedence and are forwarded verbatim so that
+        // features like read/write splitting can be configured entirely from the client
+        // without requiring a separate ojp.properties file.
+        Map<String, Object> propertiesMap = new HashMap<>();
+
         if (ojpProperties != null && !ojpProperties.isEmpty()) {
-            // Convert Properties to Map<String, Object>
-            Map<String, Object> propertiesMap = new HashMap<>();
             for (String key : ojpProperties.stringPropertyNames()) {
                 propertiesMap.put(key, ojpProperties.getProperty(key));
             }
-            
+            log.debug("Loaded ojp.properties with {} properties for dataSource: {}", propertiesMap.size(), dataSourceName);
+        }
+
+        // Overlay caller-provided info properties (skip the JDBC-standard user/password keys
+        // which are already sent as dedicated fields in ConnectionDetails).
+        if (info != null) {
+            for (String key : info.stringPropertyNames()) {
+                if (!USER.equals(key) && !PASSWORD.equals(key)) {
+                    propertiesMap.put(key, info.getProperty(key));
+                }
+            }
+        }
+
+        if (!propertiesMap.isEmpty()) {
             // Add cache configuration properties to the map
             try {
                 CacheConfigurationBuilder.addCachePropertiesToMap(propertiesMap, dataSourceName);
@@ -101,9 +119,9 @@ public class Driver implements java.sql.Driver {
                 log.error("Failed to add cache configuration for datasource '{}': {}", dataSourceName, e.getMessage());
                 // Continue without cache configuration - caching will be disabled
             }
-            
+
             connBuilder.addAllProperties(ProtoConverter.propertiesToProto(propertiesMap));
-            log.debug("Loaded ojp.properties with {} properties for dataSource: {}", propertiesMap.size(), dataSourceName);
+            log.debug("Sending {} properties to server for dataSource: {}", propertiesMap.size(), dataSourceName);
         }
         
         log.info("Calling connect() on statement service with URL: {}", connectionUrl);
