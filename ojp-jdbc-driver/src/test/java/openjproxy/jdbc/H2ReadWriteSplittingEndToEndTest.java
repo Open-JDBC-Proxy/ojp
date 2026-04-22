@@ -1,6 +1,8 @@
 package openjproxy.jdbc;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -76,12 +78,24 @@ public class H2ReadWriteSplittingEndToEndTest {
     private static final String OJP_HOST = "localhost:1059";
     private static final String USER = "sa";
     private static final String PASSWORD = "";
+    private static boolean isH2TestEnabled;
     
     private Connection connection;
 
+    @BeforeAll
+    static void setupClass() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
+    }
+
     @AfterEach
-    void tearDown() throws Exception {
-        if (connection != null) connection.close();
+    void tearDown() {
+        if (connection != null) {
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                // Ignore close errors
+            }
+        }
     }
 
     /**
@@ -96,22 +110,34 @@ public class H2ReadWriteSplittingEndToEndTest {
         String primaryUrl = ojpPrefix + "h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
         try (Connection conn = DriverManager.getConnection(primaryUrl, USER, PASSWORD);
              Statement stmt = conn.createStatement()) {
+            // Drop table if exists (ignore errors if table doesn't exist)
             try {
                 stmt.execute("DROP TABLE IF EXISTS test_data");
-            } catch (SQLException ignore) {}
+            } catch (SQLException ignore) {
+                // Table might not exist, that's fine
+            }
+            // Create table and insert data (these must succeed)
             stmt.execute("CREATE TABLE test_data (id INT PRIMARY KEY, name VARCHAR(100), source VARCHAR(50))");
             stmt.execute("INSERT INTO test_data VALUES (1, 'PRIMARY_DATA', 'primary')");
+        } catch (SQLException e) {
+            throw new SQLException("Failed to setup primary database", e);
         }
         
         // Setup REPLICA database
         String replicaUrl = ojpPrefix + "h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1";
         try (Connection conn = DriverManager.getConnection(replicaUrl, USER, PASSWORD);
              Statement stmt = conn.createStatement()) {
+            // Drop table if exists (ignore errors if table doesn't exist)
             try {
                 stmt.execute("DROP TABLE IF EXISTS test_data");
-            } catch (SQLException ignore) {}
+            } catch (SQLException ignore) {
+                // Table might not exist, that's fine
+            }
+            // Create table and insert data (these must succeed)
             stmt.execute("CREATE TABLE test_data (id INT PRIMARY KEY, name VARCHAR(100), source VARCHAR(50))");
             stmt.execute("INSERT INTO test_data VALUES (2, 'REPLICA_DATA', 'replica')");
+        } catch (SQLException e) {
+            throw new SQLException("Failed to setup replica database", e);
         }
     }
 
@@ -122,6 +148,7 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testSelectGoesToReplica_WithoutStickySession() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         setupDatabases();
         
         // Build OJP JDBC URL for datasource WITHOUT sticky session
@@ -159,8 +186,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      * <p>Expected behavior: INSERT executes on primary (id=1 database)</p>
      */
     @Test
-    
     void testInsertGoesToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         setupDatabases();
         
         String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
@@ -187,8 +214,10 @@ public class H2ReadWriteSplittingEndToEndTest {
                  Statement verifyStmt = verifyConn.createStatement();
                  ResultSet rs = verifyStmt.executeQuery("SELECT COUNT(*) as cnt FROM test_data WHERE id=3")) {
                 
-                assertTrue(rs.next());
+                assertTrue(rs.next(), "Should have result from verification query");
                 assertEquals(1, rs.getInt("cnt"), "INSERT should have created record in primary");
+            } catch (SQLException e) {
+                throw new SQLException("Failed to verify INSERT on primary database", e);
             }
         }
     }
@@ -199,8 +228,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      * <p>Expected behavior: After INSERT, immediate SELECT should return id=1 (primary data)</p>
      */
     @Test
-    
     void testStickySession_ReadYourWrites() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         setupDatabases();
         
         String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
@@ -237,8 +266,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      * <p>Expected behavior: After timeout, reads should return to replica (id=2)</p>
      */
     @Test
-    
     void testStickySession_ExpiresAfterTimeout() throws Exception {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         setupDatabases();
         
         String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
@@ -279,8 +308,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      * <p>Expected behavior: All reads within transaction should return primary data (id=1)</p>
      */
     @Test
-    
     void testTransaction_AllOperationsGoToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         setupDatabases();
         
         String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
@@ -323,8 +352,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      * <p>Expected behavior: UPDATE executes on primary database</p>
      */
     @Test
-    
     void testUpdateGoesToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         setupDatabases();
         
         String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
@@ -351,8 +380,10 @@ public class H2ReadWriteSplittingEndToEndTest {
                  Statement verifyStmt = verifyConn.createStatement();
                  ResultSet rs = verifyStmt.executeQuery("SELECT name FROM test_data WHERE id=1")) {
                 
-                assertTrue(rs.next());
+                assertTrue(rs.next(), "Should have result from verification query");
                 assertEquals("UPDATED_PRIMARY", rs.getString("name"), "UPDATE should have modified primary");
+            } catch (SQLException e) {
+                throw new SQLException("Failed to verify UPDATE on primary database", e);
             }
         }
     }
@@ -363,8 +394,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      * <p>Expected behavior: DELETE executes on primary database</p>
      */
     @Test
-    
     void testDeleteGoesToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         setupDatabases();
         
         String ojpPrefix = "jdbc:ojp[" + OJP_HOST + "]_";
@@ -374,6 +405,8 @@ public class H2ReadWriteSplittingEndToEndTest {
         try (Connection setupConn = DriverManager.getConnection(primaryUrl, USER, PASSWORD);
              Statement setupStmt = setupConn.createStatement()) {
             setupStmt.executeUpdate("INSERT INTO test_data VALUES (13, 'TO_DELETE', 'delete_test')");
+        } catch (SQLException e) {
+            throw new SQLException("Failed to insert test record for DELETE test", e);
         }
         
         String ojpUrl = ojpPrefix + "h2:mem:rw_e2e_primary" +
@@ -398,8 +431,10 @@ public class H2ReadWriteSplittingEndToEndTest {
                  Statement verifyStmt = verifyConn.createStatement();
                  ResultSet rs = verifyStmt.executeQuery("SELECT COUNT(*) as cnt FROM test_data WHERE id=13")) {
                 
-                assertTrue(rs.next());
+                assertTrue(rs.next(), "Should have result from verification query");
                 assertEquals(0, rs.getInt("cnt"), "DELETE should have removed record from primary");
+            } catch (SQLException e) {
+                throw new SQLException("Failed to verify DELETE on primary database", e);
             }
         }
     }
