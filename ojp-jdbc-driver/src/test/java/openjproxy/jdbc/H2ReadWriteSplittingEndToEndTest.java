@@ -1,10 +1,9 @@
 package openjproxy.jdbc;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openjproxy.testcontainers.OjpContainer;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -27,15 +26,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * them to configure the primary/replica datasources on first connection.
  * </p>
  *
- * <p>Example configuration properties:</p>
+ * <p>Example configuration properties used by these tests:</p>
  * <pre>
  * Properties props = new Properties();
  * props.setProperty("user", "sa");
  * props.setProperty("password", "");
- * props.setProperty("ojp.datasource.name",          "rw_e2e_ds");
- * props.setProperty("rw_e2e_ds.ojp.readwrite.enabled", "true");
- * props.setProperty("rw_e2e_replica.ojp.readwrite.role",    "replica");
- * props.setProperty("rw_e2e_replica.ojp.readwrite.primary", "rw_e2e_ds");
+ * props.setProperty("ojp.datasource.name",                         "rw_e2e_ds");
+ * props.setProperty("rw_e2e_ds.ojp.readwrite.enabled",             "true");
+ * props.setProperty("rw_e2e_replica.ojp.readwrite.role",           "replica");
+ * props.setProperty("rw_e2e_replica.ojp.readwrite.primary",        "rw_e2e_ds");
  * props.setProperty("rw_e2e_replica.ojp.connection.url",
  *         "jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1");
  * </pre>
@@ -55,32 +54,31 @@ import static org.junit.jupiter.api.Assertions.*;
  * id=1 / source="primary" means it was routed to the primary.
  * </p>
  *
+ * <h3>Test Execution Requirements</h3>
+ * <ul>
+ *   <li>OJP server running on localhost:1059</li>
+ *   <li>Enable with {@code -DenableH2Tests=true} Maven flag</li>
+ * </ul>
+ *
  * @see org.openjproxy.grpc.server.readwrite.ReadWriteRouter
  * @see org.openjproxy.grpc.server.readwrite.ReplicaSelector
  * @see org.openjproxy.grpc.server.readwrite.SqlClassifier
  */
 public class H2ReadWriteSplittingEndToEndTest {
 
+    private static final String OJP_HOST = "localhost:1059";
     private static final String USER = "sa";
     private static final String PASSWORD = "";
     private static final String PRIMARY_DATASOURCE_NAME = "rw_e2e_ds";
     private static final String REPLICA_DATASOURCE_NAME = "rw_e2e_replica";
 
-    private static OjpContainer ojpContainer;
+    private static boolean isH2TestEnabled;
 
     private Connection connection;
 
     @BeforeAll
     static void setupClass() {
-        ojpContainer = new OjpContainer();
-        ojpContainer.start();
-    }
-
-    @AfterAll
-    static void teardownClass() {
-        if (ojpContainer != null) {
-            ojpContainer.stop();
-        }
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
 
     @AfterEach
@@ -102,16 +100,14 @@ public class H2ReadWriteSplittingEndToEndTest {
      * Returns JDBC URL that routes through OJP to the primary H2 database.
      */
     private String primaryUrl() {
-        return "jdbc:ojp[" + ojpContainer.getOjpConnectionString()
-                + "]_h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
+        return "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
     }
 
     /**
      * Returns JDBC URL that routes through OJP to the replica H2 database.
      */
     private String replicaUrl() {
-        return "jdbc:ojp[" + ojpContainer.getOjpConnectionString()
-                + "]_h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1";
+        return "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1";
     }
 
     /**
@@ -181,6 +177,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testSelectGoesToReplica_WithoutTransaction() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
@@ -201,6 +199,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testMultipleReads_AllGoToReplica() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
@@ -223,6 +223,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testInsertGoesToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
@@ -247,6 +249,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testUpdateGoesToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
@@ -270,6 +274,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testDeleteGoesToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
@@ -295,6 +301,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testWriteThenRead_WithoutStickySession_DoesNotSeeWrite() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
@@ -316,6 +324,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testTransaction_AllOperationsGoToPrimary() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
@@ -351,6 +361,8 @@ public class H2ReadWriteSplittingEndToEndTest {
      */
     @Test
     void testAfterTransactionCommit_ReadsGoToReplica() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
         setupDatabases();
 
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());

@@ -1,11 +1,10 @@
 package openjproxy.jdbc;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.openjproxy.testcontainers.OjpContainer;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;
@@ -31,38 +30,21 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Extensive PreparedStatement API tests executed through the OJP JDBC driver.
- *
- * <p>All configuration is on the client side: an {@link OjpContainer} is started once for the
- * test class and the JDBC URL is built from the container's mapped port. No external OJP server
- * or properties file is needed.
- */
 public class H2PreparedStatementExtensiveTests {
 
-    private static OjpContainer ojpContainer;
-    private static String jdbcUrl;
-
+    private static boolean isH2TestEnabled;
+    
     private Connection connection;
     private PreparedStatement ps;
 
     @BeforeAll
     static void setupClass() {
-        ojpContainer = new OjpContainer();
-        ojpContainer.start();
-        jdbcUrl = "jdbc:ojp[" + ojpContainer.getOjpConnectionString() + "]_h2:mem:ps_tests;DB_CLOSE_DELAY=-1";
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
     }
 
-    @AfterAll
-    static void teardownClass() {
-        if (ojpContainer != null) {
-            ojpContainer.stop();
-        }
-    }
-
-    @BeforeEach
-    void setUp() throws Exception {
-        connection = DriverManager.getConnection(jdbcUrl, "sa", "");
+    public void setUp(String driverClass, String url, String user, String password) throws Exception {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        connection = DriverManager.getConnection(url, user, password);
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE h2_prepared_stmt_test");
@@ -83,8 +65,11 @@ public class H2PreparedStatementExtensiveTests {
         if (connection != null) connection.close();
     }
 
-    @Test
-    void testParameterSetters() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testParameterSetters(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
 
         // Numeric and boolean
@@ -154,8 +139,11 @@ public class H2PreparedStatementExtensiveTests {
         ps.clearParameters();
     }
 
-    @Test
-    void testExecutionAndBatchMethods() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testExecutionAndBatchMethods(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
         ps.setInt(1, 10); ps.setString(2, "Test"); ps.setInt(3, 30);
         ps.setBytes(4, new byte[]{1}); ps.setString(5, "info"); ps.setDate(6, new java.sql.Date(System.currentTimeMillis()));
@@ -191,8 +179,11 @@ public class H2PreparedStatementExtensiveTests {
         try { ps.executeLargeUpdate(); } catch (Exception ignore) {}
     }
 
-    @Test
-    void testMetaDataAndWarnings() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testMetaDataAndWarnings(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
         ps.setInt(1, 10);
 
@@ -204,8 +195,11 @@ public class H2PreparedStatementExtensiveTests {
         assertNull(ps.getWarnings());
     }
 
-    @Test
-    void testStatementCommonMethods() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testStatementCommonMethods(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
         // Field size and max rows
         assertEquals(0, ps.getMaxFieldSize());
@@ -251,8 +245,11 @@ public class H2PreparedStatementExtensiveTests {
         assertTrue(ps.isClosed());
     }
 
-    @Test
-    void testStatementBatchAndConnection() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testStatementBatchAndConnection(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
         ps.clearBatch();
         assertThrows(Exception.class, () -> ps.addBatch("DELETE FROM h2_prepared_stmt_test WHERE id < 0"));
@@ -261,8 +258,11 @@ public class H2PreparedStatementExtensiveTests {
         assertNotNull(ps.getConnection());
     }
 
-    @Test
-    void testResultAndGeneratedKeysMethods() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testResultAndGeneratedKeysMethods(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         PreparedStatement ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         ps.setLong(1, 100);
         ps.setString(2, "A");
@@ -317,8 +317,11 @@ public class H2PreparedStatementExtensiveTests {
      *
      * Also verifies the column-index and column-name variants of prepareStatement.
      */
-    @Test
-    void testGetGeneratedKeysWithAutoIncrementTable() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testGetGeneratedKeysWithAutoIncrementTable(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         Statement stmt = connection.createStatement();
         stmt.execute("DROP TABLE IF EXISTS t_identity");
         stmt.execute("CREATE TABLE t_identity (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(100))");
@@ -368,8 +371,11 @@ public class H2PreparedStatementExtensiveTests {
      * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is followed by
      * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data uses for saveAll.
      */
-    @Test
-    void testBatchInsertWithGeneratedKeys() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         Statement stmt = connection.createStatement();
         stmt.execute("DROP TABLE IF EXISTS h2_batch_gen_keys_test");
         stmt.execute("CREATE TABLE h2_batch_gen_keys_test (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(100))");
@@ -405,8 +411,11 @@ public class H2PreparedStatementExtensiveTests {
         keys.close();
     }
 
-    @Test
-    void testStatementLargeAndDefaultMethods() throws Exception {
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testStatementLargeAndDefaultMethods(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
         Statement stmt = connection.createStatement();
         // Large update/batch methods (may throw on H2)
         try { stmt.getLargeUpdateCount(); } catch (Exception ignore) {}
