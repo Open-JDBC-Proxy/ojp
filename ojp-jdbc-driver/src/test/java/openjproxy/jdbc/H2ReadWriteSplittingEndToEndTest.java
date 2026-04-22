@@ -17,32 +17,55 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * End-to-end integration tests for read/write traffic splitting through OJP JDBC driver and server.
  * 
- * <h2>IMPORTANT: Server-Side Configuration Required</h2>
+ * <h2>⚠️ CRITICAL: Server-Side Configuration Required</h2>
  * 
  * <p>
- * <b>These tests require the OJP server to be pre-configured with read/write splitting settings.</b>
+ * <b>These tests WILL FAIL unless the OJP server is configured with read/write splitting settings.</b>
  * Read/write splitting configuration MUST be configured on the server side in ojp-server.properties 
- * or via JVM system properties on the OJP server. It cannot be passed from the client.
+ * or via JVM system properties when starting the OJP server. It <b>cannot</b> be passed from the client.
  * </p>
  * 
- * <h3>Required Server Configuration (ojp-server.properties or JVM system properties)</h3>
+ * <h3>How to Configure the OJP Server for These Tests</h3>
  * 
- * <p>The OJP server running on localhost:1059 must have the following properties configured:</p>
+ * <p><b>Option 1: Using ojp-server.properties file</b></p>
+ * <p>Create or edit <code>ojp-server.properties</code> in the OJP server's working directory:</p>
  * 
  * <pre>
- * # Primary datasource - read/write splitting configuration
+ * # Enable read/write splitting for the rw_e2e_ds datasource
  * rw_e2e_ds.ojp.readwrite.enabled=true
- * rw_e2e_ds.ojp.readwrite.role=primary
- * rw_e2e_ds.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN
- * rw_e2e_ds.ojp.readwrite.stickySessionSeconds=5
- * rw_e2e_ds.ojp.readwrite.replicaFailoverToPrimary=true
  * 
- * # Replica datasource configuration  
- * rw_e2e_replica.ojp.readwrite.role=replica
+ * # Configure sticky session timeout (5 seconds for tests)
+ * rw_e2e_ds.ojp.readwrite.stickySessionTimeoutSeconds=5
+ * 
+ * # Configure rw_e2e_ds connection (primary database)
+ * rw_e2e_ds.ojp.connection.url=jdbc:h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1
+ * rw_e2e_ds.ojp.connection.username=sa
+ * rw_e2e_ds.ojp.connection.password=
+ * 
+ * # Register rw_e2e_replica as a replica of rw_e2e_ds
+ * rw_e2e_replica.ojp.connection.url=jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1
+ * rw_e2e_replica.ojp.connection.username=sa
+ * rw_e2e_replica.ojp.connection.password=
  * rw_e2e_replica.ojp.readwrite.primary=rw_e2e_ds
  * </pre>
  * 
- * <h3>Client Connection Pattern</h3>
+ * <p><b>Option 2: Using JVM System Properties</b></p>
+ * <p>Start the OJP server with these JVM arguments:</p>
+ * 
+ * <pre>
+ * java -jar ojp-server.jar \
+ *   -Drw_e2e_ds.ojp.readwrite.enabled=true \
+ *   -Drw_e2e_ds.ojp.readwrite.stickySessionTimeoutSeconds=5 \
+ *   -Drw_e2e_ds.ojp.connection.url=jdbc:h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1 \
+ *   -Drw_e2e_ds.ojp.connection.username=sa \
+ *   -Drw_e2e_ds.ojp.connection.password= \
+ *   -Drw_e2e_replica.ojp.connection.url=jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1 \
+ *   -Drw_e2e_replica.ojp.connection.username=sa \
+ *   -Drw_e2e_replica.ojp.connection.password= \
+ *   -Drw_e2e_replica.ojp.readwrite.primary=rw_e2e_ds
+ * </pre>
+ * 
+ * <h3>Client Connection Pattern (What These Tests Do)</h3>
  * 
  * <p>
  * The test client connects using standard OJP JDBC URLs and passes client properties 
@@ -87,7 +110,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <h3>Test Execution Requirements</h3>
  * 
  * <ul>
- *   <li>OJP server running on localhost:1059 with read/write configuration in server properties</li>
+ *   <li>OJP server running on localhost:1059 with read/write configuration (see above)</li>
  *   <li>Enable with <code>-DenableH2Tests=true</code> Maven flag</li>
  *   <li>Server must have rw_e2e_ds configured as primary and rw_e2e_replica as replica</li>
  * </ul>
@@ -206,8 +229,49 @@ public class H2ReadWriteSplittingEndToEndTest {
             int id = rs.getInt("id");
             String source = rs.getString("source");
             
-            assertEquals(2, id, "SELECT should route to replica (id=2)");
+            // If this fails with id=1, read/write splitting is not configured on the server
+            assertEquals(2, id, "SELECT should route to replica (id=2). " +
+                    "If you see id=1, read/write splitting is NOT configured on the OJP server. " +
+                    "See class javadoc for configuration instructions.");
             assertEquals("replica", source, "SELECT should route to replica (source='replica')");
+        }
+    }
+
+    /**
+     * Tests that multiple sequential SELECT queries all route to replica.
+     * 
+     * <p>Expected behavior:</p>
+     * <ul>
+     *   <li>All SELECT queries should route to replica</li>
+     *   <li>All should retrieve id=2, source="replica"</li>
+     * </ul>
+     */
+    @Test
+    void testMultipleReads_AllGoToReplica() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
+        setupDatabases();
+        
+        String url = "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
+        Properties props = new Properties();
+        props.setProperty("user", USER);
+        props.setProperty("password", PASSWORD);
+        props.setProperty("ojp.datasource.name", PRIMARY_DATASOURCE_NAME);
+        
+        connection = DriverManager.getConnection(url, props);
+        
+        // Execute multiple SELECTs - all should go to replica
+        for (int i = 0; i < 3; i++) {
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT id, source FROM test_data")) {
+                
+                assertTrue(rs.next(), "Should have at least one row in iteration " + i);
+                int id = rs.getInt("id");
+                String source = rs.getString("source");
+                
+                assertEquals(2, id, "SELECT #" + i + " should route to replica (id=2)");
+                assertEquals("replica", source, "SELECT #" + i + " should route to replica");
+            }
         }
     }
 
@@ -347,6 +411,43 @@ public class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
+     * Tests write-then-read without sticky session demonstrates eventual consistency.
+     * 
+     * <p>Expected behavior:</p>
+     * <ul>
+     *   <li>INSERT routes to primary (writes always go to primary)</li>
+     *   <li>SELECT routes to replica (reads go to replica when not in transaction and no sticky session)</li>
+     *   <li>SELECT does NOT see the inserted row (demonstrating eventual consistency)</li>
+     * </ul>
+     */
+    @Test
+    void testWriteThenRead_WithoutStickySession_DoesNotSeeWrite() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
+        setupDatabases();
+        
+        String url = "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
+        Properties props = new Properties();
+        props.setProperty("user", USER);
+        props.setProperty("password", PASSWORD);
+        props.setProperty("ojp.datasource.name", PRIMARY_DATASOURCE_NAME);
+        
+        connection = DriverManager.getConnection(url, props);
+        
+        try (Statement stmt = connection.createStatement()) {
+            // INSERT goes to primary
+            stmt.executeUpdate("INSERT INTO test_data VALUES (150, 'eventual_consistency_test')");
+            
+            // SELECT goes to replica - should NOT see the inserted row
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 150")) {
+                assertTrue(rs.next());
+                assertEquals(0, rs.getInt(1), 
+                    "Replica should not have the row just inserted into primary (demonstrates eventual consistency)");
+            }
+        }
+    }
+
+    /**
      * Tests that all operations within a transaction route to the primary database.
      * 
      * <p>Expected behavior:</p>
@@ -394,6 +495,50 @@ public class H2ReadWriteSplittingEndToEndTest {
             connection.commit();
         } finally {
             connection.setAutoCommit(true);
+        }
+    }
+
+    /**
+     * Tests that after transaction commit, reads go back to replica.
+     * 
+     * <p>Expected behavior:</p>
+     * <ul>
+     *   <li>Within transaction: SELECT routes to primary</li>
+     *   <li>After COMMIT and autocommit restored: SELECT routes to replica</li>
+     *   <li>Post-transaction SELECT from replica does not see committed data (eventual consistency)</li>
+     * </ul>
+     */
+    @Test
+    void testAfterTransactionCommit_ReadsGoToReplica() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+        
+        setupDatabases();
+        
+        String url = "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_e2e_primary;DB_CLOSE_DELAY=-1";
+        Properties props = new Properties();
+        props.setProperty("user", USER);
+        props.setProperty("password", PASSWORD);
+        props.setProperty("ojp.datasource.name", PRIMARY_DATASOURCE_NAME);
+        
+        connection = DriverManager.getConnection(url, props);
+        connection.setAutoCommit(false);
+        
+        try (Statement stmt = connection.createStatement()) {
+            // Within transaction: INSERT goes to primary
+            stmt.executeUpdate("INSERT INTO test_data VALUES (250, 'post_tx_test')");
+            connection.commit();
+        }
+        
+        // After commit, restore autocommit
+        connection.setAutoCommit(true);
+        
+        // Now SELECT should go to replica and NOT see the committed row
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM test_data WHERE id = 250")) {
+            
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1), 
+                "After transaction commit, SELECT routes to replica which doesn't have the committed row");
         }
     }
 }
