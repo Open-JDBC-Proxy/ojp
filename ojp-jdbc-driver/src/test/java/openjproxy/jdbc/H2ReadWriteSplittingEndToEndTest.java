@@ -40,10 +40,10 @@ import static org.junit.jupiter.api.Assertions.*;
  *         "jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1");
  * </pre>
  *
- * <h2>Test Strategy: Dual Unsynchronised H2 Databases</h2>
+ * <h2>Test Strategy: Dual Unsynchronized H2 Databases</h2>
  *
  * <p>
- * Two separate, intentionally <em>unsynchronised</em> H2 in-memory databases are used:
+ * Two separate, intentionally <em>unsynchronized</em> H2 in-memory databases are used:
  * </p>
  * <ul>
  *   <li><b>Primary</b> ({@code rw_e2e_primary}): seeded with id=1, source="primary"</li>
