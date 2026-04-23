@@ -89,36 +89,31 @@ public class DatasourcePropertiesLoader {
     }
 
     private static void applySystemProperties(Properties result, String prefixDot, boolean isDefault) {
-        for (String key : System.getProperties().stringPropertyNames()) {
-            String value = System.getProperty(key);
-            if (hasPrefixedPoolOrXaKey(key, prefixDot)) {
-                String std = key.substring(prefixDot.length());
-                result.setProperty(std, value);
-                log.debug("Overriding property from system property: {} = {}", std, value);
-            } else if (isPrefixedOjpKey(key)) {
-                result.setProperty(key, value);
-                log.debug("Setting property from system property (full key): {} = {}", key, value);
-            } else if (isDefault && isUnprefixedOjpKey(key)) {
-                result.setProperty(key, value);
-                log.debug("Overriding property from system property: {} = {}", key, value);
-            }
-        }
+        applyNormalizedProperties(result, System.getProperties(), prefixDot, isDefault, "system property");
     }
 
     private static void applyEnvProperties(Properties result, String prefixDot, boolean isDefault) {
+        Properties normalized = new Properties();
         for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
-            String key = entry.getKey().toLowerCase().replace('_', '.');
-            String value = entry.getValue();
+            normalized.setProperty(entry.getKey().toLowerCase().replace('_', '.'), entry.getValue());
+        }
+        applyNormalizedProperties(result, normalized, prefixDot, isDefault, "environment variable");
+    }
+
+    private static void applyNormalizedProperties(Properties result, Properties source,
+                                                   String prefixDot, boolean isDefault, String sourceName) {
+        for (String key : source.stringPropertyNames()) {
+            String value = source.getProperty(key);
             if (hasPrefixedPoolOrXaKey(key, prefixDot)) {
                 String std = key.substring(prefixDot.length());
                 result.setProperty(std, value);
-                log.debug("Overriding property from environment variable: {} = {}", std, value);
+                log.debug("Overriding property from {}: {} = {}", sourceName, std, value);
             } else if (isPrefixedOjpKey(key)) {
                 result.setProperty(key, value);
-                log.debug("Setting property from environment variable (full key): {} = {}", key, value);
+                log.debug("Setting property from {} (full key): {} = {}", sourceName, key, value);
             } else if (isDefault && isUnprefixedOjpKey(key)) {
                 result.setProperty(key, value);
-                log.debug("Overriding property from environment variable: {} = {}", key, value);
+                log.debug("Overriding property from {}: {} = {}", sourceName, key, value);
             }
         }
     }
