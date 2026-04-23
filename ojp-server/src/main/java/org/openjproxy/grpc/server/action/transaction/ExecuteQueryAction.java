@@ -171,12 +171,24 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
             if (CollectionUtils.isNotEmpty(params)) {
                 PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, queryDto, sql, params, request);
                 String resultSetUUID = sessionManager.registerResultSet(queryDto.getSession(), ps.executeQuery());
-                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
+                try {
+                    handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
+                } finally {
+                    if (replicaConn != null) {
+                        try { ps.close(); } catch (SQLException e) { log.warn("Failed to close PreparedStatement on replica: {}", e.getMessage()); }
+                    }
+                }
             } else {
                 Statement stmt = StatementFactory.createStatement(sessionManager, queryDto.getConnection(), request);
                 String resultSetUUID = sessionManager.registerResultSet(queryDto.getSession(),
                         stmt.executeQuery(sql));
-                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
+                try {
+                    handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
+                } finally {
+                    if (replicaConn != null) {
+                        try { stmt.close(); } catch (SQLException e) { log.warn("Failed to close Statement on replica: {}", e.getMessage()); }
+                    }
+                }
             }
         } finally {
             if (replicaConn != null) {

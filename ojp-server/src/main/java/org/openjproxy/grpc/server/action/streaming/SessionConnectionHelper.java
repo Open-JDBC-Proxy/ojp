@@ -74,6 +74,20 @@ import java.util.List;
 @Slf4j
 public class SessionConnectionHelper {
 
+    /** Shared SQL classifier – stateless and thread-safe. */
+    private static final RegexSqlClassifier SQL_CLASSIFIER = new RegexSqlClassifier();
+
+    /**
+     * Shared round-robin replica selector – thread-safe ({@link java.util.concurrent.atomic.AtomicInteger}
+     * counter) and intentionally shared so that the global round-robin counter distributes
+     * load evenly across replicas for the whole server process.
+     */
+    private static final RoundRobinReplicaSelector REPLICA_SELECTOR = new RoundRobinReplicaSelector();
+
+    /** Shared router built from the above singletons. */
+    private static final ReadWriteRouter READ_WRITE_ROUTER =
+            new ReadWriteRouter(SQL_CLASSIFIER, REPLICA_SELECTOR);
+
     /**
      * Private constructor
      */
@@ -266,8 +280,7 @@ public class SessionConnectionHelper {
         // Use ReadWriteRouter to select primary or replica based on SQL type and
         // transaction state (autoCommit=false → router returns primary)
         Session session = context.getSessionManager().getSession(dto.getSession());
-        ReadWriteRouter router = new ReadWriteRouter(new RegexSqlClassifier(), new RoundRobinReplicaSelector());
-        DataSource selectedDs = router.selectDataSource(session, sql, primaryDs, replicas);
+        DataSource selectedDs = READ_WRITE_ROUTER.selectDataSource(session, sql, primaryDs, replicas);
 
         if (selectedDs == primaryDs) {
             return null; // router chose primary → caller uses session connection
