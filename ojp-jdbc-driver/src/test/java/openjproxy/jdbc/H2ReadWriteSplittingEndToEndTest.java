@@ -37,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * props.setProperty("rw_e2e_replica.ojp.readwrite.primary",        "rw_e2e_ds");
  * props.setProperty("rw_e2e_replica.ojp.connection.url",
  *         "jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1");
+ * props.setProperty("rw_e2e_replica.ojp.connection.user",  "sa");
+ * props.setProperty("rw_e2e_replica.ojp.connection.password", "");
  * </pre>
  *
  * <h2>Test Strategy: Dual Unsynchronized H2 Databases</h2>
@@ -126,6 +128,9 @@ public class H2ReadWriteSplittingEndToEndTest {
         props.setProperty(REPLICA_DATASOURCE_NAME + ".ojp.readwrite.primary", PRIMARY_DATASOURCE_NAME);
         props.setProperty(REPLICA_DATASOURCE_NAME + ".ojp.connection.url",
                 "jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1");
+        // Replica credentials: server uses these to open the replica pool (does not inherit from primary)
+        props.setProperty(REPLICA_DATASOURCE_NAME + ".ojp.connection.user", USER);
+        props.setProperty(REPLICA_DATASOURCE_NAME + ".ojp.connection.password", PASSWORD);
         return props;
     }
 
