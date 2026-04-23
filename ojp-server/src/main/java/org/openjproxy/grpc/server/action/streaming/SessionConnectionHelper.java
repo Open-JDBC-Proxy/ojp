@@ -1,5 +1,6 @@
 package org.openjproxy.grpc.server.action.streaming;
 
+import com.openjproxy.grpc.DbName;
 import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -7,14 +8,20 @@ import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.ConnectionAcquisitionManager;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
 import org.openjproxy.grpc.server.PoolNotFoundException;
+import org.openjproxy.grpc.server.Session;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.grpc.server.action.ActionContext;
+import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry;
+import org.openjproxy.grpc.server.readwrite.ReadWriteRouter;
+import org.openjproxy.grpc.server.readwrite.RegexSqlClassifier;
+import org.openjproxy.grpc.server.readwrite.RoundRobinReplicaSelector;
 
 import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import javax.sql.XADataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 
 /**
  * Utility class for managing database connections within gRPC streaming
@@ -191,5 +198,88 @@ public class SessionConnectionHelper {
         dtoBuilder.connection(conn);
 
         return dtoBuilder.build();
+    }
+
+    /**
+     * Determines the connection to use for executing a SELECT query, applying
+     * read/write splitting if configured and the session is not in a transaction.
+     *
+     * <p>Returns a temporary connection from a replica {@link DataSource} when all of
+     * the following conditions hold:
+     * <ul>
+     *   <li>Read/write splitting is configured (replicas are registered for this connection hash)</li>
+     *   <li>The session is <em>not</em> inside an active transaction (auto-commit is {@code true})</li>
+     *   <li>The {@link ReadWriteRouter} classifies the SQL as a {@code READ} operation</li>
+     * </ul>
+     * Returns {@code null} in all other cases, meaning the caller should use the existing
+     * session connection (primary).
+     *
+     * <p><b>Caller responsibility:</b> When a non-null connection is returned, the caller
+     * <em>must</em> close it after the query result has been fully consumed.
+     *
+     * <p><b>DB2 / SQL Server exclusion:</b> These databases use row-by-row LOB streaming
+     * ({@code RESULT_SET_ROW_BY_ROW_MODE}), which requires the connection to remain open
+     * across multiple {@code fetchNextRows} calls.  Routing to a temporary connection would
+     * therefore close the underlying connection prematurely, so routing is skipped for these
+     * database types.
+     *
+     * @param context the action context providing the registry and datasource map
+     * @param dto     the session connection DTO obtained from {@link #sessionConnection}
+     * @param sql     the SQL statement to execute
+     * @return a temporary replica connection that the caller must close, or {@code null}
+     *         to use the existing session connection
+     */
+    public static Connection routeQueryToReplica(ActionContext context, ConnectionSessionDTO dto, String sql) {
+        // XA connections are always transactional – never route to replica
+        if (dto.getSession().getIsXA()) {
+            return null;
+        }
+
+        // DB2 and SQL Server use row-by-row LOB streaming, which requires the connection
+        // to remain open across multiple fetchNextRows calls. Skip routing for these.
+        DbName dbName = dto.getDbName();
+        if (DbName.DB2.equals(dbName) || DbName.SQL_SERVER.equals(dbName)) {
+            return null;
+        }
+
+        ReadWriteDataSourceRegistry registry = context.getReadWriteDataSourceRegistry();
+        if (registry == null) {
+            return null;
+        }
+
+        String connHash = dto.getSession().getConnHash();
+        String primaryName = registry.getPrimaryName(connHash);
+        if (primaryName == null) {
+            return null; // read/write splitting not configured for this connection
+        }
+
+        List<DataSource> replicas = registry.getReplicas(primaryName);
+        if (replicas.isEmpty()) {
+            return null; // no replicas registered
+        }
+
+        DataSource primaryDs = context.getDatasourceMap().get(connHash);
+        if (primaryDs == null) {
+            return null; // primary DataSource not found (e.g. unpooled mode)
+        }
+
+        // Use ReadWriteRouter to select primary or replica based on SQL type and
+        // transaction state (autoCommit=false → router returns primary)
+        Session session = context.getSessionManager().getSession(dto.getSession());
+        ReadWriteRouter router = new ReadWriteRouter(new RegexSqlClassifier(), new RoundRobinReplicaSelector());
+        DataSource selectedDs = router.selectDataSource(session, sql, primaryDs, replicas);
+
+        if (selectedDs == primaryDs) {
+            return null; // router chose primary → caller uses session connection
+        }
+
+        // Router chose a replica – acquire a temporary connection
+        try {
+            log.debug("Read/write routing: SELECT routed to replica for connHash={}", connHash);
+            return selectedDs.getConnection();
+        } catch (SQLException e) {
+            log.warn("Failed to acquire replica connection, falling back to primary: {}", e.getMessage());
+            return null;
+        }
     }
 }
