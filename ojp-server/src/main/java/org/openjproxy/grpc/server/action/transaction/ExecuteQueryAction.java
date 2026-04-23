@@ -167,31 +167,31 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                         .build()
                 : dto;
 
+        // Declare outside try so the single finally block can handle all replica cleanup.
+        PreparedStatement ps = null;
+        Statement stmt = null;
         try {
             if (CollectionUtils.isNotEmpty(params)) {
-                PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, queryDto, sql, params, request);
+                ps = StatementFactory.createPreparedStatement(sessionManager, queryDto, sql, params, request);
                 String resultSetUUID = sessionManager.registerResultSet(queryDto.getSession(), ps.executeQuery());
-                try {
-                    handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
-                } finally {
-                    if (replicaConn != null) {
-                        try { ps.close(); } catch (SQLException e) { log.warn("Failed to close PreparedStatement on replica: {}", e.getMessage()); }
-                    }
-                }
+                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
             } else {
-                Statement stmt = StatementFactory.createStatement(sessionManager, queryDto.getConnection(), request);
+                stmt = StatementFactory.createStatement(sessionManager, queryDto.getConnection(), request);
                 String resultSetUUID = sessionManager.registerResultSet(queryDto.getSession(),
                         stmt.executeQuery(sql));
-                try {
-                    handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
-                } finally {
-                    if (replicaConn != null) {
-                        try { stmt.close(); } catch (SQLException e) { log.warn("Failed to close Statement on replica: {}", e.getMessage()); }
-                    }
-                }
+                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
             }
         } finally {
+            // Close Statement/PreparedStatement and the replica connection only when a temporary
+            // replica connection was used. For the primary connection the Statement lifecycle is
+            // managed by the session (needed for DB2/SQL Server row-by-row LOB streaming).
             if (replicaConn != null) {
+                if (ps != null) {
+                    try { ps.close(); } catch (SQLException e) { log.warn("Failed to close PreparedStatement on replica: {}", e.getMessage()); }
+                }
+                if (stmt != null) {
+                    try { stmt.close(); } catch (SQLException e) { log.warn("Failed to close Statement on replica: {}", e.getMessage()); }
+                }
                 try {
                     replicaConn.close();
                 } catch (SQLException e) {
