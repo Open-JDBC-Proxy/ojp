@@ -250,6 +250,7 @@ class ReadWriteConfigurationParserTest {
     @Test
     void testCaching() {
         Properties props = new Properties();
+        props.setProperty("primary.ojp.readwrite.enabled", "true");  // must be enabled to be cached
         props.setProperty("primary.ojp.readwrite.role", "primary");
         props.setProperty("replica1.ojp.readwrite.role", "replica");
         props.setProperty("replica1.ojp.readwrite.primary", "primary");
@@ -257,7 +258,7 @@ class ReadWriteConfigurationParserTest {
         ReadWriteConfiguration config1 = ReadWriteConfigurationParser.parseForPrimary("primary", props);
         ReadWriteConfiguration config2 = ReadWriteConfigurationParser.parseForPrimary("primary", props);
         
-        // Should return same instance from cache
+        // Should return same instance from cache (only cached when enabled with replicas)
         assertSame(config1, config2);
     }
     

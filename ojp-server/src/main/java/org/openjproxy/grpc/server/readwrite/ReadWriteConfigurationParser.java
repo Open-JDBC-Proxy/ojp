@@ -132,8 +132,12 @@ public class ReadWriteConfigurationParser {
                 .replicas(replicaNames)
                 .build();
         
-        // Cache it
-        configCache.put(primaryName, config);
+        // Only cache when read/write splitting is actually active (enabled with at least one replica).
+        // A disabled or replica-less config is NOT cached so that the next connection attempt that
+        // carries the full properties can re-evaluate and set up splitting correctly.
+        if (config.isEnabled() && !config.getReplicaNames().isEmpty()) {
+            configCache.put(primaryName, config);
+        }
         
         return config;
     }

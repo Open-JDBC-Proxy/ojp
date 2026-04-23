@@ -247,6 +247,31 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
             lock.unlock();
         }
 
+        // If the pool already existed (ds != null inside the lock) and read/write splitting was
+        // not yet registered for this connHash (e.g. the server was running before the client
+        // started forwarding RW config, or a previous setup attempt failed), attempt setup now.
+        // The setupReadWriteSplitting implementation is idempotent: it skips silently when the
+        // primary is already mapped and replicas are registered.
+        ReadWriteDataSourceRegistry rwRegistry = context.getReadWriteDataSourceRegistry();
+        if (rwRegistry != null
+                && rwRegistry.getPrimaryName(connHash) == null
+                && connectionDetails.getPropertiesCount() > 0) {
+            DataSource existingDs = context.getDatasourceMap().get(connHash);
+            if (existingDs != null) {
+                try {
+                    Properties clientProps = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
+                    DataSourceConfigurationManager.DataSourceConfiguration dsConf =
+                            DataSourceConfigurationManager.getConfiguration(clientProps);
+                    setupReadWriteSplitting(context, connectionDetails, connHash, existingDs,
+                            dsConf.getDataSourceName());
+                } catch (Exception e) {
+                    log.error("Failed to setup read/write splitting for connHash {} (pool already existed, retry attempt): {}",
+                            connHash, e.getMessage(), e);
+                    // Non-fatal: continue without read/write splitting
+                }
+            }
+        }
+
         // Process cluster health from ConnectionDetails if provided.
         // This supports the driver's proactive cluster health push: after detecting a peer
         // server failure or recovery, the driver calls connect() on healthy servers with an
