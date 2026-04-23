@@ -1,7 +1,6 @@
 package org.openjproxy.grpc.server.action.connection;
 
 import com.openjproxy.grpc.ConnectionDetails;
-import com.openjproxy.grpc.DbName;
 import com.openjproxy.grpc.SessionInfo;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -20,7 +19,7 @@ import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
 import org.openjproxy.grpc.server.readwrite.ReadWriteConfiguration;
 import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceManager;
-import org.openjproxy.grpc.server.util.DatasourceNameExtractor;
+import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 

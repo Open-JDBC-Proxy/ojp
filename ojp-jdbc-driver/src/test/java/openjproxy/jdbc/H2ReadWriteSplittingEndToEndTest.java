@@ -1,5 +1,6 @@
 package openjproxy.jdbc;
 
+import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -80,7 +81,7 @@ public class H2ReadWriteSplittingEndToEndTest {
 
     @BeforeAll
     static void setupClass() {
-        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "true"));
     }
 
     @AfterEach
@@ -240,12 +241,16 @@ public class H2ReadWriteSplittingEndToEndTest {
         }
 
         // Verify via a fresh primary connection (write went to primary)
-        try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps());
-             Statement s = verify.createStatement();
-             ResultSet rs = s.executeQuery(
+        try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps())) {
+            // Need to use a transaction to force it to go to primary
+            verify.setAutoCommit(false);
+            try (Statement s = verify.createStatement();
+                 ResultSet rs = s.executeQuery(
                      "SELECT COUNT(*) FROM test_data WHERE id = 100")) {
-            assertTrue(rs.next());
-            assertEquals(1, rs.getInt(1), "Primary database should contain the inserted row");
+                assertTrue(rs.next());
+                assertEquals(1, rs.getInt(1), "Primary database should contain the inserted row");
+            }
+            verify.rollback();
         }
     }
 
@@ -265,12 +270,16 @@ public class H2ReadWriteSplittingEndToEndTest {
             assertEquals(1, affected, "UPDATE should affect 1 row");
         }
 
-        try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps());
-             Statement s = verify.createStatement();
-             ResultSet rs = s.executeQuery("SELECT source FROM test_data WHERE id = 1")) {
-            assertTrue(rs.next());
-            assertEquals("updated", rs.getString("source"),
+        try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps())) {
+            //Force select to got to primary for validation
+            verify.setAutoCommit(false);
+            try (Statement s = verify.createStatement();
+                ResultSet rs = s.executeQuery("SELECT source FROM test_data WHERE id = 1")) {
+                assertTrue(rs.next());
+                assertEquals("updated", rs.getString("source"),
                     "Primary database should show the updated value");
+            }
+            verify.rollback();
         }
     }
 
@@ -361,11 +370,11 @@ public class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * After a transaction commits, reads resume routing to the replica and therefore
-     * do not see the just-committed row (eventual consistency).
+     * After a transaction commits, reads continue going to primary.
      */
+    @SneakyThrows
     @Test
-    void testAfterTransactionCommit_ReadsGoToReplica() throws SQLException {
+    void testAfterTransactionCommit_ReadsGoToPrimary() throws SQLException {
         Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
 
         setupDatabases();
@@ -380,12 +389,13 @@ public class H2ReadWriteSplittingEndToEndTest {
 
         connection.setAutoCommit(true);
 
+
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(
                      "SELECT COUNT(*) FROM test_data WHERE id = 250")) {
             assertTrue(rs.next());
-            assertEquals(0, rs.getInt(1),
-                    "After commit, SELECT routes to replica which does not have the committed row");
+            assertEquals(1, rs.getInt(1),
+                    "After commit, SELECT routes to primary which should have the committed row");
         }
     }
 }
