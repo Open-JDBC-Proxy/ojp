@@ -59,6 +59,16 @@ public class ReadWriteDataSourceManager {
             DataSource primaryDs,
             String datasourceName) {
         
+        // Idempotency: if the primary is already mapped and has replicas registered, nothing to do.
+        // Note: the two conditions intentionally use different keys because the registry stores data
+        // in two separate maps – primaryMappings (connHash → primaryName) and replicaMap
+        // (primaryName → replicas).  Both must be true for splitting to be fully active.
+        if (registry.getPrimaryName(primaryConnHash) != null && registry.hasReplicas(datasourceName)) {
+            log.debug("Read/write splitting already active for primary '{}' (connHash={}), skipping re-setup",
+                    datasourceName, primaryConnHash);
+            return null;
+        }
+
         if (connectionDetails.getPropertiesCount() == 0) {
             log.debug("No properties provided, read/write splitting not configured");
             return null;

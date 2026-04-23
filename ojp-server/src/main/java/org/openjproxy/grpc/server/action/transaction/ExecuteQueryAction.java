@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.openjproxy.grpc.server.action.session.ResultSetHelper.handleResultSet;
+import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.routeQueryToReplica;
 import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.sessionConnection;
 import static org.openjproxy.grpc.server.action.transaction.CommandExecutionHelper.executeWithResilience;
 
@@ -153,16 +154,50 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
         // Phase 7: Wrap response observer for cache storage (if caching enabled)
         StreamObserver<OpResult> finalObserver = QueryCacheHelper.wrapWithCaching(
                 responseObserver, cacheConfig, sql, params, dto.getSession().getConnHash());
-        
-        if (CollectionUtils.isNotEmpty(params)) {
-            PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
-            String resultSetUUID = sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
-            handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
-        } else {
-            Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
-            String resultSetUUID = sessionManager.registerResultSet(dto.getSession(),
-                    stmt.executeQuery(sql));
-            handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
+
+        // Phase 8: Read/write routing – route SELECT queries to replica if configured
+        // and the session is not in an active transaction.
+        // routeQueryToReplica returns null when the session connection (primary) should be used.
+        Connection replicaConn = routeQueryToReplica(actionContext, dto, sql);
+        ConnectionSessionDTO queryDto = replicaConn != null
+                ? ConnectionSessionDTO.builder()
+                        .connection(replicaConn)
+                        .session(dto.getSession())
+                        .dbName(dto.getDbName())
+                        .build()
+                : dto;
+
+        // Declare outside try so the single finally block can handle all replica cleanup.
+        PreparedStatement ps = null;
+        Statement stmt = null;
+        try {
+            if (CollectionUtils.isNotEmpty(params)) {
+                ps = StatementFactory.createPreparedStatement(sessionManager, queryDto, sql, params, request);
+                String resultSetUUID = sessionManager.registerResultSet(queryDto.getSession(), ps.executeQuery());
+                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
+            } else {
+                stmt = StatementFactory.createStatement(sessionManager, queryDto.getConnection(), request);
+                String resultSetUUID = sessionManager.registerResultSet(queryDto.getSession(),
+                        stmt.executeQuery(sql));
+                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
+            }
+        } finally {
+            // Close Statement/PreparedStatement and the replica connection only when a temporary
+            // replica connection was used. For the primary connection the Statement lifecycle is
+            // managed by the session (needed for DB2/SQL Server row-by-row LOB streaming).
+            if (replicaConn != null) {
+                if (ps != null) {
+                    try { ps.close(); } catch (SQLException e) { log.warn("Failed to close PreparedStatement on replica: {}", e.getMessage()); }
+                }
+                if (stmt != null) {
+                    try { stmt.close(); } catch (SQLException e) { log.warn("Failed to close Statement on replica: {}", e.getMessage()); }
+                }
+                try {
+                    replicaConn.close();
+                } catch (SQLException e) {
+                    log.warn("Failed to close temporary replica connection: {}", e.getMessage());
+                }
+            }
         }
     }
 }
