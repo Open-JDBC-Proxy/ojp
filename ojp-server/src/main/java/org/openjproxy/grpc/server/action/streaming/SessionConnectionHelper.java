@@ -204,6 +204,16 @@ public class SessionConnectionHelper {
                 }
 
                 if (startSessionIfNone) {
+                    // Keep connectionHashMap consistent with the connHash the client sent.
+                    // Non-XA connect() calls may be served from a local cache in the driver
+                    // (MultinodeConnectionManager.connHashByConnectionKey) without issuing a
+                    // real gRPC RPC, so registerClientUUID is never called on the server and
+                    // connectionHashMap may hold a stale connHash from a prior connection that
+                    // used the same clientUUID (e.g. the replica connect in setupDatabases()).
+                    // Syncing here ensures createSession always uses the correct connHash.
+                    if (StringUtils.isNotEmpty(sessionInfo.getConnHash())) {
+                        sessionManager.registerClientUUID(sessionInfo.getConnHash(), sessionInfo.getClientUUID());
+                    }
                     SessionInfo updatedSession = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
                     dtoBuilder.session(updatedSession);
                 }
