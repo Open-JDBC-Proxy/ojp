@@ -79,8 +79,11 @@ public class DatasourcePropertiesLoader {
             } else if (isPrefixedOjpKey(key)) {
                 // All other *.ojp.* properties (read/write, replica configs, etc.): keep full key
                 // so that server-side parsers can locate them by their exact property names.
+                // Note: do NOT set found=true here. The found flag tracks whether datasource-specific
+                // pool/XA properties were found. Other *.ojp.* properties (e.g. multinode.ojp.*)
+                // that happen to match isPrefixedOjpKey() must NOT suppress the unprefixed
+                // ojp.connection.pool.* fallback that the default datasource relies on.
                 result.setProperty(key, value);
-                found = true;
             }
         }
         if (!found && isDefault) {
