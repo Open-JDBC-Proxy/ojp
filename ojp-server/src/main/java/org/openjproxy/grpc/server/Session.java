@@ -237,18 +237,14 @@ public class Session {
     }
     
     /**
-     * Repurposes an existing primary connection as a replica connection.
-     * This is used when a session is created with a connection that would have been allocated
-     * to primary by default, but the first operation is a SELECT that should route to replica.
-     * This avoids creating two connections when one will suffice.
+     * Clears the primary connection reference without closing it.
+     * This is used when discarding an unused primary connection that will be replaced
+     * by a replica connection.
      */
-    public synchronized void repurposeConnectionAsReplica() {
-        if (this.primaryConnection != null && this.replicaConnection == null) {
-            this.replicaConnection = this.primaryConnection;
-            this.primaryConnection = null;
-            this.activeRole = ConnectionRole.REPLICA;
-            log.debug("Repurposed primary connection as replica for session {}", sessionUUID);
-        }
+    public synchronized void clearPrimaryConnection() {
+        this.primaryConnection = null;
+        this.activeRole = ConnectionRole.NONE;
+        log.debug("Cleared primary connection for session {}", sessionUUID);
     }
     
     /**

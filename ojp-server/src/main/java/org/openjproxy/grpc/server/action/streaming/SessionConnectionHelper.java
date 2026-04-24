@@ -336,14 +336,20 @@ public class SessionConnectionHelper {
         // Router chose a replica – allocate replica connection if needed
         try {
             // Special case: if session was just created with a primary connection but no operations yet,
-            // and we're routing to replica, move the connection to replica slot instead
+            // close that connection and allocate from replica datasource instead
             Connection currentConn = session.getConnection();
             if (currentConn != null && session.getActiveRole() == ConnectionRole.PRIMARY 
                     && session.getLastWriteTimestamp() == 0 && !session.isInTransaction()) {
-                // Session just created, no writes yet, can repurpose connection as replica
-                session.repurposeConnectionAsReplica();
-                log.debug("Repurposed newly-created primary connection as replica for SELECT, connHash={}", connHash);
-                return session.getConnection();
+                // Session just created with connection from primary DS, but first operation is SELECT to replica
+                // Close the unused primary connection and allocate from replica instead
+                log.debug("Closing unused primary connection and allocating from replica for first SELECT, connHash={}", connHash);
+                try {
+                    currentConn.close();
+                } catch (SQLException e) {
+                    log.warn("Failed to close unused primary connection: {}", e.getMessage());
+                }
+                // Clear primary connection and allocate replica
+                session.clearPrimaryConnection();
             }
             
             ensureReplicaConnectionAllocated(context, session, selectedDs);
