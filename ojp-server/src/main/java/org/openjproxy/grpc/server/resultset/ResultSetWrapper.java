@@ -28,15 +28,11 @@ public class ResultSetWrapper {
     public static OpResult wrapResults(SessionInfo sessionInfo,
                                      List<Object[]> results,
                                      OpQueryResult.OpQueryResultBuilder queryResultBuilder,
-                                     String statementUUID,
                                      String resultSetUUID, String resultSetMode) {
 
         OpResult.Builder resultsBuilder = OpResult.newBuilder();
         resultsBuilder.setSession(sessionInfo);
         resultsBuilder.setType(ResultType.RESULT_SET_DATA);
-        if (statementUUID != null && !statementUUID.isBlank()) {
-            resultsBuilder.setUuid(statementUUID);
-        }
         queryResultBuilder.resultSetUUID(resultSetUUID);
         queryResultBuilder.rows(results);
         resultsBuilder.setQueryResult(ProtoConverter.toProto(queryResultBuilder.build()));

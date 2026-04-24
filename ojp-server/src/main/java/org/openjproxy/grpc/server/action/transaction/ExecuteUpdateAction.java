@@ -97,7 +97,6 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
 
         Statement stmt = null;
         String psUUID = "";
-        String[] preparedStatementUUIDHolder = new String[1];
         OpResult.Builder opResultBuilder = OpResult.newBuilder();
 
         var sessionManager = actionContext.getSessionManager();
@@ -124,20 +123,16 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                 if (StringUtils.isNotEmpty(request.getStatementUUID()) && ps != null) {
                     bindLobsAndParameters(sessionManager, dto, ps, params);
                 } else {
-                    ps = createAndRegisterPreparedStatement(sessionManager, dto, request, params, opResultBuilder,
-                            preparedStatementUUIDHolder);
+                    ps = createAndRegisterPreparedStatement(sessionManager, dto, request, params, opResultBuilder);
                 }
                 if (StatementRequestValidator.isAddBatchOperation(request)) {
-                    psUUID = addBatchAndGetStatementUUID(sessionManager, dto, ps, request, preparedStatementUUIDHolder[0]);
+                    psUUID = addBatchAndGetStatementUUID(sessionManager, dto, ps, request);
                 } else {
                     updated = ps.executeUpdate();
                 }
                 stmt = ps;
             } else {
                 stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
-                if (StringUtils.isBlank(request.getStatementUUID())) {
-                    opResultBuilder.setUuid(sessionManager.registerStatement(dto.getSession(), stmt));
-                }
                 updated = stmt.executeUpdate(request.getSql());
             }
 
@@ -196,17 +191,13 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
      */
     private PreparedStatement createAndRegisterPreparedStatement(SessionManager sessionManager,
                                                                  ConnectionSessionDTO dto, StatementRequest request, List<Parameter> params,
-                                                                 OpResult.Builder opResultBuilder, String[] preparedStatementUUIDHolder) throws SQLException {
+                                                                 OpResult.Builder opResultBuilder) throws SQLException {
         PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
                 request);
-        if (StringUtils.isBlank(request.getStatementUUID())) {
-            String psNewUUID = sessionManager.registerPreparedStatement(dto.getSession(), ps);
-            preparedStatementUUIDHolder[0] = psNewUUID;
-            opResultBuilder.setUuid(psNewUUID);
-        } else if (StatementRequestValidator.requiresGeneratedKeysTracking(request)
+        if (StatementRequestValidator.requiresGeneratedKeysTracking(request)
                 && !StatementRequestValidator.isAddBatchOperation(request)) {
-            preparedStatementUUIDHolder[0] = request.getStatementUUID();
-            opResultBuilder.setUuid(request.getStatementUUID());
+            String psNewUUID = sessionManager.registerPreparedStatement(dto.getSession(), ps);
+            opResultBuilder.setUuid(psNewUUID);
         }
         return ps;
     }
@@ -223,12 +214,10 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
      * @throws SQLException if adding to batch or registering fails
      */
     private String addBatchAndGetStatementUUID(SessionManager sessionManager, ConnectionSessionDTO dto,
-                                               PreparedStatement ps, StatementRequest request, String preparedStatementUUID) throws SQLException {
+                                               PreparedStatement ps, StatementRequest request) throws SQLException {
         ps.addBatch();
         if (request.getStatementUUID().isBlank()) {
-            return StringUtils.isNotBlank(preparedStatementUUID)
-                    ? preparedStatementUUID
-                    : sessionManager.registerPreparedStatement(dto.getSession(), ps);
+            return sessionManager.registerPreparedStatement(dto.getSession(), ps);
         } else {
             return request.getStatementUUID();
         }

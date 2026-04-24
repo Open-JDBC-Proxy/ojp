@@ -195,24 +195,20 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
             Object resultFirstLevel;
             if (params != null && params.length > 0) {
                 resultFirstLevel = method.invoke(resource, paramsReceived.toArray());
-                if (resultFirstLevel instanceof CallableStatement) {
-                    CallableStatement cs = (CallableStatement) resultFirstLevel;
+                if (resultFirstLevel instanceof CallableStatement cs) {
                     resultFirstLevel = context.getSessionManager().registerCallableStatement(responseBuilder.getSession(), cs);
                 }
             } else {
                 resultFirstLevel = method.invoke(resource);
-                if (resultFirstLevel instanceof ResultSet) {
-                    ResultSet rs = (ResultSet) resultFirstLevel;
+                if (resultFirstLevel instanceof ResultSet rs) {
                     resultFirstLevel = context.getSessionManager().registerResultSet(responseBuilder.getSession(), rs);
-                } else if (resultFirstLevel instanceof Array) {
-                    Array array = (Array) resultFirstLevel;
+                } else if (resultFirstLevel instanceof Array array) {
                     String arrayUUID = UUID.randomUUID().toString();
                     context.getSessionManager().registerAttr(responseBuilder.getSession(), arrayUUID, array);
                     resultFirstLevel = arrayUUID;
                 }
             }
-            if (resultFirstLevel instanceof Savepoint) {
-                Savepoint sp = (Savepoint) resultFirstLevel;
+            if (resultFirstLevel instanceof Savepoint sp) {
                 String uuid = UUID.randomUUID().toString();
                 resultFirstLevel = uuid;
                 context.getSessionManager().registerAttr(responseBuilder.getSession(), uuid, sp);
@@ -233,8 +229,7 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
                 } else {
                     resultSecondLevel = methodNext.invoke(resultFirstLevel);
                 }
-                if (resultSecondLevel instanceof ResultSet) {
-                    ResultSet rs = (ResultSet) resultSecondLevel;
+                if (resultSecondLevel instanceof ResultSet rs) {
                     resultSecondLevel = context.getSessionManager().registerResultSet(responseBuilder.getSession(), rs);
                 }
                 responseBuilder.addValues(ProtoConverter.toParameterValue(resultSecondLevel));
@@ -247,8 +242,7 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
         } catch (SQLException se) {
             sendSQLExceptionMetadata(se, responseObserver);
         } catch (InvocationTargetException e) {
-            if (e.getTargetException() instanceof SQLException) {
-                SQLException sqlException = (SQLException) e.getTargetException();
+            if (e.getTargetException() instanceof SQLException sqlException) {
                 sendSQLExceptionMetadata(sqlException, responseObserver);
             } else {
                 sendSQLExceptionMetadata(new SQLException("Unable to call resource: " + e.getTargetException().getMessage()),

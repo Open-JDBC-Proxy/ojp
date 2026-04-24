@@ -58,8 +58,7 @@ public final class QueryCacheKey {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof QueryCacheKey)) return false;
-        QueryCacheKey other = (QueryCacheKey) obj;
+        if (!(obj instanceof QueryCacheKey other)) return false;
         return datasourceName.equals(other.datasourceName)
             && normalizedSql.equals(other.normalizedSql)
             && parameters.equals(other.parameters);

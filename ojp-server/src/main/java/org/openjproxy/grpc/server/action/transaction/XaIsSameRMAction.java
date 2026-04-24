@@ -97,7 +97,7 @@ public class XaIsSameRMAction implements Action<XaIsSameRMRequest, XaIsSameRMRes
 
         } catch (Exception e) {
             log.error("Error in xaIsSameRM", e);
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
+            SQLException sqlException = (e instanceof SQLException ex) ? ex : new SQLException(e);
             sendSQLExceptionMetadata(sqlException, responseObserver);
         }
     }

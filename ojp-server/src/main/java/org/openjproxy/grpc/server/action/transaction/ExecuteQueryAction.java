@@ -5,7 +5,6 @@ import com.openjproxy.grpc.StatementRequest;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.dto.Parameter;
@@ -157,19 +156,13 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
         
         if (CollectionUtils.isNotEmpty(params)) {
             PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
-            String statementUUID = StringUtils.isBlank(request.getStatementUUID())
-                    ? sessionManager.registerPreparedStatement(dto.getSession(), ps)
-                    : request.getStatementUUID();
             String resultSetUUID = sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
-            handleResultSet(actionContext, dto.getSession(), statementUUID, resultSetUUID, finalObserver);
+            handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
         } else {
             Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
-            String statementUUID = StringUtils.isBlank(request.getStatementUUID())
-                    ? sessionManager.registerStatement(dto.getSession(), stmt)
-                    : request.getStatementUUID();
             String resultSetUUID = sessionManager.registerResultSet(dto.getSession(),
                     stmt.executeQuery(sql));
-            handleResultSet(actionContext, dto.getSession(), statementUUID, resultSetUUID, finalObserver);
+            handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
         }
     }
 }

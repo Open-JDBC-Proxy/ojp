@@ -104,7 +104,7 @@ public class XaStartAction
             }
             registry.registerExistingSession(xidKey, backendSession, flags, ojpSessionId);
 
-            } else if (flags == javax.transaction.xa.XAResource.TMJOIN ||
+        } else if (flags == javax.transaction.xa.XAResource.TMJOIN ||
                 flags == javax.transaction.xa.XAResource.TMRESUME) {
             // Join or resume existing transaction: delegate to xaStart
             // This requires the context to exist (from previous TMNOFLAGS start)

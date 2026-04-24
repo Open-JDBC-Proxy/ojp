@@ -1,7 +1,6 @@
 package openjproxy.jdbc;
 
 import lombok.extern.slf4j.Slf4j;
-import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -9,6 +8,7 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 import openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -31,15 +31,13 @@ public class OracleConnectionExtensiveTests {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleBasicConnection(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
         log.info("Testing Oracle connection with URL: {}", url);
         
-        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        Connection connection = connResult.getConnection();
-        try {
+        try (Connection connection = DriverManager.getConnection(url, user, pwd)) {
             assertTrue(connection.isValid(5), "Connection should be valid");
             
             // Test basic Oracle functionality
@@ -65,21 +63,17 @@ public class OracleConnectionExtensiveTests {
                 // Clean up
                 TestDBUtils.cleanupTestTables(connection, "oracle_test_table");
             }
-        } finally {
-            connResult.close();
         }
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleDataTypes(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
         log.info("Testing Oracle data types with URL: {}", url);
         
-        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        Connection connection = connResult.getConnection();
-        try {
+        try (Connection connection = DriverManager.getConnection(url, user, pwd)) {
             // Create and test Oracle-specific data types
             TestDBUtils.createMultiTypeTestTable(connection, "oracle_multitype_test", TestDBUtils.SqlSyntax.ORACLE);
             
@@ -106,21 +100,17 @@ public class OracleConnectionExtensiveTests {
                 // Clean up
                 TestDBUtils.cleanupTestTables(connection, "oracle_multitype_test");
             }
-        } finally {
-            connResult.close();
         }
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleAutoIncrementSequence(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleAutoIncrementSequence(String driverClass, String url, String user, String pwd) throws SQLException {
         Assumptions.assumeFalse(!isOracleTestEnabled, "Skipping Oracle tests");
         
         log.info("Testing Oracle auto-increment (IDENTITY) with URL: {}", url);
         
-        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        Connection connection = connResult.getConnection();
-        try {
+        try (Connection connection = DriverManager.getConnection(url, user, pwd)) {
             // Create table with Oracle IDENTITY column
             TestDBUtils.createAutoIncrementTestTable(connection, "oracle_identity_test", TestDBUtils.SqlSyntax.ORACLE);
             
@@ -143,8 +133,6 @@ public class OracleConnectionExtensiveTests {
                 // Clean up
                 TestDBUtils.cleanupTestTables(connection, "oracle_identity_test");
             }
-        } finally {
-            connResult.close();
         }
     }
 }

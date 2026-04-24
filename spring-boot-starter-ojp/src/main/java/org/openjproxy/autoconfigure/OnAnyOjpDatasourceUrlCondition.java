@@ -35,11 +35,9 @@ class OnAnyOjpDatasourceUrlCondition implements Condition {
             return true;
         }
 
-        if (environment instanceof ConfigurableEnvironment) {
-            ConfigurableEnvironment configurableEnvironment = (ConfigurableEnvironment) environment;
+        if (environment instanceof ConfigurableEnvironment configurableEnvironment) {
             for (PropertySource<?> source : configurableEnvironment.getPropertySources()) {
-                if (source instanceof EnumerablePropertySource<?>) {
-                    EnumerablePropertySource<?> enumerable = (EnumerablePropertySource<?>) source;
+                if (source instanceof EnumerablePropertySource<?> enumerable) {
                     for (String name : enumerable.getPropertyNames()) {
                         if (isNamedDatasourceUrlProperty(name)) {
                             String namedUrl = environment.getProperty(name);

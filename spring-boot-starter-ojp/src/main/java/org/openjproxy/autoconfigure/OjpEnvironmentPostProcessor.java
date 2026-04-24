@@ -71,8 +71,7 @@ public class OjpEnvironmentPostProcessor implements EnvironmentPostProcessor, Or
         Set<String> seenUrlProperties = new LinkedHashSet<>();
         seenUrlProperties.add("spring.datasource.url");
         for (PropertySource<?> source : environment.getPropertySources()) {
-            if (source instanceof EnumerablePropertySource<?>) {
-                EnumerablePropertySource<?> enumerable = (EnumerablePropertySource<?>) source;
+            if (source instanceof EnumerablePropertySource<?> enumerable) {
                 for (String propName : enumerable.getPropertyNames()) {
                     if (isNamedDatasourceUrlProperty(propName) && seenUrlProperties.add(propName)) {
                         String dsPrefix = propName.substring(0, propName.lastIndexOf('.') + 1);

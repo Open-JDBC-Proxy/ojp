@@ -68,14 +68,6 @@ public class ResultSet extends RemoteProxyResultSet {
         try {
             this.statement = statement;
             OpResult result = nextWithSessionUpdate(itOpResult.next());
-            if (this.statement instanceof org.openjproxy.jdbc.Statement) {
-                org.openjproxy.jdbc.Statement ojpStatement = (org.openjproxy.jdbc.Statement) this.statement;
-                if (ojpStatement.getStatementUUID() == null
-                    && result.getUuid() != null
-                        && !result.getUuid().isBlank()) {
-                    ojpStatement.setStatementUUID(result.getUuid());
-                }
-            }
             OpQueryResult opQueryResult = ProtoConverter.fromProto(result.getQueryResult());
             this.inRowByRowMode = CommonConstants.RESULT_SET_ROW_BY_ROW_MODE.equalsIgnoreCase(result.getFlag());
             this.setStatementService(statementService);

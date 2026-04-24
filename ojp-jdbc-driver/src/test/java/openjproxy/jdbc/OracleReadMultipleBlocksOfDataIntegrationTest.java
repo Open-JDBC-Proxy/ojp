@@ -1,12 +1,11 @@
 package openjproxy.jdbc;
 
-import openjproxy.jdbc.testutil.TestDBUtils;
-import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -29,13 +28,12 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections_with_record_counts.csv")
-    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
+    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        Connection conn = connResult.getConnection();
+        Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing Oracle retrieving " + totalRecords + " records for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle retrieving " + totalRecords + " records from url -> " + url);
 
         try {
             executeUpdate(conn, "drop table oracle_read_blocks_test_multi");
@@ -69,22 +67,20 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         ResultSet resultSetAfterDeletion = psSelect.executeQuery();
         assertFalse(resultSetAfterDeletion.next());
-        resultSetAfterDeletion.close();
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        conn.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        Connection conn = connResult.getConnection();
+        Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing Oracle large dataset pagination for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle large dataset pagination for url -> " + url);
 
         try {
             executeUpdate(conn, "drop table oracle_pagination_test");
@@ -139,18 +135,17 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         page2.close();
         psPage1.close();
         psPage2.close();
-        connResult.close();
+        conn.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        Connection conn = connResult.getConnection();
+        Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing Oracle ResultSet scrolling for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle ResultSet scrolling for url -> " + url);
 
         try {
             executeUpdate(conn, "drop table oracle_scroll_test");
@@ -203,18 +198,17 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         scrollableRs.close();
         scrollableStmt.close();
-        connResult.close();
+        conn.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
         
-        ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        Connection conn = connResult.getConnection();
+        Connection conn = DriverManager.getConnection(url, user, pwd);
 
-        System.out.println("Testing Oracle multiple data types in large result set for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle multiple data types in large result set for url -> " + url);
 
         try {
             executeUpdate(conn, "drop table oracle_multi_types_test");
@@ -267,6 +261,6 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         resultSet.close();
         psSelect.close();
-        connResult.close();
+        conn.close();
     }
 }

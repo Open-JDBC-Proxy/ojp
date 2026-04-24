@@ -1,7 +1,5 @@
 package openjproxy.jdbc;
 
-import openjproxy.jdbc.testutil.TestDBUtils;
-import openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -9,9 +7,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Blob;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -32,19 +33,17 @@ class OracleBlobIntegrationTest {
     private static boolean isTestDisabled;
     private String tableName;
     private Connection conn;
-    private ConnectionResult connResult;
 
     @BeforeAll
     static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
-    void setUp(String url, String user, String pwd, boolean isXA) throws SQLException {
+    void setUp(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
 
         this.tableName = "oracle_blob_test";
-        connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
-        conn = connResult.getConnection();
+        conn = DriverManager.getConnection(url, user, pwd);
 
         try {
             executeUpdate(conn, "DROP TABLE " + tableName);
@@ -59,11 +58,11 @@ class OracleBlobIntegrationTest {
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleBlobCreationAndRetrieval(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
-        setUp(url, user, pwd, isXA);
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleBlobCreationAndRetrieval(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+        setUp(driverClass, url, user, pwd);
 
-        System.out.println("Testing Oracle BLOB creation and retrieval for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle BLOB creation and retrieval for url -> " + url);
 
         String testData = "Oracle BLOB test data - special characters: äöü ñ 中文 🚀";
         byte[] dataBytes = testData.getBytes(StandardCharsets.UTF_8);
@@ -97,15 +96,15 @@ class OracleBlobIntegrationTest {
         psInsert.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        conn.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleLargeBlobHandling(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
-        setUp(url, user, pwd, isXA);
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleLargeBlobHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+        setUp(driverClass, url, user, pwd);
 
-        System.out.println("Testing Oracle large BLOB handling for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle large BLOB handling for url -> " + url);
 
         // Create a large test string (1MB)
         StringBuilder sb = new StringBuilder();
@@ -145,15 +144,15 @@ class OracleBlobIntegrationTest {
         psInsert.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        conn.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleBlobBinaryStream(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
-        setUp(url, user, pwd, isXA);
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleBlobBinaryStream(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+        setUp(driverClass, url, user, pwd);
 
-        System.out.println("Testing Oracle BLOB binary stream for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle BLOB binary stream for url -> " + url);
 
         // Test with binary data (not just text)
         byte[] binaryData = new byte[1000];
@@ -178,8 +177,10 @@ class OracleBlobIntegrationTest {
 
         assertTrue(rs.next());
 
-        byte[] retrievedData = rs.getBytes(1);
-        assertNotNull(retrievedData);
+        InputStream binaryStream = rs.getBinaryStream(1);
+        assertNotNull(binaryStream);
+
+        byte[] retrievedData = binaryStream.readAllBytes();
         assertEquals(binaryData.length, retrievedData.length);
 
         // Verify each byte
@@ -191,15 +192,16 @@ class OracleBlobIntegrationTest {
         psInsert.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        binaryStream.close();
+        conn.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleBlobUpdate(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException{
-        setUp(url, user, pwd, isXA);
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleBlobUpdate(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+        setUp(driverClass, url, user, pwd);
 
-        System.out.println("Testing Oracle BLOB update for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle BLOB update for url -> " + url);
 
         String originalData = "Original Oracle BLOB data";
         String updatedData = "Updated Oracle BLOB data with more content";
@@ -238,15 +240,15 @@ class OracleBlobIntegrationTest {
         psUpdate.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        conn.close();
     }
 
     @ParameterizedTest
-    @CsvFileSource(resources = "/oracle_connections_xa_modes.csv")
-    void testOracleEmptyAndNullBlob(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException {
-        setUp(url, user, pwd, isXA);
+    @CsvFileSource(resources = "/oracle_connections.csv")
+    void testOracleEmptyAndNullBlob(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
+        setUp(driverClass, url, user, pwd);
 
-        System.out.println("Testing Oracle empty and null BLOB for driver -> " + driverClass + ", url -> " + url);
+        System.out.println("Testing Oracle empty and null BLOB for url -> " + url);
 
         // Insert empty BLOB
         PreparedStatement psInsert = conn.prepareStatement(
@@ -282,6 +284,6 @@ class OracleBlobIntegrationTest {
         psInsert.close();
         psSelect.close();
         rs.close();
-        connResult.close();
+        conn.close();
     }
 }

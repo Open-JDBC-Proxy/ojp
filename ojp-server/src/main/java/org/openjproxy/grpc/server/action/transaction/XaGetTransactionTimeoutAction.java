@@ -89,7 +89,7 @@ public class XaGetTransactionTimeoutAction
 
         } catch (Exception e) {
             log.error("Error in xaGetTransactionTimeout", e);
-            SQLException sqlException = (e instanceof SQLException) ? (SQLException) e : new SQLException(e);
+            SQLException sqlException = (e instanceof SQLException ex) ? ex : new SQLException(e);
             sendSQLExceptionMetadata(sqlException, responseObserver);
         }
     }
