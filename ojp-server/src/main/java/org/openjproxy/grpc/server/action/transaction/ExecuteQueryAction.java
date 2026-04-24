@@ -190,32 +190,16 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                                    StreamObserver<OpResult> finalObserver) throws SQLException {
         PreparedStatement ps = null;
         Statement stmt = null;
-        try {
-            if (CollectionUtils.isNotEmpty(params)) {
-                ps = StatementFactory.createPreparedStatement(actionContext.getSessionManager(), queryDto, sql, params, request);
-                String resultSetUUID = actionContext.getSessionManager().registerResultSet(queryDto.getSession(), ps.executeQuery());
-                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
-            } else {
-                stmt = StatementFactory.createStatement(actionContext.getSessionManager(), queryDto.getConnection(), request);
-                String resultSetUUID = actionContext.getSessionManager().registerResultSet(queryDto.getSession(), stmt.executeQuery(sql));
-                handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
-            }
-        } finally {
-            closeStatementResources(ps, stmt);
+        // Note: Do NOT close statements - they must remain open because the ResultSet is still in use
+        // The session will manage statement lifecycle when the ResultSet is closed or session terminates
+        if (CollectionUtils.isNotEmpty(params)) {
+            ps = StatementFactory.createPreparedStatement(actionContext.getSessionManager(), queryDto, sql, params, request);
+            String resultSetUUID = actionContext.getSessionManager().registerResultSet(queryDto.getSession(), ps.executeQuery());
+            handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
+        } else {
+            stmt = StatementFactory.createStatement(actionContext.getSessionManager(), queryDto.getConnection(), request);
+            String resultSetUUID = actionContext.getSessionManager().registerResultSet(queryDto.getSession(), stmt.executeQuery(sql));
+            handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
         }
-    }
-    
-    private void closeStatementResources(PreparedStatement ps, Statement stmt) {
-        if (ps != null) {
-            try { ps.close(); } catch (SQLException e) { 
-                log.warn("Failed to close PreparedStatement: {}", e.getMessage()); 
-            }
-        }
-        if (stmt != null) {
-            try { stmt.close(); } catch (SQLException e) { 
-                log.warn("Failed to close Statement: {}", e.getMessage()); 
-            }
-        }
-        // Note: Connection is now persistent in the session and should not be closed here
     }
 }
