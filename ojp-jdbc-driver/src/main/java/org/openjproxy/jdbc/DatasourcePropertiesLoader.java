@@ -74,15 +74,14 @@ public class DatasourcePropertiesLoader {
             String value = source.getProperty(key);
             if (hasPrefixedPoolOrXaKey(key, prefixDot)) {
                 // Pool and XA properties for this datasource: strip prefix for backward compat
+                // Example: "myapp.ojp.connection.pool.maxPoolSize=10" becomes "ojp.connection.pool.maxPoolSize=10"
                 result.setProperty(key.substring(prefixDot.length()), value);
                 found = true;
             } else if (isPrefixedOjpKey(key)) {
-                // All other *.ojp.* properties (read/write, replica configs, etc.): keep full key
-                // so that server-side parsers can locate them by their exact property names.
-                // Note: do NOT set found=true here. The found flag tracks whether datasource-specific
-                // pool/XA properties were found. Other *.ojp.* properties (e.g. multinode.ojp.*)
-                // that happen to match isPrefixedOjpKey() must NOT suppress the unprefixed
-                // ojp.connection.pool.* fallback that the default datasource relies on.
+                // Keep full key for read/write splitting and replica configs so server can find them
+                // Example: "replica1.ojp.readwrite.primary=myapp" stays as "replica1.ojp.readwrite.primary=myapp"
+                // Note: We don't mark as "found" because these aren't pool/XA properties.
+                // This allows the default datasource to still load unprefixed properties if needed.
                 result.setProperty(key, value);
             }
         }
@@ -103,6 +102,16 @@ public class DatasourcePropertiesLoader {
         applyNormalizedProperties(result, normalized, prefixDot, isDefault, "environment variable");
     }
 
+    /**
+     * Applies properties from a source (system properties or environment variables) to the result.
+     * Handles property overrides with proper precedence and logging.
+     *
+     * @param result the properties object to populate
+     * @param source the source properties (system properties or normalized environment variables)
+     * @param prefixDot the datasource prefix with trailing dot (e.g., "myapp.")
+     * @param isDefault true if loading the default datasource
+     * @param sourceName description of the source for logging (e.g., "system property")
+     */
     private static void applyNormalizedProperties(Properties result, Properties source,
                                                    String prefixDot, boolean isDefault, String sourceName) {
         for (String key : source.stringPropertyNames()) {
@@ -122,8 +131,15 @@ public class DatasourcePropertiesLoader {
     }
 
     /**
-     * Returns true for pool or XA properties belonging to the given datasource prefix.
-     * These are stripped of their prefix when added to the result for backward compatibility.
+     * Checks if a property key is a pool or XA property for a specific datasource.
+     * These properties get their prefix stripped for backward compatibility.
+     * 
+     * Example: "myapp.ojp.connection.pool.maxPoolSize" matches when prefixDot is "myapp."
+     * and returns true, causing the property to be stored as "ojp.connection.pool.maxPoolSize".
+     *
+     * @param key the property key to check
+     * @param prefixDot the datasource prefix with trailing dot (e.g., "myapp.")
+     * @return true if this is a pool or XA property for the specified datasource
      */
     private static boolean hasPrefixedPoolOrXaKey(String key, String prefixDot) {
         return key.startsWith(prefixDot + OJP_POOL_PREFIX) || key.startsWith(prefixDot + OJP_XA_PREFIX);

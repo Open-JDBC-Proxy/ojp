@@ -74,6 +74,11 @@ public class Driver implements java.sql.Driver {
             .count() > 1;
         
         if (hasMultipleDatasources) {
+            // Warn when using different datasources per server endpoint in a multinode setup.
+            // This is a valid but advanced configuration. Each server may use a different datasource
+            // (e.g., geographically distributed databases), but the connection properties are loaded
+            // from the first datasource only. The user should ensure all datasources have compatible
+            // connection settings or configure each server's datasource properties explicitly.
             log.warn("Per-endpoint datasources detected. Currently using first datasource '{}' for connection properties. " +
                     "Per-server configuration will be applied based on server endpoint datasource names: {}", 
                     dataSourceName,
