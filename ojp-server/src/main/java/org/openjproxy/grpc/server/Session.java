@@ -174,7 +174,7 @@ public class Session {
      * For read/write splitting, this returns either the primary or replica connection
      * based on the activeRole.
      * 
-     * @return the JDBC connection
+     * @return the JDBC connection, or null if no connection is available yet
      */
     public Connection getConnection() {
         // For XA sessions with backend session, always get fresh connection reference
@@ -186,6 +186,7 @@ public class Session {
         }
         
         // For read/write splitting, return the connection based on active role
+        // Return null if no connection is available (matches original behavior for deferred XA sessions)
         switch (activeRole) {
             case PRIMARY:
                 return this.primaryConnection;
@@ -193,7 +194,7 @@ public class Session {
                 return this.replicaConnection;
             case NONE:
             default:
-                return this.primaryConnection;  // Fallback to primary if no role set
+                return this.primaryConnection;  // Fallback to primary if no role set (may be null)
         }
     }
     
