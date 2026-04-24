@@ -352,7 +352,7 @@ class H2ReadWriteSplittingEndToEndTest {
         stickyProps.setProperty("password", PASSWORD);
         stickyProps.setProperty("ojp.datasource.name", "rw_sticky_ds");
         stickyProps.setProperty("rw_sticky_ds.ojp.readwrite.enabled", "true");
-        stickyProps.setProperty("rw_sticky_ds.ojp.readwrite.stickySessionTimeoutSeconds", "3");
+        stickyProps.setProperty("rw_sticky_ds.ojp.readwrite.stickySessionSeconds", "3");
         stickyProps.setProperty("rw_sticky_replica.ojp.readwrite.role", "replica");
         stickyProps.setProperty("rw_sticky_replica.ojp.readwrite.primary", "rw_sticky_ds");
         stickyProps.setProperty("rw_sticky_replica.ojp.connection.url",
@@ -417,7 +417,7 @@ class H2ReadWriteSplittingEndToEndTest {
         props.setProperty("password", PASSWORD);
         props.setProperty("ojp.datasource.name", "rw_sticky_ds");
         props.setProperty("rw_sticky_ds.ojp.readwrite.enabled", "true");
-        props.setProperty("rw_sticky_ds.ojp.readwrite.stickySessionTimeoutSeconds", "3");
+        props.setProperty("rw_sticky_ds.ojp.readwrite.stickySessionSeconds", "3");
         props.setProperty("rw_sticky_replica.ojp.readwrite.role", "replica");
         props.setProperty("rw_sticky_replica.ojp.readwrite.primary", "rw_sticky_ds");
         props.setProperty("rw_sticky_replica.ojp.connection.url",

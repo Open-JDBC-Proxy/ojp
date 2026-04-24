@@ -290,6 +290,15 @@ public class SessionConnectionHelper {
         // Use ReadWriteRouter to select primary or replica based on SQL type and
         // transaction state (autoCommit=false → router returns primary)
         Session session = context.getSessionManager().getSession(dto.getSession());
+
+        // Sticky session check: if a write was executed recently, route reads to primary
+        // to guarantee read-your-writes consistency.
+        int stickySeconds = registry.getStickySessionSeconds(primaryName);
+        if (stickySeconds > 0 && session != null && session.isInStickyMode(stickySeconds * 1000L)) {
+            log.debug("Sticky session active ({}s), routing read to primary for connHash={}", stickySeconds, connHash);
+            return null; // caller uses session (primary) connection
+        }
+
         DataSource selectedDs = READ_WRITE_ROUTER.selectDataSource(session, sql, primaryDs, replicas);
 
         if (selectedDs == primaryDs) {

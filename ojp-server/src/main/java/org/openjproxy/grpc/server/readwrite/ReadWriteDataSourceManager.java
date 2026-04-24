@@ -94,6 +94,9 @@ public class ReadWriteDataSourceManager {
         // Register primary datasource
         registry.registerPrimaryMapping(primaryConnHash, datasourceName);
         
+        // Register sticky session timeout
+        registry.registerStickyTimeout(datasourceName, config.getStickySessionSeconds());
+        
         // Create and register replica datasources
         List<String> successfulReplicas = new ArrayList<>();
         for (String replicaName : config.getReplicaNames()) {
