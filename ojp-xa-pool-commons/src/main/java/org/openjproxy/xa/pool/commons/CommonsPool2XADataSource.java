@@ -166,7 +166,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
      * @throws Exception if session cannot be borrowed for other reasons
      */
     public XABackendSession borrowSession() throws Exception {
-        log.info("[XA-POOL-BORROW] Attempting to borrow session (state BEFORE: active={}, idle={}, maxTotal={}, maxIdle={}, minIdle={})",
+        log.debug("[XA-POOL-BORROW] Attempting to borrow session (state BEFORE: active={}, idle={}, maxTotal={}, maxIdle={}, minIdle={})",
                 pool.getNumActive(), pool.getNumIdle(), pool.getMaxTotal(), pool.getMaxIdle(), pool.getMinIdle());
         
         long startTime = System.nanoTime();
@@ -194,7 +194,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
             // Update pool state metrics
             updatePoolMetrics();
             
-            log.info("[XA-POOL-BORROW] Session borrowed successfully (state AFTER: active={}, idle={}, maxTotal={})",
+            log.debug("[XA-POOL-BORROW] Session borrowed successfully (state AFTER: active={}, idle={}, maxTotal={})",
                     pool.getNumActive(), pool.getNumIdle(), pool.getMaxTotal());
             
             return session;
@@ -289,7 +289,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
             poolMetrics.recordValidationFailure(poolName);
             updatePoolMetrics();
             
-            log.info("[XA-POOL-INVALIDATE] Session invalidated (after: active={}, idle={}, maxTotal={})",
+            log.debug("[XA-POOL-INVALIDATE] Session invalidated (after: active={}, idle={}, maxTotal={})",
                     pool.getNumActive(), pool.getNumIdle(), pool.getMaxTotal());
             
         } catch (Exception e) {
@@ -346,7 +346,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
         int currentActive = pool.getNumActive();
         int currentIdle = pool.getNumIdle();
         
-        log.info("[XA-POOL-RESIZE] setMaxTotal: old={}, new={}, oldMaxIdle={}, currentState=(active={}, idle={})", 
+        log.debug("[XA-POOL-RESIZE] setMaxTotal: old={}, new={}, oldMaxIdle={}, currentState=(active={}, idle={})", 
                 oldMaxTotal, maxTotal, oldMaxIdle, currentActive, currentIdle);
         
         pool.setMaxTotal(maxTotal);
@@ -354,7 +354,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
         // Without this, addObject() becomes a no-op once numIdle >= old maxIdle
         pool.setMaxIdle(maxTotal);
         
-        log.info("[XA-POOL-RESIZE] After setMaxTotal: maxTotal={}, maxIdle={}, minIdle={}, state=(active={}, idle={})",
+        log.debug("[XA-POOL-RESIZE] After setMaxTotal: maxTotal={}, maxIdle={}, minIdle={}, state=(active={}, idle={})",
                 pool.getMaxTotal(), pool.getMaxIdle(), pool.getMinIdle(), pool.getNumActive(), pool.getNumIdle());
         
         // If we're downsizing (new maxTotal < old maxTotal), actively destroy excess connections
@@ -388,7 +388,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
         }
         
         int excessCount = totalConnections - maxTotal;
-        log.info("[XA-POOL-CLEANUP] Destroying {} excess connections: total={} (active={}, idle={}), maxTotal={}",
+        log.debug("[XA-POOL-CLEANUP] Destroying {} excess connections: total={} (active={}, idle={}), maxTotal={}",
                 excessCount, totalConnections, currentActive, currentIdle, maxTotal);
         
         // Destroy idle connections to reduce total
@@ -423,7 +423,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
         int remainingIdle = pool.getNumIdle();
         int remainingTotal = remainingActive + remainingIdle;
         
-        log.info("[XA-POOL-CLEANUP] Cleanup complete: destroyed={}, failures={}, " +
+        log.debug("[XA-POOL-CLEANUP] Cleanup complete: destroyed={}, failures={}, " +
                 "remaining total={} (active={}, idle={}), maxTotal={}, " +
                 "excess remaining={}", 
                 destroyed, failures, remainingTotal, remainingActive, remainingIdle, maxTotal,
@@ -471,7 +471,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
         int needed = minIdle - currentIdle;
         
         if (needed > 0) {
-            log.info("[XA-POOL-RESIZE] Preparing pool to reach minIdle={} (current: idle={}, active={}, needed={})", 
+            log.debug("[XA-POOL-RESIZE] Preparing pool to reach minIdle={} (current: idle={}, active={}, needed={})", 
                     minIdle, currentIdle, currentActive, needed);
             
             // Use a robust approach: attempt to create connections with retry logic
@@ -481,12 +481,12 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
             Exception lastException = null;
             
             // First, try preparePool() which is the standard approach
-            log.info("[XA-POOL-RESIZE] Calling preparePool() to create {} idle connections...", needed);
+            log.debug("[XA-POOL-RESIZE] Calling preparePool() to create {} idle connections...", needed);
             try {
                 pool.preparePool();
                 int afterPrepare = pool.getNumIdle();
                 successCount = afterPrepare - currentIdle;
-                log.info("[XA-POOL-RESIZE] preparePool() created {} idle connections (idle: {} -> {}), " +
+                log.debug("[XA-POOL-RESIZE] preparePool() created {} idle connections (idle: {} -> {}), " +
                         "pool state: maxTotal={}, maxIdle={}, minIdle={}, active={}", 
                         successCount, currentIdle, afterPrepare, 
                         pool.getMaxTotal(), pool.getMaxIdle(), pool.getMinIdle(), pool.getNumActive());
@@ -500,7 +500,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
             // This handles the case where pool is under load and preparePool() exits early
             int stillNeeded = minIdle - pool.getNumIdle();
             if (stillNeeded > 0) {
-                log.info("[XA-POOL-RESIZE] Still need {} idle connections after preparePool(), creating manually", 
+                log.debug("[XA-POOL-RESIZE] Still need {} idle connections after preparePool(), creating manually", 
                         stillNeeded);
                 
                 for (int i = 0; i < stillNeeded; i++) {
@@ -537,7 +537,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
             int finalIdle = pool.getNumIdle();
             int finalActive = pool.getNumActive();
             
-            log.info("[XA-POOL-RESIZE] Pool expansion complete: success={}, failures={}, " +
+            log.debug("[XA-POOL-RESIZE] Pool expansion complete: success={}, failures={}, " +
                     "pool state: idle={}, active={}, maxTotal={}", 
                     successCount, failureCount, finalIdle, finalActive, currentMaxTotal);
             
@@ -565,7 +565,7 @@ public class CommonsPool2XADataSource implements XADataSource, AutoCloseable {
      * Useful for debugging pool sizing and connection tracking issues.
      */
     public void logPoolDiagnostics(String context) {
-        log.info("[XA-POOL-DIAGNOSTICS] {} - Pool state: active={}, idle={}, waiters={}, " +
+        log.debug("[XA-POOL-DIAGNOSTICS] {} - Pool state: active={}, idle={}, waiters={}, " +
                 "maxTotal={}, maxIdle={}, minIdle={}, createdCount={}, destroyedCount={}, borrowedCount={}, returnedCount={}",
                 context,
                 pool.getNumActive(),

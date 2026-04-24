@@ -955,65 +955,154 @@ graph LR
 
 ## 2.5 Action Pattern Architecture (Server-Side)
 
-**[IMAGE PROMPT 15]**: Create a modern architectural diagram showing the Action Pattern transformation:
-LEFT: "Before" - Large StatementServiceImpl monolith box (2500+ lines)
-RIGHT: "After" - Multiple focused Action class boxes (ConnectAction, CommitTransactionAction, ExecuteQueryAction, XaStartAction, etc.)
-Show transformation arrow in the middle labeled "Action Pattern Refactoring (2026-01)"
-Use clean, professional style with color coding: monolith in red, actions in green
-Include metrics: "1 class → 20+ Actions", "Better testability", "Reduced complexity"
+### From Monolith to Actions
 
-In January 2026, OJP underwent a significant architectural refactoring, transforming the StatementServiceImpl class from a 2,500+ line monolith into a collection of focused Action classes. This improved code maintainability, testability, and scalability.
+In January 2026, OJP underwent a significant architectural refactoring, transforming the `StatementServiceImpl` class from a 2,500+ line monolith into a collection of focused Action classes. This improved code maintainability, testability, and scalability.
 
-### The Action Pattern Approach
+```mermaid
+graph LR
+    subgraph before ["❌ Before — God Class"]
+        SSI["StatementServiceImpl\n━━━━━━━━━━━━━━━━━━━━\n2,500+ lines · 21 methods\nconnect · executeUpdate\nexecuteQuery · createLob\nstartTransaction · commit\nrollback · xaStart · …"]
+    end
 
-The refactoring introduced a clean Action Pattern where each operation is encapsulated in its own class implementing a simple interface:
+    before -- "Action Pattern\nRefactoring\nJanuary 2026\n(PRs #261 – #284)" --> after
 
-```java
-public interface Action<T> {
-    T execute(ActionContext context) throws SQLException;
-}
+    subgraph after ["✅ After — Focused Actions"]
+        direction TB
+        CA["ConnectAction"]
+        EUA["ExecuteUpdateAction"]
+        EQA["ExecuteQueryAction"]
+        STA["StartTransactionAction"]
+        CTA["CommitTransactionAction"]
+        RTA["RollbackTransactionAction"]
+        XSA["XaStartAction"]
+        CLA["CreateLobAction"]
+        MORE["…20+ more Actions"]
+    end
+
+    style SSI fill:#ffcdd2,stroke:#c62828
+    style CA fill:#c8e6c9,stroke:#2e7d32
+    style EUA fill:#c8e6c9,stroke:#2e7d32
+    style EQA fill:#c8e6c9,stroke:#2e7d32
+    style STA fill:#c8e6c9,stroke:#2e7d32
+    style CTA fill:#c8e6c9,stroke:#2e7d32
+    style RTA fill:#c8e6c9,stroke:#2e7d32
+    style XSA fill:#c8e6c9,stroke:#2e7d32
+    style CLA fill:#c8e6c9,stroke:#2e7d32
+    style MORE fill:#c8e6c9,stroke:#2e7d32
 ```
 
-The ActionContext serves as a data transfer object carrying all necessary state (session, connection, request, managers). All Action classes implement the singleton pattern for memory efficiency, with zero allocation overhead and thread-safe stateless design.
+### The Action Interface Hierarchy
+
+The refactoring introduced four thin Action interfaces, each covering a different method shape present in the gRPC service. Every Action implementation is a stateless singleton; all per-request state is passed via method parameters rather than stored as instance fields.
+
+```mermaid
+classDiagram
+    class Action~TRequest,TResponse~ {
+        <<interface>>
+        +execute(ActionContext, TRequest, StreamObserver~TResponse~) void
+    }
+    note for Action~TRequest,TResponse~ "Standard unary / server-streaming RPCs\n(21 of 21 gRPC methods use this or StreamingAction)"
+
+    class StreamingAction~TRequest,TResponse~ {
+        <<interface>>
+        +execute(ActionContext, StreamObserver~TResponse~) StreamObserver~TRequest~
+    }
+    note for StreamingAction~TRequest,TResponse~ "Bidirectional streaming\n(createLob)"
+
+    class InitAction {
+        <<interface>>
+        +execute() void
+    }
+    note for InitAction "One-time server init\n(e.g., XA pool provider setup)"
+
+    class ValueAction~TRequest,TResult~ {
+        <<interface>>
+        +execute(TRequest) TResult
+    }
+    note for ValueAction~TRequest,TResult~ "Internal helpers that return a value\ndirectly instead of via StreamObserver"
+
+    ConnectAction ..|> Action : implements
+    ExecuteUpdateAction ..|> Action : implements
+    ExecuteQueryAction ..|> Action : implements
+    CommitTransactionAction ..|> Action : implements
+    XaStartAction ..|> Action : implements
+    TerminateSessionAction ..|> Action : implements
+    CreateLobAction ..|> StreamingAction : implements
+    ProcessClusterHealthAction ..|> InitAction : implements
+    ResultSetHelper ..|> ValueAction : implements
+```
+
+### ActionContext — Shared State Holder
+
+The `ActionContext` is created once at server startup and injected into every Action call. It holds:
+
+- `datasourceMap` / `xaDataSourceMap` — pooled and XA datasources, keyed by connection hash
+- `sessionManager` — session lifecycle and connection retrieval
+- `circuitBreakerRegistry` — per-datasource circuit breakers
+- `slowQuerySegregationManagers` — per-datasource slow-query slot managers
+- `serverConfiguration` — runtime configuration flags
+- `xaPoolProvider` / `xaRegistries` — XA transaction infrastructure
+
+All internal maps are `ConcurrentHashMap`, making the context itself thread-safe.
 
 ### Core Action Categories
 
-Operations are organized into logical categories:
+Actions are organised into sub-packages by concern:
 
-**Connection & Session Management**: ConnectAction, CreateSlowQuerySegregationManagerAction, TerminateSessionAction
+| Package | Key Actions |
+|---|---|
+| `action.connection` | `ConnectAction`, `HandleXAConnectionWithPoolingAction`, `CreateSlowQuerySegregationManagerAction` |
+| `action.transaction` | `ExecuteUpdateAction`, `ExecuteQueryAction`, `FetchNextRowsAction`, `StartTransactionAction`, `CommitTransactionAction`, `RollbackTransactionAction`, and XA lifecycle helpers: `XaForgetAction`, `XaIsSameRMAction`, `XaGetTransactionTimeoutAction`, `XaSetTransactionTimeoutAction` |
+| `action.xa` | Core XA protocol operations: `XaStartAction`, `XaEndAction`, `XaPrepareAction`, `XaCommitAction`, `XaRollbackAction`, `XaRecoverAction` |
+| `action.streaming` | `CreateLobAction` (`StreamingAction`), `ReadLobAction` (`Action`) |
+| `action.session` | `TerminateSessionAction` |
+| `action.resource` | `CallResourceAction` |
+| `action.util` | `ProcessClusterHealthAction` |
 
-**Transaction Operations**: CommitTransactionAction, RollbackTransactionAction
+### Benefits Realised
 
-**XA Transactions**: XaStartAction, XaEndAction, XaPrepareAction, XaCommitAction, XaRollbackAction, XaRecoverAction, XaForgetAction, plus timeout and resource management actions
+**Code Quality**: From one 2,500-line class to 30+ focused classes averaging 75–150 lines each, with improved cohesion and organisation.
 
-**LOB Operations**: CreateLobAction, ReadLobAction
+**Testability**: Each action can be unit-tested independently with a minimal `ActionContext` mock containing only the fields that action reads.
 
-### Benefits Realized
+**Performance**: Singleton pattern eliminates per-request object allocation, reducing GC pressure on the hot path.
 
-**Code Quality**: From one 2,500-line class to 20+ focused classes averaging 100-150 lines each, with improved cohesion and organization
-
-**Testability**: Each action can be unit tested independently with simplified mocking
-
-**Performance**: Singleton pattern eliminates object allocation overhead and reduces GC pressure
-
-**Developer Experience**: Easier code navigation, reduced merge conflicts, clear extension points
+**Developer Experience**: Easier code navigation, no merge conflicts on `StatementServiceImpl`, clear extension points for new operations.
 
 ### Implementation Example
 
 ```java
-// After refactoring
-public ConnectResponse connect(ConnectRequest request) {
-    ActionContext context = ActionContext.builder()
-        .request(request)
-        .sessionManager(sessionManager)
-        .build();
-        
-    ConnectAction.getInstance().execute(context);
-    return buildResponse(context);
+// StatementServiceImpl — thin orchestrator
+@Override
+public void connect(ConnectionDetails connectionDetails,
+                    StreamObserver<SessionInfo> responseObserver) {
+    ConnectAction.getInstance().execute(actionContext, connectionDetails, responseObserver);
+}
+
+// ConnectAction — focused singleton (~150 lines)
+@Slf4j
+public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
+    private static final ConnectAction INSTANCE = new ConnectAction();
+
+    private ConnectAction() {}
+
+    public static ConnectAction getInstance() { return INSTANCE; }
+
+    @Override
+    public void execute(ActionContext context, ConnectionDetails request,
+                        StreamObserver<SessionInfo> responseObserver) {
+        // All state comes from context — the action itself is stateless.
+        Map<String, DataSource> datasourceMap = context.getDatasourceMap();
+        SessionManager sessionManager = context.getSessionManager();
+        // … connection logic …
+    }
 }
 ```
 
-The refactoring maintains full backward compatibility while making the internal implementation modular and maintainable. The phased rollout throughout January 2026 (PRs #261-#284) ensured continuous integration without disrupting development.
+The refactoring maintains full backward compatibility while making the internal implementation modular and maintainable. The phased rollout throughout January 2026 (PRs #261–#284) ensured continuous integration without disrupting development.
+
+For the full contributor guide, singleton rationale, and step-by-step instructions for adding a new Action, see [ADR-009](../ADRs/adr-009-action-pattern-for-statement-service.md) and the [Action Pattern Migration Guide](../designs/STATEMENTSERVICE_ACTION_PATTERN_MIGRATION.md).
 
 ---
 

@@ -57,17 +57,17 @@ public class TerminateSessionAction implements Action<SessionInfo, SessionTermin
             // Before terminating, return any completed XA backend sessions to pool
             // This implements the dual-condition lifecycle: sessions are returned when
             // both transaction is complete AND XAConnection is closed
-            log.info("[XA-TERMINATE] terminateSession called for sessionUUID={}, isXA={}, connHash={}",
+            log.debug("[XA-TERMINATE] terminateSession called for sessionUUID={}, isXA={}, connHash={}",
                     sessionInfo.getSessionUUID(), sessionInfo.getIsXA(), sessionInfo.getConnHash());
             
             if (sessionInfo.getIsXA()) {
                 String connHash = sessionInfo.getConnHash();
                 XATransactionRegistry registry = context.getXaRegistries().get(connHash);
-                log.info("[XA-TERMINATE] Looking up XA registry for connHash={}, found={}", connHash, registry != null);
+                log.debug("[XA-TERMINATE] Looking up XA registry for connHash={}, found={}", connHash, registry != null);
                 if (registry != null) {
-                    log.info("[XA-TERMINATE] Calling returnCompletedSessions for ojpSessionId={}", sessionInfo.getSessionUUID());
+                    log.debug("[XA-TERMINATE] Calling returnCompletedSessions for ojpSessionId={}", sessionInfo.getSessionUUID());
                     int returnedCount = registry.returnCompletedSessions(sessionInfo.getSessionUUID());
-                    log.info("[XA-TERMINATE] returnCompletedSessions returned count={}", returnedCount);
+                    log.debug("[XA-TERMINATE] returnCompletedSessions returned count={}", returnedCount);
                     if (returnedCount > 0) {
                         log.info("Returned {} completed XA backend sessions to pool on session termination", returnedCount);
                     }
@@ -76,7 +76,7 @@ public class TerminateSessionAction implements Action<SessionInfo, SessionTermin
                 }
             }
 
-            log.info("[XA-TERMINATE] Calling sessionManager.terminateSession for sessionUUID={}", sessionInfo.getSessionUUID());
+            log.debug("[XA-TERMINATE] Calling sessionManager.terminateSession for sessionUUID={}", sessionInfo.getSessionUUID());
             context.getSessionManager().terminateSession(sessionInfo);
             responseObserver.onNext(SessionTerminationStatus.newBuilder().setTerminated(true).build());
             responseObserver.onCompleted();

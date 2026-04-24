@@ -2,13 +2,15 @@
 
 ## Overview
 
-This guide explains how to refactor `StatementServiceImpl` using the Action pattern. The `connect()` method has been implemented as a reference - use it as a template for refactoring the remaining 20 public methods.
+This guide documents the completed Action pattern refactoring of `StatementServiceImpl` and explains how to add new Action classes when extending OJP.
 
-**Reference Implementation**: [PR #214](https://github.com/Open-J-Proxy/ojp/pull/214)
+The migration is **complete**: all 21 public methods of `StatementServiceImpl` have been extracted into focused Action classes (PRs #214, #261–#284).
+
+**Reference implementation**: [PR #214](https://github.com/Open-J-Proxy/ojp/pull/214) — `ConnectAction` is the canonical example.
 
 ## Why Refactor?
 
-`StatementServiceImpl` is a 2,528-line God class with 21 public methods. The Action pattern splits this into:
+`StatementServiceImpl` was a 2,528-line God class with 21 public methods. The Action pattern splits this into:
 - **StatementServiceImpl**: Thin orchestrator (~400 lines)
 - **35+ Action classes**: Focused, testable units (~75 lines each)
 - **ActionContext**: Centralized shared state holder
@@ -217,7 +219,7 @@ For bidirectional streaming (1 method: createLob).
 
 ```java
 public interface StreamingAction<TRequest, TResponse> {
-    StreamObserver<TRequest> execute(StreamObserver<TResponse> responseObserver);
+    StreamObserver<TRequest> execute(ActionContext context, StreamObserver<TResponse> responseObserver);
 }
 ```
 
@@ -236,7 +238,8 @@ public class CreateLobAction implements StreamingAction<LobDataBlock, LobReferen
     }
     
     @Override
-    public StreamObserver<LobDataBlock> execute(StreamObserver<LobReference> responseObserver) {
+    public StreamObserver<LobDataBlock> execute(ActionContext context,
+                                                 StreamObserver<LobReference> responseObserver) {
         // Streaming action logic - stateless, returns StreamObserver for client streaming
         return new StreamObserver<LobDataBlock>() {
             // Implementation...
@@ -389,30 +392,37 @@ All action classes MUST be implemented as singletons for the following reasons:
 
 **Note**: Actions do NOT store ActionContext as an instance field. Instead, they receive it as a parameter to their execute() method via the Action interface, ensuring they remain truly stateless and thread-safe.
 
-## Quick Start for Contributors
+## Adding a New Action
 
-### 1. Study the Reference
-Review [PR #214](https://github.com/Open-J-Proxy/ojp/pull/214) - especially `ConnectAction` and how it uses ActionContext.
+The migration of all existing methods is complete. When a **new gRPC operation** is added to `StatementService.proto`, follow these steps to add its Action class.
 
-### 2. Pick a Method to Refactor
-Choose any of the 20 remaining public methods in `StatementServiceImpl`:
-- **Simple**: `startTransaction`, `commitTransaction`, `rollbackTransaction`, `terminateSession`, XA operations (xaEnd, xaForget, etc.)
-- **Medium**: `executeUpdate`, `executeQuery`, `fetchNextRows`, `callResource`, `xaStart`, `xaPrepare`
-- **Complex**: `createLob`, `readLob`
+### 1. Choose the right interface
 
-### 3. Implementation Steps
-1. **Create action class** in appropriate package (e.g., `org.openjproxy.grpc.server.action.transaction`)
-2. **Implement Action interface**: `public class YourAction implements Action<RequestType, ResponseType>`
-3. **Implement singleton pattern**:
-   - Add private constructor
-   - Add `private static final YourAction INSTANCE = new YourAction();`
-   - Add `public static YourAction getInstance() { return INSTANCE; }`
-4. **Implement execute method**: `@Override public void execute(ActionContext context, RequestType request, StreamObserver<ResponseType> observer)`
-5. **Copy method logic** from `StatementServiceImpl` to action's `execute()` method
-6. **Use context parameter** instead of instance fields - e.g., `context.getDatasourceMap()`, `context.getSessionManager()`
-7. **Update StatementServiceImpl** to delegate: `YourAction.getInstance().execute(actionContext, request, observer);`
-8. **Test** - ensure compilation and existing tests pass
-9. **Submit PR** with clear description
+| Use case | Interface |
+|---|---|
+| New gRPC unary/server-streaming method | `Action<TRequest, TResponse>` |
+| New bidirectional streaming method | `StreamingAction<TRequest, TResponse>` |
+| Server-startup initialisation | `InitAction` |
+| Internal helper called by another Action | `ValueAction<TRequest, TResult>` |
+
+### 2. Study the reference
+
+Review [PR #214](https://github.com/Open-J-Proxy/ojp/pull/214) — especially `ConnectAction` and how it uses `ActionContext`.
+
+### 3. Implementation steps
+
+1. **Create action class** in the appropriate sub-package (e.g., `org.openjproxy.grpc.server.action.transaction`).
+2. **Implement the interface**: `public class YourAction implements Action<RequestType, ResponseType>`.
+3. **Add the singleton boilerplate**:
+   - `private static final YourAction INSTANCE = new YourAction();`
+   - `private YourAction() {}`
+   - `public static YourAction getInstance() { return INSTANCE; }`
+4. **Implement `execute`**: `@Override public void execute(ActionContext context, RequestType request, StreamObserver<ResponseType> observer)`.
+5. **Access shared state via `context`**: e.g., `context.getDatasourceMap()`, `context.getSessionManager()`.
+6. **Add the one-line delegation** in `StatementServiceImpl`: `YourAction.getInstance().execute(actionContext, request, observer);`.
+7. **Write a unit test** (see [Unit Testing Actions](#unit-testing-actions) below).
+8. **Verify compilation**: `mvn clean compile`.
+9. **Submit a PR** with a clear description.
 
 ### Common Patterns
 
@@ -469,31 +479,101 @@ try {
 }
 ```
 
-## Package Structure
+## Unit Testing Actions
 
-Actions are organized by functionality:
+One of the core benefits of the Action pattern is that each Action can be tested with a minimal mock of only the `ActionContext` fields it actually reads. There is no need to wire the full `StatementServiceImpl` with all its dependencies.
+
+### Basic test skeleton (JUnit 5 + Mockito)
+
+```java
+import io.grpc.stub.StreamObserver;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class CommitTransactionActionTest {
+
+    // Only mock the ActionContext fields that CommitTransactionAction actually uses
+    @Mock private ActionContext context;
+    @Mock private SessionManager sessionManager;
+    @Mock private Connection connection;
+    @Mock private StreamObserver<SessionInfo> responseObserver;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        when(context.getSessionManager()).thenReturn(sessionManager);
+        when(sessionManager.getConnection(any())).thenReturn(connection);
+    }
+
+    @Test
+    void shouldCommitTransactionAndRespond() throws Exception {
+        SessionInfo session = SessionInfo.newBuilder().setSessionId("test-session").build();
+
+        CommitTransactionAction.getInstance().execute(context, session, responseObserver);
+
+        verify(connection).commit();
+        verify(responseObserver).onNext(any(SessionInfo.class));
+        verify(responseObserver).onCompleted();
+        verify(responseObserver, never()).onError(any());
+    }
+
+    @Test
+    void shouldPropagateExceptionOnCommitFailure() throws Exception {
+        doThrow(new SQLException("connection lost")).when(connection).commit();
+        SessionInfo session = SessionInfo.newBuilder().setSessionId("test-session").build();
+
+        CommitTransactionAction.getInstance().execute(context, session, responseObserver);
+
+        // GrpcExceptionHandler converts the SQLException into an onError call
+        verify(responseObserver).onError(any());
+        verify(responseObserver, never()).onCompleted();
+    }
+}
+```
+
+### Key points
+
+- **`ActionContext` is injected per-call**, not stored by the Action. Mock only the fields the Action under test reads — all others can remain as uninitialised mocks.
+- **The singleton instance is reused between tests** — which is safe because Actions are stateless. Do not replace `INSTANCE` or use reflection to reset it.
+- **`StreamObserver` is a plain interface** and trivial to mock with Mockito.
+- For Actions that delegate to other Actions (e.g., `ConnectAction` delegating to `HandleXAConnectionWithPoolingAction`), use `mockStatic` or extract the delegation call into a package-private helper method to allow substitution in tests.
+
+## Package Structure
 
 ```
 org.openjproxy.grpc.server.action/
-├── connection/        ConnectAction ✅ (reference implementation)
-├── transaction/       Start/Commit/Rollback transactions
-├── statement/         ExecuteUpdate, ExecuteQuery, FetchNextRows
-├── xa/                XA transaction operations (10 methods)
-├── lob/               CreateLob, ReadLob (streaming)
-├── session/           TerminateSession
-├── resource/          CallResource
-└── util/              ProcessClusterHealth ✅, helpers
+├── connection/   ConnectAction, HandleXAConnectionWithPoolingAction,
+│                 HandleUnpooledXAConnectionAction, CreateSlowQuerySegregationManagerAction
+├── transaction/  ExecuteUpdateAction, ExecuteQueryAction, FetchNextRowsAction,
+│                 StartTransactionAction, CommitTransactionAction, RollbackTransactionAction,
+│                 XaForgetAction, XaIsSameRMAction, XaGetTransactionTimeoutAction,
+│                 XaSetTransactionTimeoutAction
+│                 (XA lifecycle helpers that complement standard transaction operations)
+├── xa/           XaStartAction, XaEndAction, XaPrepareAction, XaCommitAction,
+│                 XaRollbackAction, XaRecoverAction
+│                 (core XA protocol operations: start/end/prepare/commit/rollback/recover)
+├── streaming/    CreateLobAction (StreamingAction), ReadLobAction (Action)
+├── session/      TerminateSessionAction
+├── resource/     CallResourceAction
+└── util/         ProcessClusterHealthAction
 ```
+
+> **Note**: `ReadLobAction` lives in `streaming/` alongside `CreateLobAction` but implements `Action` (not `StreamingAction`) because it uses standard server-streaming, not bidirectional streaming.
 
 ## Benefits
 
-
-- ✅ **Testability**: Each action independently testable
-- ✅ **Maintainability**: ~75 line focused classes vs 2,528 line God class  
+- ✅ **Testability**: Each action independently testable (see [Unit Testing Actions](#unit-testing-actions))
+- ✅ **Maintainability**: ~75–150 line focused classes vs 2,528 line God class
 - ✅ **Code Review**: Smaller, focused PRs
-- ✅ **Parallel Development**: Multiple contributors can work simultaneously
+- ✅ **Parallel Development**: Multiple contributors can work simultaneously without merge conflicts on `StatementServiceImpl`
 - ✅ **Debugging**: Easier to trace specific operations
 
 ---
 
-**Get started**: Pick a method from `StatementServiceImpl`, study ConnectAction in [PR #214](https://github.com/Open-J-Proxy/ojp/pull/214), and submit your PR!
+**Further reading**: [ADR-009](../ADRs/adr-009-action-pattern-for-statement-service.md) documents the architectural rationale, alternatives considered, and consequences of this design decision.

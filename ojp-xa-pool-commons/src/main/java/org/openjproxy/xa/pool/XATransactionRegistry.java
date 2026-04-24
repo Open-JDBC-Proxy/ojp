@@ -127,7 +127,7 @@ public class XATransactionRegistry {
             int currentMaxTotal = commonsPool.getMaxTotal();
             int currentMinIdle = commonsPool.getMinIdle();
             
-            log.info("[XA-POOL-RESIZE] resizeBackendPool called: old=(max={}, min={}), new=(max={}, min={}), " +
+            log.debug("[XA-POOL-RESIZE] resizeBackendPool called: old=(max={}, min={}), new=(max={}, min={}), " +
                     "currentPoolState=(active={}, idle={})",
                     currentMaxTotal, currentMinIdle, newMaxPoolSize, newMinIdle,
                     commonsPool.getNumActive(), commonsPool.getNumIdle());
@@ -142,13 +142,13 @@ public class XATransactionRegistry {
                 // When decreasing: set minIdle first, then maxTotal to avoid validation errors
                 commonsPool.setMinIdle(newMinIdle);
                 commonsPool.setMaxTotal(newMaxPoolSize);
-                log.info("[XA-POOL-RESIZE] XA backend pool resized (DECREASED): maxTotal={}, minIdle={}", 
+                log.debug("[XA-POOL-RESIZE] XA backend pool resized (DECREASED): maxTotal={}, minIdle={}", 
                         newMaxPoolSize, newMinIdle);
             } else {
                 // When increasing: set maxTotal first, then minIdle
                 commonsPool.setMaxTotal(newMaxPoolSize);
                 commonsPool.setMinIdle(newMinIdle);
-                log.info("[XA-POOL-RESIZE] XA backend pool resized (INCREASED): maxTotal={}, minIdle={}", 
+                log.debug("[XA-POOL-RESIZE] XA backend pool resized (INCREASED): maxTotal={}, minIdle={}", 
                         newMaxPoolSize, newMinIdle);
             }
             
@@ -653,7 +653,7 @@ public class XATransactionRegistry {
      * @return the number of sessions returned to pool
      */
     public int returnCompletedSessions(String ojpSessionId) {
-        log.info("[XA-RETURN-SESSIONS] returnCompletedSessions called for ojpSessionId={}, total contexts={}", 
+        log.debug("[XA-RETURN-SESSIONS] returnCompletedSessions called for ojpSessionId={}, total contexts={}", 
                 ojpSessionId, contexts.size());
         int returnedCount = 0;
         List<XidKey> toRemove = new ArrayList<>();
@@ -679,11 +679,11 @@ public class XATransactionRegistry {
                         log.debug("[XA-POOL-RETURN] SKIP: Backend session already returned for xid={}, ojpSessionId={}", xidKey, ojpSessionId);
                     } else {
                         try {
-                            log.info("[XA-POOL-RETURN] BEFORE return: Returning backend session for xid={}, ojpSessionId={}", xidKey, ojpSessionId);
+                            log.debug("[XA-POOL-RETURN] BEFORE return: Returning backend session for xid={}, ojpSessionId={}", xidKey, ojpSessionId);
                             poolProvider.returnSession(poolDataSource, session);
                             returnedSessions.add(session);  // Mark as returned
                             returnedCount++;
-                            log.info("[XA-POOL-RETURN] AFTER return: Successfully returned backend session for xid={}, ojpSessionId={}", xidKey, ojpSessionId);
+                            log.debug("[XA-POOL-RETURN] AFTER return: Successfully returned backend session for xid={}, ojpSessionId={}", xidKey, ojpSessionId);
                         } catch (Exception e) {
                             log.error("[XA-POOL-RETURN] Failed to return session to pool for xid={}: {}", xidKey, e.getMessage(), e);
                             // Best effort: try to invalidate
@@ -706,7 +706,7 @@ public class XATransactionRegistry {
             log.debug("Removed completed transaction from registry: xid={}, ojpSessionId={}", xid, ojpSessionId);
         }
         
-        log.info("[XA-RETURN-SESSIONS] returnCompletedSessions complete: returned={}, removed={} contexts for ojpSessionId={}", 
+        log.debug("[XA-RETURN-SESSIONS] returnCompletedSessions complete: returned={}, removed={} contexts for ojpSessionId={}", 
                 returnedCount, toRemove.size(), ojpSessionId);
         
         return returnedCount;

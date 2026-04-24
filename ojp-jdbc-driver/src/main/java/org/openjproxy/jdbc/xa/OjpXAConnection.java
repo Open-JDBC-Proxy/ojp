@@ -103,7 +103,7 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
                 MultinodeConnectionManager connectionManager = ((MultinodeStatementService) statementService).getConnectionManager();
                 String clusterHealth = connectionManager.generateClusterHealth();
                 connBuilder.setClusterHealth(clusterHealth);
-                log.info("[XA-CONNECT-HEALTH] Adding cluster health to ConnectionDetails: {}", clusterHealth);
+                log.debug("[XA-CONNECT-HEALTH] Adding cluster health to ConnectionDetails: {}", clusterHealth);
             }
 
             if (properties != null && !properties.isEmpty()) {
@@ -227,7 +227,7 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
     @Override
     public void close() throws SQLException {
         try {
-            log.info("[XA-CONN-CLOSE] OjpXAConnection.close() called, closed={}, sessionInfo={}", 
+            log.debug("[XA-CONN-CLOSE] OjpXAConnection.close() called, closed={}, sessionInfo={}", 
                     closed, sessionInfo != null ? sessionInfo.getSessionUUID() : "null");
             if (closed) {
                 log.debug("[XA-CONN-CLOSE] Already closed, returning");
@@ -270,9 +270,9 @@ public class OjpXAConnection implements XAConnection, ServerHealthListener {
             // Close XA session on server (only if it was created)
             if (sessionInfo != null) {
                 try {
-                    log.info("[XA-CONN-CLOSE] Calling terminateSession for sessionUUID={}", sessionInfo.getSessionUUID());
+                    log.debug("[XA-CONN-CLOSE] Calling terminateSession for sessionUUID={}", sessionInfo.getSessionUUID());
                     statementService.terminateSession(sessionInfo);
-                    log.info("[XA-CONN-CLOSE] terminateSession completed successfully for sessionUUID={}", sessionInfo.getSessionUUID());
+                    log.debug("[XA-CONN-CLOSE] terminateSession completed successfully for sessionUUID={}", sessionInfo.getSessionUUID());
                 } catch (Exception e) {
                     log.error("[XA-CONN-CLOSE] Error calling terminateSession for sessionUUID={}", sessionInfo.getSessionUUID(), e);
                     throw new SQLException("Error closing XA session", e);

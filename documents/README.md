@@ -21,6 +21,10 @@ Located in [ADRs/](ADRs/):
 - [ADR-003: Use HikariCP](ADRs/adr-003-use-hikaricp.md)
 - [ADR-004: Implement JDBC Interface](ADRs/adr-004-implement-jdbc-interface.md)
 - [ADR-005: Use OpenTelemetry](ADRs/adr-005-use-opentelemetry.md)
+- [ADR-006: Adopt SPI Pattern](ADRs/adr-006-adopt-spi-pattern.md)
+- [ADR-007: Use Commons Pool 2 for XA](ADRs/adr-007-use-commons-pool2-for-xa.md)
+- [ADR-008: Use Caffeine for Caching](ADRs/adr-008-use-caffeine-for-caching.md)
+- [ADR-009: Action Pattern for StatementServiceImpl](ADRs/adr-009-action-pattern-for-statement-service.md)
 
 ## XA Transactions (Distributed Transactions)
 
@@ -109,6 +113,7 @@ Located in [targeted-problem/](targeted-problem/):
 
 Located in [designs/](designs/):
 - [Slow Query Segregation](designs/SLOW_QUERY_SEGREGATION.md)
+- [StatementServiceImpl Action Pattern Migration](designs/STATEMENTSERVICE_ACTION_PATTERN_MIGRATION.md)
 
 ### Fixed Issues
 

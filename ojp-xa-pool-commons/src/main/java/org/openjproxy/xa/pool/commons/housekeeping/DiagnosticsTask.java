@@ -68,7 +68,7 @@ public class DiagnosticsTask implements Runnable {
             }
             
             // Log diagnostics
-            log.info("[XA-POOL-DIAGNOSTICS] {}", diagnostics);
+            log.debug("[XA-POOL-DIAGNOSTICS] {}", diagnostics);
             
         } catch (Exception e) {
             log.error("[XA-POOL-DIAGNOSTICS] Error collecting pool diagnostics", e);

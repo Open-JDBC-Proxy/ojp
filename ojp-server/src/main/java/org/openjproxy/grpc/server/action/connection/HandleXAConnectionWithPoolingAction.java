@@ -271,7 +271,7 @@ public class HandleXAConnectionWithPoolingAction {
                 return null;  // Error was sent to client
             }
         } else {
-            log.info("[XA-POOL-REUSE] Reusing EXISTING XA registry for connHash={} (pool already created, cached sizes: max={}, min={})",
+            log.debug("[XA-POOL-REUSE] Reusing EXISTING XA registry for connHash={} (pool already created, cached sizes: max={}, min={})",
                     connHash, registry.getMaxPoolSize(), registry.getMinIdle());
         }
 
@@ -303,8 +303,8 @@ public class HandleXAConnectionWithPoolingAction {
                     .setConnHash(connHash)
                     .setClusterHealth(actualClusterHealth)
                     .build();
-
-            log.info("[XA-CONNECT-REBALANCE] Calling processClusterHealth BEFORE borrow for connHash={}, clusterHealth={}",
+            
+            log.debug("[XA-CONNECT-REBALANCE] Calling processClusterHealth BEFORE borrow for connHash={}, clusterHealth={}", 
                     connHash, actualClusterHealth);
 
             // Process cluster health to trigger pool rebalancing if needed
