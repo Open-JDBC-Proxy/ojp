@@ -168,12 +168,19 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
     private void executeWithRouting(ActionContext actionContext, ConnectionSessionDTO dto, String sql,
                                     List<Parameter> params, StatementRequest request, 
                                     StreamObserver<OpResult> finalObserver) throws SQLException {
-        // Use new persistent connection routing API
-        // Route the query (allocates connection if needed, switches to appropriate role)
-        routeQueryWithPersistentConnection(actionContext, dto, sql, false);  // false = read operation
-        
-        // Get the connection from session (now returns either primary or replica based on routing)
+        // Get or create session first
         ConnectionSessionDTO queryDto = sessionConnection(actionContext, dto.getSession(), true);
+        
+        // Use new persistent connection routing API
+        // Route the query (repurposes connection to replica if first operation is SELECT)
+        Connection conn = routeQueryWithPersistentConnection(actionContext, queryDto, sql, false);  // false = read operation
+        
+        // Update DTO with the routed connection
+        queryDto = ConnectionSessionDTO.builder()
+                .session(queryDto.getSession())
+                .connection(conn)
+                .dbName(queryDto.getDbName())
+                .build();
 
         executeAndCleanup(actionContext, queryDto, sql, params, request, finalObserver);
     }
