@@ -330,20 +330,36 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
      * execution). This must be done when the connection was obtained without a
      * session, as it would otherwise be left open.
      *
+     * <p>When {@code stmt} is {@code null} (e.g. because an exception was thrown inside a
+     * helper method before the outer {@code stmt} variable could be assigned), the
+     * connection is closed directly via {@code dto.getConnection()} so that it is
+     * always returned to the pool and never leaked.
+     *
      * @param dto  the connection and session DTO
      * @param stmt the statement to close (may be null)
      */
     private void closeStatementAndConnectionIfNoSession(ConnectionSessionDTO dto, Statement stmt) {
-        if ((dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) && stmt != null) {
-            try {
-                stmt.close();
-            } catch (SQLException e) {
-                log.error("Failure closing statement: {}", e.getMessage(), e);
-            }
-            try {
-                stmt.getConnection().close();
-            } catch (SQLException e) {
-                log.error("Failure closing connection: {}", e.getMessage(), e);
+        if (dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) {
+            if (stmt != null) {
+                try {
+                    stmt.close();
+                } catch (SQLException e) {
+                    log.error("Failure closing statement: {}", e.getMessage(), e);
+                }
+                try {
+                    stmt.getConnection().close();
+                } catch (SQLException e) {
+                    log.error("Failure closing connection: {}", e.getMessage(), e);
+                }
+            } else if (dto.getConnection() != null) {
+                // stmt was never assigned (exception thrown in a helper method before the
+                // outer stmt variable could be set) – close the connection directly so it
+                // is returned to the pool and not leaked.
+                try {
+                    dto.getConnection().close();
+                } catch (SQLException e) {
+                    log.error("Failure closing connection (stmt was null): {}", e.getMessage(), e);
+                }
             }
         }
     }
