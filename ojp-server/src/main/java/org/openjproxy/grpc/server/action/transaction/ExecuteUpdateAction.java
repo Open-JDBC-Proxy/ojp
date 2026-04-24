@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.ensurePrimaryConnectionAllocated;
 import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.sessionConnection;
 import static org.openjproxy.grpc.server.action.transaction.CommandExecutionHelper.executeWithResilience;
 
@@ -112,6 +113,9 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                             || requiresGeneratedKeys
                             || requiresSessionAffinity);
             returnSessionInfo = dto.getSession();
+            
+            // Ensure primary connection is allocated and active for write operations
+            ensurePrimaryConnectionAllocated(actionContext, dto.getSession());
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
             

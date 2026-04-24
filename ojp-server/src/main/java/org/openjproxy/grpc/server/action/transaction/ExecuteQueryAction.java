@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.openjproxy.grpc.server.action.session.ResultSetHelper.handleResultSet;
-import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.routeQueryToReplica;
+import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.routeQueryWithPersistentConnection;
 import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.sessionConnection;
 import static org.openjproxy.grpc.server.action.transaction.CommandExecutionHelper.executeWithResilience;
 
@@ -168,21 +168,18 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
     private void executeWithRouting(ActionContext actionContext, ConnectionSessionDTO dto, String sql,
                                     List<Parameter> params, StatementRequest request, 
                                     StreamObserver<OpResult> finalObserver) throws SQLException {
-        Connection replicaConn = routeQueryToReplica(actionContext, dto, sql);
-        ConnectionSessionDTO queryDto = (replicaConn != null) 
-                ? ConnectionSessionDTO.builder()
-                        .connection(replicaConn)
-                        .session(dto.getSession())
-                        .dbName(dto.getDbName())
-                        .build()
-                : dto;
+        // Use new persistent connection routing API
+        routeQueryWithPersistentConnection(actionContext, dto.getSession(), sql);
+        
+        // Get the connection from session (now returns either primary or replica based on routing)
+        ConnectionSessionDTO queryDto = sessionConnection(actionContext, dto.getSession(), true);
 
-        executeAndCleanup(actionContext, queryDto, sql, params, request, finalObserver, replicaConn);
+        executeAndCleanup(actionContext, queryDto, sql, params, request, finalObserver);
     }
     
     private void executeAndCleanup(ActionContext actionContext, ConnectionSessionDTO queryDto, String sql,
                                    List<Parameter> params, StatementRequest request, 
-                                   StreamObserver<OpResult> finalObserver, Connection replicaConn) throws SQLException {
+                                   StreamObserver<OpResult> finalObserver) throws SQLException {
         PreparedStatement ps = null;
         Statement stmt = null;
         try {
@@ -196,29 +193,21 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 handleResultSet(actionContext, queryDto.getSession(), resultSetUUID, finalObserver);
             }
         } finally {
-            closeReplicaResources(ps, stmt, replicaConn);
+            closeStatementResources(ps, stmt);
         }
     }
     
-    private void closeReplicaResources(PreparedStatement ps, Statement stmt, Connection replicaConn) {
-        if (replicaConn == null) {
-            return;  // Primary connection - managed by session
-        }
-        
+    private void closeStatementResources(PreparedStatement ps, Statement stmt) {
         if (ps != null) {
             try { ps.close(); } catch (SQLException e) { 
-                log.warn("Failed to close PreparedStatement on replica: {}", e.getMessage()); 
+                log.warn("Failed to close PreparedStatement: {}", e.getMessage()); 
             }
         }
         if (stmt != null) {
             try { stmt.close(); } catch (SQLException e) { 
-                log.warn("Failed to close Statement on replica: {}", e.getMessage()); 
+                log.warn("Failed to close Statement: {}", e.getMessage()); 
             }
         }
-        try {
-            replicaConn.close();
-        } catch (SQLException e) {
-            log.warn("Failed to close temporary replica connection: {}", e.getMessage());
-        }
+        // Note: Connection is now persistent in the session and should not be closed here
     }
 }
