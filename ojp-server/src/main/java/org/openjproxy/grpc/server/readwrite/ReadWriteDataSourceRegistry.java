@@ -26,6 +26,9 @@ public class ReadWriteDataSourceRegistry {
     
     // Map of connection hash → primary datasource name (for session affinity)
     private final Map<String, String> primaryMappings = new ConcurrentHashMap<>();
+
+    // Map of primary datasource name → sticky session timeout in seconds (0 = disabled)
+    private final Map<String, Integer> stickyTimeoutMap = new ConcurrentHashMap<>();
     
     /**
      * Registers a mapping from connection hash to primary datasource name.
@@ -126,7 +129,33 @@ public class ReadWriteDataSourceRegistry {
         primaryMappings.remove(connectionHash);
         log.debug("Removed primary mapping for connection: {}", connectionHash);
     }
-    
+
+    /**
+     * Registers the sticky session timeout (in seconds) for a given primary datasource.
+     * A value of 0 disables sticky session behaviour.
+     *
+     * @param primaryName          the primary datasource name
+     * @param stickyTimeoutSeconds the duration in seconds to route reads to primary after a write
+     */
+    public void registerStickyTimeout(String primaryName, int stickyTimeoutSeconds) {
+        if (primaryName == null) {
+            throw new IllegalArgumentException("primaryName must not be null");
+        }
+        stickyTimeoutMap.put(primaryName, stickyTimeoutSeconds);
+        log.debug("Registered sticky session timeout for primary '{}': {}s", primaryName, stickyTimeoutSeconds);
+    }
+
+    /**
+     * Returns the sticky session timeout in seconds for the given primary datasource.
+     * Returns 0 if no timeout has been registered (sticky sessions disabled).
+     *
+     * @param primaryName the primary datasource name
+     * @return the sticky session timeout in seconds, or 0 if not configured
+     */
+    public int getStickySessionSeconds(String primaryName) {
+        return stickyTimeoutMap.getOrDefault(primaryName, 0);
+    }
+
     /**
      * Clears all registered datasources and mappings.
      * This is primarily for testing and cleanup purposes.
@@ -134,6 +163,7 @@ public class ReadWriteDataSourceRegistry {
     public void clear() {
         replicaMap.clear();
         primaryMappings.clear();
+        stickyTimeoutMap.clear();
         log.debug("Cleared all registry data");
     }
 }
