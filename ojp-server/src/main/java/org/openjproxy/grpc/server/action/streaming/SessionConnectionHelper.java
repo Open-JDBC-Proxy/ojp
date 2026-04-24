@@ -355,8 +355,8 @@ public class SessionConnectionHelper {
      * @param dto     the connection DTO (may contain existing connection)
      * @throws SQLException if unable to allocate connection
      */
-    private static void ensurePrimaryConnectionAllocated(ActionContext context, Session session, 
-                                                          ConnectionSessionDTO dto) throws SQLException {
+    public static void ensurePrimaryConnectionAllocated(ActionContext context, Session session, 
+                                                         ConnectionSessionDTO dto) throws SQLException {
         Connection currentConn = session.getConnection();
         if (currentConn != null && !currentConn.isClosed() && session.getActiveRole() == ConnectionRole.PRIMARY) {
             return;  // Already have a valid primary connection
