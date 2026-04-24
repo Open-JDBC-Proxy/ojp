@@ -115,7 +115,8 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             returnSessionInfo = dto.getSession();
             
             // Ensure primary connection is allocated and active for write operations
-            ensurePrimaryConnectionAllocated(actionContext, dto.getSession());
+            Session session = sessionManager.getSession(dto.getSession());
+            ensurePrimaryConnectionAllocated(actionContext, session, dto);
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
             
