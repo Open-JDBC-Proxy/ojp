@@ -41,68 +41,83 @@ public class Driver implements java.sql.Driver {
     public java.sql.Connection connect(String url, Properties info) throws SQLException {
         log.debug("connect: url={}, info={}", url, info);
         
-        // Parse URL to extract dataSource name(s) and clean URL
+        // Parse URL and get service
         UrlParser.UrlParseResult urlParseResult = UrlParser.parseUrlWithDataSource(url);
-        String cleanUrl = urlParseResult.cleanUrl;
-        String dataSourceName = urlParseResult.dataSourceName;
-        List<String> dataSourceNames = urlParseResult.dataSourceNames;
+        MultinodeUrlParser.ServiceAndUrl serviceAndUrl = MultinodeUrlParser.getOrCreateStatementService(
+                urlParseResult.cleanUrl, urlParseResult.dataSourceNames);
         
-        log.debug("Parsed URL - clean: {}, dataSource: {}, dataSources: {}", cleanUrl, dataSourceName, dataSourceNames);
+        // Warn about multinode datasource configuration if applicable
+        warnIfMultipleDatasources(serviceAndUrl.getServerEndpointsWithDatasources(), urlParseResult.dataSourceName);
         
-        // Get or create the StatementService for these endpoints
-        MultinodeUrlParser.ServiceAndUrl serviceAndUrl = MultinodeUrlParser.getOrCreateStatementService(cleanUrl, dataSourceNames);
-        StatementService statementService = serviceAndUrl.getService();
-        String connectionUrl = serviceAndUrl.getConnectionUrl();
-        List<String> serverEndpoints = serviceAndUrl.getServerEndpoints();
-        List<ServerEndpoint> serverEndpointsWithDatasources = serviceAndUrl.getServerEndpointsWithDatasources();
+        // Build connection details with merged properties
+        ConnectionDetails connectionDetails = buildConnectionDetails(
+                serviceAndUrl.getConnectionUrl(),
+                serviceAndUrl.getServerEndpoints(),
+                urlParseResult.dataSourceName,
+                info);
         
-        // Warn when multiple endpoints carry distinct datasource names so that operators
-        // are aware of the per-server routing that will be applied.
-        if (serverEndpointsWithDatasources.size() > 1) {
-            boolean hasMultipleDatasources = serverEndpointsWithDatasources.stream()
-                .map(ServerEndpoint::getDataSourceName)
-                .distinct()
-                .count() > 1;
-            
-            if (hasMultipleDatasources) {
-                log.warn("Per-endpoint datasources detected. Currently using first datasource '{}' for connection properties. " +
-                        "Per-server configuration will be applied based on server endpoint datasource names: {}", 
-                        dataSourceName,
-                        serverEndpointsWithDatasources.stream()
-                            .map(ep -> ep.getAddress() + "=" + ep.getDataSourceName())
-                            .collect(java.util.stream.Collectors.joining(", ")));
-            }
+        // Connect to server
+        SessionInfo sessionInfo = connectToServer(serviceAndUrl.getService(), connectionDetails);
+        
+        return new Connection(sessionInfo, serviceAndUrl.getService(), 
+                DatabaseUtils.resolveDbName(urlParseResult.cleanUrl));
+    }
+    
+    private void warnIfMultipleDatasources(List<ServerEndpoint> serverEndpoints, String dataSourceName) {
+        if (serverEndpoints.size() <= 1) {
+            return;
         }
         
-        // Load ojp.properties file and extract datasource-specific configuration
-        Properties ojpProperties = DatasourcePropertiesLoader.loadOjpPropertiesForDataSource(dataSourceName);
+        boolean hasMultipleDatasources = serverEndpoints.stream()
+            .map(ServerEndpoint::getDataSourceName)
+            .distinct()
+            .count() > 1;
         
+        if (hasMultipleDatasources) {
+            log.warn("Per-endpoint datasources detected. Currently using first datasource '{}' for connection properties. " +
+                    "Per-server configuration will be applied based on server endpoint datasource names: {}", 
+                    dataSourceName,
+                    serverEndpoints.stream()
+                        .map(ep -> ep.getAddress() + "=" + ep.getDataSourceName())
+                        .collect(java.util.stream.Collectors.joining(", ")));
+        }
+    }
+    
+    private ConnectionDetails buildConnectionDetails(String connectionUrl, List<String> serverEndpoints,
+                                                      String dataSourceName, Properties info) {
         ConnectionDetails.Builder connBuilder = ConnectionDetails.newBuilder()
                 .setUrl(connectionUrl)
-                .setUser((String) ((info.get(USER) != null)? info.get(USER) : ""))
+                .setUser((String) ((info.get(USER) != null) ? info.get(USER) : ""))
                 .setPassword((String) ((info.get(PASSWORD) != null) ? info.get(PASSWORD) : ""))
-                .setClientUUID(ClientUUID.getUUID());
+                .setClientUUID(ClientUUID.getUUID())
+                .addAllServerEndpoints(serverEndpoints);
         
-        // Always add all server endpoints for cluster coordination
-        connBuilder.addAllServerEndpoints(serverEndpoints);
         log.info("Adding {} server endpoint(s) to ConnectionDetails", serverEndpoints.size());
         
-        // Build the properties map: start with ojp.properties file entries, then overlay
-        // any extra properties supplied directly by the caller via DriverManager.getConnection(url, info).
-        // Caller-supplied properties take precedence and are forwarded verbatim so that
-        // features like read/write splitting can be configured entirely from the client
-        // without requiring a separate ojp.properties file.
+        // Merge properties from file and caller
+        Map<String, Object> propertiesMap = mergeProperties(dataSourceName, info);
+        
+        if (!propertiesMap.isEmpty()) {
+            connBuilder.addAllProperties(ProtoConverter.propertiesToProto(propertiesMap));
+            log.debug("Sending {} properties to server for dataSource: {}", propertiesMap.size(), dataSourceName);
+        }
+        
+        return connBuilder.build();
+    }
+    
+    private Map<String, Object> mergeProperties(String dataSourceName, Properties info) {
         Map<String, Object> propertiesMap = new HashMap<>();
-
+        
+        // Load from ojp.properties file
+        Properties ojpProperties = DatasourcePropertiesLoader.loadOjpPropertiesForDataSource(dataSourceName);
         if (ojpProperties != null && !ojpProperties.isEmpty()) {
             for (String key : ojpProperties.stringPropertyNames()) {
                 propertiesMap.put(key, ojpProperties.getProperty(key));
             }
             log.debug("Loaded ojp.properties with {} properties for dataSource: {}", propertiesMap.size(), dataSourceName);
         }
-
-        // Overlay caller-provided info properties (skip the JDBC-standard user/password keys
-        // which are already sent as dedicated fields in ConnectionDetails).
+        
+        // Overlay caller-provided properties (skip standard JDBC user/password)
         if (info != null) {
             for (String key : info.stringPropertyNames()) {
                 if (!USER.equals(key) && !PASSWORD.equals(key)) {
@@ -110,32 +125,28 @@ public class Driver implements java.sql.Driver {
                 }
             }
         }
-
-        if (!propertiesMap.isEmpty()) {
-            // Add cache configuration properties to the map
-            try {
-                CacheConfigurationBuilder.addCachePropertiesToMap(propertiesMap, dataSourceName);
-            } catch (Exception e) {
-                log.error("Failed to add cache configuration for datasource '{}': {}", dataSourceName, e.getMessage());
-                // Continue without cache configuration - caching will be disabled
-            }
-
-            connBuilder.addAllProperties(ProtoConverter.propertiesToProto(propertiesMap));
-            log.debug("Sending {} properties to server for dataSource: {}", propertiesMap.size(), dataSourceName);
+        
+        // Add cache configuration
+        try {
+            CacheConfigurationBuilder.addCachePropertiesToMap(propertiesMap, dataSourceName);
+        } catch (Exception e) {
+            log.error("Failed to add cache configuration for datasource '{}': {}", dataSourceName, e.getMessage());
         }
         
-        log.info("Calling connect() on statement service with URL: {}", connectionUrl);
-        SessionInfo sessionInfo;
+        return propertiesMap;
+    }
+    
+    private SessionInfo connectToServer(StatementService statementService, ConnectionDetails connectionDetails) throws SQLException {
+        log.info("Calling connect() on statement service with URL: {}", connectionDetails.getUrl());
         try {
-            sessionInfo = statementService.connect(connBuilder.build());
+            SessionInfo sessionInfo = statementService.connect(connectionDetails);
             log.info("Connection established - sessionUUID: {}, connHash: {}", 
                     sessionInfo.getSessionUUID(), sessionInfo.getConnHash());
+            return sessionInfo;
         } catch (Exception e) {
             log.error("Failed to establish connection", e);
             throw e;
         }
-        log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
-        return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
     }
     
 

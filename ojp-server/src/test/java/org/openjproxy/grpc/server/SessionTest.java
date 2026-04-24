@@ -63,7 +63,7 @@ class SessionTest {
         
         // Record another write
         try {
-            Thread.sleep(10); // Small delay to ensure different timestamp
+            Thread.sleep(10); // Small delay to ensure different timestamp //NOSONAR
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

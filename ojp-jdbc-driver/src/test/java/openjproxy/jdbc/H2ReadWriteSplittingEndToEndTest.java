@@ -67,7 +67,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @see org.openjproxy.grpc.server.readwrite.ReplicaSelector
  * @see org.openjproxy.grpc.server.readwrite.SqlClassifier
  */
-public class H2ReadWriteSplittingEndToEndTest {
+class H2ReadWriteSplittingEndToEndTest {
 
     private static final String OJP_HOST = "localhost:1059";
     private static final String USER = "sa";

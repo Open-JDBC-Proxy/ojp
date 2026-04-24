@@ -84,9 +84,8 @@ class ReadWriteConfigurationTest {
         assertEquals("replica1", config.getReplicaNames().get(0));
         
         // Returned list should be immutable
-        assertThrows(UnsupportedOperationException.class, () -> {
-            config.getReplicaNames().add("replica3");
-        });
+        List<String> replicaNames = config.getReplicaNames();
+        assertThrows(UnsupportedOperationException.class, () -> replicaNames.add("replica3"));
     }
     
     @Test

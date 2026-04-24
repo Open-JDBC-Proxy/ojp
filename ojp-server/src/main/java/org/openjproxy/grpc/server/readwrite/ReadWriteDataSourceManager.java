@@ -98,7 +98,7 @@ public class ReadWriteDataSourceManager {
         List<String> successfulReplicas = new ArrayList<>();
         for (String replicaName : config.getReplicaNames()) {
             try {
-                DataSource replicaDs = createReplicaDataSource(replicaName, props, config);
+               DataSource replicaDs = createReplicaDataSource(replicaName, props);
                 if (replicaDs != null) {
                     registry.registerReplica(datasourceName, replicaDs);
                     successfulReplicas.add(replicaName);
@@ -127,10 +127,9 @@ public class ReadWriteDataSourceManager {
      * 
      * @param replicaName name of the replica datasource
      * @param props configuration properties
-     * @param primaryConfig primary configuration (for default values)
      * @return DataSource for the replica, or null if configuration is invalid
      */
-    private DataSource createReplicaDataSource(String replicaName, Properties props, ReadWriteConfiguration primaryConfig) {
+    private DataSource createReplicaDataSource(String replicaName, Properties props) {
         // Extract replica-specific properties with ojp. prefix
         String replicaPrefix = replicaName + ".ojp.";
         

@@ -178,7 +178,7 @@ class ReadWriteRouterTest {
     }
     
     @Test
-    void testSelectDataSource_sessionNullConnection_notInTransaction() throws SQLException {
+    void testSelectDataSource_sessionNullConnection_notInTransaction() {
         Session session = createSessionWithNullConnection();
         when(sqlClassifier.classify(anyString())).thenReturn(SqlOperationType.READ);
         when(replicaSelector.selectHealthyReplica(replicas)).thenReturn(replica1);
