@@ -262,7 +262,7 @@ public class SessionConnectionHelper {
         Session session = context.getSessionManager().getSession(dto.getSession());
         
         // XA connections are always transactional – always use primary
-        if (session.getIsXA()) {
+        if (session.isXA()) {
             ensurePrimaryConnectionAllocated(context, session, dto);
             return session.getConnection();
         }
@@ -292,7 +292,7 @@ public class SessionConnectionHelper {
             return session.getConnection();
         }
 
-        String connHash = session.getConnHash();
+        String connHash = session.getConnectionHash();
         String primaryName = registry.getPrimaryName(connHash);
         if (primaryName == null) {
             // Read/write splitting not configured for this connection
@@ -363,7 +363,7 @@ public class SessionConnectionHelper {
         }
 
         // Need to allocate primary connection
-        String connHash = session.getConnHash();
+        String connHash = session.getConnectionHash();
         DataSource primaryDs = context.getDatasourceMap().get(connHash);
         if (primaryDs == null) {
             throw new SQLException("Primary DataSource not found for connHash=" + connHash);

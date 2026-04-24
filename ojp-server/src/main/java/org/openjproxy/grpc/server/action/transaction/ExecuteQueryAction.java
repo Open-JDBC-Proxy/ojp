@@ -169,7 +169,8 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                                     List<Parameter> params, StatementRequest request, 
                                     StreamObserver<OpResult> finalObserver) throws SQLException {
         // Use new persistent connection routing API
-        routeQueryWithPersistentConnection(actionContext, dto.getSession(), sql);
+        // Route the query (allocates connection if needed, switches to appropriate role)
+        routeQueryWithPersistentConnection(actionContext, dto, sql, false);  // false = read operation
         
         // Get the connection from session (now returns either primary or replica based on routing)
         ConnectionSessionDTO queryDto = sessionConnection(actionContext, dto.getSession(), true);
