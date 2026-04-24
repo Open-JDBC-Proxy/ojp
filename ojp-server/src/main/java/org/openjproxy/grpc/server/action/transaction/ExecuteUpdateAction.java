@@ -114,9 +114,16 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                             || requiresSessionAffinity);
             returnSessionInfo = dto.getSession();
             
-            // Ensure primary connection is allocated and active for write operations
+            // For write operations with read/write splitting enabled, ensure we use primary connection
+            // sessionConnection() already allocated a connection, but we need to ensure it's primary
+            // and switch the session's active role if needed
             Session session = sessionManager.getSession(dto.getSession());
-            ensurePrimaryConnectionAllocated(actionContext, session, dto);
+            if (session != null) {
+                // Record this as a write operation for sticky session tracking
+                session.recordWriteOperation();
+                // Switch to primary if we have one allocated
+                session.switchToPrimary();
+            }
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
             
