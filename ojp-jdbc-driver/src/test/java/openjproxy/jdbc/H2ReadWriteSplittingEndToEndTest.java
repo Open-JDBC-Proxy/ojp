@@ -334,6 +334,100 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
+     * With sticky session configured, a write followed immediately by a read SHOULD see
+     * the write (read-your-writes guarantee). After the sticky session expires, reads
+     * go back to the replica and no longer see the uncommitted write.
+     */
+    @Test
+    void testWriteThenRead_WithStickySession_SeesWrite() throws SQLException, InterruptedException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
+        // Use separate databases for sticky session test to avoid interference
+        String stickyPrimaryUrl = "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_sticky_primary;DB_CLOSE_DELAY=-1";
+        String stickyReplicaUrl = "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_sticky_replica;DB_CLOSE_DELAY=-1";
+        
+        // Configure sticky session with 3 second timeout
+        Properties stickyProps = new Properties();
+        stickyProps.setProperty("user", USER);
+        stickyProps.setProperty("password", PASSWORD);
+        stickyProps.setProperty("ojp.datasource.name", "rw_sticky_ds");
+        stickyProps.setProperty("rw_sticky_ds.ojp.readwrite.enabled", "true");
+        stickyProps.setProperty("rw_sticky_ds.ojp.readwrite.stickySessionTimeoutSeconds", "3");
+        stickyProps.setProperty("rw_sticky_replica.ojp.readwrite.role", "replica");
+        stickyProps.setProperty("rw_sticky_replica.ojp.readwrite.primary", "rw_sticky_ds");
+        stickyProps.setProperty("rw_sticky_replica.ojp.connection.url",
+                "jdbc:h2:mem:rw_sticky_replica;DB_CLOSE_DELAY=-1");
+        stickyProps.setProperty("rw_sticky_replica.ojp.connection.user", USER);
+        stickyProps.setProperty("rw_sticky_replica.ojp.connection.password", PASSWORD);
+
+        // Setup separate sticky session databases
+        try (Connection c = DriverManager.getConnection(stickyPrimaryUrl, stickyProps);
+             Statement s = c.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS test_data");
+            s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
+            s.execute("INSERT INTO test_data VALUES (1, 'sticky_primary')");
+        }
+
+        Properties replicaProps = new Properties();
+        replicaProps.setProperty("user", USER);
+        replicaProps.setProperty("password", PASSWORD);
+        replicaProps.setProperty("ojp.datasource.name", "rw_sticky_replica");
+
+        try (Connection c = DriverManager.getConnection(stickyReplicaUrl, replicaProps);
+             Statement s = c.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS test_data");
+            s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
+            s.execute("INSERT INTO test_data VALUES (2, 'sticky_replica')");
+        }
+
+        // Main test: sticky session behavior
+        connection = DriverManager.getConnection(stickyPrimaryUrl, stickyProps());
+
+        try (Statement stmt = connection.createStatement()) {
+            // Write to primary
+            stmt.executeUpdate("INSERT INTO test_data VALUES (160, 'sticky_write')");
+
+            // Immediate read: sticky session should route to primary → sees the write
+            try (ResultSet rs = stmt.executeQuery(
+                    "SELECT COUNT(*) FROM test_data WHERE id = 160")) {
+                assertTrue(rs.next());
+                assertEquals(1, rs.getInt(1),
+                        "With sticky session, read immediately after write should see the write (primary)");
+            }
+
+            // Wait for sticky session to expire (3 seconds + buffer)
+            Thread.sleep(3500); //NOSONAR - intentional wait for sticky session expiration
+
+            // After expiration, read goes to replica → does not see the write
+            try (ResultSet rs = stmt.executeQuery(
+                    "SELECT COUNT(*) FROM test_data WHERE id = 160")) {
+                assertTrue(rs.next());
+                assertEquals(0, rs.getInt(1),
+                        "After sticky session expires, read should go to replica and not see the write");
+            }
+        }
+    }
+
+    /**
+     * Builds the Properties for sticky session test with 3 second timeout.
+     */
+    private Properties stickyProps() {
+        Properties props = new Properties();
+        props.setProperty("user", USER);
+        props.setProperty("password", PASSWORD);
+        props.setProperty("ojp.datasource.name", "rw_sticky_ds");
+        props.setProperty("rw_sticky_ds.ojp.readwrite.enabled", "true");
+        props.setProperty("rw_sticky_ds.ojp.readwrite.stickySessionTimeoutSeconds", "3");
+        props.setProperty("rw_sticky_replica.ojp.readwrite.role", "replica");
+        props.setProperty("rw_sticky_replica.ojp.readwrite.primary", "rw_sticky_ds");
+        props.setProperty("rw_sticky_replica.ojp.connection.url",
+                "jdbc:h2:mem:rw_sticky_replica;DB_CLOSE_DELAY=-1");
+        props.setProperty("rw_sticky_replica.ojp.connection.user", USER);
+        props.setProperty("rw_sticky_replica.ojp.connection.password", PASSWORD);
+        return props;
+    }
+
+    /**
      * All operations inside an explicit transaction must route to the primary.
      */
     @Test
