@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.ConnectionAcquisitionManager;
+import org.openjproxy.grpc.server.ConnectionRole;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
 import org.openjproxy.grpc.server.PoolNotFoundException;
 import org.openjproxy.grpc.server.Session;
@@ -225,93 +226,192 @@ public class SessionConnectionHelper {
     }
 
     /**
-     * Determines the connection to use for executing a SELECT query, applying
-     * read/write splitting if configured and the session is not in a transaction.
+     * Determines the connection to use for executing a query, applying
+     * read/write splitting if configured and conditions allow.
      *
-     * <p>Returns a temporary connection from a replica {@link DataSource} when all of
-     * the following conditions hold:
+     * <p>This method manages persistent connections in the session (not temporary connections).
+     * It allocates and switches between primary and replica connections based on:
      * <ul>
-     *   <li>Read/write splitting is configured (replicas are registered for this connection hash)</li>
-     *   <li>The session is <em>not</em> inside an active transaction (auto-commit is {@code true})</li>
-     *   <li>The {@link ReadWriteRouter} classifies the SQL as a {@code READ} operation</li>
+     *   <li>Read/write splitting configuration (replicas registered for this connection hash)</li>
+     *   <li>Transaction state (inside transaction → primary)</li>
+     *   <li>SQL operation type (READ vs WRITE)</li>
+     *   <li>Sticky session status (recent write → primary for consistency)</li>
      * </ul>
-     * Returns {@code null} in all other cases, meaning the caller should use the existing
-     * session connection (primary).
      *
-     * <p><b>Caller responsibility:</b> When a non-null connection is returned, the caller
-     * <em>must</em> close it after the query result has been fully consumed.
+     * <p><b>Connection Lifecycle:</b>
+     * <ul>
+     *   <li>First SELECT (outside transaction) → allocates replica connection, session uses it</li>
+     *   <li>First WRITE operation → allocates primary connection, session switches to it</li>
+     *   <li>Transaction begins → ensures primary allocated, switches to it</li>
+     *   <li>Connections persist for session lifetime (no temporary connections)</li>
+     * </ul>
      *
      * <p><b>DB2 / SQL Server exclusion:</b> These databases use row-by-row LOB streaming
-     * ({@code RESULT_SET_ROW_BY_ROW_MODE}), which requires the connection to remain open
-     * across multiple {@code fetchNextRows} calls.  Routing to a temporary connection would
-     * therefore close the underlying connection prematurely, so routing is skipped for these
-     * database types.
+     * ({@code RESULT_SET_ROW_BY_ROW_MODE}), which requires persistent connections.
+     * Routing is supported for these databases as connections are now persistent.
      *
      * @param context the action context providing the registry and datasource map
      * @param dto     the session connection DTO obtained from {@link #sessionConnection}
      * @param sql     the SQL statement to execute
-     * @return a temporary replica connection that the caller must close, or {@code null}
-     *         to use the existing session connection
+     * @param isWrite true if this is a write operation (INSERT/UPDATE/DELETE), false for reads
+     * @return the connection to use (from session's primary or replica slot), never null
+     * @throws SQLException if unable to allocate required connection
      */
-    public static Connection routeQueryToReplica(ActionContext context, ConnectionSessionDTO dto, String sql) {
-        // XA connections are always transactional – never route to replica
-        if (dto.getSession().getIsXA()) {
-            return null;
+    public static Connection routeQueryWithPersistentConnection(ActionContext context, ConnectionSessionDTO dto, 
+                                                                 String sql, boolean isWrite) throws SQLException {
+        Session session = context.getSessionManager().getSession(dto.getSession());
+        
+        // XA connections are always transactional – always use primary
+        if (session.getIsXA()) {
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            return session.getConnection();
         }
 
-        // DB2 and SQL Server use row-by-row LOB streaming, which requires the connection
-        // to remain open across multiple fetchNextRows calls. Skip routing for these.
-        DbName dbName = dto.getDbName();
-        if (DbName.DB2.equals(dbName) || DbName.SQL_SERVER.equals(dbName)) {
-            return null;
+        // If in transaction, always use primary
+        if (session.isInTransaction()) {
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            session.switchToPrimary();
+            return session.getConnection();
         }
 
+        // If this is a write operation, allocate/switch to primary and record write
+        if (isWrite) {
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            session.switchToPrimary();
+            session.recordWriteOperation();
+            // Close replica connection as we're now committed to primary
+            session.closeReplicaConnection();
+            return session.getConnection();
+        }
+
+        // For read operations (SELECT), check if we can route to replica
         ReadWriteDataSourceRegistry registry = context.getReadWriteDataSourceRegistry();
         if (registry == null) {
-            return null;
+            // No read/write splitting configured, use primary
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            return session.getConnection();
         }
 
-        String connHash = dto.getSession().getConnHash();
+        String connHash = session.getConnHash();
         String primaryName = registry.getPrimaryName(connHash);
         if (primaryName == null) {
-            return null; // read/write splitting not configured for this connection
+            // Read/write splitting not configured for this connection
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            return session.getConnection();
         }
 
         List<DataSource> replicas = registry.getReplicas(primaryName);
         if (replicas.isEmpty()) {
-            return null; // no replicas registered
+            // No replicas registered
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            return session.getConnection();
         }
 
         DataSource primaryDs = context.getDatasourceMap().get(connHash);
         if (primaryDs == null) {
-            return null; // primary DataSource not found (e.g. unpooled mode)
+            // Primary DataSource not found (e.g. unpooled mode)
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            return session.getConnection();
         }
 
-        // Use ReadWriteRouter to select primary or replica based on SQL type and
-        // transaction state (autoCommit=false → router returns primary)
-        Session session = context.getSessionManager().getSession(dto.getSession());
-
-        // Sticky session check: if a write was executed recently, route reads to primary
-        // to guarantee read-your-writes consistency.
+        // Sticky session check: if a write was executed recently, use primary
         int stickySeconds = registry.getStickySessionSeconds(primaryName);
-        if (stickySeconds > 0 && session != null && session.isInStickyMode(stickySeconds * 1000L)) {
-            log.debug("Sticky session active ({}s), routing read to primary for connHash={}", stickySeconds, connHash);
-            return null; // caller uses session (primary) connection
+        if (stickySeconds > 0 && session.isInStickyMode(stickySeconds * 1000L)) {
+            log.debug("Sticky session active ({}s), using primary for connHash={}", stickySeconds, connHash);
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            session.switchToPrimary();
+            return session.getConnection();
         }
 
+        // Use ReadWriteRouter to decide primary vs replica based on SQL classification
         DataSource selectedDs = READ_WRITE_ROUTER.selectDataSource(session, sql, primaryDs, replicas);
 
         if (selectedDs == primaryDs) {
-            return null; // router chose primary → caller uses session connection
+            // Router chose primary (e.g., non-SELECT statement)
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            session.switchToPrimary();
+            return session.getConnection();
         }
 
-        // Router chose a replica – acquire a temporary connection
+        // Router chose a replica – allocate replica connection if needed
         try {
-            log.debug("Read/write routing: SELECT routed to replica for connHash={}", connHash);
-            return selectedDs.getConnection();
+            ensureReplicaConnectionAllocated(context, session, selectedDs);
+            log.debug("Read/write routing: using replica for SELECT, connHash={}", connHash);
+            return session.getConnection();
         } catch (SQLException e) {
-            log.warn("Failed to acquire replica connection, falling back to primary: {}", e.getMessage());
-            return null;
+            log.warn("Failed to allocate replica connection, falling back to primary: {}", e.getMessage());
+            ensurePrimaryConnectionAllocated(context, session, dto);
+            session.switchToPrimary();
+            return session.getConnection();
         }
+    }
+
+    /**
+     * Ensures the session has a primary connection allocated.
+     * If not already allocated, acquires one from the primary DataSource.
+     *
+     * @param context the action context
+     * @param session the session
+     * @param dto     the connection DTO (may contain existing connection)
+     * @throws SQLException if unable to allocate connection
+     */
+    private static void ensurePrimaryConnectionAllocated(ActionContext context, Session session, 
+                                                          ConnectionSessionDTO dto) throws SQLException {
+        Connection currentConn = session.getConnection();
+        if (currentConn != null && !currentConn.isClosed() && session.getActiveRole() == ConnectionRole.PRIMARY) {
+            return;  // Already have a valid primary connection
+        }
+
+        // Need to allocate primary connection
+        String connHash = session.getConnHash();
+        DataSource primaryDs = context.getDatasourceMap().get(connHash);
+        if (primaryDs == null) {
+            throw new SQLException("Primary DataSource not found for connHash=" + connHash);
+        }
+
+        Connection primaryConn = primaryDs.getConnection();
+        session.allocatePrimaryConnection(primaryConn);
+        log.debug("Allocated primary connection for session {}", session.getSessionUUID());
+    }
+
+    /**
+     * Ensures the session has a replica connection allocated (if primary not already present).
+     * If primary exists, does nothing (session stays on primary).
+     *
+     * @param context    the action context
+     * @param session    the session
+     * @param replicaDs  the replica DataSource to use
+     * @throws SQLException if unable to allocate connection
+     */
+    private static void ensureReplicaConnectionAllocated(ActionContext context, Session session, 
+                                                          DataSource replicaDs) throws SQLException {
+        Connection currentConn = session.getConnection();
+        if (currentConn != null && !currentConn.isClosed()) {
+            // Session already has a connection
+            if (session.getActiveRole() == ConnectionRole.REPLICA) {
+                return;  // Already using replica
+            } else if (session.getActiveRole() == ConnectionRole.PRIMARY) {
+                // Primary exists – don't allocate replica, stay on primary
+                return;
+            }
+        }
+
+        // Allocate replica connection
+        Connection replicaConn = replicaDs.getConnection();
+        session.allocateReplicaConnection(replicaConn);
+        log.debug("Allocated replica connection for session {}", session.getSessionUUID());
+    }
+    
+    /**
+     * Legacy method for backward compatibility.
+     * Returns null to indicate caller should use session connection.
+     * 
+     * @deprecated Use {@link #routeQueryWithPersistentConnection} instead
+     */
+    @Deprecated
+    public static Connection routeQueryToReplica(ActionContext context, ConnectionSessionDTO dto, String sql) {
+        // Always return null – forces caller to use session connection
+        // This maintains backward compatibility while we migrate to the new model
+        return null;
     }
 }

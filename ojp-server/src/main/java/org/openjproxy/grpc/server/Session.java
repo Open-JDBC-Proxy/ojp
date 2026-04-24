@@ -29,7 +29,13 @@ public class Session {
     private final String connectionHash;
     @Getter
     private final String clientUUID;
-    private Connection connection;  // Removed @Getter - custom getter below
+    
+    // Dual-connection model for read/write splitting
+    private Connection primaryConnection;    // Connection to primary database (writes + transactional reads)
+    private Connection replicaConnection;    // Connection to replica database (non-transactional reads)
+    @Getter
+    private volatile ConnectionRole activeRole = ConnectionRole.NONE;  // Which connection is currently active
+    
     @Getter
     private final boolean isXA;
     @Getter
@@ -69,7 +75,8 @@ public class Session {
     }
 
     public Session(Connection connection, String connectionHash, String clientUUID, boolean isXA, XAConnection xaConnection, CacheConfiguration cacheConfiguration) {
-        this.connection = connection;
+        this.primaryConnection = connection;  // Initial connection goes to primary slot
+        this.activeRole = (connection != null) ? ConnectionRole.PRIMARY : ConnectionRole.NONE;
         this.connectionHash = connectionHash;
         this.clientUUID = clientUUID;
         this.isXA = isXA;
@@ -109,7 +116,7 @@ public class Session {
         if (xaConn == null && backendSession == null) {
             this.xaConnection = null;
             this.backendSession = null;
-            this.connection = null;
+            this.primaryConnection = null;
             this.xaResource = null;
             log.debug("Unbound XAConnection from session {}", sessionUUID);
             return;
@@ -125,8 +132,9 @@ public class Session {
         try {
             this.xaConnection = xaConn;
             this.backendSession = backendSession;
-            this.connection = xaConn.getConnection();
+            this.primaryConnection = xaConn.getConnection();
             this.xaResource = xaConn.getXAResource();
+            this.activeRole = ConnectionRole.PRIMARY;  // XA connections always use primary
             log.debug("Bound XAConnection to session {}", sessionUUID);
         } catch (SQLException e) {
             log.error("Failed to bind XAConnection", e);
@@ -154,15 +162,17 @@ public class Session {
         if (backendSession != null && backendSession instanceof org.openjproxy.xa.pool.XABackendSession) {
             org.openjproxy.xa.pool.XABackendSession xaBackendSession = 
                 (org.openjproxy.xa.pool.XABackendSession) backendSession;
-            this.connection = xaBackendSession.getConnection();
+            this.primaryConnection = xaBackendSession.getConnection();
             log.debug("Refreshed connection reference in session {}", sessionUUID);
         }
     }
     
     /**
-     * Gets the JDBC connection for this session.
+     * Gets the JDBC connection for this session based on the active connection role.
      * For XA sessions with pooled backend sessions, this returns the current
      * connection from the backend session (which may change after sanitization).
+     * For read/write splitting, this returns either the primary or replica connection
+     * based on the activeRole.
      * 
      * @return the JDBC connection
      */
@@ -174,8 +184,122 @@ public class Session {
                 (org.openjproxy.xa.pool.XABackendSession) backendSession;
             return xaBackendSession.getConnection();
         }
-        // For non-XA sessions or pass-through XA sessions, return stored connection
-        return this.connection;
+        
+        // For read/write splitting, return the connection based on active role
+        switch (activeRole) {
+            case PRIMARY:
+                return this.primaryConnection;
+            case REPLICA:
+                return this.replicaConnection;
+            case NONE:
+            default:
+                return this.primaryConnection;  // Fallback to primary if no role set
+        }
+    }
+    
+    /**
+     * Allocates a primary connection for this session.
+     * This method should be called when a write operation is executed or a transaction begins.
+     * 
+     * @param conn the primary connection to allocate
+     * @throws IllegalStateException if a primary connection is already allocated
+     */
+    public synchronized void allocatePrimaryConnection(Connection conn) {
+        if (this.primaryConnection != null && !isClosed(this.primaryConnection)) {
+            log.debug("Primary connection already allocated for session {}", sessionUUID);
+            return;  // Already have a primary connection
+        }
+        this.primaryConnection = conn;
+        this.activeRole = ConnectionRole.PRIMARY;
+        log.debug("Allocated primary connection for session {}", sessionUUID);
+    }
+    
+    /**
+     * Allocates a replica connection for this session.
+     * This method should be called when a SELECT query is executed outside of a transaction.
+     * If a primary connection already exists, this method does nothing (session stays on primary).
+     * 
+     * @param conn the replica connection to allocate
+     */
+    public synchronized void allocateReplicaConnection(Connection conn) {
+        if (this.primaryConnection != null && !isClosed(this.primaryConnection)) {
+            log.debug("Primary connection already exists, not allocating replica for session {}", sessionUUID);
+            return;  // Once we have a primary, stay with primary
+        }
+        if (this.replicaConnection != null && !isClosed(this.replicaConnection)) {
+            log.debug("Replica connection already allocated for session {}", sessionUUID);
+            return;  // Already have a replica connection
+        }
+        this.replicaConnection = conn;
+        this.activeRole = ConnectionRole.REPLICA;
+        log.debug("Allocated replica connection for session {}", sessionUUID);
+    }
+    
+    /**
+     * Switches the active connection to primary.
+     * This should be called when entering a transaction or executing a write operation.
+     * The replica connection (if any) remains open but becomes inactive.
+     */
+    public synchronized void switchToPrimary() {
+        if (this.activeRole != ConnectionRole.PRIMARY) {
+            this.activeRole = ConnectionRole.PRIMARY;
+            log.debug("Switched to primary connection for session {}", sessionUUID);
+        }
+    }
+    
+    /**
+     * Switches the active connection to replica (if one exists and conditions allow).
+     * This should be called after a transaction commits and sticky session expires.
+     * 
+     * @return true if switched to replica, false if staying on primary
+     */
+    public synchronized boolean switchToReplicaIfAvailable() {
+        if (this.replicaConnection != null && !isClosed(this.replicaConnection)) {
+            this.activeRole = ConnectionRole.REPLICA;
+            log.debug("Switched to replica connection for session {}", sessionUUID);
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Closes the replica connection if it exists.
+     * This should be called when the replica is no longer needed (e.g., session switching to primary permanently).
+     */
+    public synchronized void closeReplicaConnection() {
+        if (this.replicaConnection != null) {
+            try {
+                if (!this.replicaConnection.isClosed()) {
+                    this.replicaConnection.close();
+                    log.debug("Closed replica connection for session {}", sessionUUID);
+                }
+            } catch (SQLException e) {
+                log.warn("Failed to close replica connection for session {}: {}", sessionUUID, e.getMessage());
+            } finally {
+                this.replicaConnection = null;
+                if (this.activeRole == ConnectionRole.REPLICA) {
+                    this.activeRole = ConnectionRole.PRIMARY;
+                }
+            }
+        }
+    }
+    
+    /**
+     * Checks if a connection is closed.
+     * 
+     * @param conn the connection to check
+     * @return true if closed or null, false otherwise
+     */
+    private boolean isClosed(Connection conn) {
+        if (conn == null) {
+            return true;
+        }
+        try {
+            return conn.isClosed();
+        } catch (SQLException e) {
+            log.warn("Error checking if connection is closed: {}", e.getMessage());
+            return true;  // Assume closed if we can't check
+        }
     }
 
     public SessionInfo getSessionInfo() {
@@ -331,9 +455,22 @@ public class Session {
             } catch (SQLException e) {
                 log.error("Error closing XA connection", e);
             }
-        } else if (connection != null) {
-            // For regular connections, close normally
-            this.connection.close();
+        } else {
+            // For regular connections, close both primary and replica
+            if (primaryConnection != null) {
+                try {
+                    primaryConnection.close();
+                } catch (SQLException e) {
+                    log.error("Error closing primary connection", e);
+                }
+            }
+            if (replicaConnection != null) {
+                try {
+                    replicaConnection.close();
+                } catch (SQLException e) {
+                    log.error("Error closing replica connection", e);
+                }
+            }
         }
 
         //Clear session internal objects to free memory
@@ -342,7 +479,8 @@ public class Session {
         this.resultSetMap = null;
         this.statementMap = null;
         this.preparedStatementMap = null;
-        this.connection = null;
+        this.primaryConnection = null;
+        this.replicaConnection = null;
         this.xaConnection = null;
         this.xaResource = null;
         this.backendSession = null;
