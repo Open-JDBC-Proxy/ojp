@@ -129,24 +129,13 @@ public class Connection implements java.sql.Connection {
         log.debug("setAutoCommit: {}", autoCommit);
         checkValid();
         checkValid();
+        //if switching on autocommit with active transaction, commit current transaction.
         if (!this.autoCommit && autoCommit &&
                 TransactionStatus.TRX_ACTIVE.equals(session.getTransactionInfo().getTransactionStatus())) {
-            // Switching to autoCommit=true with an active transaction: commit first, then
-            // notify the server to restore autoCommit on the physical connection.
             this.session = this.statementService.commitTransaction(this.session);
-            this.session = this.statementService.setAutoCommit(this.session, true);
+            //If switching autocommit off, start a new transaction
         } else if (this.autoCommit && !autoCommit) {
-            // Switching to autoCommit=false: start a transaction on the server.
             this.session = this.statementService.startTransaction(this.session);
-        } else if (!this.autoCommit && autoCommit) {
-            // Switching to autoCommit=true after a commit() with no active transaction.
-            // The server-side physical connection is still in autoCommit=false after
-            // Connection.commit() (JDBC does not reset autoCommit on commit). Forward
-            // the call so Session.hasActiveTransaction() returns the correct value.
-            if (session != null && session.getSessionUUID() != null
-                    && !session.getSessionUUID().isEmpty()) {
-                this.session = this.statementService.setAutoCommit(this.session, true);
-            }
         }
         this.autoCommit = autoCommit;
     }

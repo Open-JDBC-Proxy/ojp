@@ -298,9 +298,9 @@ class H2ReadWriteSplittingEndToEndTest {
         }
 
         try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps())) {
-            // The primary no longer has id=1 (deleted above) and the replica never had id=1
-            // (seeded with id=2 only) — so COUNT=0 regardless of which node handles this
-            // SELECT, and no transaction is needed to force primary routing.
+            // Force routing to primary (transactions always route to primary) so we verify
+            // the primary was actually modified and not the replica.
+            verify.setAutoCommit(false);
             try (Statement s = verify.createStatement();
                  ResultSet rs = s.executeQuery(
                          "SELECT COUNT(*) FROM test_data WHERE id = 1")) {
@@ -308,6 +308,7 @@ class H2ReadWriteSplittingEndToEndTest {
                 assertEquals(0, rs.getInt(1),
                         "Primary database should not contain the deleted row");
             }
+            verify.rollback();
         }
     }
 
@@ -453,12 +454,7 @@ class H2ReadWriteSplittingEndToEndTest {
 
     /**
      * Without a sticky session, a read immediately after a committed transaction goes to the
-     * replica (eventual consistency). The replica does not have the just-committed row because
-     * OJP uses two physically separate H2 databases — no replication occurs.
-     * <p>
-     * This test relies on {@code setAutoCommit(true)} being forwarded to the server so that
-     * {@code Session.hasActiveTransaction()} correctly returns {@code false} after the commit,
-     * allowing the routing logic to re-enable replica routing.
+     * replica (eventual consistency). The replica does not have the just-committed row.
      */
     @SneakyThrows
     @Test
@@ -483,73 +479,6 @@ class H2ReadWriteSplittingEndToEndTest {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1),
                     "Without sticky session, SELECT after commit routes to replica which does not have the row");
-        }
-    }
-
-    /**
-     * With a sticky session, reads immediately after a committed explicit transaction are
-     * routed to the <em>primary</em> — the "read-your-writes" consistency guarantee.
-     * <p>
-     * This is the recommended pattern for applications that need to read data they just
-     * wrote.  Because OJP's two H2 databases are unsynchronised, a replica-routed SELECT
-     * would return {@code COUNT = 0} (eventual consistency gap), but within the sticky
-     * window the request is pinned to the primary and returns {@code COUNT = 1}.
-     * <p>
-     * <b>Why sticky session is necessary:</b> without a positive
-     * {@code stickySessionSeconds} value, {@code setAutoCommit(true)} is forwarded to the
-     * server and the server-side connection's {@code autoCommit} flag reverts to
-     * {@code true}, causing {@code Session.hasActiveTransaction()} to return
-     * {@code false}.  Subsequent SELECTs are therefore free to go to the replica.  A
-     * sticky session overrides that decision for the configured duration, keeping reads
-     * on the primary to preserve read-after-write consistency.
-     */
-    @SneakyThrows
-    @Test
-    void testAfterTransactionCommit_ReadsGoToPrimary() throws SQLException, InterruptedException {
-        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
-
-        String stickyPrimaryUrl = "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_sticky_primary;DB_CLOSE_DELAY=-1";
-        String stickyReplicaUrl = "jdbc:ojp[" + OJP_HOST + "]_h2:mem:rw_sticky_replica;DB_CLOSE_DELAY=-1";
-
-        Properties stickyProps = stickyProps();
-
-        // Setup separate sticky session databases
-        try (Connection c = DriverManager.getConnection(stickyPrimaryUrl, stickyProps);
-             Statement s = c.createStatement()) {
-            s.execute("DROP TABLE IF EXISTS test_data");
-            s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
-            s.execute("INSERT INTO test_data VALUES (1, 'sticky_primary')");
-        }
-
-        Properties replicaOnlyProps = new Properties();
-        replicaOnlyProps.setProperty("user", USER);
-        replicaOnlyProps.setProperty("password", PASSWORD);
-        replicaOnlyProps.setProperty("ojp.datasource.name", "rw_sticky_replica");
-
-        try (Connection c = DriverManager.getConnection(stickyReplicaUrl, replicaOnlyProps);
-             Statement s = c.createStatement()) {
-            s.execute("DROP TABLE IF EXISTS test_data");
-            s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
-            s.execute("INSERT INTO test_data VALUES (2, 'sticky_replica')");
-        }
-
-        connection = DriverManager.getConnection(stickyPrimaryUrl, stickyProps);
-        connection.setAutoCommit(false);
-
-        try (Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate("INSERT INTO test_data VALUES (250, 'post_tx_sticky')");
-            connection.commit();
-        }
-
-        connection.setAutoCommit(true);
-
-        // Within the sticky window: primary is still used → row is visible
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(
-                     "SELECT COUNT(*) FROM test_data WHERE id = 250")) {
-            assertTrue(rs.next());
-            assertEquals(1, rs.getInt(1),
-                    "With sticky session, SELECT after commit should route to primary and see the committed row");
         }
     }
 }

@@ -54,23 +54,6 @@ public interface StatementService {
 
     SessionInfo rollbackTransaction(SessionInfo session) throws SQLException;
 
-    /**
-     * Forwards a {@code setAutoCommit} call to the server-side physical connection.
-     * <p>
-     * In JDBC, {@link java.sql.Connection#commit()} does <em>not</em> automatically
-     * restore {@code autoCommit=true}; the connection stays in manual-commit mode
-     * until {@code setAutoCommit(true)} is explicitly called.  OJP must mirror this
-     * by keeping the server-side physical connection in sync, otherwise
-     * {@code Session.hasActiveTransaction()} will return a stale value and route
-     * subsequent SELECTs incorrectly.
-     *
-     * @param session    the active session
-     * @param autoCommit the new autoCommit value to apply on the physical connection
-     * @return updated session info
-     * @throws SQLException if the server-side call fails
-     */
-    SessionInfo setAutoCommit(SessionInfo session, boolean autoCommit) throws SQLException;
-
     CallResourceResponse callResource(CallResourceRequest request) throws SQLException;
 
     // XA Transaction Operations

@@ -465,11 +465,6 @@ message XaResponse {
     string message = 3;
 }
 
-// Request to set the autoCommit mode on the server-side physical connection.
-message SetAutoCommitRequest {
-    SessionInfo session = 1;
-    bool autoCommit = 2;
-}
 
 service StatementService {
     rpc connect(ConnectionDetails) returns (SessionInfo);
@@ -482,7 +477,6 @@ service StatementService {
     rpc startTransaction(SessionInfo) returns (SessionInfo);
     rpc commitTransaction(SessionInfo) returns (SessionInfo);
     rpc rollbackTransaction(SessionInfo) returns (SessionInfo);
-    rpc setAutoCommit(SetAutoCommitRequest) returns (SessionInfo);
     rpc callResource(CallResourceRequest) returns (CallResourceResponse);
     
     // XA Transaction Operations

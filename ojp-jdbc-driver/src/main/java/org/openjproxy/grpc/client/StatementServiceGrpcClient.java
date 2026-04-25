@@ -11,7 +11,6 @@ import com.openjproxy.grpc.ReadLobRequest;
 import com.openjproxy.grpc.ResultSetFetchRequest;
 import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.SessionTerminationStatus;
-import com.openjproxy.grpc.SetAutoCommitRequest;
 import com.openjproxy.grpc.StatementRequest;
 import com.openjproxy.grpc.StatementServiceGrpc;
 import io.grpc.ManagedChannel;
@@ -474,21 +473,6 @@ public class StatementServiceGrpcClient implements StatementService {
             throw handle(e);
         } catch (Exception e) {
             throw new SQLException("Unable to rollback transaction: " + e.getMessage(), e);
-        }
-    }
-
-    @Override
-    public SessionInfo setAutoCommit(SessionInfo session, boolean autoCommit) throws SQLException {
-        try {
-            SetAutoCommitRequest request = SetAutoCommitRequest.newBuilder()
-                    .setSession(session)
-                    .setAutoCommit(autoCommit)
-                    .build();
-            return this.statemetServiceBlockingStub.setAutoCommit(request);
-        } catch (StatusRuntimeException e) {
-            throw handle(e);
-        } catch (Exception e) {
-            throw new SQLException("Unable to set autoCommit: " + e.getMessage(), e);
         }
     }
 
