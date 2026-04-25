@@ -207,26 +207,9 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
      * @return ConnectionType.READ_REPLICA if query can route to replica, PRIMARY otherwise
      */
     private ConnectionType determineConnectionType(ActionContext actionContext, ConnectionSessionDTO dto, String sql) {
-        // If session doesn't exist yet, check routing configuration
+        // If session doesn't exist yet, default to PRIMARY
+        // (sessionConnection will create it, and routing will happen later if needed)
         if (dto.getSession() == null || dto.getSession().getSessionUUID().isEmpty()) {
-            // New session - check if read/write splitting is configured
-            ReadWriteDataSourceRegistry registry = actionContext.getReadWriteDataSourceRegistry();
-            if (registry == null) {
-                return ConnectionType.PRIMARY;
-            }
-            
-            String connHash = dto.getSession().getConnHash();
-            String primaryName = registry.getPrimaryName(connHash);
-            if (primaryName == null || !registry.hasReplicas(primaryName)) {
-                // No read/write splitting configured for this connection
-                return ConnectionType.PRIMARY;
-            }
-            
-            // Check if SQL is a SELECT query (simple check - will be refined by router later)
-            if (sql != null && sql.trim().toLowerCase().startsWith("select")) {
-                return ConnectionType.READ_REPLICA;
-            }
-            
             return ConnectionType.PRIMARY;
         }
         
