@@ -170,14 +170,29 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
     private void executeWithRouting(ActionContext actionContext, ConnectionSessionDTO dto, String sql,
                                     List<Parameter> params, StatementRequest request, 
                                     StreamObserver<OpResult> finalObserver) throws SQLException {
-        // Determine connection type BEFORE allocating connection
+        // Determine connection type for routing
         ConnectionType connectionType = determineConnectionType(actionContext, dto, sql);
         
-        // Get or create session with the appropriate connection type
-        ConnectionSessionDTO queryDto = sessionConnection(actionContext, dto.getSession(), true, connectionType);
+        // If we need a different connection type, get it lazily through Session.getConnection()
+        Session session = actionContext.getSessionManager().getSession(dto.getSession());
+        if (session == null) {
+            throw new SQLException("Session not found");
+        }
         
-        // Use new persistent connection routing API
-        // Route the query (manages connection switching if needed)
+        // Get connection of the appropriate type (lazy allocation happens here if needed)
+        Connection queryConnection = session.getConnection(connectionType);
+        if (queryConnection == null) {
+            throw new SQLException("Failed to get connection for query execution");
+        }
+        
+        // Update DTO with the connection we'll use
+        ConnectionSessionDTO queryDto = ConnectionSessionDTO.builder()
+                .session(dto.getSession())
+                .connection(queryConnection)
+                .dbName(dto.getDbName())
+                .build();
+        
+        // Route the query using persistent connection API
         Connection conn = routeQueryWithPersistentConnection(actionContext, queryDto, sql, false);  // false = read operation
         
         // Update DTO with the routed connection

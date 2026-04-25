@@ -59,6 +59,28 @@ public class SessionManagerImpl implements SessionManager {
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
     }
+    
+    /**
+     * Create a session with lazy-loading support.
+     * The session will not have a connection initially - connections will be allocated
+     * lazily when getConnection() is called.
+     * 
+     * @param clientUUID the client UUID
+     * @param datasourceMap map of datasources for lazy allocation
+     * @param readWriteRegistry registry for read/write splitting
+     * @return the session info
+     */
+    public SessionInfo createLazySession(String clientUUID, 
+                                        Map<String, javax.sql.DataSource> datasourceMap,
+                                        org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry readWriteRegistry) {
+        log.info("Create lazy session for client uuid " + clientUUID);
+        String connectionHash = connectionHashMap.get(clientUUID);
+        CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
+        Session session = new Session(connectionHash, clientUUID, false, null, cacheConfig, datasourceMap, readWriteRegistry);
+        log.info("Lazy Session " + session.getSessionUUID() + " created for client uuid " + clientUUID);
+        this.sessionMap.put(session.getSessionUUID(), session);
+        return session.getSessionInfo();
+    }
 
     @Override
     public SessionInfo createXASession(String clientUUID, Connection connection, XAConnection xaConnection) {

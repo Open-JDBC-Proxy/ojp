@@ -147,22 +147,28 @@ public class SessionConnectionHelper {
         var sessionManager = context.getSessionManager();
 
         if (StringUtils.isNotEmpty(sessionInfo.getSessionUUID())) {
-            // Session already exists, reuse its connection
-            conn = sessionManager.getConnection(sessionInfo);
+            // Session already exists - get the session object to use lazy getConnection()
+            Session session = sessionManager.getSession(sessionInfo);
+            if (session == null) {
+                throw new SQLException("Session not found for UUID: " + sessionInfo.getSessionUUID());
+            }
+            
+            // Use lazy getConnection() with the specified connection type
+            conn = session.getConnection(connectionType);
             if (conn == null) {
-                throw new SQLException("Connection not found for this sessionInfo");
+                throw new SQLException("Failed to allocate connection for session UUID: " + sessionInfo.getSessionUUID());
             }
             dtoBuilder.dbName(DatabaseUtils.resolveDbName(conn.getMetaData().getURL()));
             if (conn.isClosed()) {
                 throw new SQLException("Connection is closed");
             }
         } else {
-            // Lazy allocation: check if this is an XA or regular connection
+            // No session yet - create lazy session without eager allocation
             String connHash = sessionInfo.getConnHash();
             boolean isXA = sessionInfo.getIsXA();
 
             if (isXA) {
-                // XA connection - check if unpooled or pooled mode
+                // XA connections still need eager allocation for now (TODO: make XA lazy too)
                 XADataSource xaDataSource = context.getXaDataSourceMap().get(connHash);
 
                 if (xaDataSource != null) {
@@ -188,15 +194,15 @@ public class SessionConnectionHelper {
                     }
                 } else {
                     // Pooled XA mode - should already have a session created in connect()
-                    // This shouldn't happen as XA sessions are created eagerly
                     throw new SQLException("XA session should already exist. Session UUID is missing.");
                 }
             } else {
-                // Regular connection - check if pooled or unpooled mode
+                // Regular (non-XA) connection - use lazy loading
+                // Check if unpooled mode
                 UnpooledConnectionDetails unpooledDetails = context.getUnpooledConnectionDetailsMap().get(connHash);
 
                 if (unpooledDetails != null) {
-                    // Unpooled mode: create direct connection without pooling
+                    // Unpooled mode still needs eager allocation (no pooling, can't be lazy)
                     try {
                         log.debug("Creating unpooled (passthrough) connection for hash: {}", connHash);
                         conn = java.sql.DriverManager.getConnection(
@@ -204,72 +210,49 @@ public class SessionConnectionHelper {
                                 unpooledDetails.getUsername(),
                                 unpooledDetails.getPassword());
                         log.debug("Successfully created unpooled connection for hash: {}", connHash);
+                        
+                        if (startSessionIfNone) {
+                            if (StringUtils.isNotEmpty(sessionInfo.getConnHash())) {
+                                sessionManager.registerClientUUID(sessionInfo.getConnHash(), sessionInfo.getClientUUID());
+                            }
+                            SessionInfo updatedSession = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                            dtoBuilder.session(updatedSession);
+                        }
                     } catch (SQLException e) {
                         log.error("Failed to create unpooled connection for hash: {}. Error: {}",
                                 connHash, e.getMessage());
                         throw e;
                     }
                 } else {
-                    // Pooled mode: acquire from datasource (HikariCP by default)
-                    DataSource dataSource;
-                    
-                    // Determine which datasource to use based on connection type
-                    if (connectionType == ConnectionType.READ_REPLICA && connHash != null) {
-                        // Try to get replica datasource for read/write splitting
-                        ReadWriteDataSourceRegistry registry = context.getReadWriteDataSourceRegistry();
-                        String primaryName = registry.getPrimaryName(connHash);
+                    // Pooled mode: CREATE LAZY SESSION (no eager connection allocation)
+                    if (startSessionIfNone) {
+                        log.debug("Creating lazy session for hash: {} (connections allocated on-demand)", connHash);
                         
-                        if (primaryName != null && registry.hasReplicas(primaryName)) {
-                            // Replicas are available - select one
-                            List<DataSource> replicas = registry.getReplicas(primaryName);
-                            // Use round-robin selection (can be enhanced with more sophisticated logic)
-                            int index = (int) (System.currentTimeMillis() % replicas.size());
-                            dataSource = replicas.get(index);
-                            log.debug("Selected READ_REPLICA datasource for hash: {} (primary: {})", connHash, primaryName);
-                        } else {
-                            // No replicas configured, fall back to primary
-                            dataSource = context.getDatasourceMap().get(connHash);
-                            log.debug("No replicas available for hash: {}, falling back to PRIMARY datasource", connHash);
+                        // Keep connectionHashMap consistent
+                        if (StringUtils.isNotEmpty(sessionInfo.getConnHash())) {
+                            sessionManager.registerClientUUID(sessionInfo.getConnHash(), sessionInfo.getClientUUID());
                         }
-                    } else {
-                        // PRIMARY connection type or null connHash - use primary datasource
-                        dataSource = context.getDatasourceMap().get(connHash);
-                    }
-                    
-                    if (dataSource == null) {
-                        // Signal the client to reconnect. NOT_FOUND is caught by
-                        // CommandExecutionHelper and translated to Status.NOT_FOUND so that the
-                        // driver can transparently reconnect and retry the SQL call.
-                        throw new PoolNotFoundException(connHash);
-                    }
-
-                    try {
-                        // Use enhanced connection acquisition with timeout protection
-                        conn = ConnectionAcquisitionManager.acquireConnection(dataSource, connHash);
-                        log.debug("Successfully acquired {} connection from pool for hash: {}", 
+                        
+                        // Create lazy session - passes datasourceMap and registry for lazy allocation
+                        SessionInfo updatedSession = ((SessionManagerImpl) sessionManager).createLazySession(
+                                sessionInfo.getClientUUID(),
+                                context.getDatasourceMap(),
+                                context.getReadWriteDataSourceRegistry()
+                        );
+                        dtoBuilder.session(updatedSession);
+                        
+                        // Now get connection lazily using the specified type
+                        Session lazySession = sessionManager.getSession(updatedSession);
+                        conn = lazySession.getConnection(connectionType);
+                        
+                        if (conn == null) {
+                            throw new SQLException("Failed to lazily allocate connection for new session");
+                        }
+                        log.debug("Successfully created lazy session and allocated {} connection for hash: {}", 
                                 connectionType, connHash);
-                    } catch (SQLException e) {
-                        log.error("Failed to acquire {} connection from pool for hash: {}. Error: {}",
-                                connectionType, connHash, e.getMessage());
-
-                        // Re-throw the enhanced exception from ConnectionAcquisitionManager
-                        throw e;
+                    } else {
+                        throw new SQLException("Cannot create connection without session");
                     }
-                }
-
-                if (startSessionIfNone) {
-                    // Keep connectionHashMap consistent with the connHash the client sent.
-                    // Non-XA connect() calls may be served from a local cache in the driver
-                    // (MultinodeConnectionManager.connHashByConnectionKey) without issuing a
-                    // real gRPC RPC, so registerClientUUID is never called on the server and
-                    // connectionHashMap may hold a stale connHash from a prior connection that
-                    // used the same clientUUID (e.g. the replica connect in setupDatabases()).
-                    // Syncing here ensures createSession always uses the correct connHash.
-                    if (StringUtils.isNotEmpty(sessionInfo.getConnHash())) {
-                        sessionManager.registerClientUUID(sessionInfo.getConnHash(), sessionInfo.getClientUUID());
-                    }
-                    SessionInfo updatedSession = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
-                    dtoBuilder.session(updatedSession);
                 }
             }
         }
