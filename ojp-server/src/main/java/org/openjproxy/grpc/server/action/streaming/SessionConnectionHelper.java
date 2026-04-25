@@ -8,6 +8,7 @@ import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.ConnectionAcquisitionManager;
 import org.openjproxy.grpc.server.ConnectionRole;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
+import org.openjproxy.grpc.server.ConnectionType;
 import org.openjproxy.grpc.server.PoolNotFoundException;
 import org.openjproxy.grpc.server.Session;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
@@ -101,6 +102,8 @@ public class SessionConnectionHelper {
      * fresh one from the data source.
      * This method implements lazy connection allocation for both Hikari and
      * Atomikos XA datasources.
+     * <p>
+     * This is the backward-compatible method that defaults to PRIMARY connection type.
      *
      * @param context          the action context containing the session manager
      * @param sessionInfo        - current sessionInfo object.
@@ -112,6 +115,31 @@ public class SessionConnectionHelper {
      */
     public static ConnectionSessionDTO sessionConnection(ActionContext context, SessionInfo sessionInfo,
                                                          boolean startSessionIfNone)
+            throws SQLException {
+        // Call overloaded method with PRIMARY as default connection type
+        return sessionConnection(context, sessionInfo, startSessionIfNone, ConnectionType.PRIMARY);
+    }
+    
+    /**
+     * Finds a suitable connection for the current sessionInfo with specified connection type.
+     * If there is a connection already in the sessionInfo reuse it, if not get a
+     * fresh one from the data source based on the connection type.
+     * This method implements lazy connection allocation for both Hikari and
+     * Atomikos XA datasources, and supports read/write splitting by allowing
+     * allocation from replica datasources.
+     *
+     * @param context          the action context containing the session manager
+     * @param sessionInfo        - current sessionInfo object.
+     * @param startSessionIfNone - if true will start a new sessionInfo if none
+     *                           exists.
+     * @param connectionType   - whether to allocate PRIMARY or READ_REPLICA connection
+     * @return ConnectionSessionDTO
+     * @throws SQLException if connection not found or closed (by timeout or other
+     *                      reason)
+     */
+    public static ConnectionSessionDTO sessionConnection(ActionContext context, SessionInfo sessionInfo,
+                                                         boolean startSessionIfNone,
+                                                         ConnectionType connectionType)
             throws SQLException {
         ConnectionSessionDTO.ConnectionSessionDTOBuilder dtoBuilder = ConnectionSessionDTO.builder();
         dtoBuilder.session(sessionInfo);
@@ -183,7 +211,31 @@ public class SessionConnectionHelper {
                     }
                 } else {
                     // Pooled mode: acquire from datasource (HikariCP by default)
-                    DataSource dataSource = context.getDatasourceMap().get(connHash);
+                    DataSource dataSource;
+                    
+                    // Determine which datasource to use based on connection type
+                    if (connectionType == ConnectionType.READ_REPLICA) {
+                        // Try to get replica datasource for read/write splitting
+                        ReadWriteDataSourceRegistry registry = context.getReadWriteDataSourceRegistry();
+                        String primaryName = registry.getPrimaryName(connHash);
+                        
+                        if (primaryName != null && registry.hasReplicas(primaryName)) {
+                            // Replicas are available - select one
+                            List<DataSource> replicas = registry.getReplicas(primaryName);
+                            // Use round-robin selection (can be enhanced with more sophisticated logic)
+                            int index = (int) (System.currentTimeMillis() % replicas.size());
+                            dataSource = replicas.get(index);
+                            log.debug("Selected READ_REPLICA datasource for hash: {} (primary: {})", connHash, primaryName);
+                        } else {
+                            // No replicas configured, fall back to primary
+                            dataSource = context.getDatasourceMap().get(connHash);
+                            log.debug("No replicas available for hash: {}, falling back to PRIMARY datasource", connHash);
+                        }
+                    } else {
+                        // PRIMARY connection type - use primary datasource
+                        dataSource = context.getDatasourceMap().get(connHash);
+                    }
+                    
                     if (dataSource == null) {
                         // Signal the client to reconnect. NOT_FOUND is caught by
                         // CommandExecutionHelper and translated to Status.NOT_FOUND so that the
@@ -194,10 +246,11 @@ public class SessionConnectionHelper {
                     try {
                         // Use enhanced connection acquisition with timeout protection
                         conn = ConnectionAcquisitionManager.acquireConnection(dataSource, connHash);
-                        log.debug("Successfully acquired connection from pool for hash: {}", connHash);
+                        log.debug("Successfully acquired {} connection from pool for hash: {}", 
+                                connectionType, connHash);
                     } catch (SQLException e) {
-                        log.error("Failed to acquire connection from pool for hash: {}. Error: {}",
-                                connHash, e.getMessage());
+                        log.error("Failed to acquire {} connection from pool for hash: {}. Error: {}",
+                                connectionType, connHash, e.getMessage());
 
                         // Re-throw the enhanced exception from ConnectionAcquisitionManager
                         throw e;

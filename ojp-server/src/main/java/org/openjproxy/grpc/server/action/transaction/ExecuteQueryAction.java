@@ -9,11 +9,13 @@ import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
+import org.openjproxy.grpc.server.ConnectionType;
 import org.openjproxy.grpc.server.Session;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.cache.CacheConfiguration;
 import org.openjproxy.grpc.server.cache.QueryCacheHelper;
+import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 
 import javax.sql.DataSource;
@@ -168,11 +170,14 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
     private void executeWithRouting(ActionContext actionContext, ConnectionSessionDTO dto, String sql,
                                     List<Parameter> params, StatementRequest request, 
                                     StreamObserver<OpResult> finalObserver) throws SQLException {
-        // Get or create session first
-        ConnectionSessionDTO queryDto = sessionConnection(actionContext, dto.getSession(), true);
+        // Determine connection type BEFORE allocating connection
+        ConnectionType connectionType = determineConnectionType(actionContext, dto, sql);
+        
+        // Get or create session with the appropriate connection type
+        ConnectionSessionDTO queryDto = sessionConnection(actionContext, dto.getSession(), true, connectionType);
         
         // Use new persistent connection routing API
-        // Route the query (repurposes connection to replica if first operation is SELECT)
+        // Route the query (manages connection switching if needed)
         Connection conn = routeQueryWithPersistentConnection(actionContext, queryDto, sql, false);  // false = read operation
         
         // Update DTO with the routed connection
@@ -183,6 +188,81 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 .build();
 
         executeAndCleanup(actionContext, queryDto, sql, params, request, finalObserver);
+    }
+    
+    /**
+     * Determines the appropriate connection type for a query operation.
+     * Connection type is READ_REPLICA if:
+     * <ul>
+     *   <li>This is a SELECT query</li>
+     *   <li>Not in a transaction</li>
+     *   <li>Not in sticky session window (after recent write)</li>
+     *   <li>Read/write splitting is configured and replicas are available</li>
+     * </ul>
+     * Otherwise, connection type is PRIMARY.
+     *
+     * @param actionContext the action context
+     * @param dto the connection session DTO
+     * @param sql the SQL query to execute
+     * @return ConnectionType.READ_REPLICA if query can route to replica, PRIMARY otherwise
+     */
+    private ConnectionType determineConnectionType(ActionContext actionContext, ConnectionSessionDTO dto, String sql) {
+        // If session doesn't exist yet, check routing configuration
+        if (dto.getSession() == null || dto.getSession().getSessionUUID().isEmpty()) {
+            // New session - check if read/write splitting is configured
+            ReadWriteDataSourceRegistry registry = actionContext.getReadWriteDataSourceRegistry();
+            if (registry == null) {
+                return ConnectionType.PRIMARY;
+            }
+            
+            String connHash = dto.getSession().getConnHash();
+            String primaryName = registry.getPrimaryName(connHash);
+            if (primaryName == null || !registry.hasReplicas(primaryName)) {
+                // No read/write splitting configured for this connection
+                return ConnectionType.PRIMARY;
+            }
+            
+            // Check if SQL is a SELECT query (simple check - will be refined by router later)
+            if (sql != null && sql.trim().toLowerCase().startsWith("select")) {
+                return ConnectionType.READ_REPLICA;
+            }
+            
+            return ConnectionType.PRIMARY;
+        }
+        
+        // Session exists - check session state
+        Session session = actionContext.getSessionManager().getSession(dto.getSession());
+        if (session == null) {
+            return ConnectionType.PRIMARY;
+        }
+        
+        // If in transaction, always use primary
+        if (session.isInTransaction()) {
+            return ConnectionType.PRIMARY;
+        }
+        
+        // Check sticky session
+        ReadWriteDataSourceRegistry registry = actionContext.getReadWriteDataSourceRegistry();
+        if (registry != null) {
+            String primaryName = registry.getPrimaryName(session.getConnectionHash());
+            if (primaryName != null) {
+                int stickySeconds = registry.getStickySessionSeconds(primaryName);
+                if (stickySeconds > 0 && session.isInStickyMode(stickySeconds * 1000L)) {
+                    // Sticky session active - use primary
+                    return ConnectionType.PRIMARY;
+                }
+            }
+        }
+        
+        // Check if replicas are available
+        if (registry != null && registry.hasReplicas(registry.getPrimaryName(session.getConnectionHash()))) {
+            // Check if SQL is a SELECT query
+            if (sql != null && sql.trim().toLowerCase().startsWith("select")) {
+                return ConnectionType.READ_REPLICA;
+            }
+        }
+        
+        return ConnectionType.PRIMARY;
     }
     
     private void executeAndCleanup(ActionContext actionContext, ConnectionSessionDTO queryDto, String sql,
