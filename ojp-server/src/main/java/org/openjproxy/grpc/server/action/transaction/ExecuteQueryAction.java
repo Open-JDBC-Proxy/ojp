@@ -82,6 +82,10 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
         Connection execConn;
         if (replicaDs != null) {
             Session activeSession = actionContext.getSessionManager().getSession(dto.getSession());
+            if (activeSession == null) {
+                throw new SQLException("Session not found for UUID: " + dto.getSession().getSessionUUID()
+                        + ". Cannot obtain replica connection.");
+            }
             execConn = activeSession.getOrCreateReplicaConnection();
             log.debug("Read/write splitting: routed SELECT to replica for connHash={}",
                     request.getSession().getConnHash());
@@ -232,7 +236,12 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
         // which does NOT trigger lazy primary connection acquisition.
         if (StringUtils.isNotBlank(request.getSession().getSessionUUID())) {
             Session existingSession = context.getSessionManager().getSession(request.getSession());
-            if (existingSession != null && existingSession.hasActiveTransaction()) {
+            if (existingSession == null) {
+                // Session has expired or been invalidated; fall back to primary to avoid
+                // routing to replica with unknown session state.
+                return null;
+            }
+            if (existingSession.hasActiveTransaction()) {
                 return null;  // active transaction → must stay on primary
             }
         }

@@ -268,9 +268,13 @@ public class Session {
      * connection acquisition; returns {@code false} when no primary connection
      * has been acquired yet (i.e. the session is replica-only so far).
      *
+     * <p>This method is {@code synchronized} to ensure it sees the latest value
+     * of {@code primaryConnection} (e.g. after a concurrent {@link #getConnection()}
+     * call).
+     *
      * @return {@code true} if there is an active transaction on the primary connection
      */
-    public boolean hasActiveTransaction() {
+    public synchronized boolean hasActiveTransaction() {
         if (primaryConnection == null) {
             return false;
         }
@@ -392,7 +396,11 @@ public class Session {
                 }
             }
             if (primaryConnection != null) {
-                primaryConnection.close();
+                try {
+                    primaryConnection.close();
+                } catch (SQLException e) {
+                    log.error("Error closing primary connection for session {}", sessionUUID, e);
+                }
             }
         }
 
