@@ -55,7 +55,8 @@ public class ReadReplicaSelector {
     private DataSource roundRobin(String primaryName, List<DataSource> replicas) {
         AtomicInteger counter = roundRobinCounters
                 .computeIfAbsent(primaryName, k -> new AtomicInteger(0));
-        int idx = Math.abs(counter.getAndIncrement() % replicas.size());
+        // Use bitwise AND to avoid negative index when counter wraps past Integer.MAX_VALUE
+        int idx = (counter.getAndIncrement() & Integer.MAX_VALUE) % replicas.size();
         return replicas.get(idx);
     }
 }

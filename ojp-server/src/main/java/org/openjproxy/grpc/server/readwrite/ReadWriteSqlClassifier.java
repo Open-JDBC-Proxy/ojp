@@ -35,14 +35,31 @@ public final class ReadWriteSqlClassifier {
             return QueryType.WRITE;
         }
         String upper = sql.stripLeading().toUpperCase();
-        if (upper.startsWith("SELECT")
-                || upper.startsWith("WITH")
-                || upper.startsWith("EXPLAIN")
-                || upper.startsWith("SHOW")
-                || upper.startsWith("DESCRIBE")
-                || upper.startsWith("DESC ")) {
+        if (isKeyword(upper, "SELECT")
+                || isKeyword(upper, "WITH")
+                || isKeyword(upper, "EXPLAIN")
+                || isKeyword(upper, "SHOW")
+                || isKeyword(upper, "DESCRIBE")
+                || isKeyword(upper, "DESC")) {
             return QueryType.READ;
         }
         return QueryType.WRITE;
+    }
+
+    /**
+     * Returns {@code true} when {@code upper} starts with {@code keyword} and the
+     * character immediately following the keyword (if any) is not an alphanumeric
+     * character.  This ensures that e.g. {@code "DESCusers"} is not treated as a
+     * {@code DESC} statement while {@code "DESC users"}, {@code "DESC\nusers"}, and
+     * {@code "DESCRIBE users"} are all recognised correctly.
+     */
+    private static boolean isKeyword(String upper, String keyword) {
+        if (!upper.startsWith(keyword)) {
+            return false;
+        }
+        if (upper.length() == keyword.length()) {
+            return true;
+        }
+        return !Character.isLetterOrDigit(upper.charAt(keyword.length()));
     }
 }

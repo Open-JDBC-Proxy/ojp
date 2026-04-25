@@ -223,7 +223,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
             return null;
         }
 
-        java.util.List<DataSource> replicas = registry.getReplicas(primaryName);
+        List<DataSource> replicas = registry.getReplicas(primaryName);
         if (replicas.isEmpty()) {
             return null;
         }
