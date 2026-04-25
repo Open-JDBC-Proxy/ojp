@@ -250,10 +250,10 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         // If the pool already existed and read/write splitting was not yet registered for this
         // connHash, attempt setup now. The setupReadWriteSplitting implementation is idempotent:
         // it skips silently when the primary is already mapped and replicas are registered.
-        org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry rwRegistry =
+        org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry readWriteRegistry =
                 context.getReadWriteDataSourceRegistry();
-        if (rwRegistry != null
-                && rwRegistry.getPrimaryName(connHash) == null
+        if (readWriteRegistry != null
+                && readWriteRegistry.getPrimaryName(connHash) == null
                 && connectionDetails.getPropertiesCount() > 0) {
             DataSource existingDs = context.getDatasourceMap().get(connHash);
             if (existingDs != null) {
