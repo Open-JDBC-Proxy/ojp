@@ -4,7 +4,9 @@ import com.openjproxy.grpc.SessionInfo;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.server.cache.CacheConfiguration;
+import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry;
 
+import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import javax.transaction.xa.XAResource;
 import java.sql.CallableStatement;
@@ -17,6 +19,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Holds information about a session of a given client.
@@ -31,10 +34,16 @@ public class Session {
     private final String clientUUID;
     
     // Dual-connection model for read/write splitting
-    private Connection primaryConnection;    // Connection to primary database (writes + transactional reads)
-    private Connection replicaConnection;    // Connection to replica database (non-transactional reads)
+    private volatile Connection primaryConnection;    // Connection to primary database (writes + transactional reads)
+    private volatile Connection replicaConnection;    // Connection to replica database (non-transactional reads)
     @Getter
     private volatile ConnectionRole activeRole = ConnectionRole.NONE;  // Which connection is currently active
+    
+    // Lazy loading support for connections
+    private final ReentrantLock primaryLock = new ReentrantLock();  // Lock for lazy primary connection allocation
+    private final ReentrantLock replicaLock = new ReentrantLock();  // Lock for lazy replica connection allocation
+    private final Map<String, DataSource> datasourceMap;  // Reference to datasource map for lazy allocation
+    private final ReadWriteDataSourceRegistry readWriteRegistry;  // Reference to read/write registry for replica selection
     
     @Getter
     private final boolean isXA;
@@ -67,21 +76,40 @@ public class Session {
     private static final long DEFAULT_STICKY_SESSION_MILLIS = 5000;  // 5 seconds default
 
     public Session(Connection connection, String connectionHash, String clientUUID) {
-        this(connection, connectionHash, clientUUID, false, null, null);
+        this(connection, connectionHash, clientUUID, false, null, null, null, null);
     }
 
     public Session(Connection connection, String connectionHash, String clientUUID, boolean isXA, XAConnection xaConnection) {
-        this(connection, connectionHash, clientUUID, isXA, xaConnection, null);
+        this(connection, connectionHash, clientUUID, isXA, xaConnection, null, null, null);
     }
 
     public Session(Connection connection, String connectionHash, String clientUUID, boolean isXA, XAConnection xaConnection, CacheConfiguration cacheConfiguration) {
-        this.primaryConnection = connection;  // Initial connection goes to primary slot
+        this(connection, connectionHash, clientUUID, isXA, xaConnection, cacheConfiguration, null, null);
+    }
+    
+    /**
+     * Constructor with lazy loading support.
+     * 
+     * @param connection Initial connection (can be null for full lazy loading)
+     * @param connectionHash The connection hash identifying the datasource
+     * @param clientUUID The client UUID
+     * @param isXA Whether this is an XA session
+     * @param xaConnection XA connection (for XA sessions)
+     * @param cacheConfiguration Cache configuration (can be null)
+     * @param datasourceMap Map of datasources for lazy allocation (can be null for eager mode)
+     * @param readWriteRegistry Registry for read/write splitting (can be null if not using read/write splitting)
+     */
+    public Session(Connection connection, String connectionHash, String clientUUID, boolean isXA, XAConnection xaConnection, 
+                   CacheConfiguration cacheConfiguration, Map<String, DataSource> datasourceMap, ReadWriteDataSourceRegistry readWriteRegistry) {
+        this.primaryConnection = connection;  // Initial connection goes to primary slot (can be null for lazy loading)
         this.activeRole = (connection != null) ? ConnectionRole.PRIMARY : ConnectionRole.NONE;
         this.connectionHash = connectionHash;
         this.clientUUID = clientUUID;
         this.isXA = isXA;
         this.xaConnection = xaConnection;
         this.cacheConfiguration = cacheConfiguration;  // Can be null
+        this.datasourceMap = datasourceMap;  // Can be null for eager mode
+        this.readWriteRegistry = readWriteRegistry;  // Can be null
         this.sessionUUID = UUID.randomUUID().toString();
         this.closed = false;
         this.creationTime = System.nanoTime();
@@ -196,6 +224,155 @@ public class Session {
             default:
                 return this.primaryConnection;  // Fallback to primary if no role set (may be null)
         }
+    }
+    
+    /**
+     * Gets the JDBC connection for this session with lazy allocation support.
+     * This method supports read/write splitting by allocating connections on-demand
+     * based on the requested connection type.
+     * 
+     * Uses double-checked locking for thread-safe lazy initialization:
+     * - First check (unlocked) for performance when connection already exists
+     * - Lock acquisition only if connection needs to be allocated
+     * - Second check (locked) to prevent race conditions
+     * - Connection allocation happens only once per type
+     * 
+     * @param connectionType The type of connection to get (PRIMARY or READ_REPLICA)
+     * @return the JDBC connection, or null if allocation is not possible
+     * @throws SQLException if connection allocation fails
+     */
+    public Connection getConnection(ConnectionType connectionType) throws SQLException {
+        // For XA sessions, always use primary connection (XA doesn't support read/write splitting)
+        if (isXA) {
+            if (backendSession != null && backendSession instanceof org.openjproxy.xa.pool.XABackendSession) {
+                org.openjproxy.xa.pool.XABackendSession xaBackendSession = 
+                    (org.openjproxy.xa.pool.XABackendSession) backendSession;
+                return xaBackendSession.getConnection();
+            }
+            return getConnection();  // Fall back to standard getConnection() for XA
+        }
+        
+        if (connectionType == ConnectionType.READ_REPLICA) {
+            // Double-checked locking for replica connection
+            if (replicaConnection != null && !isClosed(replicaConnection)) {
+                return replicaConnection;  // Fast path - connection already exists
+            }
+            
+            replicaLock.lock();
+            try {
+                // Second check after acquiring lock
+                if (replicaConnection != null && !isClosed(replicaConnection)) {
+                    return replicaConnection;
+                }
+                
+                // Lazy allocation: allocate replica connection now
+                replicaConnection = allocateReplicaConnectionLazy();
+                if (replicaConnection != null) {
+                    activeRole = ConnectionRole.REPLICA;
+                    log.debug("Lazy-allocated replica connection for session {}", sessionUUID);
+                    return replicaConnection;
+                }
+                
+                // Fallback to primary if replica allocation fails
+                log.debug("Replica allocation failed, falling back to primary for session {}", sessionUUID);
+                return getConnection(ConnectionType.PRIMARY);
+            } finally {
+                replicaLock.unlock();
+            }
+        } else {
+            // PRIMARY connection type (default)
+            // Double-checked locking for primary connection
+            if (primaryConnection != null && !isClosed(primaryConnection)) {
+                return primaryConnection;  // Fast path - connection already exists
+            }
+            
+            primaryLock.lock();
+            try {
+                // Second check after acquiring lock
+                if (primaryConnection != null && !isClosed(primaryConnection)) {
+                    return primaryConnection;
+                }
+                
+                // Lazy allocation: allocate primary connection now
+                primaryConnection = allocatePrimaryConnectionLazy();
+                if (primaryConnection != null) {
+                    activeRole = ConnectionRole.PRIMARY;
+                    log.debug("Lazy-allocated primary connection for session {}", sessionUUID);
+                }
+                return primaryConnection;
+            } finally {
+                primaryLock.unlock();
+            }
+        }
+    }
+    
+    /**
+     * Lazy-allocates a primary connection from the datasource.
+     * This method is called from within a lock, so it doesn't need additional synchronization.
+     * 
+     * @return the allocated connection, or null if allocation fails
+     * @throws SQLException if connection allocation fails
+     */
+    private Connection allocatePrimaryConnectionLazy() throws SQLException {
+        if (datasourceMap == null || connectionHash == null) {
+            log.warn("Cannot lazy-allocate primary connection: datasourceMap or connectionHash is null");
+            return null;
+        }
+        
+        DataSource dataSource = datasourceMap.get(connectionHash);
+        if (dataSource == null) {
+            log.error("DataSource not found for connectionHash: {}", connectionHash);
+            throw new SQLException("DataSource not found for connectionHash: " + connectionHash);
+        }
+        
+        Connection conn = dataSource.getConnection();
+        log.debug("Allocated primary connection from datasource {} for session {}", connectionHash, sessionUUID);
+        return conn;
+    }
+    
+    /**
+     * Lazy-allocates a replica connection from a read replica datasource.
+     * This method is called from within a lock, so it doesn't need additional synchronization.
+     * 
+     * @return the allocated connection, or null if no replicas are available
+     * @throws SQLException if connection allocation fails
+     */
+    private Connection allocateReplicaConnectionLazy() throws SQLException {
+        if (readWriteRegistry == null || connectionHash == null) {
+            log.debug("Cannot allocate replica: readWriteRegistry or connectionHash is null");
+            return null;
+        }
+        
+        // Check if read/write splitting is enabled for this datasource
+        if (!readWriteRegistry.isReadWriteSplittingEnabled(connectionHash)) {
+            log.debug("Read/write splitting not enabled for connectionHash: {}", connectionHash);
+            return null;
+        }
+        
+        // Get list of replica datasource names
+        java.util.List<String> replicaNames = readWriteRegistry.getReplicaNames(connectionHash);
+        if (replicaNames == null || replicaNames.isEmpty()) {
+            log.debug("No replicas available for connectionHash: {}", connectionHash);
+            return null;
+        }
+        
+        // Select a replica using round-robin
+        String selectedReplica = replicaNames.get(0);  // Simplified - just use first replica
+        if (replicaNames.size() > 1) {
+            // Use round-robin selection based on session UUID hashcode
+            int index = Math.abs(sessionUUID.hashCode() % replicaNames.size());
+            selectedReplica = replicaNames.get(index);
+        }
+        
+        DataSource replicaDataSource = datasourceMap.get(selectedReplica);
+        if (replicaDataSource == null) {
+            log.error("Replica DataSource not found: {}", selectedReplica);
+            return null;
+        }
+        
+        Connection conn = replicaDataSource.getConnection();
+        log.debug("Allocated replica connection from {} for session {}", selectedReplica, sessionUUID);
+        return conn;
     }
     
     /**
