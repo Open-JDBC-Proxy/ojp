@@ -255,9 +255,30 @@ public class Session {
      * @throws SQLException if acquiring the connection from the pool fails
      */
     public synchronized Connection getOrCreateReplicaConnection() throws SQLException {
-        if (replicaConnection == null && replicaDataSource != null) {
-            replicaConnection = replicaDataSource.getConnection();
-            log.debug("Lazily acquired replica connection for session {}", sessionUUID);
+        return getOrCreateReplicaConnection(null);
+    }
+
+    /**
+     * Gets (or lazily creates) the replica JDBC connection for this session.
+     * <p>
+     * Uses the replica datasource supplied at construction time when available;
+     * falls back to {@code fallbackReplicaDs} when the session was created without
+     * a replica datasource (e.g. originally created for a write / INSERT).  The
+     * acquired connection is cached and reused on subsequent calls.
+     *
+     * @param fallbackReplicaDs datasource to use when no replica datasource was set
+     *                          at construction time; may be {@code null}
+     * @return the replica JDBC connection, or {@code null} if no replica datasource
+     *         is available
+     * @throws SQLException if acquiring the connection from the pool fails
+     */
+    public synchronized Connection getOrCreateReplicaConnection(DataSource fallbackReplicaDs) throws SQLException {
+        if (replicaConnection == null) {
+            DataSource ds = (replicaDataSource != null) ? replicaDataSource : fallbackReplicaDs;
+            if (ds != null) {
+                replicaConnection = ds.getConnection();
+                log.debug("Lazily acquired replica connection for session {}", sessionUUID);
+            }
         }
         return replicaConnection;
     }

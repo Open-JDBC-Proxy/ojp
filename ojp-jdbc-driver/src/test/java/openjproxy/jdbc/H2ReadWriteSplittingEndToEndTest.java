@@ -297,13 +297,17 @@ class H2ReadWriteSplittingEndToEndTest {
             assertEquals(1, affected, "DELETE should affect 1 row");
         }
 
-        try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps());
-             Statement s = verify.createStatement();
-             ResultSet rs = s.executeQuery(
-                     "SELECT COUNT(*) FROM test_data WHERE id = 1")) {
-            assertTrue(rs.next());
-            assertEquals(0, rs.getInt(1),
-                    "Primary database should not contain the deleted row");
+        try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps())) {
+            // Force routing to primary so we verify the primary was actually modified.
+            verify.setAutoCommit(false);
+            try (Statement s = verify.createStatement();
+                 ResultSet rs = s.executeQuery(
+                         "SELECT COUNT(*) FROM test_data WHERE id = 1")) {
+                assertTrue(rs.next());
+                assertEquals(0, rs.getInt(1),
+                        "Primary database should not contain the deleted row");
+            }
+            verify.rollback();
         }
     }
 
@@ -448,11 +452,12 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * After a transaction commits, reads continue going to primary (sticky session).
+     * Without a sticky session, a read immediately after a committed transaction goes to the
+     * replica (eventual consistency). The replica does not have the just-committed row.
      */
     @SneakyThrows
     @Test
-    void testAfterTransactionCommit_ReadsGoToPrimary() throws SQLException {
+    void testAfterTransactionCommit_ReadsGoToReplica_WithNoStickySession() throws SQLException {
         Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
 
         setupDatabases();
@@ -471,8 +476,8 @@ class H2ReadWriteSplittingEndToEndTest {
              ResultSet rs = stmt.executeQuery(
                      "SELECT COUNT(*) FROM test_data WHERE id = 250")) {
             assertTrue(rs.next());
-            assertEquals(1, rs.getInt(1),
-                    "After commit, SELECT routes to primary which should have the committed row");
+            assertEquals(0, rs.getInt(1),
+                    "Without sticky session, SELECT after commit routes to replica which does not have the row");
         }
     }
 }

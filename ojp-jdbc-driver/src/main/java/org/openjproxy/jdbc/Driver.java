@@ -87,13 +87,26 @@ public class Driver implements java.sql.Driver {
         connBuilder.addAllServerEndpoints(serverEndpoints);
         log.info("Adding {} server endpoint(s) to ConnectionDetails", serverEndpoints.size());
 
+        // Build combined properties map: file (ojp.properties) takes lowest priority;
+        // inline ojp.* properties from info override the file so callers can supply
+        // read/write splitting and other configuration directly via
+        // DriverManager.getConnection(url, info) without a server-side properties file.
+        Map<String, Object> propertiesMap = new HashMap<>();
         if (ojpProperties != null && !ojpProperties.isEmpty()) {
-            // Convert Properties to Map<String, Object>
-            Map<String, Object> propertiesMap = new HashMap<>();
             for (String key : ojpProperties.stringPropertyNames()) {
                 propertiesMap.put(key, ojpProperties.getProperty(key));
             }
-
+        }
+        if (info != null) {
+            for (String key : info.stringPropertyNames()) {
+                // Forward any *.ojp.* properties (e.g. read/write splitting, replica config)
+                // and the top-level ojp.* properties (e.g. ojp.datasource.name).
+                if (key.contains(".ojp.") || key.startsWith("ojp.")) {
+                    propertiesMap.put(key, info.getProperty(key));
+                }
+            }
+        }
+        if (!propertiesMap.isEmpty()) {
             // Add cache configuration properties to the map
             try {
                 CacheConfigurationBuilder.addCachePropertiesToMap(propertiesMap, dataSourceName);
@@ -103,7 +116,7 @@ public class Driver implements java.sql.Driver {
             }
 
             connBuilder.addAllProperties(ProtoConverter.propertiesToProto(propertiesMap));
-            log.debug("Loaded ojp.properties with {} properties for dataSource: {}", propertiesMap.size(), dataSourceName);
+            log.debug("Loaded {} properties for dataSource: {}", propertiesMap.size(), dataSourceName);
         }
 
         log.info("Calling connect() on statement service with URL: {}", connectionUrl);

@@ -86,7 +86,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 throw new SQLException("Session not found for UUID: " + dto.getSession().getSessionUUID()
                         + ". Cannot obtain replica connection.");
             }
-            execConn = activeSession.getOrCreateReplicaConnection();
+            execConn = activeSession.getOrCreateReplicaConnection(replicaDs);
             log.debug("Read/write splitting: routed SELECT to replica for connHash={}",
                     request.getSession().getConnHash());
         } else {
