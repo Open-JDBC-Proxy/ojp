@@ -91,6 +91,29 @@ public class SessionConnectionHelper {
     public static ConnectionSessionDTO sessionConnection(ActionContext context, SessionInfo sessionInfo,
                                                          boolean startSessionIfNone)
             throws SQLException {
+        return sessionConnection(context, sessionInfo, startSessionIfNone, null);
+    }
+
+    /**
+     * Same as {@link #sessionConnection(ActionContext, SessionInfo, boolean)} but
+     * allows the caller to supply a {@code replicaDataSource} that overrides the
+     * pooled-mode datasource lookup.  When {@code replicaDataSource} is non-{@code null}
+     * and the session has no existing UUID (i.e. stateless / auto-commit mode), the
+     * connection is acquired from {@code replicaDataSource} instead of the primary pool.
+     * XA, unpooled, and existing-session paths are not affected by this parameter.
+     *
+     * @param context            the action context containing the session manager
+     * @param sessionInfo        current sessionInfo object
+     * @param startSessionIfNone if {@code true} a new session will be started when none exists
+     * @param replicaDataSource  optional datasource to use in place of the primary pool;
+     *                           {@code null} means "use the primary pool as normal"
+     * @return ConnectionSessionDTO
+     * @throws SQLException if a connection cannot be obtained
+     */
+    public static ConnectionSessionDTO sessionConnection(ActionContext context, SessionInfo sessionInfo,
+                                                         boolean startSessionIfNone,
+                                                         javax.sql.DataSource replicaDataSource)
+            throws SQLException {
         ConnectionSessionDTO.ConnectionSessionDTOBuilder dtoBuilder = ConnectionSessionDTO.builder();
         dtoBuilder.session(sessionInfo);
         Connection conn;
@@ -160,8 +183,11 @@ public class SessionConnectionHelper {
                         throw e;
                     }
                 } else {
-                    // Pooled mode: acquire from datasource (HikariCP by default)
-                    DataSource dataSource = context.getDatasourceMap().get(connHash);
+                    // Pooled mode: use replica override when provided, otherwise use the primary pool
+                    DataSource dataSource = (replicaDataSource != null)
+                            ? replicaDataSource
+                            : context.getDatasourceMap().get(connHash);
+
                     if (dataSource == null) {
                         // Signal the client to reconnect. NOT_FOUND is caught by
                         // CommandExecutionHelper and translated to Status.NOT_FOUND so that the

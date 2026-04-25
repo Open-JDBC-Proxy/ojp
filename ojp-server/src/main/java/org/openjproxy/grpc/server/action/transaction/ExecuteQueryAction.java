@@ -5,6 +5,7 @@ import com.openjproxy.grpc.StatementRequest;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.dto.Parameter;
@@ -14,6 +15,9 @@ import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.cache.CacheConfiguration;
 import org.openjproxy.grpc.server.cache.QueryCacheHelper;
+import org.openjproxy.grpc.server.readwrite.ReadReplicaSelector;
+import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry;
+import org.openjproxy.grpc.server.readwrite.ReadWriteSqlClassifier;
 import org.openjproxy.grpc.server.statement.StatementFactory;
 
 import javax.sql.DataSource;
@@ -32,6 +36,8 @@ import static org.openjproxy.grpc.server.action.transaction.CommandExecutionHelp
 public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
 
     private static final ExecuteQueryAction INSTANCE = new ExecuteQueryAction();
+
+    private static final ReadReplicaSelector REPLICA_SELECTOR = new ReadReplicaSelector();
 
     /**
      * Private constructor for singleton.
@@ -63,7 +69,13 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
     private void executeQueryInternal(ActionContext actionContext, StatementRequest request, StreamObserver<OpResult> responseObserver)
             throws SQLException {
 
-        ConnectionSessionDTO dto = sessionConnection(actionContext, request.getSession(), true);
+        // Read/write splitting: route reads to a replica when applicable
+        DataSource replicaDs = resolveReadReplicaDataSource(actionContext, request);
+        ConnectionSessionDTO dto = sessionConnection(actionContext, request.getSession(), true, replicaDs);
+        if (replicaDs != null) {
+            log.debug("Read/write splitting: routed SELECT to replica for connHash={}",
+                    request.getSession().getConnHash());
+        }
 
         // Phase 6: Cache Lookup (before query execution) - with graceful degradation
         String sql = request.getSql();
@@ -164,5 +176,58 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                     stmt.executeQuery(sql));
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
         }
+    }
+
+    /**
+     * Determines whether this read query should be routed to a replica, and if so
+     * returns the selected replica {@link DataSource}.
+     *
+     * <p>Routing to a replica is skipped when any of the following is true:
+     * <ul>
+     *   <li>No {@link ReadWriteDataSourceRegistry} is available in the context.</li>
+     *   <li>The request is inside an explicit transaction (non-empty {@code sessionUUID}).</li>
+     *   <li>The SQL is not a read-only statement.</li>
+     *   <li>The primary has no replicas registered.</li>
+     *   <li>A sticky-session window is currently active for the primary.</li>
+     * </ul>
+     *
+     * @param context the action context
+     * @param request the statement request
+     * @return a replica {@link DataSource}, or {@code null} when the primary should be used
+     */
+    private DataSource resolveReadReplicaDataSource(ActionContext context, StatementRequest request) {
+        ReadWriteDataSourceRegistry registry = context.getReadWriteDataSourceRegistry();
+        if (registry == null) {
+            return null;
+        }
+
+        // Do not route to replica when inside a transaction (session UUID is set)
+        if (StringUtils.isNotBlank(request.getSession().getSessionUUID())) {
+            return null;
+        }
+
+        // Only route read-only SQL to replicas
+        if (ReadWriteSqlClassifier.classify(request.getSql()) != ReadWriteSqlClassifier.QueryType.READ) {
+            return null;
+        }
+
+        String connHash = request.getSession().getConnHash();
+        String primaryName = registry.getPrimaryName(connHash);
+        if (primaryName == null) {
+            return null;
+        }
+
+        // Honour sticky session: after a write, reads go to primary until timeout expires
+        if (registry.isStickyActive(primaryName)) {
+            log.debug("Read/write splitting: sticky session active for primary '{}', routing to primary", primaryName);
+            return null;
+        }
+
+        java.util.List<DataSource> replicas = registry.getReplicas(primaryName);
+        if (replicas.isEmpty()) {
+            return null;
+        }
+
+        return REPLICA_SELECTOR.select(primaryName, replicas, registry.getStrategy(primaryName));
     }
 }

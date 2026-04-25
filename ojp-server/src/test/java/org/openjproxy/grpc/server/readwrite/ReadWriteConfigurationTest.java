@@ -84,53 +84,35 @@ class ReadWriteConfigurationTest {
     
     @Test
     void testValidation_NullPrimaryName() {
-        assertThrows(NullPointerException.class, () -> {
-            new ReadWriteConfiguration.Builder()
-                    .primaryName(null)
-                    .build();
-        });
+        ReadWriteConfiguration.Builder builder = new ReadWriteConfiguration.Builder().primaryName(null);
+        assertThrows(NullPointerException.class, builder::build);
     }
     
     @Test
     void testValidation_EmptyPrimaryName() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            new ReadWriteConfiguration.Builder()
-                    .primaryName("")
-                    .build();
-        });
+        ReadWriteConfiguration.Builder builder = new ReadWriteConfiguration.Builder().primaryName("");
+        assertThrows(IllegalArgumentException.class, builder::build);
     }
     
     @Test
     void testValidation_EnabledWithoutReplicas() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            new ReadWriteConfiguration.Builder()
-                    .primaryName("primary")
-                    .enabled(true)
-                    .build();
-        });
+        ReadWriteConfiguration.Builder builder = new ReadWriteConfiguration.Builder()
+                .primaryName("primary").enabled(true);
+        assertThrows(IllegalArgumentException.class, builder::build);
     }
     
     @Test
     void testValidation_NegativeStickySessionSeconds() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            new ReadWriteConfiguration.Builder()
-                    .primaryName("primary")
-                    .stickySessionSeconds(-1)
-                    .addReplica("replica1")
-                    .build();
-        });
+        ReadWriteConfiguration.Builder builder = new ReadWriteConfiguration.Builder()
+                .primaryName("primary").stickySessionSeconds(-1).addReplica("replica1");
+        assertThrows(IllegalArgumentException.class, builder::build);
     }
     
     @Test
     void testValidation_DuplicateReplicas() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            new ReadWriteConfiguration.Builder()
-                    .primaryName("primary")
-                    .enabled(true)
-                    .addReplica("replica1")
-                    .addReplica("replica1")
-                    .build();
-        });
+        ReadWriteConfiguration.Builder builder = new ReadWriteConfiguration.Builder()
+                .primaryName("primary").enabled(true).addReplica("replica1").addReplica("replica1");
+        assertThrows(IllegalArgumentException.class, builder::build);
     }
     
     @Test

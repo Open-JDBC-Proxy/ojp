@@ -30,6 +30,12 @@ public class ReadWriteDataSourceRegistry {
     // Map of primary datasource name → sticky session timeout in seconds (0 = disabled)
     private final Map<String, Integer> stickyTimeoutMap = new ConcurrentHashMap<>();
 
+    // Map of primary datasource name → replica selection strategy
+    private final Map<String, ReadWriteConfiguration.ReplicaSelectionStrategy> strategyMap = new ConcurrentHashMap<>();
+
+    // Map of primary datasource name → timestamp (epoch ms) of the last write (for sticky sessions)
+    private final Map<String, Long> lastWriteTimestamps = new ConcurrentHashMap<>();
+
     /**
      * Registers a mapping from connection hash to primary datasource name.
      * This is used to associate client connections with their primary datasource.
@@ -154,6 +160,76 @@ public class ReadWriteDataSourceRegistry {
     }
 
     /**
+     * Registers the replica selection strategy for a given primary datasource.
+     *
+     * @param primaryName the primary datasource name
+     * @param strategy    the strategy to use when selecting a replica
+     */
+    public void registerStrategy(String primaryName,
+                                  ReadWriteConfiguration.ReplicaSelectionStrategy strategy) {
+        if (primaryName == null || strategy == null) {
+            throw new IllegalArgumentException("primaryName and strategy must not be null");
+        }
+        strategyMap.put(primaryName, strategy);
+        log.debug("Registered replica selection strategy for primary '{}': {}", primaryName, strategy);
+    }
+
+    /**
+     * Returns the replica selection strategy for the given primary datasource.
+     * Defaults to {@link ReadWriteConfiguration.ReplicaSelectionStrategy#ROUND_ROBIN}
+     * if none has been registered.
+     *
+     * @param primaryName the primary datasource name
+     * @return the configured strategy, or {@code ROUND_ROBIN} if not set
+     */
+    public ReadWriteConfiguration.ReplicaSelectionStrategy getStrategy(String primaryName) {
+        return strategyMap.getOrDefault(primaryName,
+                ReadWriteConfiguration.ReplicaSelectionStrategy.ROUND_ROBIN);
+    }
+
+    /**
+     * Records that a write operation has just been performed on the given primary.
+     * This timestamp is used to determine whether the sticky-session window is still active.
+     *
+     * @param primaryName the primary datasource name
+     */
+    public void markWrite(String primaryName) {
+        if (primaryName == null) {
+            return;
+        }
+        lastWriteTimestamps.put(primaryName, System.currentTimeMillis());
+        log.debug("Marked write for sticky session on primary '{}'", primaryName);
+    }
+
+    /**
+     * Returns {@code true} when a sticky-session window is currently active for the
+     * given primary.  A sticky window is active when all of the following hold:
+     * <ol>
+     *   <li>A sticky timeout greater than zero has been registered.</li>
+     *   <li>A write has occurred within the last {@code stickyTimeoutSeconds} seconds.</li>
+     * </ol>
+     *
+     * @param primaryName the primary datasource name
+     * @return {@code true} if reads should be routed to the primary (sticky), {@code false}
+     *         if they may be routed to a replica
+     */
+    public boolean isStickyActive(String primaryName) {
+        if (primaryName == null) {
+            return false;
+        }
+        int timeoutSeconds = stickyTimeoutMap.getOrDefault(primaryName, 0);
+        if (timeoutSeconds <= 0) {
+            return false;
+        }
+        Long lastWrite = lastWriteTimestamps.get(primaryName);
+        if (lastWrite == null) {
+            return false;
+        }
+        long elapsed = System.currentTimeMillis() - lastWrite;
+        return elapsed < (long) timeoutSeconds * 1000;
+    }
+
+    /**
      * Clears all registered datasources and mappings.
      * This is primarily for testing and cleanup purposes.
      */
@@ -161,6 +237,8 @@ public class ReadWriteDataSourceRegistry {
         replicaMap.clear();
         primaryMappings.clear();
         stickyTimeoutMap.clear();
+        strategyMap.clear();
+        lastWriteTimestamps.clear();
         log.debug("Cleared all registry data");
     }
 }

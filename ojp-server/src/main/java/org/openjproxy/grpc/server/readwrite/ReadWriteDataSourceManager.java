@@ -91,6 +91,9 @@ public class ReadWriteDataSourceManager {
         // Register sticky session timeout
         registry.registerStickyTimeout(datasourceName, config.getStickySessionSeconds());
 
+        // Register replica selection strategy
+        registry.registerStrategy(datasourceName, config.getStrategy());
+
         // Create and register replica datasources
         List<String> successfulReplicas = new ArrayList<>();
         for (String replicaName : config.getReplicaNames()) {
