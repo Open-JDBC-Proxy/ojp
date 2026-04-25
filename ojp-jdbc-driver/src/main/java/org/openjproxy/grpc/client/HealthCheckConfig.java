@@ -1,6 +1,5 @@
 package org.openjproxy.grpc.client;
 
-import org.openjproxy.constants.CommonConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,9 +10,9 @@ import java.util.Properties;
  * Loads settings from ojp.properties.
  */
 public class HealthCheckConfig {
-    
+
     private static final Logger log = LoggerFactory.getLogger(HealthCheckConfig.class);
-    
+
     // Default values
     private static final long DEFAULT_HEALTH_CHECK_INTERVAL_MS = 5000L; // 5 seconds
     private static final long DEFAULT_HEALTH_CHECK_THRESHOLD_MS = 5000L; // 5 seconds
@@ -22,7 +21,7 @@ public class HealthCheckConfig {
     private static final double DEFAULT_IDLE_REBALANCE_FRACTION = 1.0;
     private static final int DEFAULT_MAX_CLOSE_PER_RECOVERY = 100;
     private static final boolean DEFAULT_LOAD_AWARE_SELECTION_ENABLED = true;
-    
+
     // Property keys
     private static final String PROP_HEALTH_CHECK_INTERVAL = "ojp.health.check.interval";
     private static final String PROP_HEALTH_CHECK_THRESHOLD = "ojp.health.check.threshold";
@@ -31,7 +30,7 @@ public class HealthCheckConfig {
     private static final String PROP_REDISTRIBUTION_IDLE_FRACTION = "ojp.redistribution.idleRebalanceFraction";
     private static final String PROP_REDISTRIBUTION_MAX_CLOSE = "ojp.redistribution.maxClosePerRecovery";
     private static final String PROP_LOAD_AWARE_SELECTION = "ojp.loadaware.selection.enabled";
-    
+
     private final long healthCheckIntervalMs;
     private final long healthCheckThresholdMs;
     private final int healthCheckTimeoutMs;
@@ -39,7 +38,7 @@ public class HealthCheckConfig {
     private final double idleRebalanceFraction;
     private final int maxClosePerRecovery;
     private final boolean loadAwareSelectionEnabled;
-    
+
     private HealthCheckConfig(long healthCheckIntervalMs, long healthCheckThresholdMs,
                             int healthCheckTimeoutMs,
                             boolean redistributionEnabled, double idleRebalanceFraction,
@@ -52,10 +51,10 @@ public class HealthCheckConfig {
         this.maxClosePerRecovery = maxClosePerRecovery;
         this.loadAwareSelectionEnabled = loadAwareSelectionEnabled;
     }
-    
+
     /**
      * Loads health check configuration from properties.
-     * 
+     *
      * @param props Properties to load from (typically from ojp.properties)
      * @return HealthCheckConfig instance with loaded or default values
      */
@@ -67,16 +66,16 @@ public class HealthCheckConfig {
         double idleFraction = getDoubleProperty(props, PROP_REDISTRIBUTION_IDLE_FRACTION, DEFAULT_IDLE_REBALANCE_FRACTION);
         int maxClose = getIntProperty(props, PROP_REDISTRIBUTION_MAX_CLOSE, DEFAULT_MAX_CLOSE_PER_RECOVERY);
         boolean loadAware = getBooleanProperty(props, PROP_LOAD_AWARE_SELECTION, DEFAULT_LOAD_AWARE_SELECTION_ENABLED);
-        
-        log.info("Health check configuration loaded: interval={}ms, threshold={}ms, timeout={}ms, enabled={}, idleFraction={}, maxClose={}, loadAwareSelection={}", 
+
+        log.info("Health check configuration loaded: interval={}ms, threshold={}ms, timeout={}ms, enabled={}, idleFraction={}, maxClose={}, loadAwareSelection={}",
                 interval, threshold, timeout, enabled, idleFraction, maxClose, loadAware);
-        
+
         return new HealthCheckConfig(interval, threshold, timeout, enabled, idleFraction, maxClose, loadAware);
     }
-    
+
     /**
      * Creates a configuration with default values.
-     * 
+     *
      * @return HealthCheckConfig instance with default values
      */
     public static HealthCheckConfig createDefault() {
@@ -90,7 +89,7 @@ public class HealthCheckConfig {
             DEFAULT_LOAD_AWARE_SELECTION_ENABLED
         );
     }
-    
+
     /**
      * Resolves a property value using system properties as the highest-priority source,
      * then falling back to the supplied {@link Properties} object (typically from
@@ -130,7 +129,7 @@ public class HealthCheckConfig {
             return defaultValue;
         }
     }
-    
+
     private static int getIntProperty(Properties props, String key, int defaultValue) {
         String value = resolveValue(props, key);
         if (value == null) {
@@ -174,7 +173,7 @@ public class HealthCheckConfig {
             return Long.parseLong(value);
         }
     }
-    
+
     private static boolean getBooleanProperty(Properties props, String key, boolean defaultValue) {
         String value = resolveValue(props, key);
         if (value == null) {
@@ -182,7 +181,7 @@ public class HealthCheckConfig {
         }
         return Boolean.parseBoolean(value);
     }
-    
+
     private static double getDoubleProperty(Properties props, String key, double defaultValue) {
         String value = resolveValue(props, key);
         if (value == null) {
@@ -200,19 +199,19 @@ public class HealthCheckConfig {
             return defaultValue;
         }
     }
-    
+
     public long getHealthCheckIntervalMs() {
         return healthCheckIntervalMs;
     }
-    
+
     public long getHealthCheckThresholdMs() {
         return healthCheckThresholdMs;
     }
-    
+
     public int getHealthCheckTimeoutMs() {
         return healthCheckTimeoutMs;
     }
-    
+
     public boolean isRedistributionEnabled() {
         return redistributionEnabled;
     }
@@ -220,15 +219,15 @@ public class HealthCheckConfig {
     public double getIdleRebalanceFraction() {
         return idleRebalanceFraction;
     }
-    
+
     public int getMaxClosePerRecovery() {
         return maxClosePerRecovery;
     }
-    
+
     public boolean isLoadAwareSelectionEnabled() {
         return loadAwareSelectionEnabled;
     }
-    
+
     @Override
     public String toString() {
         return "HealthCheckConfig{" +

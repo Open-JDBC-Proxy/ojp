@@ -20,63 +20,63 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 /**
  * Helper action for handling unpooled XA connections.
  * This is extracted from handleUnpooledXAConnection method.
- * 
+ *
  * This action is implemented as a singleton for thread-safety and memory efficiency.
  */
 @Slf4j
 public class HandleUnpooledXAConnectionAction {
-    
+
     private static final HandleUnpooledXAConnectionAction INSTANCE = new HandleUnpooledXAConnectionAction();
-    
+
     private HandleUnpooledXAConnectionAction() {
         // Private constructor prevents external instantiation
     }
-    
+
     public static HandleUnpooledXAConnectionAction getInstance() {
         return INSTANCE;
     }
-    
+
     public void execute(ActionContext context, ConnectionDetails connectionDetails, String connHash,
                        StreamObserver<SessionInfo> responseObserver) {
         try {
             // Parse URL to remove OJP-specific prefix
             String parsedUrl = UrlParser.parseUrl(connectionDetails.getUrl());
-            
+
             // Get XA datasource configuration from client properties
             Properties clientProperties = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
-            DataSourceConfigurationManager.XADataSourceConfiguration xaConfig = 
+            DataSourceConfigurationManager.XADataSourceConfiguration xaConfig =
                     DataSourceConfigurationManager.getXAConfiguration(clientProperties);
-            
+
             // Create XADataSource directly using XADataSourceFactory
             XADataSource xaDataSource = XADataSourceFactory.createXADataSource(
-                    parsedUrl, 
+                    parsedUrl,
                     connectionDetails);
-            
+
             // Store the unpooled XADataSource for this connection
             context.getXaDataSourceMap().put(connHash, xaDataSource);
-            
+
             // Create slow query segregation manager so SQL execution time is recorded for unpooled XA
             CreateSlowQuerySegregationManagerAction.getInstance().execute(context, connHash, 1);
-            
-            log.info("Created unpooled XADataSource for connHash: {}, database: {}", 
+
+            log.info("Created unpooled XADataSource for connHash: {}, database: {}",
                     connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
-            
+
             // Register client UUID
             context.getSessionManager().registerClientUUID(connHash, connectionDetails.getClientUUID());
-            
+
             // Return session info (XAConnection will be created on demand when needed)
             SessionInfo sessionInfo = SessionInfo.newBuilder()
                     .setConnHash(connHash)
                     .setClientUUID(connectionDetails.getClientUUID())
                     .setIsXA(true)
                     .build();
-            
+
             responseObserver.onNext(sessionInfo);
             context.getDbNameMap().put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
             responseObserver.onCompleted();
-            
+
         } catch (Exception e) {
-            log.error("Failed to create unpooled XADataSource for connection hash {}: {}", 
+            log.error("Failed to create unpooled XADataSource for connection hash {}: {}",
                     connHash, e.getMessage(), e);
             SQLException sqlException = new SQLException("Failed to create unpooled XADataSource: " + e.getMessage(), e);
             sendSQLExceptionMetadata(sqlException, responseObserver);

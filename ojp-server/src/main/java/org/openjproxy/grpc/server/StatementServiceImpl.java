@@ -50,7 +50,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     private final org.openjproxy.grpc.server.sql.SqlEnhancerEngine sqlEnhancerEngine;
 
     // Multinode XA coordinator for distributing transaction limits
-    private static final MultinodeXaCoordinator xaCoordinator = new MultinodeXaCoordinator();
+    private static final MultinodeXaCoordinator XA_COORDINATOR = new MultinodeXaCoordinator();
 
     // ActionContext for refactored actions
     private final org.openjproxy.grpc.server.action.ActionContext actionContext;
@@ -83,12 +83,13 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         // Per-datasource slow query segregation managers
         Map<String, SlowQuerySegregationManager> slowQuerySegregationManagers = new ConcurrentHashMap<>();
         // Per-datasource cache configurations (shared with SessionManager)
-        Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> cacheCfgMap = 
+        Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> cacheCfgMap =
                 cacheConfigurationMap != null ? cacheConfigurationMap : new ConcurrentHashMap<>();
         // Read/write splitting datasource registry
         org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry readWriteRegistry =
                 new org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry();
-        
+
+
         this.actionContext = new org.openjproxy.grpc.server.action.ActionContext(
                 datasourceMap,
                 xaDataSourceMap,
@@ -99,7 +100,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 cacheCfgMap,
                 readWriteRegistry,
                 xaPoolProvider,
-                xaCoordinator,
+                XA_COORDINATOR,
                 clusterHealthTracker,
                 sessionManager,
                 circuitBreakerRegistry,

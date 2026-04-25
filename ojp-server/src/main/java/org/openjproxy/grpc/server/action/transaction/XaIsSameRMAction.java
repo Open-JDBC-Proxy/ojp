@@ -5,7 +5,6 @@ import com.openjproxy.grpc.XaIsSameRMResponse;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.server.Session;
-import org.openjproxy.grpc.server.SessionManager;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
 

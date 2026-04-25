@@ -6,7 +6,6 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableLongGauge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,33 +32,33 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>All metrics are labelled with {@code datasource} to allow grouping per datasource.</p>
  */
 public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
-    
+
     private static final Logger log = LoggerFactory.getLogger(OpenTelemetryQueryCacheMetrics.class);
-    
+
     private static final String METER_NAME = "ojp.cache";
     private static final AttributeKey<String> DATASOURCE_KEY = AttributeKey.stringKey("datasource");
     private static final AttributeKey<String> SQL_STATEMENT_KEY = AttributeKey.stringKey("sql.statement");
     private static final AttributeKey<String> REASON_KEY = AttributeKey.stringKey("reason");
     private static final AttributeKey<String> TABLE_KEY = AttributeKey.stringKey("table");
     private static final AttributeKey<String> SOURCE_KEY = AttributeKey.stringKey("source");
-    
+
     private final Meter meter;
-    
+
     // Counters
     private final LongCounter hitsCounter;
     private final LongCounter missesCounter;
     private final LongCounter evictionsCounter;
     private final LongCounter invalidationsCounter;
     private final LongCounter rejectionsCounter;
-    
+
     // Histograms
     private final DoubleHistogram queryExecutionTimeHistogram;
     private final DoubleHistogram rejectionSizeHistogram;
-    
+
     // Gauges - track values per datasource
     private final Map<String, AtomicLong> entryCountGauges = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> sizeBytesGauges = new ConcurrentHashMap<>();
-    
+
     /**
      * Creates an {@link OpenTelemetryQueryCacheMetrics} backed by the given
      * {@link OpenTelemetry} instance.
@@ -70,46 +69,46 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
         if (openTelemetry == null) {
             throw new IllegalArgumentException("openTelemetry cannot be null");
         }
-        
+
         this.meter = openTelemetry.getMeter(METER_NAME);
-        
+
         // Initialize counters
         this.hitsCounter = meter.counterBuilder("ojp.cache.hits")
                 .setDescription("Total number of cache hits per datasource")
                 .setUnit("hits")
                 .build();
-        
+
         this.missesCounter = meter.counterBuilder("ojp.cache.misses")
                 .setDescription("Total number of cache misses per datasource")
                 .setUnit("misses")
                 .build();
-        
+
         this.evictionsCounter = meter.counterBuilder("ojp.cache.evictions")
                 .setDescription("Number of cache evictions per datasource")
                 .setUnit("evictions")
                 .build();
-        
+
         this.invalidationsCounter = meter.counterBuilder("ojp.cache.invalidations")
                 .setDescription("Number of cache invalidations per datasource")
                 .setUnit("invalidations")
                 .build();
-        
+
         this.rejectionsCounter = meter.counterBuilder("ojp.cache.rejections")
                 .setDescription("Number of cache rejections (result too large) per datasource")
                 .setUnit("rejections")
                 .build();
-        
+
         // Initialize histograms
         this.queryExecutionTimeHistogram = meter.histogramBuilder("ojp.query.execution.time")
                 .setDescription("Query execution time in milliseconds (source: cache or database)")
                 .setUnit("ms")
                 .build();
-        
+
         this.rejectionSizeHistogram = meter.histogramBuilder("ojp.cache.rejection.size")
                 .setDescription("Size in bytes of rejected cache entries")
                 .setUnit("bytes")
                 .build();
-        
+
         // Initialize observable gauges for cache size
         meter.gaugeBuilder("ojp.cache.size.entries")
                 .setDescription("Current number of entries in cache per datasource")
@@ -119,7 +118,7 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
                         measurement.record(count.get(), Attributes.of(DATASOURCE_KEY, datasource));
                     });
                 });
-        
+
         meter.gaugeBuilder("ojp.cache.size.bytes")
                 .setDescription("Current cache size in bytes per datasource")
                 .setUnit("bytes")
@@ -128,10 +127,10 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
                         measurement.record(size.get(), Attributes.of(DATASOURCE_KEY, datasource));
                     });
                 });
-        
+
         log.info("OpenTelemetry query cache metrics initialized");
     }
-    
+
     @Override
     public void recordCacheHit(String datasourceName, String sql) {
         if (datasourceName == null || datasourceName.isEmpty()) {
@@ -144,7 +143,7 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
         hitsCounter.add(1, attrs);
         log.trace("Recorded cache hit: datasource={}, sql={}", datasourceName, truncateSql(sql));
     }
-    
+
     @Override
     public void recordCacheMiss(String datasourceName, String sql) {
         if (datasourceName == null || datasourceName.isEmpty()) {
@@ -157,7 +156,7 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
         missesCounter.add(1, attrs);
         log.trace("Recorded cache miss: datasource={}, sql={}", datasourceName, truncateSql(sql));
     }
-    
+
     @Override
     public void recordCacheEviction(String datasourceName, String reason) {
         if (datasourceName == null || datasourceName.isEmpty()) {
@@ -170,7 +169,7 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
         evictionsCounter.add(1, attrs);
         log.trace("Recorded cache eviction: datasource={}, reason={}", datasourceName, reason);
     }
-    
+
     @Override
     public void recordCacheInvalidation(String datasourceName, String tableName) {
         if (datasourceName == null || datasourceName.isEmpty()) {
@@ -183,7 +182,7 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
         invalidationsCounter.add(1, attrs);
         log.trace("Recorded cache invalidation: datasource={}, table={}", datasourceName, tableName);
     }
-    
+
     @Override
     public void recordCacheRejection(String datasourceName, long sizeBytes) {
         if (datasourceName == null || datasourceName.isEmpty()) {
@@ -194,21 +193,21 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
         rejectionSizeHistogram.record(sizeBytes, attrs);
         log.trace("Recorded cache rejection: datasource={}, size={}bytes", datasourceName, sizeBytes);
     }
-    
+
     @Override
     public void updateCacheSize(String datasourceName, long entryCount, long sizeBytes) {
         if (datasourceName == null || datasourceName.isEmpty()) {
             return;
         }
-        
+
         // Update gauge values
         entryCountGauges.computeIfAbsent(datasourceName, k -> new AtomicLong(0)).set(entryCount);
         sizeBytesGauges.computeIfAbsent(datasourceName, k -> new AtomicLong(0)).set(sizeBytes);
-        
-        log.trace("Updated cache size: datasource={}, entries={}, bytes={}", 
+
+        log.trace("Updated cache size: datasource={}, entries={}, bytes={}",
                 datasourceName, entryCount, sizeBytes);
     }
-    
+
     @Override
     public void recordQueryExecutionTime(String datasourceName, String source, long timeMs) {
         if (datasourceName == null || datasourceName.isEmpty()) {
@@ -219,16 +218,16 @@ public class OpenTelemetryQueryCacheMetrics implements QueryCacheMetrics {
                 SOURCE_KEY, source
         );
         queryExecutionTimeHistogram.record(timeMs, attrs);
-        log.trace("Recorded query execution: datasource={}, source={}, time={}ms", 
+        log.trace("Recorded query execution: datasource={}, source={}, time={}ms",
                 datasourceName, source, timeMs);
     }
-    
+
     @Override
     public void close() {
         log.info("Closing OpenTelemetry query cache metrics");
         // OpenTelemetry meters are managed by the SDK; no explicit cleanup needed.
     }
-    
+
     /**
      * Truncate SQL statement to avoid high cardinality in metrics.
      * Only keeps first 100 characters.

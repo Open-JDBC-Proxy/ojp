@@ -15,38 +15,38 @@ import java.util.Objects;
 @Getter
 @ToString
 public class ReadWriteConfiguration {
-    
+
     /**
      * Name of the primary datasource
      */
     private final String primaryName;
-    
+
     /**
      * Whether read/write splitting is enabled for this primary
      */
     private final boolean enabled;
-    
+
     /**
      * Replica selection strategy (ROUND_ROBIN, RANDOM, LEAST_CONNECTIONS)
      */
     private final ReplicaSelectionStrategy strategy;
-    
+
     /**
      * Duration in seconds to stick to primary after a write operation.
      * This ensures read-your-writes consistency.
      */
     private final int stickySessionSeconds;
-    
+
     /**
      * Whether to fail over to primary when all replicas are unavailable
      */
     private final boolean failoverToPrimary;
-    
+
     /**
      * List of replica datasource names associated with this primary
      */
     private final List<String> replicaNames;
-    
+
     /**
      * Replica selection strategies
      */
@@ -55,7 +55,7 @@ public class ReadWriteConfiguration {
         RANDOM,
         LEAST_CONNECTIONS
     }
-    
+
     /**
      * Creates a new ReadWriteConfiguration
      *
@@ -76,7 +76,7 @@ public class ReadWriteConfiguration {
         this.replicaNames = Collections.unmodifiableList(new ArrayList<>(
                 Objects.requireNonNull(replicaNames, "replicaNames cannot be null")));
     }
-    
+
     /**
      * Validates this configuration
      *
@@ -86,23 +86,23 @@ public class ReadWriteConfiguration {
         if (primaryName == null || primaryName.trim().isEmpty()) {
             throw new IllegalArgumentException("Primary datasource name cannot be empty");
         }
-        
+
         if (enabled && replicaNames.isEmpty()) {
             throw new IllegalArgumentException(
                     "Read/write splitting is enabled but no replicas configured for primary: " + primaryName);
         }
-        
+
         // stickySessionSeconds is optional - 0 means disabled, positive values enable sticky sessions
         if (stickySessionSeconds < 0) {
             throw new IllegalArgumentException("stickySessionSeconds cannot be negative: " + stickySessionSeconds);
         }
-        
+
         // Check for duplicate replica names
         if (replicaNames.size() != replicaNames.stream().distinct().count()) {
             throw new IllegalArgumentException("Duplicate replica names found for primary: " + primaryName);
         }
     }
-    
+
     /**
      * Checks if read/write splitting has replicas configured
      *
@@ -111,7 +111,7 @@ public class ReadWriteConfiguration {
     public boolean hasReplicas() {
         return enabled && !replicaNames.isEmpty();
     }
-    
+
     /**
      * Gets the number of configured replicas
      *
@@ -120,7 +120,7 @@ public class ReadWriteConfiguration {
     public int getReplicaCount() {
         return replicaNames.size();
     }
-    
+
     /**
      * Builder for ReadWriteConfiguration
      */
@@ -131,42 +131,42 @@ public class ReadWriteConfiguration {
         private int stickySessionSeconds = 5;
         private boolean failoverToPrimary = true;
         private List<String> replicaNames = new ArrayList<>();
-        
+
         public Builder primaryName(String primaryName) {
             this.primaryName = primaryName;
             return this;
         }
-        
+
         public Builder enabled(boolean enabled) {
             this.enabled = enabled;
             return this;
         }
-        
+
         public Builder strategy(ReplicaSelectionStrategy strategy) {
             this.strategy = strategy;
             return this;
         }
-        
+
         public Builder stickySessionSeconds(int stickySessionSeconds) {
             this.stickySessionSeconds = stickySessionSeconds;
             return this;
         }
-        
+
         public Builder failoverToPrimary(boolean failoverToPrimary) {
             this.failoverToPrimary = failoverToPrimary;
             return this;
         }
-        
+
         public Builder addReplica(String replicaName) {
             this.replicaNames.add(replicaName);
             return this;
         }
-        
+
         public Builder replicas(List<String> replicaNames) {
             this.replicaNames = new ArrayList<>(replicaNames);
             return this;
         }
-        
+
         public ReadWriteConfiguration build() {
             ReadWriteConfiguration config = new ReadWriteConfiguration(
                     primaryName, enabled, strategy, stickySessionSeconds, failoverToPrimary, replicaNames);

@@ -31,7 +31,9 @@ public class CircuitBreaker {
 
         public boolean isOpen() {
             long until = openUntil.get();
-            if (failureCount.get() < failureThreshold) return false;
+            if (failureCount.get() < failureThreshold) {
+                return false;
+            }
             if (System.nanoTime() > until) {
                 return false;
             }
@@ -110,7 +112,7 @@ public class CircuitBreaker {
         FailureRecord rec = state.computeIfAbsent(sql, s -> new FailureRecord(this.failureThreshold));
         if (!rec.isOpen()) {
             rec.recordFailure(error, openMs);
-            if (rec.isOpen()){
+            if (rec.isOpen()) {
                 log.warn("Circuit Breaker TRIP: Resource Id [{}] is now OPEN for query key: {}", this.resourceId, sql);
             }
         }

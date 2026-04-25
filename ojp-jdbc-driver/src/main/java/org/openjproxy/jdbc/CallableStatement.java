@@ -1,6 +1,5 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
@@ -1348,12 +1347,12 @@ public class CallableStatement implements java.sql.CallableStatement {
             if (Void.class.equals(returnType)) {
                 return null;
             }
-            
+
             List<ParameterValue> values = response.getValuesList();
             if (values.isEmpty()) {
                 return null;
             }
-            
+
             Object result = ProtoConverter.fromParameterValue(values.get(0));
             return (T) result;
         } catch (StatusRuntimeException sre) {

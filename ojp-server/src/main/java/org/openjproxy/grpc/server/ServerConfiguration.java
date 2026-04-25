@@ -45,18 +45,18 @@ public class ServerConfiguration {
     private static final String SQL_ENHANCER_CACHE_ENABLED_KEY = "ojp.sql.enhancer.cacheEnabled";
     private static final String SQL_ENHANCER_CACHE_SIZE_KEY = "ojp.sql.enhancer.cacheSize";
     private static final String SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR_KEY = "ojp.sql.enhancer.failOnValidationError";
-    
+
     // Schema loader configuration keys
     private static final String SCHEMA_REFRESH_ENABLED_KEY = "ojp.sql.enhancer.schema.refresh.enabled";
     private static final String SCHEMA_REFRESH_INTERVAL_HOURS_KEY = "ojp.sql.enhancer.schema.refresh.interval.hours";
     private static final String SCHEMA_LOAD_TIMEOUT_SECONDS_KEY = "ojp.sql.enhancer.schema.load.timeout.seconds";
     private static final String SCHEMA_FALLBACK_ENABLED_KEY = "ojp.sql.enhancer.schema.fallback.enabled";
-    
+
     // Session cleanup configuration keys
     private static final String SESSION_CLEANUP_ENABLED_KEY = "ojp.server.sessionCleanup.enabled";
     private static final String SESSION_TIMEOUT_MINUTES_KEY = "ojp.server.sessionCleanup.timeoutMinutes";
     private static final String SESSION_CLEANUP_INTERVAL_MINUTES_KEY = "ojp.server.sessionCleanup.intervalMinutes";
-    
+
     // Tracing configuration keys
     private static final String TRACING_ENABLED_KEY = "ojp.tracing.enabled";
     private static final String TRACING_ENDPOINT_KEY = "ojp.tracing.endpoint";
@@ -101,7 +101,7 @@ public class ServerConfiguration {
     public static final long DEFAULT_SLOW_QUERY_FAST_SLOT_TIMEOUT = 60000; // 60 seconds fast slot timeout
     public static final long DEFAULT_SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL = 300; // 300 seconds (5 minutes) global average update interval
     public static final String DEFAULT_DRIVERS_PATH = "./ojp-libs"; // Default external libraries directory path
-    
+
     // SQL Enhancer default values
     public static final boolean DEFAULT_SQL_ENHANCER_ENABLED = false; // Disabled by default, opt-in
     public static final String DEFAULT_SQL_ENHANCER_MODE = "VALIDATE"; // VALIDATE, OPTIMIZE, TRANSLATE, ANALYZE
@@ -113,18 +113,18 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_SQL_ENHANCER_CACHE_ENABLED = true;
     public static final int DEFAULT_SQL_ENHANCER_CACHE_SIZE = 1000;
     public static final boolean DEFAULT_SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR = true;
-    
+
     // Schema loader default values
     public static final boolean DEFAULT_SCHEMA_REFRESH_ENABLED = true;
     public static final long DEFAULT_SCHEMA_REFRESH_INTERVAL_HOURS = 24;
     public static final long DEFAULT_SCHEMA_LOAD_TIMEOUT_SECONDS = 30;
     public static final boolean DEFAULT_SCHEMA_FALLBACK_ENABLED = true;
-    
+
     // Session cleanup default values
     public static final boolean DEFAULT_SESSION_CLEANUP_ENABLED = true; // Enable session cleanup by default
     public static final long DEFAULT_SESSION_TIMEOUT_MINUTES = 30; // 30 minutes session timeout
     public static final long DEFAULT_SESSION_CLEANUP_INTERVAL_MINUTES = 5; // Run cleanup every 5 minutes
-    
+
     // Tracing default values
     public static final boolean DEFAULT_TRACING_ENABLED = false; // Disabled by default, opt-in
     public static final String DEFAULT_TRACING_ENDPOINT = "http://localhost:9411/api/v2/spans"; // Zipkin default
@@ -140,7 +140,7 @@ public class ServerConfiguration {
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
     public static final boolean DEFAULT_TLS_CLIENT_AUTH_REQUIRED = false; // mTLS disabled by default
-    
+
     // XA pooling default values
     public static final boolean DEFAULT_XA_POOLING_ENABLED = true; // Enable XA pooling by default
     public static final int DEFAULT_XA_MAX_POOL_SIZE = 10;
@@ -179,18 +179,18 @@ public class ServerConfiguration {
     private final boolean sqlEnhancerCacheEnabled;
     private final int sqlEnhancerCacheSize;
     private final boolean sqlEnhancerFailOnValidationError;
-    
+
     // Schema loader configuration
     private final boolean schemaRefreshEnabled;
     private final long schemaRefreshIntervalHours;
     private final long schemaLoadTimeoutSeconds;
     private final boolean schemaFallbackEnabled;
-    
+
     // Session cleanup configuration
     private final boolean sessionCleanupEnabled;
     private final long sessionTimeoutMinutes;
     private final long sessionCleanupIntervalMinutes;
-    
+
     // Tracing configuration
     private final boolean tracingEnabled;
     private final String tracingEndpoint;
@@ -244,18 +244,18 @@ public class ServerConfiguration {
         this.sqlEnhancerCacheEnabled = getBooleanProperty(SQL_ENHANCER_CACHE_ENABLED_KEY, DEFAULT_SQL_ENHANCER_CACHE_ENABLED);
         this.sqlEnhancerCacheSize = getIntProperty(SQL_ENHANCER_CACHE_SIZE_KEY, DEFAULT_SQL_ENHANCER_CACHE_SIZE);
         this.sqlEnhancerFailOnValidationError = getBooleanProperty(SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR_KEY, DEFAULT_SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR);
-        
+
         // Schema loader configuration
         this.schemaRefreshEnabled = getBooleanProperty(SCHEMA_REFRESH_ENABLED_KEY, DEFAULT_SCHEMA_REFRESH_ENABLED);
         this.schemaRefreshIntervalHours = getLongProperty(SCHEMA_REFRESH_INTERVAL_HOURS_KEY, DEFAULT_SCHEMA_REFRESH_INTERVAL_HOURS);
         this.schemaLoadTimeoutSeconds = getLongProperty(SCHEMA_LOAD_TIMEOUT_SECONDS_KEY, DEFAULT_SCHEMA_LOAD_TIMEOUT_SECONDS);
         this.schemaFallbackEnabled = getBooleanProperty(SCHEMA_FALLBACK_ENABLED_KEY, DEFAULT_SCHEMA_FALLBACK_ENABLED);
-        
+
         // Session cleanup configuration
         this.sessionCleanupEnabled = getBooleanProperty(SESSION_CLEANUP_ENABLED_KEY, DEFAULT_SESSION_CLEANUP_ENABLED);
         this.sessionTimeoutMinutes = getLongProperty(SESSION_TIMEOUT_MINUTES_KEY, DEFAULT_SESSION_TIMEOUT_MINUTES);
         this.sessionCleanupIntervalMinutes = getLongProperty(SESSION_CLEANUP_INTERVAL_MINUTES_KEY, DEFAULT_SESSION_CLEANUP_INTERVAL_MINUTES);
-        
+
         // TLS configuration
         this.tlsEnabled = getBooleanProperty(TLS_ENABLED_KEY, DEFAULT_TLS_ENABLED);
         this.tlsKeystorePath = getStringProperty(TLS_KEYSTORE_PATH_KEY, null);
@@ -421,11 +421,11 @@ public class ServerConfiguration {
             logger.info("  Tracing Sample Rate: {}", tracingSampleRate);
         }
     }
-    
+
     /**
      * Masks sensitive path information for logging.
      * Shows whether path is configured without revealing full path.
-     * 
+     *
      * @param path The file path to mask
      * @return Masked path representation
      */
@@ -521,99 +521,99 @@ public class ServerConfiguration {
     public boolean isSqlEnhancerEnabled() {
         return sqlEnhancerEnabled;
     }
-    
+
     public String getSqlEnhancerMode() {
         return sqlEnhancerMode;
     }
-    
+
     public String getSqlEnhancerDialect() {
         return sqlEnhancerDialect;
     }
-    
+
     public String getSqlEnhancerTargetDialect() {
         return sqlEnhancerTargetDialect;
     }
-    
+
     public boolean isSqlEnhancerLogOptimizations() {
         return sqlEnhancerLogOptimizations;
     }
-    
+
     public String getSqlEnhancerRules() {
         return sqlEnhancerRules;
     }
-    
+
     public int getSqlEnhancerOptimizationTimeout() {
         return sqlEnhancerOptimizationTimeout;
     }
-    
+
     public boolean isSqlEnhancerCacheEnabled() {
         return sqlEnhancerCacheEnabled;
     }
-    
+
     public int getSqlEnhancerCacheSize() {
         return sqlEnhancerCacheSize;
     }
-    
+
     public boolean isSqlEnhancerFailOnValidationError() {
         return sqlEnhancerFailOnValidationError;
     }
-    
+
     public boolean isSchemaRefreshEnabled() {
         return schemaRefreshEnabled;
     }
-    
+
     public long getSchemaRefreshIntervalHours() {
         return schemaRefreshIntervalHours;
     }
-    
+
     public long getSchemaLoadTimeoutSeconds() {
         return schemaLoadTimeoutSeconds;
     }
-    
+
     public boolean isSchemaFallbackEnabled() {
         return schemaFallbackEnabled;
     }
-    
+
     public boolean isSessionCleanupEnabled() {
         return sessionCleanupEnabled;
     }
-    
+
     public long getSessionTimeoutMinutes() {
         return sessionTimeoutMinutes;
     }
-    
+
     public long getSessionCleanupIntervalMinutes() {
         return sessionCleanupIntervalMinutes;
     }
-    
+
     public boolean isTlsEnabled() {
         return tlsEnabled;
     }
-    
+
     public String getTlsKeystorePath() {
         return tlsKeystorePath;
     }
-    
+
     public String getTlsKeystorePassword() {
         return tlsKeystorePassword;
     }
-    
+
     public String getTlsTruststorePath() {
         return tlsTruststorePath;
     }
-    
+
     public String getTlsTruststorePassword() {
         return tlsTruststorePassword;
     }
-    
+
     public String getTlsKeystoreType() {
         return tlsKeystoreType;
     }
-    
+
     public String getTlsTruststoreType() {
         return tlsTruststoreType;
     }
-    
+
     public boolean isTlsClientAuthRequired() {
         return tlsClientAuthRequired;
     }
@@ -645,9 +645,9 @@ public class ServerConfiguration {
     public boolean isTelemetryPoolMetricsEnabled() {
         return telemetryPoolMetricsEnabled;
     }
-    
+
     public boolean isTelemetryCacheMetricsEnabled() {
         return telemetryCacheMetricsEnabled;
     }
-    
+
 }

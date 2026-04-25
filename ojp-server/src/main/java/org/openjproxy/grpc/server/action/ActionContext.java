@@ -24,16 +24,16 @@ import java.util.Map;
  * Actions should not modify the context itself, only the data within the maps.
  */
 public class ActionContext {
-    
+
     // ========== Data Source Management ==========
-    
+
     /**
      * Map of connection hash to regular DataSource (HikariCP by default).
      * Key: connection hash (from ConnectionHashGenerator)
      * Value: pooled DataSource for regular (non-XA) connections
      */
     private final Map<String, DataSource> datasourceMap;
-    
+
     /**
      * Map of connection hash to unpooled XADataSource.
      * Used when XA pooling is disabled (ojp.xa.connection.pool.enabled=false).
@@ -41,7 +41,7 @@ public class ActionContext {
      * Value: native database XADataSource (not pooled)
      */
     private final Map<String, XADataSource> xaDataSourceMap;
-    
+
     /**
      * Map of connection hash to XATransactionRegistry.
      * Used when XA pooling is enabled (default).
@@ -49,7 +49,7 @@ public class ActionContext {
      * Value: registry managing pooled XA connections and transactions
      */
     private final Map<String, XATransactionRegistry> xaRegistries;
-    
+
     /**
      * Map of connection hash to unpooled connection details.
      * Used when regular pooling is disabled (ojp.connection.pool.enabled=false).
@@ -57,7 +57,7 @@ public class ActionContext {
      * Value: connection details for creating direct JDBC connections
      */
     private final Map<String, UnpooledConnectionDetails> unpooledConnectionDetailsMap;
-    
+
     /**
      * Map of connection hash to database type.
      * Used for database-specific behavior (e.g., DB2 LOB handling).
@@ -65,9 +65,9 @@ public class ActionContext {
      * Value: DbName enum (POSTGRES, ORACLE, MYSQL, etc.)
      */
     private final Map<String, DbName> dbNameMap;
-    
+
     // ========== Query Management ==========
-    
+
     /**
      * Map of connection hash to SlowQuerySegregationManager.
      * Each datasource gets its own manager for segregating slow/fast queries.
@@ -75,7 +75,7 @@ public class ActionContext {
      * Value: manager for this datasource's slow query segregation
      */
     private final Map<String, SlowQuerySegregationManager> slowQuerySegregationManagers;
-    
+
     /**
      * Map of connection hash to CacheConfiguration.
      * Stores cache configuration for each datasource connection.
@@ -83,39 +83,40 @@ public class ActionContext {
      * Value: cache configuration for query result caching
      */
     private final Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> cacheConfigurationMap;
-    
+
     // ========== Read/Write Splitting ==========
-    
+
     /**
      * Registry for managing primary and replica datasources for read/write splitting.
      * Thread-safe, shared across all actions.
      */
     private final org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry readWriteDataSourceRegistry;
-    
+
+
     // ========== XA Pool Provider ==========
-    
+
     /**
      * XA Connection Pool Provider loaded via SPI.
      * Used for creating and managing pooled XA connections.
      * Mutable because it's initialized after construction.
      */
     private XAConnectionPoolProvider xaPoolProvider;
-    
+
     // ========== Coordinators & Trackers ==========
-    
+
     /**
      * Multinode XA coordinator for distributing transaction limits across nodes.
      * Static in original class, shared across all instances.
      */
     private final MultinodeXaCoordinator xaCoordinator;
-    
+
     /**
      * Cluster health tracker for monitoring health changes and triggering rebalancing.
      */
     private final ClusterHealthTracker clusterHealthTracker;
-    
+
     // ========== Service Dependencies ==========
-    
+
     /**
      * Session manager for managing JDBC sessions, connections, and resources.
      * Thread-safe, shared across all actions.
@@ -128,7 +129,7 @@ public class ActionContext {
      * state management.
      */
     private final CircuitBreakerRegistry circuitBreakerRegistry;
-    
+
     /**
      * Server-wide configuration.
      * Immutable after construction.
@@ -147,7 +148,7 @@ public class ActionContext {
     private final SqlEnhancerEngine sqlEnhancerEngine;
 
     // ========== Constructors ==========
-    
+
     public ActionContext(
             Map<String, DataSource> datasourceMap,
             Map<String, XADataSource> xaDataSourceMap,
@@ -164,7 +165,7 @@ public class ActionContext {
             CircuitBreakerRegistry circuitBreakerRegistry,
             ServerConfiguration serverConfiguration,
             SqlStatementMetrics sqlStatementMetrics, SqlEnhancerEngine sqlEnhancerEngine) {
-        
+
         this.datasourceMap = datasourceMap;
         this.xaDataSourceMap = xaDataSourceMap;
         this.xaRegistries = xaRegistries;
@@ -182,66 +183,66 @@ public class ActionContext {
         this.sqlStatementMetrics = sqlStatementMetrics;
         this.sqlEnhancerEngine = sqlEnhancerEngine;
     }
-    
+
     // ========== Getters ==========
-    
+
     public Map<String, DataSource> getDatasourceMap() {
         return datasourceMap;
     }
-    
+
     public Map<String, XADataSource> getXaDataSourceMap() {
         return xaDataSourceMap;
     }
-    
+
     public Map<String, XATransactionRegistry> getXaRegistries() {
         return xaRegistries;
     }
-    
+
     public Map<String, UnpooledConnectionDetails> getUnpooledConnectionDetailsMap() {
         return unpooledConnectionDetailsMap;
     }
-    
+
     public Map<String, DbName> getDbNameMap() {
         return dbNameMap;
     }
-    
+
     public Map<String, SlowQuerySegregationManager> getSlowQuerySegregationManagers() {
         return slowQuerySegregationManagers;
     }
-    
+
     public Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> getCacheConfigurationMap() {
         return cacheConfigurationMap;
     }
-    
     public org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry getReadWriteDataSourceRegistry() {
         return readWriteDataSourceRegistry;
     }
-    
+
+
     public XAConnectionPoolProvider getXaPoolProvider() {
         return xaPoolProvider;
     }
-    
+
     public void setXaPoolProvider(XAConnectionPoolProvider xaPoolProvider) {
         this.xaPoolProvider = xaPoolProvider;
     }
-    
+
     public MultinodeXaCoordinator getXaCoordinator() {
         return xaCoordinator;
     }
-    
+
     public ClusterHealthTracker getClusterHealthTracker() {
         return clusterHealthTracker;
     }
-    
+
     public SessionManager getSessionManager() {
         return sessionManager;
     }
-    
+
 
     public CircuitBreakerRegistry getCircuitBreakerRegistry() {
         return circuitBreakerRegistry;
     }
-    
+
     public ServerConfiguration getServerConfiguration() {
         return serverConfiguration;
     }

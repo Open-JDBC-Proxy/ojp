@@ -20,11 +20,11 @@ import java.util.List;
  */
 @Slf4j
 public final class QueryCacheHelper {
-    
+
     private QueryCacheHelper() {
         throw new UnsupportedOperationException("Utility class");
     }
-    
+
     /**
      * Parses cache configuration from connection properties.
      *
@@ -42,7 +42,7 @@ public final class QueryCacheHelper {
             return null;
         }
     }
-    
+
     /**
      * Retrieves cache configuration from a session.
      *
@@ -55,11 +55,11 @@ public final class QueryCacheHelper {
         if (sessionManager == null) {
             return null;
         }
-        
+
         Session actualSession = sessionManager.getSession(sessionInfo);
         return actualSession != null ? actualSession.getCacheConfiguration() : null;
     }
-    
+
     /**
      * Checks if caching is enabled for the given session.
      *
@@ -71,11 +71,11 @@ public final class QueryCacheHelper {
         if (sessionInfo == null) {
             return false;
         }
-        
+
         CacheConfiguration cacheConfig = getCacheConfiguration(actionContext, sessionInfo);
         return cacheConfig != null && cacheConfig.isEnabled();
     }
-    
+
     /**
      * Attempts to retrieve a cached query result proto.
      *
@@ -90,41 +90,41 @@ public final class QueryCacheHelper {
             String sql,
             List<Parameter> params,
             String datasourceName) {
-        
+
         if (cacheConfig == null || !cacheConfig.isEnabled()) {
             return null;
         }
-        
+
         // Check if query matches any cache rule
         CacheRule matchedRule = cacheConfig.getRules().stream()
                 .filter(rule -> rule.isEnabled() && rule.getSqlPattern().matcher(sql).matches())
                 .findFirst()
                 .orElse(null);
-        
+
         if (matchedRule == null) {
             return null;
         }
-        
+
         // Extract parameter values for cache key
         List<Object> cacheParams = extractParameterValues(params);
-        
+
         // Build cache key
         QueryCacheKey cacheKey = new QueryCacheKey(datasourceName, sql, cacheParams);
-        
+
         // Look up in cache
         QueryResultCacheRegistry registry = QueryResultCacheRegistry.getInstance();
         QueryResultCache cache = registry.getOrCreate(datasourceName);
         CachedQueryResult cachedResult = cache.get(cacheKey);
-        
+
         if (cachedResult != null) {
             log.debug("Cache HIT: datasource={}, sql={}", datasourceName, sql);
             return cachedResult.getQueryResultProto();
         }
-        
+
         log.debug("Cache MISS: datasource={}, sql={}", datasourceName, sql);
         return null;
     }
-    
+
     /**
      * Wraps a stream observer to enable cache storage on query completion.
      *
@@ -141,31 +141,31 @@ public final class QueryCacheHelper {
             String sql,
             List<Parameter> params,
             String datasourceName) {
-        
+
         if (cacheConfig == null || !cacheConfig.isEnabled()) {
             return responseObserver;
         }
-        
+
         // Check if query matches any cache rule
         CacheRule matchedRule = cacheConfig.getRules().stream()
                 .filter(rule -> rule.isEnabled() && rule.getSqlPattern().matcher(sql).matches())
                 .findFirst()
                 .orElse(null);
-        
+
         if (matchedRule == null) {
             return responseObserver;
         }
-        
+
         // Extract parameter values for cache key
         List<Object> cacheParams = extractParameterValues(params);
-        
+
         // Build cache key
         QueryCacheKey cacheKey = new QueryCacheKey(datasourceName, sql, cacheParams);
-        
+
         // Wrap with caching observer
         return new CachingStreamObserver(responseObserver, cacheKey, matchedRule, datasourceName);
     }
-    
+
     /**
      * Invalidates cache entries affected by a SQL write operation.
      *
@@ -177,25 +177,25 @@ public final class QueryCacheHelper {
         if (!isCacheEnabled(actionContext, sessionInfo)) {
             return;  // Caching not enabled
         }
-        
+
         try {
             // Extract modified tables from SQL
             java.util.Set<String> modifiedTables = SqlTableExtractor.extractModifiedTables(sql);
-            
+
             if (modifiedTables.isEmpty()) {
                 log.debug("No tables extracted from SQL, skipping cache invalidation");
                 return;
             }
-            
+
             // Get datasource and cache
             String datasourceName = sessionInfo.getConnHash();
             QueryResultCache cache = QueryResultCacheRegistry.getInstance().get(datasourceName);
-            
+
             if (cache == null) {
                 log.debug("No cache found for datasource: {}", datasourceName);
                 return;
             }
-            
+
             // Invalidate cache entries for affected tables
             cache.invalidate(datasourceName, modifiedTables);
             log.debug("Cache invalidated: datasource={}, tables={}", datasourceName, modifiedTables);
@@ -204,7 +204,7 @@ public final class QueryCacheHelper {
             log.warn("Failed to invalidate cache: error={}", e.getMessage());
         }
     }
-    
+
     /**
      * Extracts parameter values from Parameter list.
      *
@@ -215,10 +215,10 @@ public final class QueryCacheHelper {
         if (params == null) {
             return List.of();
         }
-        
+
         return params.stream()
-                .flatMap(p -> p.getValues() != null ? 
-                        p.getValues().stream() : 
+                .flatMap(p -> p.getValues() != null ?
+                        p.getValues().stream() :
                         java.util.stream.Stream.empty())
                 .toList();
     }

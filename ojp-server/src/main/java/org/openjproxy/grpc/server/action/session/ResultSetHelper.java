@@ -15,7 +15,11 @@ import org.openjproxy.grpc.server.lob.LobProcessor;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
 
-import java.sql.*;
+import java.sql.Clob;
+import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

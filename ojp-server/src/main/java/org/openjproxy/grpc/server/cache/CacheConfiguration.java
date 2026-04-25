@@ -45,13 +45,13 @@ public final class CacheConfiguration {
         if (!enabled) {
             return null;
         }
-        
+
         for (CacheRule rule : rules) {
             if (rule.matches(sql)) {
                 return rule;
             }
         }
-        
+
         return null;
     }
 
@@ -82,7 +82,7 @@ public final class CacheConfiguration {
         if (!enabled) {
             return false;
         }
-        
+
         return rules.stream().anyMatch(rule -> rule.shouldInvalidateOn(tableName));
     }
 

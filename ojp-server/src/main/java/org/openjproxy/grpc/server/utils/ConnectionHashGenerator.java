@@ -29,9 +29,9 @@ public class ConnectionHashGenerator {
     public static String hashConnectionDetails(ConnectionDetails connectionDetails) {
         try {
             MessageDigest messageDigest = MessageDigest.getInstance(SHA_256);
-            
+
             // Concatenate all parts at once: URL, user, password, and dataSource name
-            String hashInput = connectionDetails.getUrl() + connectionDetails.getUser() + connectionDetails.getPassword()+
+            String hashInput = connectionDetails.getUrl() + connectionDetails.getUser() + connectionDetails.getPassword() +
                     extractDataSourceName(connectionDetails);
 
             byte[] full = messageDigest.digest(hashInput.getBytes(StandardCharsets.UTF_8));
@@ -41,7 +41,7 @@ public class ConnectionHashGenerator {
             throw new RuntimeException("Failed to generate connection hash", e);
         }
     }
-    
+
     /**
      * Extracts the dataSource name from connection details properties.
      * Returns "default" if no dataSource name is specified.
@@ -50,7 +50,7 @@ public class ConnectionHashGenerator {
         if (connectionDetails.getPropertiesList().isEmpty()) {
             return "default";
         }
-        
+
         try {
             Map<String, Object> properties = ProtoConverter.propertiesFromProto(connectionDetails.getPropertiesList());
             Object dataSourceName = properties.get("ojp.datasource.name");

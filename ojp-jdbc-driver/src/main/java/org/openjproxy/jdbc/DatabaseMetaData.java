@@ -1,6 +1,5 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
@@ -994,7 +993,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData {
     @Override
     public Connection getConnection() throws SQLException {
         log.debug("getConnection called");
-        return (this.statement != null)? statement.getConnection() : this.connection;
+        return (this.statement != null) ? statement.getConnection() : this.connection;
     }
 
     @Override
@@ -1208,7 +1207,7 @@ public class DatabaseMetaData implements java.sql.DatabaseMetaData {
         if (values.isEmpty()) {
             return null;
         }
-        
+
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
     }

@@ -35,7 +35,7 @@ public class GrpcClientConfig {
     public GrpcClientConfig(Properties props) {
         this.maxInboundMessageSize = Integer.parseInt(
                 getProperty("ojp.grpc.maxInboundMessageSize", props, DEFAULT_SIZE));
-        
+
         // Load TLS configuration from system properties or properties file
         boolean tlsEnabled = Boolean.parseBoolean(
                 getProperty("ojp.client.tls.enabled", props, "false"));
@@ -45,14 +45,14 @@ public class GrpcClientConfig {
         String truststorePassword = getProperty("ojp.client.tls.truststore.password", props, null);
         String keystoreType = getProperty("ojp.client.tls.keystore.type", props, TlsConfig.DEFAULT_KEYSTORE_TYPE);
         String truststoreType = getProperty("ojp.client.tls.truststore.type", props, TlsConfig.DEFAULT_TRUSTSTORE_TYPE);
-        
+
         this.tlsConfig = new TlsConfig(tlsEnabled, keystorePath, keystorePassword,
                 truststorePath, truststorePassword, keystoreType, truststoreType);
     }
-    
+
     /**
      * Gets a property value, checking system properties first, then the properties file.
-     * 
+     *
      * @param key The property key
      * @param props The properties file
      * @param defaultValue The default value if not found
@@ -64,7 +64,7 @@ public class GrpcClientConfig {
         if (value != null) {
             return value.trim();
         }
-        
+
         // Fall back to properties file
         value = props.getProperty(key, defaultValue);
         return value != null ? value.trim() : null;
@@ -78,7 +78,7 @@ public class GrpcClientConfig {
     public int getMaxInboundMessageSize() {
         return this.maxInboundMessageSize;
     }
-    
+
     /**
      * Returns the TLS configuration.
      *

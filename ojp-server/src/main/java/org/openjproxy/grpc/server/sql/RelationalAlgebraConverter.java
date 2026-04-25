@@ -35,13 +35,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 public class RelationalAlgebraConverter {
-    
+
     private final SqlParser.Config parserConfig;
     private final SqlDialect sqlDialect;
     private final SqlLibrary sqlLibrary;
     private final SchemaCache schemaCache;
     private final CalciteSchemaFactory schemaFactory;
-    
+
     /**
      * Dynamic schema that provides generic tables for any name requested.
      * Implements Calcite's Schema interface to support unknown table references.
@@ -52,7 +52,7 @@ public class RelationalAlgebraConverter {
             // Pre-populate with common table names used in tests
             Map<String, Table> tables = new ConcurrentHashMap<>();
             GenericTable genericTable = new GenericTable();
-            
+
             // Add common table names in various cases
             String[] commonNames = {"users", "orders", "products", "customers", "items", "accounts", "sales"};
             for (String name : commonNames) {
@@ -60,16 +60,18 @@ public class RelationalAlgebraConverter {
                 tables.put(name.toUpperCase(), genericTable);
                 tables.put(capitalize(name), genericTable);
             }
-            
+
             return tables;
         }
-        
+
         private String capitalize(String str) {
-            if (str == null || str.isEmpty()) return str;
+            if (str == null || str.isEmpty()) {
+                return str;
+            }
             return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
         }
     }
-    
+
     /**
      * Generic table with dynamic columns that accepts any column reference.
      */
@@ -99,16 +101,16 @@ public class RelationalAlgebraConverter {
             return builder.build();
         }
     }
-    
+
     /**
      * Creates a new converter with the specified parser configuration and SQL dialect.
-     * 
+     *
      * @param parserConfig The parser configuration
      * @param sqlDialect The SQL dialect for generating SQL
      * @param sqlLibrary The SQL library for dialect-specific operators and functions
      * @param schemaCache Optional schema cache for real schema metadata (can be null)
      */
-    public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect, 
+    public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect,
                                       SqlLibrary sqlLibrary, SchemaCache schemaCache) {
         this.parserConfig = parserConfig;
         this.sqlDialect = sqlDialect;
@@ -116,11 +118,11 @@ public class RelationalAlgebraConverter {
         this.schemaCache = schemaCache;
         this.schemaFactory = new CalciteSchemaFactory();
     }
-    
+
     /**
      * Creates a new converter with the specified parser configuration and SQL dialect.
      * Uses generic schema only (no real database schema).
-     * 
+     *
      * @param parserConfig The parser configuration
      * @param sqlDialect The SQL dialect for generating SQL
      * @param sqlLibrary The SQL library for dialect-specific operators and functions
@@ -128,11 +130,11 @@ public class RelationalAlgebraConverter {
     public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect, SqlLibrary sqlLibrary) {
         this(parserConfig, sqlDialect, sqlLibrary, null);
     }
-    
+
     /**
      * Creates a new converter with the specified parser configuration and SQL dialect.
      * Uses STANDARD library and no real schema (for backward compatibility).
-     * 
+     *
      * @param parserConfig The parser configuration
      * @param sqlDialect The SQL dialect for generating SQL
      * @param schemaCache Optional schema cache for real schema metadata (can be null)
@@ -140,33 +142,33 @@ public class RelationalAlgebraConverter {
     public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect, SchemaCache schemaCache) {
         this(parserConfig, sqlDialect, SqlLibrary.STANDARD, schemaCache);
     }
-    
+
     /**
      * Creates a new converter with the specified parser configuration and SQL dialect.
      * Uses STANDARD library and generic schema only (for backward compatibility).
-     * 
+     *
      * @param parserConfig The parser configuration
      * @param sqlDialect The SQL dialect for generating SQL
      */
     public RelationalAlgebraConverter(SqlParser.Config parserConfig, SqlDialect sqlDialect) {
         this(parserConfig, sqlDialect, SqlLibrary.STANDARD, null);
     }
-    
+
     /**
      * Converts SQL string to relational algebra.
      * The RelNode can then be optimized and converted back to SQL.
-     * 
+     *
      * @param sql The SQL string to convert
      * @return RelNode representing the relational algebra
      * @throws ConversionException if conversion fails
      */
     public RelNode convertToRelNode(String sql) throws ConversionException {
         log.debug("Converting SQL to RelNode");
-        
+
         try {
             // Create a root schema
             SchemaPlus rootSchema = Frameworks.createRootSchema(true);
-            
+
             // Try to use real schema from cache, fall back to dynamic schema
             SchemaPlus defaultSchema;
             if (schemaCache != null) {
@@ -176,7 +178,7 @@ public class RelationalAlgebraConverter {
                     org.apache.calcite.schema.Schema realSchema = schemaFactory.createSchema(metadata);
                     // Use the actual schema name from metadata (e.g., "public" for PostgreSQL)
                     // Fall back to "default" if schema name is not available
-                    String schemaName = (metadata.getSchemaName() != null && !metadata.getSchemaName().isEmpty()) 
+                    String schemaName = (metadata.getSchemaName() != null && !metadata.getSchemaName().isEmpty())
                                         ? metadata.getSchemaName() : "default";
                     defaultSchema = rootSchema.add(schemaName, realSchema);
                     log.debug("Added schema '{}' to Calcite root schema", schemaName);
@@ -188,26 +190,26 @@ public class RelationalAlgebraConverter {
                 log.debug("No schema cache provided, using dynamic schema");
                 defaultSchema = rootSchema.add("default", new DynamicSchema());
             }
-            
+
             // Create framework configuration
             FrameworkConfig config = Frameworks.newConfigBuilder()
                 .parserConfig(parserConfig)
                 .defaultSchema(defaultSchema)
                 .operatorTable(SqlLibraryOperatorTableFactory.INSTANCE.getOperatorTable(sqlLibrary))
                 .build();
-            
+
             // Use planner for conversion
             Planner planner = Frameworks.getPlanner(config);
-            
+
             try {
                 // Parse, validate, and convert to relational algebra
                 SqlNode sqlNode = planner.parse(sql);
                 SqlNode validatedNode = planner.validate(sqlNode);
                 RelRoot relRoot = planner.rel(validatedNode);
-                
+
                 log.debug("Successfully converted SQL to RelNode");
                 return relRoot.rel;
-                
+
             } finally {
                 planner.close();
             }
@@ -216,10 +218,10 @@ public class RelationalAlgebraConverter {
             throw new ConversionException("Failed to convert SQL to relational algebra", e);
         }
     }
-    
+
     /**
      * Applies optimization rules to a RelNode using Apache Calcite's HepPlanner.
-     * 
+     *
      * @param relNode The relational algebra node to optimize
      * @param rules List of optimization rules to apply
      * @return Optimized RelNode
@@ -227,56 +229,56 @@ public class RelationalAlgebraConverter {
      */
     public RelNode applyOptimizations(RelNode relNode, List<RelOptRule> rules) throws OptimizationException {
         log.debug("Applying {} optimization rules to RelNode", rules.size());
-        
+
         try {
             // Create HepProgram with specified rules and match limit
             HepProgramBuilder builder = new HepProgramBuilder();
-            
+
             // Set a match limit to prevent infinite loops with aggressive rules
             builder.addMatchLimit(1000);
-            
+
             for (RelOptRule rule : rules) {
                 builder.addRuleInstance(rule);
             }
-            
+
             HepProgram program = builder.build();
-            
+
             // Create planner and optimize
             HepPlanner planner = new HepPlanner(program);
             planner.setRoot(relNode);
-            
+
             RelNode optimizedNode = planner.findBestExp();
-            
+
             log.debug("Successfully optimized RelNode");
             return optimizedNode;
-            
+
         } catch (Exception e) {
             log.warn("Failed to optimize RelNode: {}", e.getMessage());
             throw new OptimizationException("Failed to apply optimization rules", e);
         }
     }
-    
+
     /**
      * Converts an optimized RelNode back to SQL string.
-     * 
+     *
      * @param relNode The relational algebra node to convert
      * @return SQL string representation
      * @throws SqlGenerationException if SQL generation fails
      */
     public String convertToSql(RelNode relNode) throws SqlGenerationException {
         log.debug("Converting RelNode to SQL");
-        
+
         try {
             // Use RelToSqlConverter to generate SQL from RelNode
             RelToSqlConverter converter = new RelToSqlConverter(sqlDialect);
             SqlNode sqlNode = converter.visitRoot(relNode).asStatement();
-            
+
             // Convert SqlNode to SQL string
             String sql = sqlNode.toSqlString(sqlDialect).getSql();
-            
+
             log.debug("Successfully converted RelNode to SQL: {} chars", sql.length());
             return sql;
-            
+
         } catch (StackOverflowError e) {
             log.warn("StackOverflowError during SQL generation (likely due to aggressive optimization rules): {}", e.getMessage());
             throw new SqlGenerationException("Failed to generate SQL from relational algebra due to StackOverflowError", e);
@@ -285,7 +287,7 @@ public class RelationalAlgebraConverter {
             throw new SqlGenerationException("Failed to generate SQL from relational algebra", e);
         }
     }
-    
+
     /**
      * Exception thrown when conversion fails.
      */
@@ -294,7 +296,7 @@ public class RelationalAlgebraConverter {
             super(message, cause);
         }
     }
-    
+
     /**
      * Exception thrown when optimization fails.
      */
@@ -303,7 +305,7 @@ public class RelationalAlgebraConverter {
             super(message, cause);
         }
     }
-    
+
     /**
      * Exception thrown when SQL generation fails.
      */

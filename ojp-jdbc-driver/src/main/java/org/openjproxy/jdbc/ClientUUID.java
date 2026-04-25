@@ -6,7 +6,7 @@ import java.util.UUID;
 
 @UtilityClass
 public class ClientUUID {
-    private static final String _UUID = UUID.randomUUID().toString();
+    private static final String CLIENT_UUID = UUID.randomUUID().toString();
 
     /**
      * Return the current client UUID, every time the application restarts a new UUID is generated and lasts while the
@@ -14,6 +14,6 @@ public class ClientUUID {
      * @return Client UUID
      */
     public String getUUID() {
-        return _UUID;
+        return CLIENT_UUID;
     }
 }

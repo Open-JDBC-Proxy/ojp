@@ -25,12 +25,12 @@ import java.util.stream.Collectors;
  * - Multi:  jdbc:ojp[server1:1059,server2:1059,server3:1059]_postgresql://localhost:5432/mydb
  */
 public class MultinodeUrlParser {
-    
+
     private static final Logger log = LoggerFactory.getLogger(MultinodeUrlParser.class);
     private static final Pattern OJP_PATTERN = Pattern.compile(CommonConstants.OJP_REGEX_PATTERN);
 
     // Cache of statement services keyed by server configuration
-    private static final Map<String, StatementService> statementServiceCache = new ConcurrentHashMap<>();
+    private static final Map<String, StatementService> STATEMENT_SERVICE_CACHE = new ConcurrentHashMap<>();
 
     /**
      * Helper class to return the service, connection URL, server endpoints, and datasource names.
@@ -73,7 +73,7 @@ public class MultinodeUrlParser {
         String cacheKey = endpoints.stream()
                 .map(ep -> ep.getAddress() + "(" + ep.getDataSourceName() + ")")
                 .collect(Collectors.joining(","));
-        StatementService service = statementServiceCache.computeIfAbsent(cacheKey, k -> {
+        StatementService service = STATEMENT_SERVICE_CACHE.computeIfAbsent(cacheKey, k -> {
             log.debug("Creating MultinodeStatementService for endpoints: {}",
                     MultinodeUrlParser.formatServerList(endpoints));
             Properties rawProperties = DatasourcePropertiesLoader.loadOjpProperties();
@@ -116,7 +116,7 @@ public class MultinodeUrlParser {
 
     /**
      * Parses an OJP URL and extracts server endpoints.
-     * 
+     *
      * @param url The OJP JDBC URL to parse
      * @param dataSourceNames Optional list of datasource names corresponding to each endpoint
      * @return List of server endpoints
@@ -162,8 +162,8 @@ public class MultinodeUrlParser {
             }
 
             // Get datasource name for this endpoint if provided
-            String dataSourceName = (dataSourceNames != null && i < dataSourceNames.size()) 
-                ? dataSourceNames.get(i) 
+            String dataSourceName = (dataSourceNames != null && i < dataSourceNames.size())
+                ? dataSourceNames.get(i)
                 : "default";
 
             endpoints.add(new ServerEndpoint(host, port, dataSourceName));
@@ -182,7 +182,7 @@ public class MultinodeUrlParser {
     /**
      * Parses an OJP URL and extracts server endpoints.
      * Backward compatibility method without datasource names.
-     * 
+     *
      * @param url The OJP JDBC URL to parse
      * @return List of server endpoints
      * @throws IllegalArgumentException if URL format is invalid
@@ -193,7 +193,7 @@ public class MultinodeUrlParser {
 
     /**
      * Extracts the actual JDBC URL by removing the OJP prefix.
-     * 
+     *
      * @param url The OJP JDBC URL
      * @return The actual JDBC URL without OJP prefix
      */
@@ -206,7 +206,7 @@ public class MultinodeUrlParser {
 
     /**
      * Formats a list of server endpoints back into the OJP URL format.
-     * 
+     *
      * @param endpoints List of server endpoints
      * @return Comma-separated string representation for URL
      */
@@ -219,11 +219,11 @@ public class MultinodeUrlParser {
                 .map(ServerEndpoint::getAddress)
                 .collect(Collectors.joining(","));
     }
-    
+
     /**
      * Replaces the server list in a multinode URL with a single endpoint.
      * This is useful for converting multinode URLs to single-node format.
-     * 
+     *
      * @param url The original OJP URL (possibly with multiple endpoints)
      * @param endpoint The single endpoint to use
      * @return The URL with the server list replaced by a single endpoint
@@ -232,7 +232,7 @@ public class MultinodeUrlParser {
         if (url == null || endpoint == null) {
             throw new IllegalArgumentException("URL and endpoint cannot be null");
         }
-        
+
         // Replace the entire [server1:port1,server2:port2,...] section with [singleHost:singlePort]
         // The pattern includes "ojp" so we need to keep it in the replacement
         return url.replaceAll(CommonConstants.OJP_REGEX_PATTERN, "ojp[" + endpoint.getAddress() + "]");

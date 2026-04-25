@@ -21,7 +21,9 @@ public class DateTimeUtils {
     public OffsetDateTime extractOffsetDateTime(Object rawObject) {
         try {
 
-            if (rawObject == null) return null;
+            if (rawObject == null) {
+                return null;
+            }
 
             // Print class name to verify
             log.info("raw object class: " + rawObject.getClass().getName());

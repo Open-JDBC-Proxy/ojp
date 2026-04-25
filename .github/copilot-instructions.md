@@ -56,6 +56,9 @@ This is a **multi-module Maven project**. All modules share the parent `pom.xml`
 Always use Java 21 when running these commands.
 
 ```bash
+# Run lint only (fast, no compilation needed)
+mvn checkstyle:check
+
 # Build everything, skip tests
 mvn clean install -DskipTests -Dgpg.skip=true
 
@@ -71,7 +74,8 @@ mvn clean compile
 ## Pre-commit Requirements
 
 - All code must compile successfully before committing.
-- Run `mvn clean compile` to verify — **never commit code that fails compilation**.
+- All Checkstyle (SonarLint) rules must pass — **never commit code that fails `mvn checkstyle:check`**.
+- Run `mvn clean compile` to verify both lint and compilation — **never commit code that fails**.
 - Ensure you are using Java 21 as the active runtime before building or testing.
 
 ---
@@ -127,6 +131,60 @@ For IDE runs, always add `-Dfile.encoding=UTF-8 -Duser.timezone=UTC` as JVM argu
 - **Comments**: Only when necessary to explain non-obvious logic. Code should be self-documenting.
 - **New dependencies**: Check license compatibility (Apache 2.0 or compatible required). Minimize additions.
 - **No secrets or credentials** in committed code — use environment variables or Testcontainers.
+
+---
+
+## SonarLint Compliance
+
+All main source code (not test code) must comply with SonarLint rules. Compliance is enforced automatically by the **Checkstyle Maven plugin** which runs during the `validate` phase and **fails the build** on violations.
+
+The configuration lives in `checkstyle.xml` at the project root. The following rules are enforced (with the corresponding SonarLint rule ID):
+
+| Rule | SonarLint ID | Description |
+|---|---|---|
+| `TypeName` | `java:S101` | Class/interface names must be PascalCase |
+| `MethodName` | `java:S100` | Method names must be camelCase |
+| `MemberName` | `java:S116` | Instance field names must be camelCase |
+| `LocalVariableName` / `ParameterName` | `java:S117` | Local variable and parameter names must be camelCase |
+| `ConstantName` | `java:S115` | `static final` fields must be `UPPER_SNAKE_CASE` (exception: `log` / `logger`) |
+| `PackageName` | `java:S120` | Package names must be all lowercase |
+| `AvoidStarImport` | `java:S2208` | Wildcard imports must not be used |
+| `UnusedImports` | `java:S1128` | Unused imports must be removed |
+| `RedundantImport` | `java:S1128` | Duplicate imports must be removed |
+| `EmptyCatchBlock` | `java:S108` | Empty catch blocks must contain an explanatory comment |
+| `NeedBraces` | `java:S121` | All code blocks must use braces `{}` |
+| `SimplifyBooleanExpression` / `SimplifyBooleanReturn` | `java:S1125` | Redundant boolean expressions should be simplified |
+| `UpperEll` | `java:S818` | Long literals must use uppercase `L` suffix |
+| `ModifierOrder` | — | Modifiers must follow the standard Java order |
+| `WhitespaceAround` | — | Operators and keywords must have surrounding whitespace |
+| `NoFinalizer` | — | `finalize()` must not be overridden |
+| Trailing whitespace (RegexpSingleline) | `java:S1109` | No trailing whitespace on any line |
+| Newline at end of file | — | Every `.java` file must end with a newline |
+| No `System.out`/`System.err` (RegexpSingleline) | `java:S106` | Use a proper logger instead of direct standard output |
+
+### Running the lint check
+
+```bash
+# Run Checkstyle only (fast, no compilation needed)
+mvn checkstyle:check
+
+# Checkstyle also runs automatically as part of any build phase >= validate
+mvn validate        # lint only
+mvn clean compile   # lint + compile
+mvn clean install   # lint + compile + test + package
+```
+
+### Writing compliant code
+
+- **Naming**: use `UPPER_SNAKE_CASE` for every `static final` field (except `log`/`logger`).
+- **Imports**: never use wildcard imports (`import foo.bar.*`). Remove imports that are no longer needed.
+- **Braces**: always wrap `if`, `for`, `while`, and `else` bodies in `{ }`, even for single-statement bodies.
+- **Logging**: never use `System.out.println` or `System.err.println`; use the SLF4J `log` field provided by `@Slf4j`.
+- **Whitespace**: no trailing spaces on any line; every file must end with a newline character.
+- **Long literals**: write `1000L`, not `1000l`.
+- **Catch blocks**: if you genuinely need to swallow an exception, add a comment explaining why.
+
+> **Note:** Checkstyle only checks hand-written main sources (`src/main/java`). Generated protobuf stubs and test sources are excluded.
 
 ---
 

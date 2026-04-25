@@ -120,7 +120,7 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
                             .setData(ByteString.copyFrom(nextBlock))
                             .build());
                     nextBlockSize = this.nextBlockSize(readLobContext, currentPos - 1);
-                    if (nextBlockSize > 0) {// Might be a single small block then nextBlockSize will return negative.
+                    if (nextBlockSize > 0) { // Might be a single small block then nextBlockSize will return negative.
                         nextBlock = new byte[nextBlockSize];
                     } else {
                         nextBlock = new byte[0];
@@ -237,7 +237,7 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
                     inputStream = sessionManager.getLob(lobReference.getSession(), lobReference.getUuid());
                     inputStream.reset();// Might be a second read of the same stream, this guarantees that the position
                     // is at the start.
-                    if (inputStream instanceof ByteArrayInputStream bais) {// Only used in SQL Server
+                    if (inputStream instanceof ByteArrayInputStream bais) { // Only used in SQL Server
                         bais.reset();
                         readLobContextBuilder.lobLength(Optional.of((long) bais.available()));
                         readLobContextBuilder.availableLength(Optional.of(bais.available()));

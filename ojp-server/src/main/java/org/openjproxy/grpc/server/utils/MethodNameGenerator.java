@@ -1,6 +1,5 @@
 package org.openjproxy.grpc.server.utils;
 
-import com.openjproxy.grpc.CallType;
 import com.openjproxy.grpc.TargetCall;
 
 import java.sql.SQLException;

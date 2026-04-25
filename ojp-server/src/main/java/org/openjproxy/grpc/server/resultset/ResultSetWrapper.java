@@ -1,6 +1,5 @@
 package org.openjproxy.grpc.server.resultset;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.OpResult;
 import com.openjproxy.grpc.ResultType;
 import com.openjproxy.grpc.SessionInfo;

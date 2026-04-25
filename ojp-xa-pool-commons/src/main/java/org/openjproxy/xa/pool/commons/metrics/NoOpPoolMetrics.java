@@ -5,13 +5,13 @@ package org.openjproxy.xa.pool.commons.metrics;
  * Used when metrics collection is disabled.
  */
 public class NoOpPoolMetrics implements PoolMetrics {
-    
+
     public static final NoOpPoolMetrics INSTANCE = new NoOpPoolMetrics();
-    
+
     private NoOpPoolMetrics() {
         // Private constructor for singleton
     }
-    
+
     @Override
     public void recordPoolState(
             String poolName,
@@ -26,27 +26,27 @@ public class NoOpPoolMetrics implements PoolMetrics {
             long returnedCount) {
         // No-op
     }
-    
+
     @Override
     public void recordConnectionAcquisitionTime(String poolName, long durationMillis) {
         // No-op
     }
-    
+
     @Override
     public void recordPoolExhaustion(String poolName) {
         // No-op
     }
-    
+
     @Override
     public void recordValidationFailure(String poolName) {
         // No-op
     }
-    
+
     @Override
     public void recordLeakDetection(String poolName) {
         // No-op
     }
-    
+
     @Override
     public void close() {
         // No-op

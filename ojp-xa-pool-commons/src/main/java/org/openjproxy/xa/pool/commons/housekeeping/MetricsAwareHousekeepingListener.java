@@ -10,11 +10,11 @@ import org.openjproxy.xa.pool.commons.metrics.PoolMetrics;
  * </p>
  */
 public class MetricsAwareHousekeepingListener implements HousekeepingListener {
-    
+
     private final HousekeepingListener delegate;
     private final PoolMetrics poolMetrics;
     private final String poolName;
-    
+
     /**
      * Creates a new metrics-aware housekeeping listener.
      *
@@ -27,31 +27,31 @@ public class MetricsAwareHousekeepingListener implements HousekeepingListener {
         this.poolMetrics = poolMetrics;
         this.poolName = poolName;
     }
-    
+
     @Override
     public void onLeakDetected(Object connection, Thread holdingThread, StackTraceElement[] stackTrace) {
         // Record metric
         poolMetrics.recordLeakDetection(poolName);
-        
+
         // Delegate to actual listener
         delegate.onLeakDetected(connection, holdingThread, stackTrace);
     }
-    
+
     @Override
     public void onConnectionExpired(Object connection, long ageMs) {
         delegate.onConnectionExpired(connection, ageMs);
     }
-    
+
     @Override
     public void onConnectionRecycled(Object connection) {
         delegate.onConnectionRecycled(connection);
     }
-    
+
     @Override
     public void onHousekeepingError(String message, Throwable cause) {
         delegate.onHousekeepingError(message, cause);
     }
-    
+
     @Override
     public void onPoolStateLog(String stateInfo) {
         delegate.onPoolStateLog(stateInfo);

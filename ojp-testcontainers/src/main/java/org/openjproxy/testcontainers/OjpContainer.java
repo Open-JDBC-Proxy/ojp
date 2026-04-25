@@ -36,9 +36,9 @@ import org.testcontainers.utility.DockerImageName;
  */
 public class OjpContainer extends GenericContainer<OjpContainer> {
 
-    private static final DockerImageName DEFAULT_IMAGE_NAME = 
+    private static final DockerImageName DEFAULT_IMAGE_NAME =
         DockerImageName.parse("rrobetti/ojp:0.4.2-beta");
-    
+
     /**
      * Default OJP Server port (internal container port).
      * The actual mapped port on the host is randomly assigned by TestContainers.
@@ -60,10 +60,10 @@ public class OjpContainer extends GenericContainer<OjpContainer> {
     public OjpContainer(DockerImageName dockerImageName) {
         super(dockerImageName);
         dockerImageName.assertCompatibleWith(DEFAULT_IMAGE_NAME);
-        
+
         // Expose the OJP port
         addExposedPorts(OJP_PORT);
-        
+
         // Wait for the container to be ready
         // OJP should start and be ready to accept connections
         waitingFor(Wait.forListeningPort());

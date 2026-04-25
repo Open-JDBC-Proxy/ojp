@@ -226,6 +226,31 @@
             </plugins>
         </pluginManagement>
         <plugins>
+            <!-- Checkstyle: enforces SonarLint-aligned coding rules; fails the build on violations -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <configLocation>checkstyle.xml</configLocation>
+                    <!-- Only scan hand-written sources; skip generated protobuf stubs -->
+                    <sourceDirectories>${project.build.sourceDirectory}</sourceDirectories>
+                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                    <failOnViolation>true</failOnViolation>
+                    <violationSeverity>error</violationSeverity>
+                    <consoleOutput>true</consoleOutput>
+                    <linkXRef>false</linkXRef>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>validate-checkstyle</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <!--Signs the JARs for deployments-->
             <!--<plugin>
                 <groupId>org.apache.maven.plugins</groupId>

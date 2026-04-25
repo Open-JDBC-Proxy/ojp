@@ -11,7 +11,7 @@ public class BorrowInfo {
     private final long borrowTime;
     private final Thread borrowingThread;
     private final StackTraceElement[] stackTrace;
-    
+
     /**
      * Creates borrow tracking information.
      *
@@ -24,7 +24,7 @@ public class BorrowInfo {
         this.borrowingThread = borrowingThread;
         this.stackTrace = stackTrace;
     }
-    
+
     /**
      * Gets the borrow timestamp.
      *
@@ -33,7 +33,7 @@ public class BorrowInfo {
     public long getBorrowTime() {
         return borrowTime;
     }
-    
+
     /**
      * Gets the borrowing thread.
      *
@@ -42,7 +42,7 @@ public class BorrowInfo {
     public Thread getThread() {
         return borrowingThread;
     }
-    
+
     /**
      * Gets the stack trace captured at borrow time.
      *

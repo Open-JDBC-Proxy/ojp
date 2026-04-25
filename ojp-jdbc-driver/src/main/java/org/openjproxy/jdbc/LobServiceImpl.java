@@ -36,11 +36,11 @@ public class LobServiceImpl implements LobService {
     @SneakyThrows
     @Override
     public LobReference sendBytes(LobType lobType, long pos, InputStream is, Map<Integer, Object> metadata) throws SQLException {
-        
+
         BufferedInputStream bis = new BufferedInputStream(is);
         long length = metadata.get(PREPARED_STATEMENT_BINARY_STREAM_LENGTH) != null ?
-                (Long) metadata.get(PREPARED_STATEMENT_BINARY_STREAM_LENGTH) : -1l;
-        
+                (Long) metadata.get(PREPARED_STATEMENT_BINARY_STREAM_LENGTH) : -1L;
+
         // Convert metadata Map<Integer, Object> to Map<String, Object> for ProtoConverter
         Map<String, Object> metadataStringKey = new HashMap<>();
         for (Map.Entry<Integer, Object> entry : metadata.entrySet()) {
@@ -52,7 +52,7 @@ public class LobServiceImpl implements LobService {
         final byte[] allBytes;
         try {
             byte[] readBytes = bis.readAllBytes();
-            
+
             // Apply length limit if specified
             if (length != -1 && readBytes.length > length) {
                 byte[] limitedBytes = new byte[(int) length];
@@ -97,7 +97,7 @@ public class LobServiceImpl implements LobService {
         if (!itBlocks.hasNext()) {
             return null;
         }
-        
+
         LobDataBlock lobDataBlock = itBlocks.next();
         if (lobDataBlock.getPosition() == -1 && lobDataBlock.getData().toByteArray().length < 1) {
             return null;
@@ -106,7 +106,7 @@ public class LobServiceImpl implements LobService {
         // Convert the single data block directly to an InputStream
         // Note: In hydrated approach, all remaining blocks should contain the complete data
         byte[] allData = lobDataBlock.getData().toByteArray();
-        
+
         // If there are more blocks (shouldn't happen in hydrated approach), concatenate them
         while (itBlocks.hasNext()) {
             LobDataBlock nextBlock = itBlocks.next();
@@ -116,7 +116,7 @@ public class LobServiceImpl implements LobService {
             System.arraycopy(nextData, 0, combined, allData.length, nextData.length);
             allData = combined;
         }
-        
+
         return new java.io.ByteArrayInputStream(allData);
     }
 }

@@ -25,7 +25,7 @@ class OjpXALogicalConnection extends Connection {
         // Pass the statementService and dbName to the parent Connection class
         super(sessionInfo, xaConnection.getStatementService(), DatabaseUtils.resolveDbName(url));
         this.xaConnection = xaConnection;
-        
+
         // Register with ConnectionTracker if using multinode - this ensures XAConnectionRedistributor
         // can find and invalidate this connection when the bound server fails
         if (xaConnection.getStatementService() instanceof MultinodeStatementService) {
@@ -42,10 +42,10 @@ class OjpXALogicalConnection extends Connection {
                 }
             }
         }
-        
+
         log.debug("Created logical connection using XA session: {}", sessionInfo.getSessionUUID());
     }
-    
+
     /**
      * Find the ServerEndpoint matching the bound server address.
      */

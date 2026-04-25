@@ -4,7 +4,12 @@ import com.openjproxy.grpc.PropertyEntry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -14,7 +19,7 @@ import java.util.regex.PatternSyntaxException;
  */
 @Slf4j
 public class CacheConfigurationConverter {
-    
+
     /**
      * Parse cache configuration from ConnectionDetails properties.
      *
@@ -23,14 +28,14 @@ public class CacheConfigurationConverter {
      * @return Domain CacheConfiguration object
      */
     public static CacheConfiguration fromProperties(
-            List<PropertyEntry> properties, 
+            List<PropertyEntry> properties,
             String datasourceName) {
-        
+
         if (properties == null || properties.isEmpty()) {
             log.debug("No properties provided for datasource: {}", datasourceName);
             return CacheConfiguration.disabled(datasourceName);
         }
-        
+
         // Convert PropertyEntry list to Map for easier access
         Map<String, String> propsMap = new HashMap<>();
         for (PropertyEntry entry : properties) {
@@ -38,47 +43,47 @@ public class CacheConfigurationConverter {
                 propsMap.put(entry.getKey(), entry.getStringValue());
             }
         }
-        
+
         // Check if caching is enabled
         String enabledStr = propsMap.get("ojp.cache.enabled");
         if (enabledStr == null || !Boolean.parseBoolean(enabledStr)) {
             log.debug("Cache configuration disabled for datasource: {}", datasourceName);
             return CacheConfiguration.disabled(datasourceName);
         }
-        
+
         log.info("Parsing cache configuration for datasource '{}': enabled=true", datasourceName);
-        
+
         // Parse query rules
         List<CacheRule> domainRules = new ArrayList<>();
         Set<Integer> indices = findQueryIndices(propsMap);
-        
+
         log.debug("Found {} cache rule indices in properties", indices.size());
-        
+
         for (int index : indices) {
             try {
                 CacheRule domainRule = parseRule(propsMap, index);
                 if (domainRule != null) {
                     domainRules.add(domainRule);
-                    log.debug("Parsed cache rule {}: pattern={}, ttl={}s, invalidateOn={}", 
-                        index, domainRule.getSqlPattern().pattern(), domainRule.getTtl().getSeconds(), 
+                    log.debug("Parsed cache rule {}: pattern={}, ttl={}s, invalidateOn={}",
+                        index, domainRule.getSqlPattern().pattern(), domainRule.getTtl().getSeconds(),
                         domainRule.getInvalidateOn());
                 }
             } catch (Exception e) {
-                log.error("Failed to parse cache rule {} for datasource '{}': {}", 
+                log.error("Failed to parse cache rule {} for datasource '{}': {}",
                     index, datasourceName, e.getMessage());
                 // Continue with other rules - skip invalid ones
             }
         }
-        
+
         log.info("Parsed {} cache rules for datasource '{}'", domainRules.size(), datasourceName);
-        
+
         return new CacheConfiguration(
             datasourceName,
             true,
             domainRules
         );
     }
-    
+
     /**
      * Find all query rule indices in properties map.
      *
@@ -88,7 +93,7 @@ public class CacheConfigurationConverter {
     private static Set<Integer> findQueryIndices(Map<String, String> propsMap) {
         Set<Integer> indices = new TreeSet<>();
         String prefix = "ojp.cache.queries.";
-        
+
         for (String key : propsMap.keySet()) {
             if (key.startsWith(prefix)) {
                 // Extract index from property like "ojp.cache.queries.1.pattern"
@@ -104,10 +109,10 @@ public class CacheConfigurationConverter {
                 }
             }
         }
-        
+
         return indices;
     }
-    
+
     /**
      * Parse a single cache rule from properties.
      *
@@ -117,14 +122,14 @@ public class CacheConfigurationConverter {
      */
     private static CacheRule parseRule(Map<String, String> propsMap, int index) {
         String prefix = "ojp.cache.queries." + index + ".";
-        
+
         // Pattern is required
         String sqlPattern = propsMap.get(prefix + "pattern");
         if (sqlPattern == null || sqlPattern.trim().isEmpty()) {
             log.warn("Cache rule {} has empty pattern, skipping", index);
             return null;
         }
-        
+
         // Compile regex pattern
         Pattern pattern;
         try {
@@ -134,14 +139,14 @@ public class CacheConfigurationConverter {
             throw new IllegalArgumentException(
                 "Invalid regex pattern for cache rule " + index + ": " + e.getMessage(), e);
         }
-        
+
         // Parse TTL
         String ttlStr = propsMap.get(prefix + "ttl");
         if (ttlStr == null || ttlStr.trim().isEmpty()) {
             log.error("Missing TTL for cache rule {}", index);
             throw new IllegalArgumentException("Missing TTL for cache rule " + index);
         }
-        
+
         long ttlSeconds;
         try {
             ttlSeconds = Long.parseLong(ttlStr);
@@ -149,15 +154,15 @@ public class CacheConfigurationConverter {
             log.error("Invalid TTL for cache rule {}: {}", index, ttlStr);
             throw new IllegalArgumentException("Invalid TTL for cache rule " + index + ": " + ttlStr, e);
         }
-        
+
         if (ttlSeconds <= 0) {
             log.error("Invalid TTL for cache rule {}: {} (must be positive)", index, ttlSeconds);
             throw new IllegalArgumentException(
                 "Invalid TTL for cache rule " + index + ": " + ttlSeconds + " (must be positive)");
         }
-        
+
         Duration ttl = Duration.ofSeconds(ttlSeconds);
-        
+
         // Parse invalidation tables (comma-separated, optional)
         String invalidateOnStr = propsMap.get(prefix + "invalidateOn");
         List<String> invalidationTables = new ArrayList<>();
@@ -170,11 +175,11 @@ public class CacheConfigurationConverter {
                 }
             }
         }
-        
+
         // Check if rule is enabled (default: true)
         String enabledStr = propsMap.get(prefix + "enabled");
         boolean enabled = enabledStr == null || Boolean.parseBoolean(enabledStr);
-        
+
         return new CacheRule(
             pattern,
             ttl,

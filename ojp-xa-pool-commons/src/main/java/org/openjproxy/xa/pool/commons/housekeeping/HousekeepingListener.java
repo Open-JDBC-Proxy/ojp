@@ -6,7 +6,7 @@ package org.openjproxy.xa.pool.commons.housekeeping;
  * Implementations receive callbacks when housekeeping tasks detect issues
  * or perform maintenance operations on the connection pool.
  * </p>
- * 
+ *
  * <h3>Event Types:</h3>
  * <ul>
  *   <li><strong>Leak Detection:</strong> Connection held too long</li>
@@ -16,7 +16,7 @@ package org.openjproxy.xa.pool.commons.housekeeping;
  * </ul>
  */
 public interface HousekeepingListener {
-    
+
     /**
      * Called when a connection leak is detected.
      * <p>
@@ -29,7 +29,7 @@ public interface HousekeepingListener {
      * @param stackTrace the stack trace from when connection was borrowed (may be null if enhanced reporting disabled)
      */
     void onLeakDetected(Object connection, Thread holdingThread, StackTraceElement[] stackTrace);
-    
+
     /**
      * Called when a connection is expired due to max lifetime enforcement.
      * <p>
@@ -41,7 +41,7 @@ public interface HousekeepingListener {
      * @param ageMs the age of the connection in milliseconds
      */
     void onConnectionExpired(Object connection, long ageMs);
-    
+
     /**
      * Called when a connection is successfully recycled.
      * <p>
@@ -52,7 +52,7 @@ public interface HousekeepingListener {
      * @param connection the recycled connection object
      */
     void onConnectionRecycled(Object connection);
-    
+
     /**
      * Called when a housekeeping task encounters an error.
      * <p>
@@ -64,7 +64,7 @@ public interface HousekeepingListener {
      * @param cause the exception that caused the error (may be null)
      */
     void onHousekeepingError(String message, Throwable cause);
-    
+
     /**
      * Called when diagnostics logging is triggered.
      * <p>

@@ -36,7 +36,7 @@ public class SessionManagerImpl implements SessionManager {
 
     /**
      * Constructor with cache configuration map.
-     * 
+     *
      * @param cacheConfigurationMap Map of connection hash to cache configuration (can be null)
      */
     public SessionManagerImpl(Map<String, CacheConfiguration> cacheConfigurationMap) {
@@ -70,7 +70,7 @@ public class SessionManagerImpl implements SessionManager {
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
     }
-    
+
     @Override
     public SessionInfo createDeferredXASession(String clientUUID, String connectionHash) {
         log.info("Create deferred XA session for client uuid " + clientUUID);
@@ -85,7 +85,7 @@ public class SessionManagerImpl implements SessionManager {
     /**
      * Retrieves cache configuration for the given connection hash.
      * Returns null if no configuration is found or if cache configuration map is not set.
-     * 
+     *
      * @param connectionHash the connection hash
      * @return the cache configuration, or null if not found
      */
@@ -193,7 +193,7 @@ public class SessionManagerImpl implements SessionManager {
 
         // Handle case where session doesn't exist on this server (multinode scenario)
         if (targetSession == null) {
-            log.warn("Session {} not found on this server - may have been created on another server or already terminated", 
+            log.warn("Session {} not found on this server - may have been created on another server or already terminated",
                     sessionInfo.getSessionUUID());
             return;
         }

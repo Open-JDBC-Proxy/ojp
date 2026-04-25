@@ -17,7 +17,12 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 
@@ -25,7 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Handles parameter setting for prepared statements.
  * Extracted from StatementServiceImpl to improve modularity.
- * 
+ *
  * Note: TIMEOUT_EXECUTOR is intentionally not shut down as it's a shared resource
  * for the lifetime of the application. Daemon threads will be terminated on JVM shutdown.
  */
@@ -35,13 +40,13 @@ public class ParameterHandler {
 
     // Timeout for parameter setting operations (5 seconds)
     private static final int PARAMETER_TIMEOUT_SECONDS = 5;
-    
+
     // SQL error code for timeout errors
     private static final int SQL_ERROR_CODE_TIMEOUT = 1234;
-    
+
     // Thread counter for unique thread names
     private static final AtomicLong THREAD_COUNTER = new AtomicLong(0);
-    
+
     // Executor for timeout operations (intentionally not shut down - application-lifetime resource)
     private static final ExecutorService TIMEOUT_EXECUTOR = Executors.newCachedThreadPool(r -> {
         Thread thread = new Thread(r);
@@ -59,7 +64,7 @@ public class ParameterHandler {
      * @param params         The parameters to add
      * @throws SQLException if parameter setting fails
      */
-    public static void addParametersPreparedStatement(SessionManager sessionManager, SessionInfo session, 
+    public static void addParametersPreparedStatement(SessionManager sessionManager, SessionInfo session,
                                                      PreparedStatement ps, List<Parameter> params) throws SQLException {
         for (int i = 0; i < params.size(); i++) {
             Parameter parameter = params.get(i);
@@ -77,16 +82,16 @@ public class ParameterHandler {
      * @param param          The parameter to add
      * @throws SQLException if parameter setting fails
      */
-    public static void addParam(SessionManager sessionManager, SessionInfo session, int idx, 
+    public static void addParam(SessionManager sessionManager, SessionInfo session, int idx,
                                PreparedStatement ps, Parameter param) throws SQLException {
         log.info("Adding parameter idx {} type {}", idx, param.getType().toString());
-        
+
         // Execute parameter setting with timeout to prevent JDBC driver hangs
         Future<Void> future = TIMEOUT_EXECUTOR.submit(() -> {
             setParameterInternal(sessionManager, session, idx, ps, param);
             return null;
         });
-        
+
         try {
             future.get(PARAMETER_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
@@ -95,7 +100,7 @@ public class ParameterHandler {
                 "OJP timeout (%d seconds) while trying to set parameter at index %d with type %s and value %s. " +
                 "This might be caused because the JDBC driver does not support this parameter type. " +
                 "Consider using a different data type that is natively supported by your database.",
-                PARAMETER_TIMEOUT_SECONDS, idx, param.getType(), 
+                PARAMETER_TIMEOUT_SECONDS, idx, param.getType(),
                 param.getValues().isEmpty() ? "null" : param.getValues().get(0));
             log.error(errorMsg);
             throw new SQLException(errorMsg, "HY000", SQL_ERROR_CODE_TIMEOUT);
@@ -111,12 +116,12 @@ public class ParameterHandler {
             throw new SQLException("Parameter setting was interrupted", e);
         }
     }
-    
+
     /**
      * Internal method that actually sets the parameter without timeout.
      * This is called by addParam within a timeout wrapper.
      */
-    private static void setParameterInternal(SessionManager sessionManager, SessionInfo session, int idx, 
+    private static void setParameterInternal(SessionManager sessionManager, SessionInfo session, int idx,
                                             PreparedStatement ps, Parameter param) throws SQLException {
         switch (param.getType()) {
             case INT:
@@ -181,7 +186,7 @@ public class ParameterHandler {
                 break;
         }
     }
-    
+
     /**
      * Handles BYTE parameter setting with proper type conversion.
      */
@@ -194,11 +199,11 @@ public class ParameterHandler {
             ps.setByte(idx, ((Integer) value).byteValue());
         }
     }
-    
+
     /**
      * Handles BLOB parameter setting with session management.
      */
-    private static void setBlobParameter(SessionManager sessionManager, SessionInfo session, 
+    private static void setBlobParameter(SessionManager sessionManager, SessionInfo session,
                                         PreparedStatement ps, int idx, Parameter param) throws SQLException {
         Object blobUUID = param.getValues().get(0);
         if (blobUUID == null) {
@@ -207,7 +212,7 @@ public class ParameterHandler {
             ps.setBlob(idx, sessionManager.<Blob>getLob(session, (String) blobUUID));
         }
     }
-    
+
     /**
      * Handles CLOB parameter setting with session management.
      */
@@ -221,7 +226,7 @@ public class ParameterHandler {
             ps.setClob(idx, clob.getCharacterStream());
         }
     }
-    
+
     /**
      * Handles BINARY_STREAM parameter setting with appropriate stream handling.
      */
@@ -242,7 +247,7 @@ public class ParameterHandler {
             }
         }
     }
-    
+
     /**
      * Handles URL parameter setting with null safety.
      */
@@ -254,7 +259,7 @@ public class ParameterHandler {
             ps.setURL(idx, (URL) urlValue);
         }
     }
-    
+
     /**
      * Handles ROW_ID parameter setting as byte array.
      * RowId is transmitted as opaque byte array - cannot reconstruct java.sql.RowId from bytes.

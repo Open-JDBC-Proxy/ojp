@@ -17,15 +17,15 @@ import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 /**
  * Factory class for creating and configuring gRPC {@link ManagedChannel} instances.
- * 
+ *
  * <p>This class reads configuration from {@link GrpcClientConfig} and provides overloaded methods
  * to create channels with default or custom settings. It supports both plaintext and TLS/mTLS connections.</p>
- * 
+ *
  * <p>By default, it uses a maximum inbound message size of 16MB.</p>
  */
 public class GrpcChannelFactory {
     private static final Logger logger = LoggerFactory.getLogger(GrpcChannelFactory.class);
-    
+
     /** Default maximum inbound message size (16MB) */
     private static int maxInboundMessageSize = 16777216;
 
@@ -41,7 +41,7 @@ public class GrpcChannelFactory {
 
     /**
      * Initializes the gRPC client configuration from external properties.
-     * 
+     *
      * <p>If loading fails, it falls back to an empty configuration.</p>
      */
     public static void initializeGrpcConfig() {
@@ -68,9 +68,9 @@ public class GrpcChannelFactory {
         if (grpcConfig == null) {
             initializeGrpcConfig();
         }
-        
+
         TlsConfig tlsConfig = grpcConfig.getTlsConfig();
-        
+
         if (tlsConfig.isEnabled()) {
             return createSecureChannel(host, port, maxInboundSize, tlsConfig);
         } else {
@@ -103,9 +103,9 @@ public class GrpcChannelFactory {
         if (grpcConfig == null) {
             initializeGrpcConfig();
         }
-        
+
         TlsConfig tlsConfig = grpcConfig.getTlsConfig();
-        
+
         if (tlsConfig.isEnabled()) {
             return createSecureChannel(target, maxInboundMessageSize, tlsConfig);
         } else {
@@ -115,10 +115,10 @@ public class GrpcChannelFactory {
                     .build();
         }
     }
-    
+
     /**
      * Creates a secure channel with TLS/mTLS enabled.
-     * 
+     *
      * @param host The gRPC server host
      * @param port The gRPC server port
      * @param maxInboundSize Maximum allowed inbound message size in bytes
@@ -128,7 +128,7 @@ public class GrpcChannelFactory {
     private static ManagedChannel createSecureChannel(String host, int port, int maxInboundSize, TlsConfig tlsConfig) {
         try {
             SslContext sslContext = buildSslContext(tlsConfig);
-            
+
             return NettyChannelBuilder.forAddress(host, port)
                     .sslContext(sslContext)
                     .maxInboundMessageSize(maxInboundSize)
@@ -138,10 +138,10 @@ public class GrpcChannelFactory {
             throw new RuntimeException("Failed to create secure gRPC channel", e);
         }
     }
-    
+
     /**
      * Creates a secure channel with TLS/mTLS enabled for the given target.
-     * 
+     *
      * @param target A target string in the form "dns:///host:port" or "host:port"
      * @param maxInboundSize Maximum allowed inbound message size in bytes
      * @param tlsConfig TLS configuration
@@ -150,7 +150,7 @@ public class GrpcChannelFactory {
     private static ManagedChannel createSecureChannel(String target, int maxInboundSize, TlsConfig tlsConfig) {
         try {
             SslContext sslContext = buildSslContext(tlsConfig);
-            
+
             return NettyChannelBuilder.forTarget(target)
                     .sslContext(sslContext)
                     .maxInboundMessageSize(maxInboundSize)
@@ -160,17 +160,17 @@ public class GrpcChannelFactory {
             throw new RuntimeException("Failed to create secure gRPC channel", e);
         }
     }
-    
+
     /**
      * Builds an SSL context for gRPC channel based on TLS configuration.
-     * 
+     *
      * <p>This method supports three scenarios:</p>
      * <ul>
      *   <li>mTLS (mutual TLS): Both keystore and truststore are configured</li>
      *   <li>Server TLS only: Only truststore is configured</li>
      *   <li>JVM default: No explicit paths, uses JVM's default SSL context</li>
      * </ul>
-     * 
+     *
      * @param tlsConfig TLS configuration
      * @return SslContext for the gRPC channel
      * @throws TlsConfigurationException if SSL context cannot be created
@@ -178,7 +178,7 @@ public class GrpcChannelFactory {
     private static SslContext buildSslContext(TlsConfig tlsConfig) throws TlsConfigurationException {
         try {
             SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
-            
+
             // Configure truststore (for verifying server certificate)
             if (tlsConfig.hasTruststorePath()) {
                 logger.info("Configuring client with custom truststore");
@@ -188,7 +188,7 @@ public class GrpcChannelFactory {
                 logger.info("Using JVM default truststore for server certificate verification");
                 // Use system default truststore
             }
-            
+
             // Configure keystore (for client certificate - mTLS)
             if (tlsConfig.hasKeystorePath()) {
                 logger.info("Configuring client with mTLS using keystore");
@@ -197,7 +197,7 @@ public class GrpcChannelFactory {
             } else {
                 logger.info("No client certificate configured - server TLS only (not mTLS)");
             }
-            
+
             return sslContextBuilder.build();
         } catch (TlsConfigurationException e) {
             throw e;

@@ -1,6 +1,5 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
@@ -14,7 +13,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.StatementService;
@@ -25,7 +23,6 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLWarning;
 import java.sql.Struct;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +42,7 @@ public class Connection implements java.sql.Connection {
     private boolean autoCommit = true;
     private boolean readOnly = false;
     private boolean closed;
-    
+
     // For server recovery and connection redistribution
     private volatile boolean forceInvalid = false;
 
@@ -55,32 +52,32 @@ public class Connection implements java.sql.Connection {
         this.closed = false;
         this.dbName = dbName;
     }
-    
+
     /**
      * Marks this connection as invalid for forced removal from connection pool.
      * After marking, isValid() will return false and all operations will throw
      * SQLNonTransientConnectionException with SQLState 08006.
-     * 
+     *
      * This is used during connection redistribution when servers recover.
      */
     public void markForceInvalid() {
         this.forceInvalid = true;
         log.debug("Connection marked for forced invalidation");
     }
-    
+
     /**
      * Checks if this connection has been marked for forced invalidation.
-     * 
+     *
      * @return true if marked invalid, false otherwise
      */
     public boolean isForceInvalid() {
         return this.forceInvalid;
     }
-    
+
     /**
      * Checks if connection is valid before executing operations.
      * Throws SQLNonTransientConnectionException with SQLState 08006 if invalid.
-     * 
+     *
      * @throws SQLException if connection is marked invalid or closed
      */
     private void checkValid() throws SQLException {
@@ -598,12 +595,12 @@ public class Connection implements java.sql.Connection {
             if (Void.class.equals(returnType)) {
                 return null;
             }
-            
+
             List<ParameterValue> values = response.getValuesList();
             if (values.isEmpty()) {
                 return null;
             }
-            
+
             Object result = ProtoConverter.fromParameterValue(values.get(0));
             return (T) result;
         } catch (Exception e) {

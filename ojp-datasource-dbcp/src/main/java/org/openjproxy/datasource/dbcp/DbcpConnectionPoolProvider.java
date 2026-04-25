@@ -14,13 +14,13 @@ import java.util.Map;
 
 /**
  * Apache Commons DBCP2 implementation of {@link ConnectionPoolProvider}.
- * 
+ *
  * <p>This provider creates and manages connection pools using Apache Commons DBCP2.
  * It maps the generic {@link PoolConfig} settings to DBCP2-specific configuration.</p>
- * 
+ *
  * <p>The provider is registered via ServiceLoader and can be used by including this
  * module on the classpath. The provider ID is "dbcp".</p>
- * 
+ *
  * <h2>Configuration Mapping</h2>
  * <ul>
  *   <li>{@code maxPoolSize} → {@code maxTotal}</li>
@@ -35,7 +35,7 @@ import java.util.Map;
 public class DbcpConnectionPoolProvider implements ConnectionPoolProvider {
 
     private static final Logger log = LoggerFactory.getLogger(DbcpConnectionPoolProvider.class);
-    
+
     public static final String PROVIDER_ID = "dbcp";
     private static final int PRIORITY = 10;
 
@@ -103,12 +103,12 @@ public class DbcpConnectionPoolProvider implements ConnectionPoolProvider {
         dataSource.setNumTestsPerEvictionRun(3);
 
         // Pool name for logging
-        String poolName = config.getMetricsPrefix() != null 
-                ? config.getMetricsPrefix() + "-dbcp" 
+        String poolName = config.getMetricsPrefix() != null
+                ? config.getMetricsPrefix() + "-dbcp"
                 : "ojp-dbcp-" + System.currentTimeMillis();
-        
+
         log.info("Created DBCP DataSource '{}': url={}, maxTotal={}, minIdle={}, maxWait={}ms",
-                poolName, config.getUrl(), dataSource.getMaxTotal(), 
+                poolName, config.getUrl(), dataSource.getMaxTotal(),
                 dataSource.getMinIdle(), config.getConnectionTimeoutMs());
 
         return dataSource;
@@ -118,11 +118,11 @@ public class DbcpConnectionPoolProvider implements ConnectionPoolProvider {
     public void closeDataSource(DataSource dataSource) throws Exception {
         if (dataSource instanceof BasicDataSource) {
             BasicDataSource basicDataSource = (BasicDataSource) dataSource;
-            log.info("Closing DBCP DataSource: active={}, idle={}", 
+            log.info("Closing DBCP DataSource: active={}, idle={}",
                     basicDataSource.getNumActive(), basicDataSource.getNumIdle());
             basicDataSource.close();
         } else if (dataSource != null) {
-            log.warn("Cannot close DataSource: not a BasicDataSource instance ({})", 
+            log.warn("Cannot close DataSource: not a BasicDataSource instance ({})",
                     dataSource.getClass().getName());
         }
     }
@@ -130,10 +130,10 @@ public class DbcpConnectionPoolProvider implements ConnectionPoolProvider {
     @Override
     public Map<String, Object> getStatistics(DataSource dataSource) {
         Map<String, Object> stats = new HashMap<>();
-        
+
         if (dataSource instanceof BasicDataSource) {
             BasicDataSource basicDataSource = (BasicDataSource) dataSource;
-            
+
             stats.put("activeConnections", basicDataSource.getNumActive());
             stats.put("idleConnections", basicDataSource.getNumIdle());
             stats.put("totalConnections", basicDataSource.getNumActive() + basicDataSource.getNumIdle());
@@ -143,7 +143,7 @@ public class DbcpConnectionPoolProvider implements ConnectionPoolProvider {
             stats.put("maxWaitMs", basicDataSource.getMaxWaitDuration().toMillis());
             stats.put("isClosed", basicDataSource.isClosed());
         }
-        
+
         return stats;
     }
 

@@ -356,7 +356,7 @@ public class ResultSet extends RemoteProxyResultSet {
             return super.getBytes(columnIndex);
         }
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
-        if (lastValueRead instanceof String) {// Means the server is treating it as a binary stream
+        if (lastValueRead instanceof String) { // Means the server is treating it as a binary stream
             InputStream is = this.getBinaryStream(columnIndex);
             return is.readAllBytes();
         }
@@ -439,7 +439,7 @@ public class ResultSet extends RemoteProxyResultSet {
         lastValueRead = currentDataBlock.get(blockIdx.get())[columnIndex - 1];
         if (lastValueRead == null) {
             return null;
-        } else if (lastValueRead instanceof byte[]) {// Only used by SQL server
+        } else if (lastValueRead instanceof byte[]) { // Only used by SQL server
             return new ByteArrayInputStream((byte[]) lastValueRead);
         }
         Object objUUID = lastValueRead;
@@ -1461,7 +1461,7 @@ public class ResultSet extends RemoteProxyResultSet {
         }
         lastValueRead = currentDataBlock.get(blockIdx.get())[this.labelsMap.get(columnLabel.toUpperCase())];
         //For databases where LOBs get invalidated once cursor moves (SQL Server and DB2) must eagerly hydrate LOBs.
-        if (lastValueRead instanceof byte[]){
+        if (lastValueRead instanceof byte[]) {
             return new HydratedBlob((byte[]) lastValueRead);
         }
         String blobRefUUID = (String) lastValueRead;

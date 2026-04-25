@@ -7,7 +7,10 @@ import org.openjproxy.datasource.ConnectionPoolProviderRegistry;
 import org.openjproxy.datasource.PoolConfig;
 
 import javax.sql.DataSource;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Properties;
 
 /**
  * Manages creation and registration of primary and replica datasources for read/write splitting.

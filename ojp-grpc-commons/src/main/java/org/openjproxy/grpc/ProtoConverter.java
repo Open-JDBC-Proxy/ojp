@@ -35,7 +35,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,7 @@ public class ProtoConverter {
                 if (firstValue != null && firstValue instanceof Timestamp) {
                     Timestamp timestamp = (Timestamp) firstValue;
                     java.time.ZoneId zoneId = null;
-                    
+
                     // Check if Calendar was provided (for timezone)
                     if (parameter.getValues().size() > 1 && parameter.getValues().get(1) instanceof java.util.Calendar) {
                         java.util.Calendar cal = (java.util.Calendar) parameter.getValues().get(1);
@@ -77,7 +76,7 @@ public class ProtoConverter {
                         // Use system default timezone as per requirements
                         zoneId = java.time.ZoneId.systemDefault();
                     }
-                    
+
                     // Convert to TimestampWithZone and add as ParameterValue
                     builder.addValues(toParameterValue(timestamp, zoneId));
                 } else if (firstValue == null) {
@@ -100,7 +99,7 @@ public class ProtoConverter {
                 // This happens when setObject(index, value, targetSqlType) is called
                 Object value = parameter.getValues().get(0);
                 Integer targetSqlType = (Integer) parameter.getValues().get(1);
-                
+
                 // Convert based on targetSqlType using java.sql.Types constants
                 if (targetSqlType == java.sql.Types.TIMESTAMP || targetSqlType == java.sql.Types.TIMESTAMP_WITH_TIMEZONE) {
                     // For TIMESTAMP types, use toParameterValue which handles java.time types
@@ -438,7 +437,7 @@ public class ProtoConverter {
 
         return builder.build();
     }
-    
+
     /**
      * Returns true if {@code value} is a vendor-specific JSON wrapper object that can be
      * safely serialised by calling {@link Object#toString()}, which returns the JSON text.
@@ -461,7 +460,7 @@ public class ProtoConverter {
 
     /**
      * Convert java.sql.Timestamp with ZoneId to ParameterValue with TimestampWithZone.
-     * 
+     *
      * @param timestamp The timestamp to convert (can be null)
      * @param zoneId The timezone (must not be null if timestamp is not null)
      * @return ParameterValue with timestamp_value set, or is_null if timestamp is null
@@ -470,16 +469,16 @@ public class ProtoConverter {
         if (timestamp == null) {
             return ParameterValue.newBuilder().setIsNull(true).build();
         }
-        
+
         TimestampWithZone timestampWithZone = TemporalConverter.toTimestampWithZone(timestamp, zoneId);
         return ParameterValue.newBuilder()
             .setTimestampValue(timestampWithZone)
             .build();
     }
-    
+
     /**
      * Convert java.sql.Date or java.time.LocalDate to ParameterValue with google.type.Date.
-     * 
+     *
      * @param date The date to convert (can be null, java.sql.Date, or java.time.LocalDate)
      * @return ParameterValue with date_value set, or is_null if date is null
      */
@@ -487,7 +486,7 @@ public class ProtoConverter {
         if (date == null) {
             return ParameterValue.newBuilder().setIsNull(true).build();
         }
-        
+
         com.google.type.Date protoDate;
         if (date instanceof Date) {
             protoDate = TemporalConverter.toProtoDate((Date) date);
@@ -496,15 +495,15 @@ public class ProtoConverter {
         } else {
             throw new IllegalArgumentException("Expected java.sql.Date or java.time.LocalDate but got " + date.getClass().getName());
         }
-        
+
         return ParameterValue.newBuilder()
             .setDateValue(protoDate)
             .build();
     }
-    
+
     /**
      * Convert java.sql.Time or java.time.LocalTime to ParameterValue with google.type.TimeOfDay.
-     * 
+     *
      * @param time The time to convert (can be null, java.sql.Time, or java.time.LocalTime)
      * @return ParameterValue with time_value set, or is_null if time is null
      */
@@ -512,7 +511,7 @@ public class ProtoConverter {
         if (time == null) {
             return ParameterValue.newBuilder().setIsNull(true).build();
         }
-        
+
         com.google.type.TimeOfDay protoTimeOfDay;
         if (time instanceof Time) {
             protoTimeOfDay = TemporalConverter.toProtoTimeOfDay((Time) time);
@@ -521,15 +520,15 @@ public class ProtoConverter {
         } else {
             throw new IllegalArgumentException("Expected java.sql.Time or java.time.LocalTime but got " + time.getClass().getName());
         }
-        
+
         return ParameterValue.newBuilder()
             .setTimeValue(protoTimeOfDay)
             .build();
     }
-    
+
     /**
      * Convert java.time.LocalDate to ParameterValue with google.type.Date.
-     * 
+     *
      * @param localDate The LocalDate to convert (can be null or Object that will be cast)
      * @return ParameterValue with date_value set, or is_null if localDate is null
      */
@@ -537,20 +536,20 @@ public class ProtoConverter {
         if (localDate == null) {
             return ParameterValue.newBuilder().setIsNull(true).build();
         }
-        
+
         if (!(localDate instanceof LocalDate)) {
             throw new IllegalArgumentException("Expected java.time.LocalDate but got " + localDate.getClass().getName());
         }
-        
+
         com.google.type.Date protoDate = TemporalConverter.localDateToProtoDate((LocalDate) localDate);
         return ParameterValue.newBuilder()
             .setDateValue(protoDate)
             .build();
     }
-    
+
     /**
      * Convert java.time.LocalTime to ParameterValue with google.type.TimeOfDay.
-     * 
+     *
      * @param localTime The LocalTime to convert (can be null or Object that will be cast)
      * @return ParameterValue with time_value set, or is_null if localTime is null
      */
@@ -558,11 +557,11 @@ public class ProtoConverter {
         if (localTime == null) {
             return ParameterValue.newBuilder().setIsNull(true).build();
         }
-        
+
         if (!(localTime instanceof LocalTime)) {
             throw new IllegalArgumentException("Expected java.time.LocalTime but got " + localTime.getClass().getName());
         }
-        
+
         com.google.type.TimeOfDay protoTimeOfDay = TemporalConverter.localTimeToProtoTimeOfDay((LocalTime) localTime);
         return ParameterValue.newBuilder()
             .setTimeValue(protoTimeOfDay)
@@ -572,7 +571,7 @@ public class ProtoConverter {
     /**
      * Convert ParameterValue to Java object.
      * Note: This returns a generic Object, caller needs to handle type casting.
-     * 
+     *
      * @param value The ParameterValue to convert
      * @param type The ParameterType to help determine how to handle bytes
      */
@@ -599,14 +598,14 @@ public class ProtoConverter {
                 return value.getStringValue();
             case BYTES_VALUE:
                 byte[] bytes = value.getBytesValue().toByteArray();
-                
+
                 // For binary data types (BYTES, BLOB, BINARY_STREAM), preserve empty byte arrays
                 // and don't attempt deserialization
                 if (type != null && !shouldDeserializeBytes(type)) {
                     // Binary data types - return raw bytes (including empty arrays)
                     return bytes;
                 }
-                
+
                 // Use BigDecimalWire deserialization for BIG_DECIMAL type
                 if (type == ParameterType.BIG_DECIMAL) {
                     try {
@@ -617,7 +616,7 @@ public class ProtoConverter {
                         throw new RuntimeException("Failed to deserialize BigDecimal", e);
                     }
                 }
-                
+
                 // When type is unknown, check if bytes look like protobuf Container message
                 // Try protobuf first for Map/List/Properties.
                 if (type == null && bytes.length > 0) {
@@ -639,7 +638,7 @@ public class ProtoConverter {
                         }
                     }
                 }
-                
+
                 // For unknown bytes that couldn't be deserialized, return raw bytes
                 return bytes;
             case INT_ARRAY_VALUE:
@@ -708,7 +707,7 @@ public class ProtoConverter {
                 return null;
         }
     }
-    
+
     /**
      * Determine if bytes should be deserialized based on ParameterType.
      * Only deserialize for OBJECT and complex types that were serialized.
@@ -722,7 +721,7 @@ public class ProtoConverter {
         if (type == null) {
             return true;
         }
-        
+
         switch (type) {
             case BYTES:
             case BINARY_STREAM:
@@ -763,7 +762,7 @@ public class ProtoConverter {
                 return true;
         }
     }
-    
+
     /**
      * Convert ParameterValue to Java object without type information.
      * This assumes bytes should be deserialized (for backward compatibility with CallResourceResponse).

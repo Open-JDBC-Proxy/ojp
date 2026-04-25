@@ -1,6 +1,5 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
@@ -57,11 +56,11 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData {
             CallResourceRequest.Builder builder = CallResourceRequest.newBuilder()
                     .setSession(this.ps.getConnection().getSession())
                     .setResourceType(ResourceType.RES_PREPARED_STATEMENT);
-            
+
             if (this.ps.getProperties() != null) {
                 builder.addAllProperties(ProtoConverter.propertiesToProto(this.ps.getProperties()));
             }
-            
+
             if (StringUtils.isNotBlank(this.ps.getStatementUUID())) {
                 builder.setResourceUUID(this.ps.getStatementUUID());
             }
@@ -221,17 +220,17 @@ public class ResultSetMetaData implements java.sql.ResultSetMetaData {
                         .build()
         );
         CallResourceResponse response = this.statementService.callResource(reqBuilder.build());
-        if (this.resultSet !=null) {
+        if (this.resultSet != null) {
             this.resultSet.getConnection().setSession(response.getSession());
         } else if (this.ps != null) {
             this.ps.getConnection().setSession(response.getSession());
         }
-        
+
         List<ParameterValue> values = response.getValuesList();
         if (values.isEmpty()) {
             return null;
         }
-        
+
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
     }

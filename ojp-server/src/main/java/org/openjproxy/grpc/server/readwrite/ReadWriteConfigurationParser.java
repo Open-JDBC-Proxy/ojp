@@ -2,7 +2,13 @@ package org.openjproxy.grpc.server.readwrite;
 
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -47,7 +53,7 @@ public class ReadWriteConfigurationParser {
     private static final String ROLE_REPLICA = "replica";
 
     // Cache for parsed configurations
-    private static final ConcurrentMap<String, ReadWriteConfiguration> configCache = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, ReadWriteConfiguration> CONFIG_CACHE = new ConcurrentHashMap<>();
 
     /**
      * Parses read/write configuration for all datasources from properties.
@@ -83,7 +89,7 @@ public class ReadWriteConfigurationParser {
      */
     public static ReadWriteConfiguration parseForPrimary(String primaryName, Properties properties) {
         // Check cache first
-        ReadWriteConfiguration cached = configCache.get(primaryName);
+        ReadWriteConfiguration cached = CONFIG_CACHE.get(primaryName);
         if (cached != null) {
             return cached;
         }
@@ -134,7 +140,7 @@ public class ReadWriteConfigurationParser {
         // A disabled or replica-less config is NOT cached so that the next connection attempt that
         // carries the full properties can re-evaluate and set up splitting correctly.
         if (config.isEnabled() && !config.getReplicaNames().isEmpty()) {
-            configCache.put(primaryName, config);
+            CONFIG_CACHE.put(primaryName, config);
         }
 
         return config;
@@ -219,7 +225,7 @@ public class ReadWriteConfigurationParser {
      * Clears the configuration cache. Useful for testing.
      */
     public static void clearCache() {
-        configCache.clear();
+        CONFIG_CACHE.clear();
     }
 
     // Property parsing helpers

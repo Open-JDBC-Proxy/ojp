@@ -1,7 +1,24 @@
 package org.openjproxy.jdbc.xa;
 
 import com.google.protobuf.ByteString;
-import com.openjproxy.grpc.*;
+import com.openjproxy.grpc.SessionInfo;
+import com.openjproxy.grpc.XaCommitRequest;
+import com.openjproxy.grpc.XaEndRequest;
+import com.openjproxy.grpc.XaForgetRequest;
+import com.openjproxy.grpc.XaGetTransactionTimeoutRequest;
+import com.openjproxy.grpc.XaGetTransactionTimeoutResponse;
+import com.openjproxy.grpc.XaIsSameRMRequest;
+import com.openjproxy.grpc.XaIsSameRMResponse;
+import com.openjproxy.grpc.XaPrepareRequest;
+import com.openjproxy.grpc.XaPrepareResponse;
+import com.openjproxy.grpc.XaRecoverRequest;
+import com.openjproxy.grpc.XaRecoverResponse;
+import com.openjproxy.grpc.XaResponse;
+import com.openjproxy.grpc.XaRollbackRequest;
+import com.openjproxy.grpc.XaSetTransactionTimeoutRequest;
+import com.openjproxy.grpc.XaSetTransactionTimeoutResponse;
+import com.openjproxy.grpc.XaStartRequest;
+import com.openjproxy.grpc.XidProto;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.client.MultinodeConnectionManager;
@@ -15,7 +32,7 @@ import java.sql.SQLException;
 
 /**
  * Implementation of XAResource that delegates all operations to the OJP server via StatementService.
- * 
+ *
  * Phase 1: Implements retry logic for xaStart() to handle server failures gracefully.
  */
 @Slf4j
@@ -34,13 +51,13 @@ public class OjpXAResource implements XAResource {
     @Override
     public void start(Xid xid, int flags) throws XAException {
         log.debug("start: xid={}, flags={}", xid, flags);
-        
+
         // Phase 1: Implement retry logic for xaStart
         // Safe to retry because no transaction state exists yet
         int maxRetries = getMaxRetries();
         int attempt = 0;
         XAException lastException = null;
-        
+
         while (attempt < maxRetries) {
             try {
                 // MultinodeStatementService will automatically add cluster health via withClusterHealth()
@@ -53,30 +70,30 @@ public class OjpXAResource implements XAResource {
                 if (!response.getSuccess()) {
                     throw new XAException(response.getMessage());
                 }
-                
+
                 // Success - return immediately
                 if (attempt > 0) {
                     log.info("xaStart succeeded on retry attempt {}", attempt);
                 }
                 return;
-                
+
             } catch (XAException e) {
                 throw e; // XA-level errors are not retryable
             } catch (Exception e) {
                 // Check if this is a connection-level error
                 boolean isConnectionError = isConnectionLevelError(e);
-                
+
                 if (isConnectionError) {
                     // Connection-level error - can retry
                     lastException = new XAException(XAException.XAER_RMFAIL);
                     lastException.initCause(e);
-                    
+
                     attempt++;
-                    
+
                     if (attempt < maxRetries) {
-                        log.warn("xaStart failed with connection error (attempt {}/{}): {}. Attempting to recreate session...", 
+                        log.warn("xaStart failed with connection error (attempt {}/{}): {}. Attempting to recreate session...",
                                 attempt, maxRetries, e.getMessage());
-                        
+
                         try {
                             // Recreate session on a different server
                             this.sessionInfo = xaConnection.recreateSession();
@@ -97,11 +114,11 @@ public class OjpXAResource implements XAResource {
                 }
             }
         }
-        
+
         // All retries exhausted
         throw lastException;
     }
-    
+
     /**
      * Phase 1: Get the maximum number of retries for xaStart.
      * Returns the number of healthy servers available, or 3 as a fallback.
@@ -121,7 +138,7 @@ public class OjpXAResource implements XAResource {
         // Default: try 3 times
         return 3;
     }
-    
+
     /**
      * Phase 1: Determines if an exception represents a connection-level error.
      * Uses the same logic as GrpcExceptionHandler.isConnectionLevelError().

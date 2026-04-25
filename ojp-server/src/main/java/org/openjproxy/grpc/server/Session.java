@@ -78,7 +78,7 @@ public class Session {
         this.callableStatementMap = new ConcurrentHashMap<>();
         this.lobMap = new ConcurrentHashMap<>();
         this.attrMap = new ConcurrentHashMap<>();
-        
+
         if (isXA && xaConnection != null) {
             try {
                 this.xaResource = xaConnection.getXAResource();
@@ -88,11 +88,11 @@ public class Session {
             }
         }
     }
-    
+
     /**
      * Binds an XAConnection to this session (for lazy XA allocation with pooling).
      * This method is thread-safe and can only be called once.
-     * 
+     *
      * @param xaConn The XAConnection to bind
      * @param backendSession The XABackendSession wrapper (from XA pool)
      * @throws IllegalStateException if XAConnection is already bound (unless both parameters are null for unbinding)
@@ -107,14 +107,14 @@ public class Session {
             log.debug("Unbound XAConnection from session {}", sessionUUID);
             return;
         }
-        
+
         if (this.xaConnection != null) {
             throw new IllegalStateException("XAConnection already bound to session");
         }
         if (!this.isXA) {
             throw new IllegalStateException("Cannot bind XAConnection to non-XA session");
         }
-        
+
         try {
             this.xaConnection = xaConn;
             this.backendSession = backendSession;
@@ -126,44 +126,44 @@ public class Session {
             throw new RuntimeException("Failed to bind XAConnection", e);
         }
     }
-    
+
     /**
      * Sets the backend session reference for XA pooling.
-     * 
+     *
      * @param backendSession The XABackendSession from the XA pool
      */
     public void setBackendSession(Object backendSession) {
         this.backendSession = backendSession;
     }
-    
+
     /**
      * Refreshes the connection reference from the backend session.
      * This is called after XA transaction sanitization to update the connection
      * reference to the new logical connection obtained from the XAConnection.
-     * 
+     *
      * @throws SQLException if unable to get connection from backend session
      */
     public void refreshConnection() throws SQLException {
         if (backendSession != null && backendSession instanceof org.openjproxy.xa.pool.XABackendSession) {
-            org.openjproxy.xa.pool.XABackendSession xaBackendSession = 
+            org.openjproxy.xa.pool.XABackendSession xaBackendSession =
                 (org.openjproxy.xa.pool.XABackendSession) backendSession;
             this.connection = xaBackendSession.getConnection();
             log.debug("Refreshed connection reference in session {}", sessionUUID);
         }
     }
-    
+
     /**
      * Gets the JDBC connection for this session.
      * For XA sessions with pooled backend sessions, this returns the current
      * connection from the backend session (which may change after sanitization).
-     * 
+     *
      * @return the JDBC connection
      */
     public Connection getConnection() {
         // For XA sessions with backend session, always get fresh connection reference
         // This ensures we get the updated connection after sanitization
         if (isXA && backendSession != null && backendSession instanceof org.openjproxy.xa.pool.XABackendSession) {
-            org.openjproxy.xa.pool.XABackendSession xaBackendSession = 
+            org.openjproxy.xa.pool.XABackendSession xaBackendSession =
                 (org.openjproxy.xa.pool.XABackendSession) backendSession;
             return xaBackendSession.getConnection();
         }
@@ -311,7 +311,7 @@ public class Session {
 
     /**
      * Checks if the session has been inactive for longer than the specified timeout.
-     * 
+     *
      * @param timeoutMillis the inactivity timeout in milliseconds
      * @return true if the session has been inactive for longer than the timeout, false otherwise
      */
@@ -322,7 +322,7 @@ public class Session {
 
     /**
      * Gets the duration in milliseconds since the last activity.
-     * 
+     *
      * @return milliseconds since last activity
      */
     public long getInactiveDuration() {

@@ -18,11 +18,11 @@ import org.slf4j.LoggerFactory;
  */
 public class LoggingHousekeepingListener implements HousekeepingListener {
     private static final Logger log = LoggerFactory.getLogger(LoggingHousekeepingListener.class);
-    
+
     @Override
     public void onLeakDetected(Object connection, Thread holdingThread, StackTraceElement[] stackTrace) {
         String threadInfo = holdingThread != null ? holdingThread.getName() : "unknown";
-        
+
         if (stackTrace != null && stackTrace.length > 0) {
             String formattedTrace = formatStackTrace(stackTrace);
             log.warn("[LEAK DETECTED] Connection {} held for too long by thread: {}. Acquisition trace:\n{}",
@@ -32,17 +32,17 @@ public class LoggingHousekeepingListener implements HousekeepingListener {
                 connection, threadInfo);
         }
     }
-    
+
     @Override
     public void onConnectionExpired(Object connection, long ageMs) {
         log.info("[MAX LIFETIME] Connection {} expired after {}ms, will be recycled", connection, ageMs);
     }
-    
+
     @Override
     public void onConnectionRecycled(Object connection) {
         log.info("[RECYCLE] Connection {} successfully recycled", connection);
     }
-    
+
     @Override
     public void onHousekeepingError(String message, Throwable cause) {
         if (cause != null) {
@@ -51,12 +51,12 @@ public class LoggingHousekeepingListener implements HousekeepingListener {
             log.error("[HOUSEKEEPING ERROR] {}", message);
         }
     }
-    
+
     @Override
     public void onPoolStateLog(String stateInfo) {
         log.info(stateInfo);
     }
-    
+
     /**
      * Formats a stack trace as a multi-line string.
      *
