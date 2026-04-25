@@ -58,7 +58,7 @@ public class MyIntegrationTest {
 
 ```java
 @Container
-public static OjpContainer ojpContainer = new OjpContainer("0.4.2-beta");
+public static OjpContainer ojpContainer = new OjpContainer("0.4.7-beta");
 ```
 
 Or with full image name:
