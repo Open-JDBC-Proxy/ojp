@@ -113,8 +113,8 @@ public class ReadWriteConfigurationParser {
             strategy = ReadWriteConfiguration.ReplicaSelectionStrategy.ROUND_ROBIN;
         }
 
-        // Parse other settings
-        int stickySessionSeconds = getIntProperty(properties, prefix + STICKY_SESSION_SUFFIX, 5);
+        // Parse other settings — default is 0 (disabled); sticky sessions are opt-in
+        int stickySessionSeconds = getIntProperty(properties, prefix + STICKY_SESSION_SUFFIX, 0);
         boolean failoverToPrimary = getBooleanProperty(properties, prefix + FAILOVER_SUFFIX, true);
 
         // Find all replicas for this primary

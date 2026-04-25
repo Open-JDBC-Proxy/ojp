@@ -120,7 +120,7 @@ class ReadWriteConfigurationParserTest {
         
         assertFalse(config.isEnabled()); // Default: disabled
         assertEquals(ReadWriteConfiguration.ReplicaSelectionStrategy.ROUND_ROBIN, config.getStrategy());
-        assertEquals(5, config.getStickySessionSeconds());
+        assertEquals(0, config.getStickySessionSeconds());
         assertTrue(config.isFailoverToPrimary());
     }
     
@@ -177,8 +177,8 @@ class ReadWriteConfigurationParserTest {
         
         ReadWriteConfiguration config = ReadWriteConfigurationParser.parseForPrimary("primary", props);
         
-        // Should use default
-        assertEquals(5, config.getStickySessionSeconds());
+        // Should use default (0 — disabled)
+        assertEquals(0, config.getStickySessionSeconds());
     }
     
     @Test
