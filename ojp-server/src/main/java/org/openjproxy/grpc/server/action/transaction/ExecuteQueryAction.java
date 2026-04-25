@@ -9,6 +9,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
+import org.openjproxy.grpc.server.Session;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.cache.CacheConfiguration;
@@ -68,14 +69,33 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
 
         // Read/write splitting: route reads to a replica when applicable
         DataSource replicaDs = resolveReadReplicaDataSource(actionContext, request);
-        // Use startSessionIfNone=false so stateless (autoCommit) SELECTs do not create a
-        // server-side session; avoids a session UUID leaking to the driver and blocking
-        // replica routing on subsequent requests (e.g. after sticky-session expiry).
-        ConnectionSessionDTO dto = sessionConnection(actionContext, request.getSession(), false, replicaDs);
+
+        // Always start a session (startSessionIfNone=true) so the session UUID is returned
+        // to the driver — the client may need it for metadata access on the result set,
+        // statement, or connection.  For the replica path, a lazy dual-datasource session is
+        // created; the actual replica connection is resolved below via the Session object.
+        ConnectionSessionDTO dto = sessionConnection(actionContext, request.getSession(), true, replicaDs);
+
+        // Resolve the JDBC connection to use for execution:
+        //   - replica path  → session.getOrCreateReplicaConnection() (lazy; never allocates primary)
+        //   - primary path  → dto.getConnection() (already acquired by sessionConnection)
+        Connection execConn;
         if (replicaDs != null) {
+            Session activeSession = actionContext.getSessionManager().getSession(dto.getSession());
+            execConn = activeSession.getOrCreateReplicaConnection();
             log.debug("Read/write splitting: routed SELECT to replica for connHash={}",
                     request.getSession().getConnHash());
+        } else {
+            execConn = dto.getConnection();
         }
+
+        // Build an execution DTO with the resolved connection so StatementFactory and
+        // downstream helpers receive the correct connection regardless of routing.
+        ConnectionSessionDTO execDto = ConnectionSessionDTO.builder()
+                .session(dto.getSession())
+                .connection(execConn)
+                .dbName(dto.getDbName())
+                .build();
 
         // Phase 6: Cache Lookup (before query execution) - with graceful degradation
         String sql = request.getSql();
@@ -123,8 +143,8 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 DataSource dataSource = datasourceMap.get(dsKey);
 
                 if (dataSource != null) {
-                    // Get catalog and schema from the connection
-                    Connection connection = dto.getConnection();
+                    // Get catalog and schema from the execution connection
+                    Connection connection = execConn;
                     String catalogName = connection.getCatalog();
                     String schemaName = connection.getSchema();
 
@@ -167,11 +187,11 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 responseObserver, cacheConfig, sql, params, dto.getSession().getConnHash());
 
         if (CollectionUtils.isNotEmpty(params)) {
-            PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
+            PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, execDto, sql, params, request);
             String resultSetUUID = sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
         } else {
-            Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
+            Statement stmt = StatementFactory.createStatement(sessionManager, execDto.getConnection(), request);
             String resultSetUUID = sessionManager.registerResultSet(dto.getSession(),
                     stmt.executeQuery(sql));
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
@@ -185,11 +205,16 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
      * <p>Routing to a replica is skipped when any of the following is true:
      * <ul>
      *   <li>No {@link ReadWriteDataSourceRegistry} is available in the context.</li>
-     *   <li>The request is inside an explicit transaction (non-empty {@code sessionUUID}).</li>
+     *   <li>The request is inside an explicit transaction (primary connection exists
+     *       and has autoCommit=false).</li>
      *   <li>The SQL is not a read-only statement.</li>
      *   <li>The primary has no replicas registered.</li>
      *   <li>A sticky-session window is currently active for the primary.</li>
      * </ul>
+     *
+     * <p>Note: the presence of a {@code sessionUUID} alone does <em>not</em> block
+     * replica routing.  The session UUID may exist from a previous autoCommit SELECT
+     * on the same connection, and in that case routing to the replica is still safe.
      *
      * @param context the action context
      * @param request the statement request
@@ -201,9 +226,15 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
             return null;
         }
 
-        // Do not route to replica when inside a transaction (session UUID is set)
+        // Block replica routing only when there is an active transaction on the primary.
+        // A session UUID being present is not sufficient — it may come from a previous
+        // autoCommit SELECT.  We check the actual transaction state via hasActiveTransaction()
+        // which does NOT trigger lazy primary connection acquisition.
         if (StringUtils.isNotBlank(request.getSession().getSessionUUID())) {
-            return null;
+            Session existingSession = context.getSessionManager().getSession(request.getSession());
+            if (existingSession != null && existingSession.hasActiveTransaction()) {
+                return null;  // active transaction → must stay on primary
+            }
         }
 
         // Only route read-only SQL to replicas

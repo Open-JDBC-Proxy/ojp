@@ -2,6 +2,7 @@ package org.openjproxy.grpc.server;
 
 import com.openjproxy.grpc.SessionInfo;
 
+import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import java.sql.CallableStatement;
 import java.sql.Connection;
@@ -17,6 +18,18 @@ import java.util.Collection;
 public interface SessionManager {
     void registerClientUUID(String connectionHash, String clientUUID);
     SessionInfo createSession(String clientUUID, Connection connection);
+    /**
+     * Creates a lazy dual-datasource session.  No JDBC connections are acquired
+     * at creation time; they are obtained on demand when
+     * {@link Session#getConnection()} or {@link Session#getOrCreateReplicaConnection()}
+     * is first called.
+     *
+     * @param clientUUID        the client identifier
+     * @param primaryDataSource datasource for the primary database
+     * @param replicaDataSource datasource for the read replica; {@code null} when no replica is configured
+     * @return the new session info
+     */
+    SessionInfo createSession(String clientUUID, DataSource primaryDataSource, DataSource replicaDataSource);
     SessionInfo createXASession(String clientUUID, Connection connection, XAConnection xaConnection);
     SessionInfo createDeferredXASession(String clientUUID, String connectionHash);
     Session getSession(SessionInfo sessionInfo);

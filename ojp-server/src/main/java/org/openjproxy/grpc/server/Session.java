@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.server.cache.CacheConfiguration;
 
+import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import javax.transaction.xa.XAResource;
 import java.sql.CallableStatement;
@@ -20,6 +21,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Holds information about a session of a given client.
+ * <p>
+ * Supports two construction modes:
+ * <ul>
+ *   <li><b>Eager (XA / legacy)</b>: constructed with a pre-acquired {@code Connection}.
+ *       {@link #getConnection()} returns that connection immediately.</li>
+ *   <li><b>Lazy (dual-datasource)</b>: constructed with {@code DataSource} references.
+ *       {@link #getConnection()} acquires from the primary datasource on first call;
+ *       {@link #getOrCreateReplicaConnection()} acquires from the replica datasource on
+ *       first call. This allows replica-only sessions to avoid allocating a primary
+ *       connection entirely.</li>
+ * </ul>
  */
 @Slf4j
 public class Session {
@@ -29,7 +41,14 @@ public class Session {
     private final String connectionHash;
     @Getter
     private final String clientUUID;
-    private Connection connection;  // Removed @Getter - custom getter below
+    /** Primary connection — may be null until lazily acquired from {@link #primaryDataSource}. */
+    private volatile Connection primaryConnection;
+    /** Replica connection — null until lazily acquired via {@link #getOrCreateReplicaConnection()}. */
+    private volatile Connection replicaConnection;
+    /** DataSource for lazy primary acquisition; null for eagerly-constructed (XA) sessions. */
+    private final DataSource primaryDataSource;
+    /** DataSource for lazy replica acquisition; null when no replica is configured. */
+    private final DataSource replicaDataSource;
     @Getter
     private final boolean isXA;
     @Getter
@@ -53,6 +72,45 @@ public class Session {
     @Getter
     private final long creationTime;
 
+    /**
+     * Lazy dual-datasource constructor.  No connections are acquired at
+     * construction time; they are obtained on demand when
+     * {@link #getConnection()} or {@link #getOrCreateReplicaConnection()} is
+     * first called.
+     *
+     * @param primaryDataSource  datasource for the primary database (never null)
+     * @param replicaDataSource  datasource for a read replica; {@code null} when
+     *                           no replica is configured
+     * @param connectionHash     connection hash identifying this datasource pair
+     * @param clientUUID         client identifier
+     * @param cacheConfiguration optional query-cache configuration (may be null)
+     */
+    public Session(DataSource primaryDataSource, DataSource replicaDataSource,
+                   String connectionHash, String clientUUID,
+                   CacheConfiguration cacheConfiguration) {
+        this.primaryDataSource = primaryDataSource;
+        this.replicaDataSource = replicaDataSource;
+        this.primaryConnection = null;
+        this.replicaConnection = null;
+        this.connectionHash = connectionHash;
+        this.clientUUID = clientUUID;
+        this.isXA = false;
+        this.xaConnection = null;
+        this.cacheConfiguration = cacheConfiguration;
+        this.sessionUUID = UUID.randomUUID().toString();
+        this.closed = false;
+        this.creationTime = System.nanoTime();
+        this.lastActivityTime = this.creationTime;
+        this.resultSetMap = new ConcurrentHashMap<>();
+        this.statementMap = new ConcurrentHashMap<>();
+        this.preparedStatementMap = new ConcurrentHashMap<>();
+        this.callableStatementMap = new ConcurrentHashMap<>();
+        this.lobMap = new ConcurrentHashMap<>();
+        this.attrMap = new ConcurrentHashMap<>();
+    }
+
+    // ---- Eager constructors (kept for XA and legacy non-XA callers) ----
+
     public Session(Connection connection, String connectionHash, String clientUUID) {
         this(connection, connectionHash, clientUUID, false, null, null);
     }
@@ -62,7 +120,10 @@ public class Session {
     }
 
     public Session(Connection connection, String connectionHash, String clientUUID, boolean isXA, XAConnection xaConnection, CacheConfiguration cacheConfiguration) {
-        this.connection = connection;
+        this.primaryConnection = connection;
+        this.replicaConnection = null;
+        this.primaryDataSource = null;
+        this.replicaDataSource = null;
         this.connectionHash = connectionHash;
         this.clientUUID = clientUUID;
         this.isXA = isXA;
@@ -102,7 +163,7 @@ public class Session {
         if (xaConn == null && backendSession == null) {
             this.xaConnection = null;
             this.backendSession = null;
-            this.connection = null;
+            this.primaryConnection = null;
             this.xaResource = null;
             log.debug("Unbound XAConnection from session {}", sessionUUID);
             return;
@@ -118,7 +179,7 @@ public class Session {
         try {
             this.xaConnection = xaConn;
             this.backendSession = backendSession;
-            this.connection = xaConn.getConnection();
+            this.primaryConnection = xaConn.getConnection();
             this.xaResource = xaConn.getXAResource();
             log.debug("Bound XAConnection to session {}", sessionUUID);
         } catch (SQLException e) {
@@ -147,19 +208,23 @@ public class Session {
         if (backendSession != null && backendSession instanceof org.openjproxy.xa.pool.XABackendSession) {
             org.openjproxy.xa.pool.XABackendSession xaBackendSession =
                 (org.openjproxy.xa.pool.XABackendSession) backendSession;
-            this.connection = xaBackendSession.getConnection();
+            this.primaryConnection = xaBackendSession.getConnection();
             log.debug("Refreshed connection reference in session {}", sessionUUID);
         }
     }
 
     /**
-     * Gets the JDBC connection for this session.
-     * For XA sessions with pooled backend sessions, this returns the current
-     * connection from the backend session (which may change after sanitization).
+     * Gets the primary JDBC connection for this session.
+     * <p>
+     * For lazy sessions (created with {@link #Session(DataSource, DataSource, String, String, CacheConfiguration)}),
+     * this acquires a connection from the primary datasource on first call and caches it
+     * for subsequent calls.  For XA sessions with a pooled backend, the fresh connection
+     * is returned from the backend session.
      *
-     * @return the JDBC connection
+     * @return the primary JDBC connection, or {@code null} if the session has no primary
+     *         datasource and no eagerly-supplied connection
      */
-    public Connection getConnection() {
+    public synchronized Connection getConnection() {
         // For XA sessions with backend session, always get fresh connection reference
         // This ensures we get the updated connection after sanitization
         if (isXA && backendSession != null && backendSession instanceof org.openjproxy.xa.pool.XABackendSession) {
@@ -167,8 +232,55 @@ public class Session {
                 (org.openjproxy.xa.pool.XABackendSession) backendSession;
             return xaBackendSession.getConnection();
         }
-        // For non-XA sessions or pass-through XA sessions, return stored connection
-        return this.connection;
+        // Lazy acquisition for dual-datasource sessions
+        if (primaryConnection == null && primaryDataSource != null) {
+            try {
+                primaryConnection = primaryDataSource.getConnection();
+                log.debug("Lazily acquired primary connection for session {}", sessionUUID);
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to acquire primary connection for session " + sessionUUID, e);
+            }
+        }
+        return primaryConnection;
+    }
+
+    /**
+     * Gets (or lazily creates) the replica JDBC connection for this session.
+     * <p>
+     * The connection is acquired from the replica datasource supplied at construction
+     * time and cached for subsequent calls.  Returns {@code null} when no replica
+     * datasource was configured.
+     *
+     * @return the replica JDBC connection, or {@code null} if no replica is configured
+     * @throws SQLException if acquiring the connection from the pool fails
+     */
+    public synchronized Connection getOrCreateReplicaConnection() throws SQLException {
+        if (replicaConnection == null && replicaDataSource != null) {
+            replicaConnection = replicaDataSource.getConnection();
+            log.debug("Lazily acquired replica connection for session {}", sessionUUID);
+        }
+        return replicaConnection;
+    }
+
+    /**
+     * Returns {@code true} when the primary connection exists and has an open
+     * (non-autoCommit) transaction.  Does <em>not</em> trigger lazy primary
+     * connection acquisition; returns {@code false} when no primary connection
+     * has been acquired yet (i.e. the session is replica-only so far).
+     *
+     * @return {@code true} if there is an active transaction on the primary connection
+     */
+    public boolean hasActiveTransaction() {
+        if (primaryConnection == null) {
+            return false;
+        }
+        try {
+            return !primaryConnection.getAutoCommit();
+        } catch (SQLException e) {
+            // Safety: assume transaction present if we cannot determine
+            log.warn("Could not determine autoCommit state for session {}; assuming active transaction", sessionUUID);
+            return true;
+        }
     }
 
     public SessionInfo getSessionInfo() {
@@ -270,9 +382,18 @@ public class Session {
             } catch (SQLException e) {
                 log.error("Error closing XA connection", e);
             }
-        } else if (connection != null) {
-            // For regular connections, close normally
-            this.connection.close();
+        } else {
+            // Non-XA: close replica connection first (if acquired), then primary (if acquired)
+            if (replicaConnection != null) {
+                try {
+                    replicaConnection.close();
+                } catch (SQLException e) {
+                    log.error("Error closing replica connection for session {}", sessionUUID, e);
+                }
+            }
+            if (primaryConnection != null) {
+                primaryConnection.close();
+            }
         }
 
         //Clear session internal objects to free memory
@@ -281,7 +402,8 @@ public class Session {
         this.resultSetMap = null;
         this.statementMap = null;
         this.preparedStatementMap = null;
-        this.connection = null;
+        this.primaryConnection = null;
+        this.replicaConnection = null;
         this.xaConnection = null;
         this.xaResource = null;
         this.backendSession = null;

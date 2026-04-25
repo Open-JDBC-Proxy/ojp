@@ -6,6 +6,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.server.cache.CacheConfiguration;
 
+import javax.sql.DataSource;
 import javax.sql.XAConnection;
 import java.sql.CallableStatement;
 import java.sql.Connection;
@@ -56,6 +57,17 @@ public class SessionManagerImpl implements SessionManager {
         CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
         Session session = new Session(connection, connectionHash, clientUUID, false, null, cacheConfig);
         log.info("Session " + session.getSessionUUID() + " created for client uuid " + clientUUID);
+        this.sessionMap.put(session.getSessionUUID(), session);
+        return session.getSessionInfo();
+    }
+
+    @Override
+    public SessionInfo createSession(String clientUUID, DataSource primaryDataSource, DataSource replicaDataSource) {
+        log.info("Create lazy dual-datasource session for client uuid {}", clientUUID);
+        String connectionHash = connectionHashMap.get(clientUUID);
+        CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
+        Session session = new Session(primaryDataSource, replicaDataSource, connectionHash, clientUUID, cacheConfig);
+        log.info("Lazy session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
     }
