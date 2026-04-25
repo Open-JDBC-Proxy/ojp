@@ -718,6 +718,14 @@ public class MultinodeStatementService implements StatementService {
     }
 
     @Override
+    public SessionInfo setAutoCommit(SessionInfo session, boolean autoCommit) throws SQLException {
+        SessionInfo enhancedSessionInfo = withClusterHealth(session);
+        return executeWithSessionStickinessAndBinding(enhancedSessionInfo, client ->
+            client.setAutoCommit(enhancedSessionInfo, autoCommit)
+        );
+    }
+
+    @Override
     public CallResourceResponse callResource(CallResourceRequest request) throws SQLException {
         SessionInfo sessionInfo = request.getSession();
         SessionInfo enhancedSessionInfo = withClusterHealth(sessionInfo);

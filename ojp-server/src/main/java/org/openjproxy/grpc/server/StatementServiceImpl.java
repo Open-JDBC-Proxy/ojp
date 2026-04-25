@@ -11,6 +11,7 @@ import com.openjproxy.grpc.ReadLobRequest;
 import com.openjproxy.grpc.ResultSetFetchRequest;
 import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.SessionTerminationStatus;
+import com.openjproxy.grpc.SetAutoCommitRequest;
 import com.openjproxy.grpc.StatementRequest;
 import com.openjproxy.grpc.StatementServiceGrpc;
 import io.grpc.stub.StreamObserver;
@@ -22,6 +23,7 @@ import org.openjproxy.grpc.server.action.resource.CallResourceAction;
 import org.openjproxy.grpc.server.action.session.TerminateSessionAction;
 import org.openjproxy.grpc.server.action.transaction.CommitTransactionAction;
 import org.openjproxy.grpc.server.action.transaction.RollbackTransactionAction;
+import org.openjproxy.grpc.server.action.transaction.SetAutoCommitAction;
 import org.openjproxy.grpc.server.action.transaction.StartTransactionAction;
 import org.openjproxy.grpc.server.action.xa.XaCommitAction;
 import org.openjproxy.grpc.server.action.xa.XaEndAction;
@@ -235,6 +237,11 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
     public void rollbackTransaction(SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
         RollbackTransactionAction.getInstance()
                 .execute(actionContext, sessionInfo, responseObserver);
+    }
+
+    @Override
+    public void setAutoCommit(SetAutoCommitRequest request, StreamObserver<SessionInfo> responseObserver) {
+        SetAutoCommitAction.getInstance().execute(actionContext, request, responseObserver);
     }
 
     @Override
