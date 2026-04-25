@@ -791,6 +791,98 @@ The multi-datasource feature is fully backward compatible:
 - Existing `ojp.properties` files without datasource prefixes continue to work as "default" datasource
 - No changes required for existing deployments unless you want to use multi-datasource features
 
+## Read/Write Splitting Configuration
+
+OJP supports automatic read/write traffic splitting. Write operations (INSERT, UPDATE, DELETE, DDL) are always routed to the primary datasource. Stateless (auto-commit) read operations (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE) are routed to a replica datasource when read/write splitting is enabled. All operations inside an explicit transaction are always routed to the primary.
+
+Read/write splitting is configured entirely through `ojp.properties`. No server-side configuration changes are needed.
+
+> **Note:** Sticky sessions are **opt-in** (default: `0` — disabled). Do not set a non-zero `stickySessionSeconds` unless your application requires read-your-writes guarantees after writes outside of a transaction.
+
+### Primary Datasource Properties
+
+Use the format `{primaryName}.ojp.readwrite.*` to configure the primary:
+
+| Property | Default | Description |
+|---|---|---|
+| `{primary}.ojp.readwrite.role` | — | Must be `primary` to enable read/write splitting for this datasource |
+| `{primary}.ojp.readwrite.enabled` | `false` | Enable (`true`) or disable read/write splitting for this primary |
+| `{primary}.ojp.readwrite.replicaSelectionStrategy` | `ROUND_ROBIN` | Replica selection strategy: `ROUND_ROBIN`, `RANDOM`, or `LEAST_CONNECTIONS` |
+| `{primary}.ojp.readwrite.stickySessionSeconds` | `0` | Read-your-writes window in seconds. `0` = disabled (opt-in). After a write, reads continue going to the primary for this many seconds before reverting to replica routing |
+| `{primary}.ojp.readwrite.replicaFailoverToPrimary` | `true` | Fall back to the primary when no healthy replica is available |
+
+### Replica Datasource Properties
+
+Use the format `{replicaName}.ojp.*` to configure each replica:
+
+| Property | Default | Description |
+|---|---|---|
+| `{replica}.ojp.readwrite.role` | — | Must be `replica` |
+| `{replica}.ojp.readwrite.primary` | — | Name of the primary datasource this replica belongs to |
+| `{replica}.ojp.connection.url` | — | **Required.** JDBC URL of the replica database |
+| `{replica}.ojp.connection.user` | `""` | Replica database user |
+| `{replica}.ojp.connection.password` | `""` | Replica database password |
+| `{replica}.ojp.pool.maxPoolSize` | `10` | Maximum connections in the replica pool |
+| `{replica}.ojp.pool.minIdle` | `2` | Minimum idle connections |
+| `{replica}.ojp.pool.connectionTimeout` | `30000` | Connection acquire timeout (ms) |
+| `{replica}.ojp.pool.idleTimeout` | `600000` | Idle connection timeout (ms) |
+| `{replica}.ojp.pool.maxLifetime` | `1800000` | Maximum connection lifetime (ms) |
+
+### Example Configuration
+
+```properties
+# Primary datasource (read/write splitting enabled, no sticky session)
+mydb.ojp.readwrite.role=primary
+mydb.ojp.readwrite.enabled=true
+mydb.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN
+# stickySessionSeconds defaults to 0 (disabled) — opt-in only when needed
+
+# Replica 1
+replica1.ojp.readwrite.role=replica
+replica1.ojp.readwrite.primary=mydb
+replica1.ojp.connection.url=jdbc:postgresql://replica1-host:5432/mydb
+replica1.ojp.connection.user=app_ro
+replica1.ojp.connection.password=secret
+replica1.ojp.pool.maxPoolSize=15
+replica1.ojp.pool.minIdle=3
+
+# Replica 2
+replica2.ojp.readwrite.role=replica
+replica2.ojp.readwrite.primary=mydb
+replica2.ojp.connection.url=jdbc:postgresql://replica2-host:5432/mydb
+replica2.ojp.connection.user=app_ro
+replica2.ojp.connection.password=secret
+replica2.ojp.pool.maxPoolSize=15
+replica2.ojp.pool.minIdle=3
+```
+
+### Sticky Sessions (Read-Your-Writes)
+
+Sticky sessions guarantee that a client which just executed a write will continue reading from the primary for a configurable window, giving replicas time to catch up. This is an opt-in behaviour because it introduces latency on the read path and is only necessary when your application requires seeing its own writes immediately outside of a transaction.
+
+```properties
+# Enable 3-second sticky window (reads stay on primary for 3 s after every write)
+mydb.ojp.readwrite.stickySessionSeconds=3
+```
+
+**When to use sticky sessions:**
+- Application executes a write and then immediately queries without a transaction, and must see the write
+- Replication lag is measurable and the application is not latency-sensitive
+
+**When to leave sticky sessions disabled (`0`, the default):**
+- All writes and their subsequent reads are wrapped in the same transaction (the transaction itself guarantees read-your-writes via the primary)
+- The application tolerates eventual consistency for reads outside transactions
+
+### Routing Rules Summary
+
+| Operation | Inside Transaction | Sticky Window Active | Routes To |
+|---|---|---|---|
+| SELECT / WITH / EXPLAIN / SHOW / DESCRIBE | — | — | Replica |
+| SELECT / WITH / EXPLAIN / SHOW / DESCRIBE | ✓ | — | Primary |
+| SELECT / WITH / EXPLAIN / SHOW / DESCRIBE | — | ✓ | Primary |
+| INSERT / UPDATE / DELETE / DDL | — | — | Primary |
+| INSERT / UPDATE / DELETE / DDL | ✓ | — | Primary |
+
 ## Related Documentation
 
 - **[SSL/TLS Certificate Configuration Guide](ssl-tls-certificate-placeholders.md)** - Complete guide for configuring SSL/TLS certificates with property placeholders

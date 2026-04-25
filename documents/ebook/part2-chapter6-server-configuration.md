@@ -430,12 +430,83 @@ export ojp.server.port=9059
 
 The server logs its active configuration at INFO level during startup. Review this output to confirm your settings were applied correctly. If you see unexpected defaults, it means your configuration wasn't recognized—check for typos, case sensitivity, and format issues.
 
+## 6.8 Read/Write Splitting
+
+OJP can automatically route read and write traffic to separate database instances. Write operations (INSERT, UPDATE, DELETE, DDL) always go to the primary. Stateless auto-commit reads (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE) are routed to a replica chosen according to a configurable selection strategy. All operations inside an explicit transaction stay on the primary.
+
+Read/write splitting is configured entirely through the client's `ojp.properties` file — no server-side configuration changes are required. The OJP server reads the `*.ojp.readwrite.*` properties forwarded by the driver on first connection and creates isolated replica connection pools automatically.
+
+### 6.8.1 Enabling Read/Write Splitting
+
+Mark the primary datasource and each replica in `ojp.properties`:
+
+```properties
+# Primary datasource
+mydb.ojp.readwrite.role=primary
+mydb.ojp.readwrite.enabled=true
+mydb.ojp.readwrite.replicaSelectionStrategy=ROUND_ROBIN
+
+# Replica 1
+replica1.ojp.readwrite.role=replica
+replica1.ojp.readwrite.primary=mydb
+replica1.ojp.connection.url=jdbc:postgresql://replica1:5432/mydb
+replica1.ojp.connection.user=app_ro
+replica1.ojp.connection.password=secret
+
+# Replica 2
+replica2.ojp.readwrite.role=replica
+replica2.ojp.readwrite.primary=mydb
+replica2.ojp.connection.url=jdbc:postgresql://replica2:5432/mydb
+replica2.ojp.connection.user=app_ro
+replica2.ojp.connection.password=secret
+```
+
+Three replica selection strategies are available:
+
+- **`ROUND_ROBIN`** (default) — distributes reads evenly across all replicas in order
+- **`RANDOM`** — picks a replica at random for each request
+- **`LEAST_CONNECTIONS`** — selects the replica with fewest active connections (Phase 3)
+
+### 6.8.2 Sticky Sessions (Read-Your-Writes)
+
+Sticky sessions keep reads on the primary for a short window after every write, giving replicas time to catch up. This is **opt-in**: the default `stickySessionSeconds` is `0` (disabled).
+
+```properties
+# Keep reads on primary for 3 seconds after every write
+mydb.ojp.readwrite.stickySessionSeconds=3
+```
+
+> **Important:** Only enable sticky sessions when the application must see its own writes immediately outside of a transaction. If all reads following a write are in the same transaction, the transaction itself already guarantees read-your-writes via the primary, and sticky sessions add unnecessary overhead.
+
+### 6.8.3 Routing Rules
+
+| Operation | Inside Transaction | Sticky Window Active | Routes To |
+|---|---|---|---|
+| SELECT / WITH / EXPLAIN / SHOW / DESCRIBE | — | — | Replica |
+| SELECT / WITH / EXPLAIN / SHOW / DESCRIBE | ✓ | — | Primary |
+| SELECT / WITH / EXPLAIN / SHOW / DESCRIBE | — | ✓ | Primary |
+| INSERT / UPDATE / DELETE / DDL | any | any | Primary |
+
+### 6.8.4 Replica Pool Configuration
+
+Each replica has its own connection pool. Size it to handle peak read traffic independently of the primary pool.
+
+| Property | Default | Description |
+|---|---|---|
+| `{replica}.ojp.pool.maxPoolSize` | `10` | Maximum replica pool size |
+| `{replica}.ojp.pool.minIdle` | `2` | Minimum idle connections |
+| `{replica}.ojp.pool.connectionTimeout` | `30000` | Acquire timeout (ms) |
+| `{replica}.ojp.pool.idleTimeout` | `600000` | Idle connection timeout (ms) |
+| `{replica}.ojp.pool.maxLifetime` | `1800000` | Maximum connection lifetime (ms) |
+
+For the complete property reference see [OJP JDBC Configuration — Read/Write Splitting](../../documents/configuration/ojp-jdbc-configuration.md#readwrite-splitting-configuration).
+
 ## Summary
 
 OJP server configuration gives you precise control over server behavior, security, performance, and observability. The hierarchical configuration system with JVM properties and environment variables provides flexibility for different deployment scenarios. Default settings work well for most use cases, but understanding the available options lets you optimize for your specific workload.
 
-Key configuration areas include core server settings for network and threading, security controls through IP whitelisting, logging levels for operational visibility, OpenTelemetry integration for observability, circuit breakers for resilience, and slow query segregation for performance under mixed workloads. Each area offers sensible defaults that you can refine based on monitoring data.
+Key configuration areas include core server settings for network and threading, security controls through IP whitelisting, logging levels for operational visibility, OpenTelemetry integration for observability, circuit breakers for resilience, slow query segregation for performance under mixed workloads, and read/write splitting for scaling read traffic across replicas. Each area offers sensible defaults that you can refine based on monitoring data.
 
 Start simple, monitor closely, and adjust based on observed behavior. Good configuration emerges from understanding your workload and using OJP's flexibility to match it, not from cargo-culting settings from other environments.
 
-**[IMAGE PROMPT: Create a summary mind map with "OJP Server Configuration" at the center. Six main branches radiating outward: "Core Settings" (server icon), "Security" (lock icon), "Logging" (document icon), "Telemetry" (graph icon), "Circuit Breaker" (shield icon), and "Slow Query Segregation" (speedometer icon). Each branch has 2-3 sub-branches with key points. Use colors to group related concepts and make it visually hierarchical. Style: Modern mind map with icons and color coding.]**
+**[IMAGE PROMPT: Create a summary mind map with "OJP Server Configuration" at the center. Seven main branches radiating outward: "Core Settings" (server icon), "Security" (lock icon), "Logging" (document icon), "Telemetry" (graph icon), "Circuit Breaker" (shield icon), "Slow Query Segregation" (speedometer icon), and "Read/Write Splitting" (fork/branch icon). Each branch has 2-3 sub-branches with key points. Use colors to group related concepts and make it visually hierarchical. Style: Modern mind map with icons and color coding.]**
