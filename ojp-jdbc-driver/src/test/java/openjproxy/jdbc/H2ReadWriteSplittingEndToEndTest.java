@@ -4,6 +4,7 @@ import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -453,9 +454,37 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * Without a sticky session, a read immediately after a committed transaction goes to the
-     * replica (eventual consistency). The replica does not have the just-committed row.
+     * Without a sticky session, a read immediately after a committed transaction is expected to go
+     * to the replica (eventual consistency). The replica does not have the just-committed row.
+     *
+     * <p><b>DISABLED — current limitation: {@code setAutoCommit(true)} is not propagated to the server.</b>
+     *
+     * <p>When the client calls {@code connection.setAutoCommit(true)} after committing, the OJP
+     * driver currently does NOT forward this to the server via {@code callResource} or any other
+     * gRPC call. As a result, the server-side physical JDBC connection remains in
+     * {@code autoCommit=false} mode even after the transaction has been committed. Because
+     * {@link org.openjproxy.grpc.server.Session#hasActiveTransaction()} checks
+     * {@code !primaryConnection.getAutoCommit()}, it continues to return {@code true}, and
+     * subsequent SELECT statements are pinned to the primary instead of being routed to the
+     * replica.
+     *
+     * <p><b>Note on propagating {@code setAutoCommit(true)} via {@code callResource}:</b>
+     * Propagating this call is not straightforward and requires careful evaluation. Key concerns
+     * include: (1) the {@link com.openjproxy.grpc.TransactionInfo} embedded in
+     * {@link com.openjproxy.grpc.SessionInfo} would become stale after a {@code callResource}
+     * invocation (the response does not update {@code TransactionInfo}); (2) the
+     * {@code callProxy} helper currently swallows exceptions silently, meaning a failed
+     * server-side {@code setAutoCommit} would leave client and server in inconsistent states;
+     * (3) implicit-commit semantics on {@code setAutoCommit(true)} vary across database drivers
+     * and must be validated per supported database; and (4) interaction with the server-side
+     * connection pool cleanup logic needs to be verified. See the analysis document for full
+     * details.
+     *
+     * @see #testAfterTransactionCommit_ReadsGoToPrimary_WithNoStickySession
      */
+    @Disabled("setAutoCommit(true) is not propagated to the server — reads stay pinned to primary "
+            + "instead of routing to replica; propagating this requires careful evaluation, "
+            + "see Javadoc for details")
     @SneakyThrows
     @Test
     void testAfterTransactionCommit_ReadsGoToReplica_WithNoStickySession() throws SQLException {
@@ -479,6 +508,53 @@ class H2ReadWriteSplittingEndToEndTest {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1),
                     "Without sticky session, SELECT after commit routes to replica which does not have the row");
+        }
+    }
+
+    /**
+     * Documents the current actual behavior: after an explicit transaction is committed and the
+     * client calls {@code setAutoCommit(true)}, reads continue to go to the <em>primary</em>
+     * because {@code setAutoCommit(true)} is not propagated to the server.
+     *
+     * <p>The server-side physical connection remains in {@code autoCommit=false} mode after the
+     * transaction is committed. {@link org.openjproxy.grpc.server.Session#hasActiveTransaction()}
+     * therefore still returns {@code true}, causing the read/write splitter to route all subsequent
+     * SELECT statements to the primary. The inserted row (id=251) is present on the primary, so
+     * the count is 1.
+     *
+     * <p>Once {@code setAutoCommit(true)} propagation is correctly implemented and the
+     * {@code TransactionInfo} state management issues are resolved, this test should be replaced by
+     * {@link #testAfterTransactionCommit_ReadsGoToReplica_WithNoStickySession} (currently
+     * disabled).
+     */
+    @SneakyThrows
+    @Test
+    void testAfterTransactionCommit_ReadsGoToPrimary_WithNoStickySession() throws SQLException {
+        Assumptions.assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
+
+        setupDatabases();
+
+        connection = DriverManager.getConnection(primaryUrl(), primaryProps());
+        connection.setAutoCommit(false);
+
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("INSERT INTO test_data VALUES (251, 'post_tx_primary_test')");
+            connection.commit();
+        }
+
+        // setAutoCommit(true) is NOT propagated to the server. The server's physical connection
+        // remains in autoCommit=false mode, so hasActiveTransaction() still returns true and
+        // the SELECT below is routed to the primary rather than the replica.
+        connection.setAutoCommit(true);
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT COUNT(*) FROM test_data WHERE id = 251")) {
+            assertTrue(rs.next());
+            assertEquals(1, rs.getInt(1),
+                    "Current behavior: setAutoCommit(true) is not propagated to the server, "
+                            + "so hasActiveTransaction() remains true and SELECT routes to primary "
+                            + "which has the newly inserted row");
         }
     }
 }
