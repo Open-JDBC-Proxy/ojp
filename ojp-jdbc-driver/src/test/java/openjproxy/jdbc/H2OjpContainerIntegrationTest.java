@@ -1,6 +1,7 @@
 package openjproxy.jdbc;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openjproxy.testcontainers.OjpContainer;
@@ -22,9 +23,13 @@ class H2OjpContainerIntegrationTest {
 
     private static OjpContainer ojpContainer;
     private static String ojpConnectionString;
+    private static boolean isH2TestEnabled;
 
     @BeforeAll
     static void setupClass() {
+        isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
+        Assumptions.assumeTrue(isH2TestEnabled, "H2 tests are disabled. Enable with -DenableH2Tests=true");
+
         // Start OJP container
         ojpContainer = new OjpContainer();
         ojpContainer.start();
