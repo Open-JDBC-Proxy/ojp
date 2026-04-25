@@ -71,12 +71,9 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
 
         // Read/write splitting: route reads to a replica when applicable
         DataSource replicaDs = resolveReadReplicaDataSource(actionContext, request);
-        // Do not create a new server-side session for stateless (autoCommit) SELECTs.
-        // Using startSessionIfNone=false prevents a session UUID from being returned to the
-        // driver, which would otherwise cause subsequent requests to be treated as in-session
-        // (blocking replica routing even after the sticky-session window expires).
-        // Existing-session (transactional) SELECTs already arrive with a non-blank UUID and
-        // follow the existing-session branch, so they are unaffected by this change.
+        // Use startSessionIfNone=false so stateless (autoCommit) SELECTs do not create a
+        // server-side session; avoids a session UUID leaking to the driver and blocking
+        // replica routing on subsequent requests (e.g. after sticky-session expiry).
         ConnectionSessionDTO dto = sessionConnection(actionContext, request.getSession(), false, replicaDs);
         if (replicaDs != null) {
             log.debug("Read/write splitting: routed SELECT to replica for connHash={}",
