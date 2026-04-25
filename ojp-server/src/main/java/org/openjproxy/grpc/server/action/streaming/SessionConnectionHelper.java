@@ -214,7 +214,7 @@ public class SessionConnectionHelper {
                     DataSource dataSource;
                     
                     // Determine which datasource to use based on connection type
-                    if (connectionType == ConnectionType.READ_REPLICA) {
+                    if (connectionType == ConnectionType.READ_REPLICA && connHash != null) {
                         // Try to get replica datasource for read/write splitting
                         ReadWriteDataSourceRegistry registry = context.getReadWriteDataSourceRegistry();
                         String primaryName = registry.getPrimaryName(connHash);
@@ -232,7 +232,7 @@ public class SessionConnectionHelper {
                             log.debug("No replicas available for hash: {}, falling back to PRIMARY datasource", connHash);
                         }
                     } else {
-                        // PRIMARY connection type - use primary datasource
+                        // PRIMARY connection type or null connHash - use primary datasource
                         dataSource = context.getDatasourceMap().get(connHash);
                     }
                     
