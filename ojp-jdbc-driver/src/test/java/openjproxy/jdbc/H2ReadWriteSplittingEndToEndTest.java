@@ -298,7 +298,8 @@ class H2ReadWriteSplittingEndToEndTest {
         }
 
         try (Connection verify = DriverManager.getConnection(primaryUrl(), primaryProps())) {
-            // Force routing to primary so we verify the primary was actually modified.
+            // Force routing to primary (transactions always route to primary) so we verify
+            // the primary was actually modified and not the replica.
             verify.setAutoCommit(false);
             try (Statement s = verify.createStatement();
                  ResultSet rs = s.executeQuery(

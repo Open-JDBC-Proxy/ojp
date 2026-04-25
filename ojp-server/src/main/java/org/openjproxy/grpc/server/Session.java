@@ -277,7 +277,8 @@ public class Session {
             DataSource ds = (replicaDataSource != null) ? replicaDataSource : fallbackReplicaDs;
             if (ds != null) {
                 replicaConnection = ds.getConnection();
-                log.debug("Lazily acquired replica connection for session {}", sessionUUID);
+                log.debug("Lazily acquired replica connection from {} datasource for session {}",
+                        (replicaDataSource != null) ? "instance" : "fallback", sessionUUID);
             }
         }
         return replicaConnection;
