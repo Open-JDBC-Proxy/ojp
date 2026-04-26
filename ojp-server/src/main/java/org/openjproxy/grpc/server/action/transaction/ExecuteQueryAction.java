@@ -87,10 +87,14 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                         + ". Cannot obtain replica connection.");
             }
             execConn = activeSession.getOrCreateReplicaConnection(replicaDs);
-            log.debug("Read/write splitting: routed SELECT to replica for connHash={}",
-                    request.getSession().getConnHash());
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] executeQueryInternal: using REPLICA connection for sessionUUID={}, connHash={}",
+                    dto.getSession().getSessionUUID(), request.getSession().getConnHash());
         } else {
             execConn = dto.getConnection();
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] executeQueryInternal: using PRIMARY connection for sessionUUID={}, connHash={}",
+                    dto.getSession().getSessionUUID(), request.getSession().getConnHash());
         }
 
         // Build an execution DTO with the resolved connection so StatementFactory and
@@ -230,30 +234,45 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
             return null;
         }
 
+        String sessionUUID = request.getSession().getSessionUUID();
+        String connHash = request.getSession().getConnHash();
+        // TODO: change to DEBUG before merging
+        log.info("[RW-SPLIT] resolveReadReplicaDataSource: connHash={}, sessionUUID={}, sql={}",
+                connHash, sessionUUID,
+                request.getSql().length() > 60 ? request.getSql().substring(0, 60) + "..." : request.getSql());
+
         // Block replica routing only when there is an active transaction on the primary.
         // A session UUID being present is not sufficient — it may come from a previous
         // autoCommit SELECT.  We check the actual transaction state via hasActiveTransaction()
         // which does NOT trigger lazy primary connection acquisition.
-        if (StringUtils.isNotBlank(request.getSession().getSessionUUID())) {
+        if (StringUtils.isNotBlank(sessionUUID)) {
             Session existingSession = context.getSessionManager().getSession(request.getSession());
             if (existingSession == null) {
                 // Session has expired or been invalidated; fall back to primary to avoid
                 // routing to replica with unknown session state.
+                // TODO: change to DEBUG before merging
+                log.info("[RW-SPLIT] session not found for UUID={}, routing to primary", sessionUUID);
                 return null;
             }
             if (existingSession.hasActiveTransaction()) {
+                // TODO: change to DEBUG before merging
+                log.info("[RW-SPLIT] active transaction on session={}, routing to primary", sessionUUID);
                 return null;  // active transaction → must stay on primary
             }
         }
 
         // Only route read-only SQL to replicas
-        if (ReadWriteSqlClassifier.classify(request.getSql()) != ReadWriteSqlClassifier.QueryType.READ) {
+        ReadWriteSqlClassifier.QueryType queryType = ReadWriteSqlClassifier.classify(request.getSql());
+        if (queryType != ReadWriteSqlClassifier.QueryType.READ) {
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] SQL classified as {}, routing to primary (connHash={})", queryType, connHash);
             return null;
         }
 
-        String connHash = request.getSession().getConnHash();
         String primaryName = registry.getPrimaryName(connHash);
         if (primaryName == null) {
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] no primary mapping for connHash={}, routing to primary", connHash);
             return null;
         }
 
@@ -265,9 +284,15 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
 
         List<DataSource> replicas = registry.getReplicas(primaryName);
         if (replicas.isEmpty()) {
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] no replicas registered for primary='{}', routing to primary", primaryName);
             return null;
         }
 
-        return REPLICA_SELECTOR.select(primaryName, replicas, registry.getStrategy(primaryName));
+        DataSource selected = REPLICA_SELECTOR.select(primaryName, replicas, registry.getStrategy(primaryName));
+        // TODO: change to DEBUG before merging
+        log.info("[RW-SPLIT] routed READ to replica for primary='{}', connHash={}, sessionUUID={}",
+                primaryName, connHash, sessionUUID);
+        return selected;
     }
 }

@@ -198,7 +198,9 @@ public class ReadWriteDataSourceRegistry {
             return;
         }
         lastWriteTimestamps.put(primaryName, System.currentTimeMillis());
-        log.debug("Marked write for sticky session on primary '{}'", primaryName);
+        // TODO: change to DEBUG before merging
+        log.info("[RW-SPLIT] markWrite: sticky session started for primary='{}', timeout={}s",
+                primaryName, stickyTimeoutMap.getOrDefault(primaryName, 0));
     }
 
     /**
@@ -219,14 +221,23 @@ public class ReadWriteDataSourceRegistry {
         }
         int timeoutSeconds = stickyTimeoutMap.getOrDefault(primaryName, 0);
         if (timeoutSeconds <= 0) {
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] isStickyActive: primary='{}', timeoutSeconds={} (disabled), sticky=false",
+                    primaryName, timeoutSeconds);
             return false;
         }
         Long lastWrite = lastWriteTimestamps.get(primaryName);
         if (lastWrite == null) {
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] isStickyActive: primary='{}', no write timestamp recorded, sticky=false", primaryName);
             return false;
         }
         long elapsed = System.currentTimeMillis() - lastWrite;
-        return elapsed < (long) timeoutSeconds * 1000;
+        boolean active = elapsed < (long) timeoutSeconds * 1000;
+        // TODO: change to DEBUG before merging
+        log.info("[RW-SPLIT] isStickyActive: primary='{}', elapsedMs={}, timeoutMs={}, sticky={}",
+                primaryName, elapsed, (long) timeoutSeconds * 1000, active);
+        return active;
     }
 
     /**

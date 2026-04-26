@@ -277,9 +277,17 @@ public class Session {
             DataSource ds = (replicaDataSource != null) ? replicaDataSource : fallbackReplicaDs;
             if (ds != null) {
                 replicaConnection = ds.getConnection();
-                log.debug("Lazily acquired replica connection from {} datasource for session {}",
+                // TODO: change to DEBUG before merging
+                log.info("[RW-SPLIT] getOrCreateReplicaConnection: CREATED new replica connection from {} datasource for session={}",
                         (replicaDataSource != null) ? "instance" : "fallback", sessionUUID);
+            } else {
+                // TODO: change to DEBUG before merging
+                log.info("[RW-SPLIT] getOrCreateReplicaConnection: no datasource available (replicaDataSource=null, fallback=null) for session={}",
+                        sessionUUID);
             }
+        } else {
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] getOrCreateReplicaConnection: REUSING existing replica connection for session={}", sessionUUID);
         }
         return replicaConnection;
     }
@@ -298,10 +306,16 @@ public class Session {
      */
     public synchronized boolean hasActiveTransaction() {
         if (primaryConnection == null) {
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] hasActiveTransaction: primaryConnection is null, returning false for session={}", sessionUUID);
             return false;
         }
         try {
-            return !primaryConnection.getAutoCommit();
+            boolean active = !primaryConnection.getAutoCommit();
+            // TODO: change to DEBUG before merging
+            log.info("[RW-SPLIT] hasActiveTransaction: session={}, autoCommit={}, hasActiveTransaction={}",
+                    sessionUUID, !active, active);
+            return active;
         } catch (SQLException e) {
             // Safety: assume transaction present if we cannot determine
             log.warn("Could not determine autoCommit state for session {}; assuming active transaction", sessionUUID);
