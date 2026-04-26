@@ -18,6 +18,7 @@ import java.util.Collection;
 public interface SessionManager {
     void registerClientUUID(String connectionHash, String clientUUID);
     SessionInfo createSession(String clientUUID, Connection connection);
+    SessionInfo createSession(String clientUUID, String connHash, Connection connection);
     /**
      * Creates a lazy dual-datasource session.  No JDBC connections are acquired
      * at creation time; they are obtained on demand when
@@ -30,6 +31,19 @@ public interface SessionManager {
      * @return the new session info
      */
     SessionInfo createSession(String clientUUID, DataSource primaryDataSource, DataSource replicaDataSource);
+    /**
+     * Creates a lazy dual-datasource session with an explicitly supplied connection hash.
+     * Use this overload when the caller already holds the primary's {@code connHash}
+     * (e.g. from the driver's request) to avoid relying on the potentially stale
+     * {@code connectionHashMap} lookup.
+     *
+     * @param clientUUID        the client identifier
+     * @param connHash          the primary's connection hash (from the driver request)
+     * @param primaryDataSource datasource for the primary database
+     * @param replicaDataSource datasource for the read replica; {@code null} when no replica is configured
+     * @return the new session info
+     */
+    SessionInfo createSession(String clientUUID, String connHash, DataSource primaryDataSource, DataSource replicaDataSource);
     SessionInfo createXASession(String clientUUID, Connection connection, XAConnection xaConnection);
     SessionInfo createDeferredXASession(String clientUUID, String connectionHash);
     Session getSession(SessionInfo sessionInfo);

@@ -208,7 +208,8 @@ public class SessionConnectionHelper {
                         // obtain the replica connection via session.getOrCreateReplicaConnection().
                         if (startSessionIfNone) {
                             SessionInfo updatedSession = sessionManager.createSession(
-                                    sessionInfo.getClientUUID(), primaryDataSource, replicaDataSource);
+                                    sessionInfo.getClientUUID(), sessionInfo.getConnHash(),
+                                    primaryDataSource, replicaDataSource);
                             dtoBuilder.session(updatedSession);
                         }
                         // conn remains null — caller must resolve the connection from the session
@@ -227,7 +228,8 @@ public class SessionConnectionHelper {
                         }
 
                         if (startSessionIfNone) {
-                            SessionInfo updatedSession = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                            SessionInfo updatedSession = sessionManager.createSession(
+                                    sessionInfo.getClientUUID(), sessionInfo.getConnHash(), conn);
                             dtoBuilder.session(updatedSession);
                         }
                     }

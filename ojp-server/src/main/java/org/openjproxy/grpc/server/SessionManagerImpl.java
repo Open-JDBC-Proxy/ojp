@@ -62,11 +62,31 @@ public class SessionManagerImpl implements SessionManager {
     }
 
     @Override
+    public SessionInfo createSession(String clientUUID, String connHash, Connection connection) {
+        log.info("Create session for client uuid {} with connHash {}", clientUUID, connHash);
+        CacheConfiguration cacheConfig = getCacheConfiguration(connHash);
+        Session session = new Session(connection, connHash, clientUUID, false, null, cacheConfig);
+        log.info("Session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
+        this.sessionMap.put(session.getSessionUUID(), session);
+        return session.getSessionInfo();
+    }
+
+    @Override
     public SessionInfo createSession(String clientUUID, DataSource primaryDataSource, DataSource replicaDataSource) {
         log.info("Create lazy dual-datasource session for client uuid {}", clientUUID);
         String connectionHash = connectionHashMap.get(clientUUID);
         CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
         Session session = new Session(primaryDataSource, replicaDataSource, connectionHash, clientUUID, cacheConfig);
+        log.info("Lazy session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
+        this.sessionMap.put(session.getSessionUUID(), session);
+        return session.getSessionInfo();
+    }
+
+    @Override
+    public SessionInfo createSession(String clientUUID, String connHash, DataSource primaryDataSource, DataSource replicaDataSource) {
+        log.info("Create lazy dual-datasource session for client uuid {} with connHash {}", clientUUID, connHash);
+        CacheConfiguration cacheConfig = getCacheConfiguration(connHash);
+        Session session = new Session(primaryDataSource, replicaDataSource, connHash, clientUUID, cacheConfig);
         log.info("Lazy session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();

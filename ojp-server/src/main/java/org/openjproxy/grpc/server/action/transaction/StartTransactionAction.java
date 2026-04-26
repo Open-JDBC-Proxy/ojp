@@ -75,7 +75,7 @@ public class StartTransactionAction implements Action<SessionInfo, SessionInfo> 
             // Start a session if none started yet.
             if (StringUtils.isEmpty(sessionInfo.getSessionUUID())) {
                 Connection conn = context.getDatasourceMap().get(sessionInfo.getConnHash()).getConnection();
-                activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), conn);
+                activeSessionInfo = sessionManager.createSession(sessionInfo.getClientUUID(), sessionInfo.getConnHash(), conn);
                 // Preserve targetServer from incoming request
                 activeSessionInfo = SessionInfoUtils.withTargetServer(activeSessionInfo, getTargetServer(sessionInfo));
             }
