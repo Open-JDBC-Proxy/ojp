@@ -472,13 +472,10 @@ class H2ReadWriteSplittingEndToEndTest {
      * Propagating this call is not straightforward and requires careful evaluation. Key concerns
      * include: (1) the {@link com.openjproxy.grpc.TransactionInfo} embedded in
      * {@link com.openjproxy.grpc.SessionInfo} would become stale after a {@code callResource}
-     * invocation (the response does not update {@code TransactionInfo}); (2) the
-     * {@code callProxy} helper currently swallows exceptions silently, meaning a failed
-     * server-side {@code setAutoCommit} would leave client and server in inconsistent states;
-     * (3) implicit-commit semantics on {@code setAutoCommit(true)} vary across database drivers
-     * and must be validated per supported database; and (4) interaction with the server-side
-     * connection pool cleanup logic needs to be verified. See the analysis document for full
-     * details.
+     * invocation (the response does not update {@code TransactionInfo}); (2) implicit-commit
+     * semantics on {@code setAutoCommit(true)} vary across database drivers and must be
+     * validated per supported database; and (3) interaction with the server-side connection pool
+     * cleanup logic needs to be verified. See the analysis document for full details.
      *
      * @see #testAfterTransactionCommit_ReadsGoToPrimary_WithNoStickySession
      */
@@ -512,20 +509,14 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * Documents the current actual behavior: after an explicit transaction is committed and the
-     * client calls {@code setAutoCommit(true)}, reads continue to go to the <em>primary</em>
-     * because {@code setAutoCommit(true)} is not propagated to the server.
+     * Documents the current actual behavior: after an explicit transaction is committed, reads
+     * continue to go to the <em>primary</em> because the connection remains in
+     * {@code autoCommit=false} mode and the read/write splitter sees an active transaction.
      *
-     * <p>The server-side physical connection remains in {@code autoCommit=false} mode after the
-     * transaction is committed. {@link org.openjproxy.grpc.server.Session#hasActiveTransaction()}
-     * therefore still returns {@code true}, causing the read/write splitter to route all subsequent
-     * SELECT statements to the primary. The inserted row (id=251) is present on the primary, so
-     * the count is 1.
-     *
-     * <p>Once {@code setAutoCommit(true)} propagation is correctly implemented and the
-     * {@code TransactionInfo} state management issues are resolved, this test should be replaced by
-     * {@link #testAfterTransactionCommit_ReadsGoToReplica_WithNoStickySession} (currently
-     * disabled).
+     * <p>{@link org.openjproxy.grpc.server.Session#hasActiveTransaction()} checks
+     * {@code !primaryConnection.getAutoCommit()}, which still returns {@code true} after the
+     * commit, causing all subsequent SELECT statements to be routed to the primary.
+     * The inserted row (id=251) is present on the primary, so the count is 1.
      */
     @SneakyThrows
     @Test
@@ -542,18 +533,13 @@ class H2ReadWriteSplittingEndToEndTest {
             connection.commit();
         }
 
-        // setAutoCommit(true) is NOT propagated to the server. The server's physical connection
-        // remains in autoCommit=false mode, so hasActiveTransaction() still returns true and
-        // the SELECT below is routed to the primary rather than the replica.
-        connection.setAutoCommit(true);
-
         try (Statement stmt = connection.createStatement();
              ResultSet rs = stmt.executeQuery(
                      "SELECT COUNT(*) FROM test_data WHERE id = 251")) {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt(1),
-                    "Current behavior: setAutoCommit(true) is not propagated to the server, "
-                            + "so hasActiveTransaction() remains true and SELECT routes to primary "
+                    "Current behavior: connection is in autoCommit=false mode, "
+                            + "so hasActiveTransaction() returns true and SELECT routes to primary "
                             + "which has the newly inserted row");
         }
     }
