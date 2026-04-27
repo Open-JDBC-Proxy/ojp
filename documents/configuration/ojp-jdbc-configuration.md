@@ -807,7 +807,7 @@ Use the format `{primaryName}.ojp.readwrite.*` to configure the primary:
 |---|---|---|
 | `{primary}.ojp.readwrite.role` | — | Must be `primary` to enable read/write splitting for this datasource |
 | `{primary}.ojp.readwrite.enabled` | `false` | Enable (`true`) or disable read/write splitting for this primary |
-| `{primary}.ojp.readwrite.replicaSelectionStrategy` | `ROUND_ROBIN` | Replica selection strategy: `ROUND_ROBIN`, `RANDOM`, or `LEAST_CONNECTIONS` |
+| `{primary}.ojp.readwrite.replicaSelectionStrategy` | `ROUND_ROBIN` | Replica selection strategy: `ROUND_ROBIN` or `RANDOM`. `LEAST_CONNECTIONS` is accepted but currently falls back to `ROUND_ROBIN`; metrics-based selection is planned for a future phase. |
 | `{primary}.ojp.readwrite.stickySessionSeconds` | `0` | Read-your-writes window in seconds. `0` = disabled (opt-in). After a write, reads continue going to the primary for this many seconds before reverting to replica routing |
 | `{primary}.ojp.readwrite.replicaFailoverToPrimary` | `true` | Fall back to the primary when no healthy replica is available |
 
