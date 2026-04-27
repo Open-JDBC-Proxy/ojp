@@ -77,7 +77,7 @@ class ReadWriteDataSourceRegistryTest {
     }
 
     @Test
-    void shouldExpireAfterTimeoutElapses() throws InterruptedException {
+    void shouldExpireAfterTimeoutElapses() {
         registry.registerStickyTimeout("primary", 0); // 0 = immediately inactive
         registry.markWrite("primary");
         assertFalse(registry.isStickyActive("primary"),
