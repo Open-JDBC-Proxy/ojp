@@ -37,8 +37,7 @@ public class ReadWriteDataSourceManager {
             return false;
         }
 
-        Properties props = convertPropertiesToJava(connectionDetails.getPropertiesList());
-        ReadWriteConfiguration config = ReadWriteConfigurationParser.parseForPrimary(datasourceName, props);
+        ReadWriteConfiguration config = parseReadWriteConfig(connectionDetails, datasourceName).config;
 
         return config != null && config.isEnabled() && !config.getReplicaNames().isEmpty();
     }
@@ -71,9 +70,10 @@ public class ReadWriteDataSourceManager {
             return null;
         }
 
-        // Parse configuration
-        Properties props = convertPropertiesToJava(connectionDetails.getPropertiesList());
-        ReadWriteConfiguration config = ReadWriteConfigurationParser.parseForPrimary(datasourceName, props);
+        // Parse configuration (converts gRPC properties to Java Properties once)
+        ParsedConfig parsed = parseReadWriteConfig(connectionDetails, datasourceName);
+        ReadWriteConfiguration config = parsed.config;
+        Properties props = parsed.props;
 
         if (config == null || !config.isEnabled()) {
             log.debug("Read/write splitting not enabled for datasource '{}'", datasourceName);
@@ -177,6 +177,27 @@ public class ReadWriteDataSourceManager {
         } catch (Exception e) {
             log.error("Failed to create datasource for replica '{}': {}", replicaName, e.getMessage(), e);
             return null;
+        }
+    }
+
+    /**
+     * Converts gRPC PropertyEntry list to Java Properties object and parses the read/write configuration.
+     * Centralises the conversion so it is performed exactly once per public API call.
+     */
+    private ParsedConfig parseReadWriteConfig(ConnectionDetails connectionDetails, String datasourceName) {
+        Properties props = convertPropertiesToJava(connectionDetails.getPropertiesList());
+        ReadWriteConfiguration config = ReadWriteConfigurationParser.parseForPrimary(datasourceName, props);
+        return new ParsedConfig(config, props);
+    }
+
+    /** Holder for a parsed {@link ReadWriteConfiguration} together with the already-converted properties. */
+    private static final class ParsedConfig {
+        private final ReadWriteConfiguration config;
+        private final Properties props;
+
+        ParsedConfig(ReadWriteConfiguration config, Properties props) {
+            this.config = config;
+            this.props = props;
         }
     }
 
