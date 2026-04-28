@@ -132,16 +132,17 @@ public class OracleSavepointTests {
 
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (2, 'Bob')");
         
-        // Release the savepoint
-        connection.releaseSavepoint(savepoint);
-        
-        // After releasing, we can't rollback to it, but data should remain
+        // Oracle does not support releaseSavepoint (ORA-17023: Unsupported feature).
+        // The savepoint remains active after the failed release.
+        assertThrows(SQLException.class, () -> connection.releaseSavepoint(savepoint));
+
+        // Both rows remain because releaseSavepoint failed and no rollback occurred
         ResultSet resultSet = connection.createStatement().executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
         assertTrue(resultSet.next());
         assertEquals(2, resultSet.getInt("cnt")); // Should have both Alice and Bob
         resultSet.close();
-        
-        // Trying to rollback to released savepoint should throw exception
+
+        // Savepoint is still active after the failed release; rollback to it succeeds
         connection.rollback(savepoint);
     }
 
@@ -157,10 +158,11 @@ public class OracleSavepointTests {
         
         // Commit the transaction
         connection.commit();
-        
-        // After commit, savepoint should be invalid
-        connection.rollback(savepoint);
-        
+
+        // After commit Oracle invalidates all savepoints (ORA-01086: savepoint never established
+        // or is invalid). Rolling back to a post-commit savepoint must throw.
+        assertThrows(SQLException.class, () -> connection.rollback(savepoint));
+
         // Data should still be there after commit
         ResultSet resultSet = connection.createStatement().executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
         assertTrue(resultSet.next());
@@ -187,8 +189,8 @@ public class OracleSavepointTests {
         assertEquals("test_sp", namedSp.getSavepointName());
         assertThrows(SQLException.class, () -> namedSp.getSavepointId());
         
-        // Clean up
-        connection.releaseSavepoint(unnamedSp);
-        connection.releaseSavepoint(namedSp);
+        // Clean up - Oracle does not support releaseSavepoint (ORA-17023)
+        assertThrows(SQLException.class, () -> connection.releaseSavepoint(unnamedSp));
+        assertThrows(SQLException.class, () -> connection.releaseSavepoint(namedSp));
     }
 }

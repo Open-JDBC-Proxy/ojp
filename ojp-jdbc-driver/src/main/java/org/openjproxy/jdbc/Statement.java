@@ -1,6 +1,5 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
@@ -503,13 +502,13 @@ public class Statement implements java.sql.Statement {
         if (Void.class.equals(returnType)) {
             return null;
         }
-        
+
         // Convert ParameterValue list back to the expected type
         List<ParameterValue> values = response.getValuesList();
         if (values.isEmpty()) {
             return null;
         }
-        
+
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
     }

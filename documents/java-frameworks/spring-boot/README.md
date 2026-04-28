@@ -58,6 +58,9 @@ That is all! The starter automatically sets:
 - `spring.datasource.driver-class-name=org.openjproxy.jdbc.Driver`
 - `spring.datasource.type=org.springframework.jdbc.datasource.SimpleDriverDataSource`
 
+> See [OJP JDBC Configuration](../../configuration/ojp-jdbc-configuration.md) for the full list of
+> settings.
+
 ### 3. JPA / Hibernate DDL tip: surface schema errors eagerly
 
 When Hibernate is configured to create or update the schema (`spring.jpa.hibernate.ddl-auto=create`,

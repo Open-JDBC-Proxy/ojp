@@ -12,7 +12,7 @@ import java.util.List;
  */
 public class IpWhitelistValidator {
     private static final Logger logger = LoggerFactory.getLogger(IpWhitelistValidator.class);
-    
+
     /**
      * Constant representing "allow all" CIDR range.
      */
@@ -40,18 +40,18 @@ public class IpWhitelistValidator {
 
         try {
             InetAddress clientAddress = InetAddress.getByName(clientIp);
-            
+
             for (String allowedRule : allowedIps) {
                 if (matchesIpRule(clientAddress, allowedRule.trim())) {
                     logger.debug("IP {} matches rule: {}", clientIp, allowedRule);
                     return true;
                 }
             }
-            
+
             // Log warning when denying access for audit purposes
             logger.warn("Access denied - IP {} not found in whitelist. Configured whitelist: {}", clientIp, allowedIps);
             return false;
-            
+
         } catch (UnknownHostException e) {
             logger.warn("Invalid client IP address: {}", clientIp);
             return false;
@@ -105,13 +105,13 @@ public class IpWhitelistValidator {
             // Convert addresses to integers for bitwise operations
             int clientInt = bytesToInt(clientAddress.getAddress());
             int networkInt = bytesToInt(networkAddress.getAddress());
-            
+
             // Create subnet mask
             int mask = 0xFFFFFFFF << (32 - prefixLength);
-            
+
             // Check if client IP is in the network
             return (clientInt & mask) == (networkInt & mask);
-            
+
         } catch (NumberFormatException | UnknownHostException e) {
             logger.warn("Error parsing CIDR range: {}", cidr, e);
             return false;
@@ -123,13 +123,13 @@ public class IpWhitelistValidator {
      * This method is used for CIDR range calculations where IP addresses need to be
      * compared numerically. Each byte is treated as an unsigned value (0-255) and
      * positioned according to network byte order (big-endian).
-     * 
+     *
      * @param bytes 4-byte array representing IPv4 address octets
      * @return 32-bit integer representation of the IP address
-     * 
+     *
      * @examples
      * - IP 192.168.1.1 (bytes: [192, 168, 1, 1]) → 3232235777
-     * - IP 10.0.0.1 (bytes: [10, 0, 0, 1]) → 167772161  
+     * - IP 10.0.0.1 (bytes: [10, 0, 0, 1]) → 167772161
      * - IP 127.0.0.1 (bytes: [127, 0, 0, 1]) → 2130706433
      */
     private static int bytesToInt(byte[] bytes) {
@@ -141,7 +141,7 @@ public class IpWhitelistValidator {
 
     /**
      * Validates the format of IP whitelist rules.
-     * 
+     *
      * @param allowedIps list of IP rules to validate
      * @return true if all rules are valid, false otherwise
      */
@@ -174,7 +174,7 @@ public class IpWhitelistValidator {
                 if (parts.length != 2) {
                     return false;
                 }
-                
+
                 InetAddress.getByName(parts[0]); // Validate IP part
                 int prefixLength = Integer.parseInt(parts[1]); // Validate prefix
                 return prefixLength >= 0 && prefixLength <= 32;

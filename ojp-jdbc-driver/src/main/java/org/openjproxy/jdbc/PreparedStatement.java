@@ -1,12 +1,9 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
 import com.openjproxy.grpc.DbName;
-import com.openjproxy.grpc.LobReference;
-import com.openjproxy.grpc.LobType;
 import com.openjproxy.grpc.OpResult;
 import com.openjproxy.grpc.ParameterValue;
 import com.openjproxy.grpc.ResourceType;
@@ -48,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.List;
 
 import static org.openjproxy.grpc.dto.ParameterType.ARRAY;
 import static org.openjproxy.grpc.dto.ParameterType.ASCII_STREAM;
@@ -931,13 +927,13 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
         if (Void.class.equals(returnType)) {
             return null;
         }
-        
+
         // Convert ParameterValue list back to the expected type
         List<ParameterValue> values = response.getValuesList();
         if (values.isEmpty()) {
             return null;
         }
-        
+
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
     }

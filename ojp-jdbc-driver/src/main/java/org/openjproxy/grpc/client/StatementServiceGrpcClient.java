@@ -1,7 +1,6 @@
 package org.openjproxy.grpc.client;
 
 import com.google.common.util.concurrent.SettableFuture;
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.ConnectionDetails;
@@ -15,7 +14,6 @@ import com.openjproxy.grpc.SessionTerminationStatus;
 import com.openjproxy.grpc.StatementRequest;
 import com.openjproxy.grpc.StatementServiceGrpc;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
@@ -105,15 +103,15 @@ public class StatementServiceGrpcClient implements StatementService {
                     .setSession(sessionInfo)
                     .setStatementUUID(statementUUID != null ? statementUUID : "")
                     .setSql(sql);
-            
+
             if (params != null) {
                 builder.addAllParameters(toProtoList(params));
             }
-            
+
             if (properties != null) {
                 builder.addAllProperties(propertiesToProto(properties));
             }
-            
+
             return this.statemetServiceBlockingStub.executeUpdate(builder.build());
         } catch (StatusRuntimeException e) {
             throw handle(e);
@@ -134,15 +132,15 @@ public class StatementServiceGrpcClient implements StatementService {
                     .setStatementUUID(statementUUID != null ? statementUUID : "")
                     .setSession(sessionInfo)
                     .setSql(sql);
-            
+
             if (params != null) {
                 builder.addAllParameters(toProtoList(params));
             }
-            
+
             if (properties != null) {
                 builder.addAllProperties(propertiesToProto(properties));
             }
-            
+
             return this.statemetServiceBlockingStub.executeQuery(builder.build());
         } catch (StatusRuntimeException e) {
             throw handle(e);

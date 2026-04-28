@@ -20,10 +20,10 @@ import org.slf4j.LoggerFactory;
  */
 public class DiagnosticsTask implements Runnable {
     private static final Logger log = LoggerFactory.getLogger(DiagnosticsTask.class);
-    
+
     private final GenericObjectPool<XABackendSession> pool;
     private final HousekeepingListener listener;
-    
+
     /**
      * Creates a new diagnostics task.
      *
@@ -34,7 +34,7 @@ public class DiagnosticsTask implements Runnable {
         this.pool = pool;
         this.listener = listener;
     }
-    
+
     @Override
     public void run() {
         try {
@@ -49,11 +49,11 @@ public class DiagnosticsTask implements Runnable {
             long destroyed = pool.getDestroyedCount();
             long borrowed = pool.getBorrowedCount();
             long returned = pool.getReturnedCount();
-            
+
             // Calculate derived metrics
             int total = active + idle;
             double utilizationPercent = maxTotal > 0 ? (active * 100.0 / maxTotal) : 0.0;
-            
+
             // Create diagnostics message
             String diagnostics = String.format(
                 "Pool State: active=%d, idle=%d, waiters=%d, total=%d/%d (%.1f%% utilized), " +
@@ -61,15 +61,15 @@ public class DiagnosticsTask implements Runnable {
                 active, idle, waiters, total, maxTotal, utilizationPercent,
                 minIdle, maxIdle, created, destroyed, borrowed, returned
             );
-            
+
             // Notify listener
             if (listener != null) {
                 listener.onPoolStateLog(diagnostics);
             }
-            
+
             // Log diagnostics
             log.debug("[XA-POOL-DIAGNOSTICS] {}", diagnostics);
-            
+
         } catch (Exception e) {
             log.error("[XA-POOL-DIAGNOSTICS] Error collecting pool diagnostics", e);
             if (listener != null) {

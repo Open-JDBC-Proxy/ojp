@@ -25,7 +25,7 @@ public class SessionInfoUtils {
                 .setTargetServer(activeSessionInfo.getTargetServer())
                 .setClusterHealth(activeSessionInfo.getClusterHealth());
     }
-    
+
     /**
      * Adds targetServer to an existing SessionInfo.
      * If targetServer is already set, it is preserved. Otherwise, the provided targetServer is set.
@@ -38,13 +38,13 @@ public class SessionInfoUtils {
         if (sessionInfo == null) {
             return null;
         }
-        
+
         // If targetServer is already set, preserve it; otherwise use the provided one
         String effectiveTargetServer = sessionInfo.getTargetServer();
         if (effectiveTargetServer == null || effectiveTargetServer.isEmpty()) {
             effectiveTargetServer = targetServer;
         }
-        
+
         return SessionInfo.newBuilder()
                 .setConnHash(sessionInfo.getConnHash())
                 .setClientUUID(sessionInfo.getClientUUID())

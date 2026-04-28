@@ -25,7 +25,7 @@ import java.util.logging.Logger;
  * Implementation of XADataSource for OJP.
  * This is the entry point for JTA transaction managers to obtain XA connections.
  * Uses the integrated StatementService for all XA operations.
- * 
+ *
  * <p>The GRPC connection is initialized once per datasource and reused by all XA connections
  * to avoid the overhead of creating multiple GRPC channels.
  */
@@ -50,16 +50,16 @@ public class OjpXADataSource implements XADataSource {
 
     private PrintWriter logWriter;
     private final Properties properties = new Properties();
-    
+
     // Shared StatementService per datasource - initialized lazily
     private StatementService statementService;
-    
+
     // Parsed URL information
     private String cleanUrl;
     private String dataSourceName;
     private List<String> serverEndpoints;
 
-    private static final ReentrantLock initLock = new ReentrantLock();
+    private static final ReentrantLock INIT_LOCK = new ReentrantLock();
 
     public OjpXADataSource() {
         log.debug("Creating OjpXADataSource");
@@ -71,7 +71,7 @@ public class OjpXADataSource implements XADataSource {
         this.password = password;
         log.debug("Creating OjpXADataSource with URL: {}", url);
     }
-    
+
     /**
      * Initialize the StatementService and parse URL.
      * This is done lazily when the first XA connection is requested.
@@ -83,7 +83,7 @@ public class OjpXADataSource implements XADataSource {
             return; // Already initialized
         }
 
-        initLock.lock();
+        INIT_LOCK.lock();
         try {
             // Double-check inside lock
             if (statementService != null) {
@@ -128,7 +128,7 @@ public class OjpXADataSource implements XADataSource {
             // the channel is opened once and reused
             log.info("StatementService initialized for datasource: {}. GRPC channel will open on first use.", dataSourceName);
         } finally {
-            initLock.unlock();
+            INIT_LOCK.unlock();
         }
     }
 
@@ -142,7 +142,7 @@ public class OjpXADataSource implements XADataSource {
     @Override
     public XAConnection getXAConnection(String username, String password) throws SQLException {
         log.debug("getXAConnection called with username: {}", username);
-        
+
         // Initialize on first use (lazily)
         initializeIfNeeded();
 
@@ -150,7 +150,7 @@ public class OjpXADataSource implements XADataSource {
         // The GRPC channel is already open and will be reused
         // The session will be created lazily when first needed
         OjpXAConnection xaConnection = new OjpXAConnection(statementService, cleanUrl, username, password, properties, serverEndpoints);
-        
+
         // Phase 2: Register connection as health listener if using multinode
         if (statementService instanceof MultinodeStatementService) {
             MultinodeStatementService multinodeService = (MultinodeStatementService) statementService;
@@ -160,7 +160,7 @@ public class OjpXADataSource implements XADataSource {
                 log.debug("Registered XA connection as health listener");
             }
         }
-        
+
         return xaConnection;
     }
 

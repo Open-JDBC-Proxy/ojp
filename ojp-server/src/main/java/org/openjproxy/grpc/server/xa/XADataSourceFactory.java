@@ -30,7 +30,7 @@ public class XADataSourceFactory {
 
     /**
      * Creates an XADataSource for the specified database type based on the URL.
-     * 
+     *
      * @param url JDBC URL
      * @param connectionDetails Connection details including credentials
      * @return XADataSource instance for the database
@@ -177,14 +177,14 @@ public class XADataSourceFactory {
 
     /**
      * Creates an Oracle XADataSource.
-     * 
+     *
      * NOTE: Oracle XA requires specific database privileges for the user:
      * - GRANT SELECT ON sys.dba_pending_transactions TO user;
      * - GRANT SELECT ON sys.pending_trans$ TO user;
      * - GRANT SELECT ON sys.dba_2pc_pending TO user;
      * - GRANT EXECUTE ON sys.dbms_system TO user;
      * - GRANT FORCE ANY TRANSACTION TO user;
-     * 
+     *
      * If the user doesn't have these privileges, XA operations will fail with ORA-6550 or similar errors.
      * For testing/development, you can grant DBA role or execute: GRANT XA_RECOVER_ADMIN TO user;
      */

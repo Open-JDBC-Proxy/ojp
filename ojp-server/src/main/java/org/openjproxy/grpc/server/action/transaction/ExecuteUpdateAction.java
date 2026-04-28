@@ -1,6 +1,11 @@
 package org.openjproxy.grpc.server.action.transaction;
 
-import com.openjproxy.grpc.*;
+import com.openjproxy.grpc.DbName;
+import com.openjproxy.grpc.OpResult;
+import com.openjproxy.grpc.ResultType;
+import com.openjproxy.grpc.SessionInfo;
+import com.openjproxy.grpc.SqlErrorType;
+import com.openjproxy.grpc.StatementRequest;
 import io.grpc.stub.StreamObserver;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -9,7 +14,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.dto.Parameter;
-import org.openjproxy.grpc.server.*;
+import org.openjproxy.grpc.server.ConnectionSessionDTO;
+import org.openjproxy.grpc.server.LobDataBlocksInputStream;
+import org.openjproxy.grpc.server.SessionManager;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.sql.SqlSessionAffinityDetector;
@@ -137,10 +144,10 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             }
 
             OpResult result = buildOpResult(request, opResultBuilder, returnSessionInfo, psUUID, updated);
-            
+
             // Phase 9: Cache Invalidation (after successful update)
             org.openjproxy.grpc.server.cache.QueryCacheHelper.invalidateCacheIfEnabled(actionContext, dto.getSession(), request.getSql());
-            
+
             return result;
         } finally {
             closeStatementAndConnectionIfNoSession(dto, stmt);

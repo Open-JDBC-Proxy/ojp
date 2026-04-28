@@ -2,7 +2,6 @@ package org.openjproxy.grpc.server.action.xa;
 
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 import static org.openjproxy.grpc.server.action.transaction.XidHelper.convertXid;
-import static org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer.processClusterHealth;
 
 import java.sql.SQLException;
 

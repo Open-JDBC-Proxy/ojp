@@ -6,7 +6,7 @@ import lombok.Getter;
 /**
  * Connection details for unpooled (passthrough) JDBC connections.
  * Used when connection pooling is disabled (ojp.connection.pool.enabled=false).
- * 
+ *
  * <p>In unpooled mode, connections are created directly on demand rather than
  * being managed by a connection pool. These details are stored and used to
  * create new connections as needed.

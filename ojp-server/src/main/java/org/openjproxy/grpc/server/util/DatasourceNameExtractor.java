@@ -11,11 +11,11 @@ package org.openjproxy.grpc.server.util;
  * </p>
  */
 public final class DatasourceNameExtractor {
-    
+
     private DatasourceNameExtractor() {
         throw new UnsupportedOperationException("Utility class");
     }
-    
+
     /**
      * Extracts the datasource name from an OJP JDBC URL.
      * <p>
@@ -29,27 +29,27 @@ public final class DatasourceNameExtractor {
         if (url == null || !url.startsWith("jdbc:ojp")) {
             return null;
         }
-        
+
         // Look for pattern: [host:port(datasourceName)]
         int startBracket = url.indexOf('[');
         int endBracket = url.indexOf(']');
-        
+
         if (startBracket < 0 || endBracket < 0 || endBracket <= startBracket) {
             return null;
         }
-        
+
         String hostPortSection = url.substring(startBracket + 1, endBracket);
         int startParen = hostPortSection.indexOf('(');
         int endParen = hostPortSection.indexOf(')');
-        
+
         if (startParen < 0 || endParen < 0 || endParen <= startParen) {
             return null;
         }
-        
+
         String datasourceName = hostPortSection.substring(startParen + 1, endParen);
         return datasourceName.isEmpty() ? null : datasourceName;
     }
-    
+
     /**
      * Extracts the datasource name from an OJP JDBC URL, returning a default value if not found.
      *

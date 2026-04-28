@@ -64,12 +64,12 @@ jobs:
     steps:
 
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -105,7 +105,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
@@ -155,7 +155,7 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -177,7 +177,7 @@ jobs:
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -224,7 +224,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
@@ -310,12 +310,12 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -348,7 +348,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
@@ -406,12 +406,12 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -444,7 +444,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
@@ -486,7 +486,7 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -498,7 +498,7 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:8080/health?ready=1 2>/dev/null; do sleep 2; done'
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -531,7 +531,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
@@ -575,7 +575,7 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -666,7 +666,7 @@ jobs:
           ls -lh ojp-server/ojp-libs/
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -699,7 +699,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
@@ -744,7 +744,7 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -767,7 +767,7 @@ jobs:
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -1147,7 +1147,7 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -1170,7 +1170,7 @@ jobs:
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -1601,7 +1601,7 @@ jobs:
     steps:
 
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -1672,7 +1672,7 @@ jobs:
           ls -lh ojp-server/ojp-libs/
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -1705,7 +1705,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'
@@ -1752,7 +1752,7 @@ jobs:
 
     steps:
       - name: Git checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -1775,7 +1775,7 @@ jobs:
           ls -lh ojp-server/ojp-libs/
 
       - name: Set up JDK 22 for build
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 22
           distribution: 'temurin'
@@ -1808,7 +1808,7 @@ jobs:
         run: sleep 10
 
       - name: Set up JDK ${{ matrix.java-version }} for ojp-jdbc-driver
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
           distribution: 'temurin'

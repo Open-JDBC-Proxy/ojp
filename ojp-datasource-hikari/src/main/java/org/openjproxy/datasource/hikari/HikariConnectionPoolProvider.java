@@ -22,14 +22,14 @@ import java.util.Map;
 /**
  * HikariCP implementation of {@link ConnectionPoolProvider}.
  * This is the default connection pool provider for OJP.
- * 
+ *
  * <p>This provider creates and manages connection pools using HikariCP,
  * the high-performance JDBC connection pool. It maps the generic
  * {@link PoolConfig} settings to HikariCP-specific configuration.</p>
- * 
+ *
  * <p>The provider is registered via ServiceLoader and is selected by default
  * (highest priority) when no specific provider is requested.</p>
- * 
+ *
  * <h2>Configuration Mapping</h2>
  * <ul>
  *   <li>{@code url} → {@code jdbcUrl}</li>
@@ -48,7 +48,7 @@ import java.util.Map;
 public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
 
     private static final Logger log = LoggerFactory.getLogger(HikariConnectionPoolProvider.class);
-    
+
     public static final String PROVIDER_ID = "hikari";
     private static final int PRIORITY = 100; // Highest priority - default provider
     private static final String METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
@@ -102,13 +102,13 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
         if (config.getDefaultTransactionIsolation() != null) {
             String isolationLevel = mapTransactionIsolationToString(config.getDefaultTransactionIsolation());
             hikariConfig.setTransactionIsolation(isolationLevel);
-            log.info("Configured default transaction isolation: {} ({})", 
+            log.info("Configured default transaction isolation: {} ({})",
                     isolationLevel, config.getDefaultTransactionIsolation());
         }
 
         // Pool name for monitoring
-        String poolName = config.getMetricsPrefix() != null 
-                ? config.getMetricsPrefix() + "-hikari" 
+        String poolName = config.getMetricsPrefix() != null
+                ? config.getMetricsPrefix() + "-hikari"
                 : "ojp-hikari-" + System.currentTimeMillis();
         hikariConfig.setPoolName(poolName);
 
@@ -141,7 +141,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
         }
 
         log.info("Creating HikariCP DataSource '{}': url={}, maxPoolSize={}, minIdle={}, connectionTimeout={}ms",
-                poolName, config.getUrl(), hikariConfig.getMaximumPoolSize(), 
+                poolName, config.getUrl(), hikariConfig.getMaximumPoolSize(),
                 hikariConfig.getMinimumIdle(), hikariConfig.getConnectionTimeout());
 
         try {
@@ -188,7 +188,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
                     .setDescription("Time in milliseconds to acquire a connection from the HikariCP pool")
                     .setUnit("ms")
                     .build();
-            
+
             // Register standardized pool metrics (aligned suffix naming with XA pools)
             meter.gaugeBuilder("ojp.hikari.pool.connections.active")
                     .setDescription("Number of active (borrowed) connections")
@@ -199,7 +199,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
                             measurement.record(stats.getActiveConnections(), attributes);
                         }
                     });
-            
+
             meter.gaugeBuilder("ojp.hikari.pool.connections.idle")
                     .setDescription("Number of idle connections in pool")
                     .setUnit("connections")
@@ -209,7 +209,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
                             measurement.record(stats.getIdleConnections(), attributes);
                         }
                     });
-            
+
             meter.gaugeBuilder("ojp.hikari.pool.connections.total")
                     .setDescription("Total connections (active + idle)")
                     .setUnit("connections")
@@ -219,7 +219,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
                             measurement.record(stats.getTotalConnections(), attributes);
                         }
                     });
-            
+
             meter.gaugeBuilder("ojp.hikari.pool.connections.pending")
                     .setDescription("Number of threads waiting for connections")
                     .setUnit("threads")
@@ -229,7 +229,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
                             measurement.record(stats.getPendingThreads(), attributes);
                         }
                     });
-            
+
             meter.gaugeBuilder("ojp.hikari.pool.connections.max")
                     .setDescription("Maximum pool size")
                     .setUnit("connections")
@@ -239,7 +239,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
                             measurement.record(stats.getMaxConnections(), attributes);
                         }
                     });
-            
+
             meter.gaugeBuilder("ojp.hikari.pool.connections.min")
                     .setDescription("Minimum idle connections")
                     .setUnit("connections")
@@ -256,7 +256,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
             // Store the PoolStats reference so gauges can read from it
             this.poolStats = poolStats;
             log.info("HikariCP pool '{}' metrics tracker created - metrics will be available", poolName);
-            
+
             return new com.zaxxer.hikari.metrics.IMetricsTracker() {
                 @Override
                 public void recordConnectionAcquiredNanos(long elapsedAcquiredNanos) {
@@ -285,14 +285,14 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
     public void closeDataSource(DataSource dataSource) throws Exception {
         if (dataSource instanceof HikariDataSource) {
             HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
-            log.info("Closing HikariCP DataSource '{}': active={}, idle={}, total={}", 
+            log.info("Closing HikariCP DataSource '{}': active={}, idle={}, total={}",
                     hikariDataSource.getPoolName(),
                     hikariDataSource.getHikariPoolMXBean() != null ? hikariDataSource.getHikariPoolMXBean().getActiveConnections() : 0,
                     hikariDataSource.getHikariPoolMXBean() != null ? hikariDataSource.getHikariPoolMXBean().getIdleConnections() : 0,
                     hikariDataSource.getHikariPoolMXBean() != null ? hikariDataSource.getHikariPoolMXBean().getTotalConnections() : 0);
             hikariDataSource.close();
         } else if (dataSource != null) {
-            log.warn("Cannot close DataSource: not a HikariDataSource instance ({})", 
+            log.warn("Cannot close DataSource: not a HikariDataSource instance ({})",
                     dataSource.getClass().getName());
         }
     }
@@ -300,10 +300,10 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
     @Override
     public Map<String, Object> getStatistics(DataSource dataSource) {
         Map<String, Object> stats = new HashMap<>();
-        
+
         if (dataSource instanceof HikariDataSource) {
             HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
-            
+
             stats.put("poolName", hikariDataSource.getPoolName());
             stats.put("maxPoolSize", hikariDataSource.getMaximumPoolSize());
             stats.put("minIdle", hikariDataSource.getMinimumIdle());
@@ -311,7 +311,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
             stats.put("idleTimeout", hikariDataSource.getIdleTimeout());
             stats.put("maxLifetime", hikariDataSource.getMaxLifetime());
             stats.put("isClosed", hikariDataSource.isClosed());
-            
+
             // Runtime statistics from MXBean
             if (hikariDataSource.getHikariPoolMXBean() != null) {
                 stats.put("activeConnections", hikariDataSource.getHikariPoolMXBean().getActiveConnections());
@@ -320,7 +320,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
                 stats.put("threadsAwaitingConnection", hikariDataSource.getHikariPoolMXBean().getThreadsAwaitingConnection());
             }
         }
-        
+
         return stats;
     }
 
@@ -338,27 +338,27 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
             return false;
         }
     }
-    
+
     /**
      * Maps JDBC transaction isolation level constant to HikariCP string format.
      * HikariCP expects transaction isolation levels as strings like "TRANSACTION_READ_COMMITTED".
-     * 
+     *
      * @param isolationLevel JDBC constant (e.g., Connection.TRANSACTION_READ_COMMITTED)
      * @return HikariCP string format (e.g., "TRANSACTION_READ_COMMITTED")
      */
     private static String mapTransactionIsolationToString(int isolationLevel) {
         switch (isolationLevel) {
-            case java.sql.Connection.TRANSACTION_NONE: 
+            case java.sql.Connection.TRANSACTION_NONE:
                 return "TRANSACTION_NONE";
-            case java.sql.Connection.TRANSACTION_READ_UNCOMMITTED: 
+            case java.sql.Connection.TRANSACTION_READ_UNCOMMITTED:
                 return "TRANSACTION_READ_UNCOMMITTED";
-            case java.sql.Connection.TRANSACTION_READ_COMMITTED: 
+            case java.sql.Connection.TRANSACTION_READ_COMMITTED:
                 return "TRANSACTION_READ_COMMITTED";
-            case java.sql.Connection.TRANSACTION_REPEATABLE_READ: 
+            case java.sql.Connection.TRANSACTION_REPEATABLE_READ:
                 return "TRANSACTION_REPEATABLE_READ";
-            case java.sql.Connection.TRANSACTION_SERIALIZABLE: 
+            case java.sql.Connection.TRANSACTION_SERIALIZABLE:
                 return "TRANSACTION_SERIALIZABLE";
-            default: 
+            default:
                 throw new IllegalArgumentException("Unknown transaction isolation level: " + isolationLevel);
         }
     }

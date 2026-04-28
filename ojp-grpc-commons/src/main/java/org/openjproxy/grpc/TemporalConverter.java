@@ -60,7 +60,7 @@ public class TemporalConverter {
 
     /**
      * Helper method to validate and parse timezone from TimestampWithZone.
-     * 
+     *
      * @param timestampWithZone The proto message containing timezone
      * @return Parsed ZoneId
      * @throws IllegalArgumentException if timezone is missing, empty, or invalid
@@ -73,7 +73,7 @@ public class TemporalConverter {
                 "Server requires timezone to be set by the client."
             );
         }
-        
+
         try {
             return ZoneId.of(timezone);
         } catch (java.time.DateTimeException e) {
@@ -85,7 +85,7 @@ public class TemporalConverter {
     /**
      * Convert java.sql.Timestamp and ZoneId to TimestampWithZone proto message.
      * Sets original_type to TIMESTAMP.
-     * 
+     *
      * @param timestamp The timestamp to convert (can be null)
      * @param zoneId The timezone (must not be null if timestamp is not null)
      * @return TimestampWithZone proto message, or null if timestamp is null
@@ -95,18 +95,18 @@ public class TemporalConverter {
         if (timestamp == null) {
             return null;
         }
-        
+
         if (zoneId == null) {
             throw new IllegalArgumentException(
                 "ZoneId must not be null when converting timestamp. " +
                 "Driver must provide ZoneId (from Calendar or ZoneId.systemDefault())"
             );
         }
-        
+
         // Convert timestamp to Instant and build proto timestamp
         Instant instant = timestamp.toInstant();
         Timestamp protoTimestamp = buildProtoTimestamp(instant);
-        
+
         // Build TimestampWithZone with timezone string and original type
         return TimestampWithZone.newBuilder()
             .setInstant(protoTimestamp)
@@ -114,11 +114,11 @@ public class TemporalConverter {
             .setOriginalType(TemporalType.TEMPORAL_TYPE_TIMESTAMP)
             .build();
     }
-    
+
     /**
      * Convert java.util.Calendar to TimestampWithZone proto message.
      * Sets original_type to CALENDAR.
-     * 
+     *
      * @param calendar The calendar to convert (can be null)
      * @return TimestampWithZone proto message, or null if calendar is null
      */
@@ -126,15 +126,15 @@ public class TemporalConverter {
         if (calendar == null) {
             return null;
         }
-        
+
         // Extract timestamp and timezone from Calendar
         java.sql.Timestamp timestamp = new java.sql.Timestamp(calendar.getTimeInMillis());
         ZoneId zoneId = calendar.getTimeZone().toZoneId();
-        
+
         // Convert timestamp to Instant and build proto timestamp
         Instant instant = timestamp.toInstant();
         Timestamp protoTimestamp = buildProtoTimestamp(instant);
-        
+
         // Build TimestampWithZone with timezone string and original type
         return TimestampWithZone.newBuilder()
             .setInstant(protoTimestamp)
@@ -142,13 +142,13 @@ public class TemporalConverter {
             .setOriginalType(TemporalType.TEMPORAL_TYPE_CALENDAR)
             .build();
     }
-    
+
     /**
      * Convert TimestampWithZone proto message to java.sql.Timestamp.
      * The timezone is parsed and can be retrieved via getZoneIdFromTimestampWithZone.
      * Note: This method always returns Timestamp regardless of original_type.
      * Use fromTimestampWithZoneToObject for automatic type conversion.
-     * 
+     *
      * @param timestampWithZone The proto message (can be null)
      * @return java.sql.Timestamp, or null if input is null
      * @throws IllegalArgumentException if timezone is missing or empty
@@ -157,21 +157,21 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         // Validate and parse timezone
         parseAndValidateTimezone(timestampWithZone);
-        
+
         // Convert proto timestamp to Instant and then to java.sql.Timestamp
         Instant instant = protoTimestampToInstant(timestampWithZone.getInstant());
-        
+
         // Preserve exact epoch seconds + nanos
         return java.sql.Timestamp.from(instant);
     }
-    
+
     /**
      * Convert TimestampWithZone proto message to the appropriate Java type
      * based on the original_type field.
-     * 
+     *
      * @param timestampWithZone The proto message (can be null)
      * @return java.sql.Timestamp, java.util.Calendar, java.time.OffsetDateTime, java.time.LocalDateTime, java.time.Instant, or java.time.OffsetTime based on original_type, or null if input is null
      * @throws IllegalArgumentException if timezone is missing or empty
@@ -180,42 +180,42 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         // Check original_type to determine return type
         TemporalType originalType = timestampWithZone.getOriginalType();
-        
+
         // If original type was Calendar, reconstruct it
         if (originalType == TemporalType.TEMPORAL_TYPE_CALENDAR) {
             return timestampWithZoneToCalendar(timestampWithZone);
         }
-        
+
         // If original type was OffsetDateTime, reconstruct it
         if (originalType == TemporalType.TEMPORAL_TYPE_OFFSET_DATE_TIME) {
             return timestampWithZoneToOffsetDateTime(timestampWithZone);
         }
-        
+
         // If original type was LocalDateTime, reconstruct it
         if (originalType == TemporalType.TEMPORAL_TYPE_LOCAL_DATE_TIME) {
             return timestampWithZoneToLocalDateTime(timestampWithZone);
         }
-        
+
         // If original type was Instant, reconstruct it
         if (originalType == TemporalType.TEMPORAL_TYPE_INSTANT) {
             return timestampWithZoneToInstant(timestampWithZone);
         }
-        
+
         // If original type was OffsetTime, reconstruct it
         if (originalType == TemporalType.TEMPORAL_TYPE_OFFSET_TIME) {
             return timestampWithZoneToOffsetTime(timestampWithZone);
         }
-        
+
         // Default to Timestamp (covers TEMPORAL_TYPE_TIMESTAMP and TEMPORAL_TYPE_UNSPECIFIED)
         return fromTimestampWithZone(timestampWithZone);
     }
-    
+
     /**
      * Convert TimestampWithZone proto message to java.util.Calendar.
-     * 
+     *
      * @param timestampWithZone The proto message (can be null)
      * @return java.util.GregorianCalendar, or null if input is null
      * @throws IllegalArgumentException if timezone is missing or empty
@@ -224,23 +224,23 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         // Validate and parse timezone
         ZoneId zoneId = parseAndValidateTimezone(timestampWithZone);
-        
+
         // Convert proto timestamp to Instant
         Instant instant = protoTimestampToInstant(timestampWithZone.getInstant());
-        
+
         // Create Calendar with the correct timezone
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone(zoneId));
         calendar.setTimeInMillis(instant.toEpochMilli());
-        
+
         return calendar;
     }
-    
+
     /**
      * Extract ZoneId from TimestampWithZone proto message.
-     * 
+     *
      * @param timestampWithZone The proto message
      * @return ZoneId parsed from the timezone string
      * @throws IllegalArgumentException if timezone is missing, empty, or invalid
@@ -249,12 +249,12 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             throw new IllegalArgumentException("TimestampWithZone must not be null");
         }
-        
+
         String timezone = timestampWithZone.getTimezone();
         if (timezone == null || timezone.trim().isEmpty()) {
             throw new IllegalArgumentException("Timezone must not be empty or missing");
         }
-        
+
         try {
             return ZoneId.of(timezone);
         } catch (java.time.DateTimeException e) {
@@ -262,10 +262,10 @@ public class TemporalConverter {
             throw new IllegalArgumentException("Invalid timezone string: " + timezone, e);
         }
     }
-    
+
     /**
      * Create ZonedDateTime from TimestampWithZone for local-time semantics.
-     * 
+     *
      * @param timestampWithZone The proto message
      * @return ZonedDateTime combining the instant and timezone
      */
@@ -273,16 +273,16 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         java.sql.Timestamp timestamp = fromTimestampWithZone(timestampWithZone);
         ZoneId zoneId = getZoneIdFromTimestampWithZone(timestampWithZone);
-        
+
         return ZonedDateTime.ofInstant(timestamp.toInstant(), zoneId);
     }
-    
+
     /**
      * Convert java.sql.Date to google.type.Date proto message.
-     * 
+     *
      * @param date The date to convert (can be null)
      * @return google.type.Date proto message, or null if date is null
      */
@@ -290,20 +290,20 @@ public class TemporalConverter {
         if (date == null) {
             return null;
         }
-        
+
         // Convert to LocalDate to extract year, month, day
         LocalDate localDate = date.toLocalDate();
-        
+
         return Date.newBuilder()
             .setYear(localDate.getYear())
             .setMonth(localDate.getMonthValue())
             .setDay(localDate.getDayOfMonth())
             .build();
     }
-    
+
     /**
      * Convert google.type.Date proto message to java.sql.Date.
-     * 
+     *
      * @param protoDate The proto message (can be null)
      * @return java.sql.Date, or null if input is null
      */
@@ -311,20 +311,20 @@ public class TemporalConverter {
         if (protoDate == null) {
             return null;
         }
-        
+
         // Build LocalDate from proto fields
         LocalDate localDate = LocalDate.of(
             protoDate.getYear(),
             protoDate.getMonth(),
             protoDate.getDay()
         );
-        
+
         return java.sql.Date.valueOf(localDate);
     }
-    
+
     /**
      * Convert java.sql.Time to google.type.TimeOfDay proto message.
-     * 
+     *
      * @param time The time to convert (can be null)
      * @return google.type.TimeOfDay proto message, or null if time is null
      */
@@ -332,10 +332,10 @@ public class TemporalConverter {
         if (time == null) {
             return null;
         }
-        
+
         // Convert to LocalTime to extract hours, minutes, seconds, nanos
         LocalTime localTime = time.toLocalTime();
-        
+
         return TimeOfDay.newBuilder()
             .setHours(localTime.getHour())
             .setMinutes(localTime.getMinute())
@@ -343,10 +343,10 @@ public class TemporalConverter {
             .setNanos(localTime.getNano())
             .build();
     }
-    
+
     /**
      * Convert google.type.TimeOfDay proto message to java.sql.Time.
-     * 
+     *
      * @param protoTimeOfDay The proto message (can be null)
      * @return java.sql.Time, or null if input is null
      */
@@ -354,7 +354,7 @@ public class TemporalConverter {
         if (protoTimeOfDay == null) {
             return null;
         }
-        
+
         // Build LocalTime from proto fields
         LocalTime localTime = LocalTime.of(
             protoTimeOfDay.getHours(),
@@ -362,14 +362,14 @@ public class TemporalConverter {
             protoTimeOfDay.getSeconds(),
             protoTimeOfDay.getNanos()
         );
-        
+
         return Time.valueOf(localTime);
     }
-    
+
     /**
      * Convert java.time.OffsetDateTime to TimestampWithZone proto message.
      * Sets original_type to OFFSET_DATE_TIME.
-     * 
+     *
      * @param offsetDateTime The OffsetDateTime to convert (can be null)
      * @return TimestampWithZone proto message, or null if offsetDateTime is null
      */
@@ -377,11 +377,11 @@ public class TemporalConverter {
         if (offsetDateTime == null) {
             return null;
         }
-        
+
         // Convert to Instant and build proto timestamp
         Instant instant = offsetDateTime.toInstant();
         Timestamp protoTimestamp = buildProtoTimestamp(instant);
-        
+
         // Build TimestampWithZone with timezone string and original type
         return TimestampWithZone.newBuilder()
             .setInstant(protoTimestamp)
@@ -389,10 +389,10 @@ public class TemporalConverter {
             .setOriginalType(TemporalType.TEMPORAL_TYPE_OFFSET_DATE_TIME)
             .build();
     }
-    
+
     /**
      * Convert TimestampWithZone proto message to java.time.OffsetDateTime.
-     * 
+     *
      * @param timestampWithZone The proto message (can be null)
      * @return java.time.OffsetDateTime, or null if input is null
      * @throws IllegalArgumentException if timezone is missing or empty
@@ -401,22 +401,22 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         // Validate and parse timezone
         ZoneId zoneId = parseAndValidateTimezone(timestampWithZone);
-        
+
         // Convert proto timestamp to Instant
         Instant instant = protoTimestampToInstant(timestampWithZone.getInstant());
-        
+
         // Create OffsetDateTime from Instant and ZoneId
         return OffsetDateTime.ofInstant(instant, zoneId);
     }
-    
+
     /**
      * Convert java.time.LocalDateTime to TimestampWithZone proto message.
      * Uses system default timezone to convert LocalDateTime to absolute instant.
      * Sets original_type to LOCAL_DATE_TIME.
-     * 
+     *
      * @param localDateTime The LocalDateTime to convert (can be null)
      * @return TimestampWithZone proto message, or null if localDateTime is null
      */
@@ -424,14 +424,14 @@ public class TemporalConverter {
         if (localDateTime == null) {
             return null;
         }
-        
+
         // Convert LocalDateTime to Instant using system default timezone
         ZoneId systemZone = ZoneId.systemDefault();
         Instant instant = localDateTime.atZone(systemZone).toInstant();
-        
+
         // Build proto timestamp
         Timestamp protoTimestamp = buildProtoTimestamp(instant);
-        
+
         // Build TimestampWithZone with system timezone and original type
         return TimestampWithZone.newBuilder()
             .setInstant(protoTimestamp)
@@ -439,11 +439,11 @@ public class TemporalConverter {
             .setOriginalType(TemporalType.TEMPORAL_TYPE_LOCAL_DATE_TIME)
             .build();
     }
-    
+
     /**
      * Convert TimestampWithZone proto message to java.time.LocalDateTime.
      * Uses the timezone from the proto message to interpret the instant as local time.
-     * 
+     *
      * @param timestampWithZone The proto message (can be null)
      * @return java.time.LocalDateTime, or null if input is null
      * @throws IllegalArgumentException if timezone is missing or empty
@@ -452,22 +452,22 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         // Validate and parse timezone
         ZoneId zoneId = parseAndValidateTimezone(timestampWithZone);
-        
+
         // Convert proto timestamp to Instant
         Instant instant = protoTimestampToInstant(timestampWithZone.getInstant());
-        
+
         // Convert to LocalDateTime using the timezone
         return java.time.LocalDateTime.ofInstant(instant, zoneId);
     }
-    
+
     /**
      * Convert java.time.Instant to TimestampWithZone proto message.
      * Uses UTC timezone since Instant is inherently timezone-agnostic.
      * Sets original_type to INSTANT.
-     * 
+     *
      * @param instant The Instant to convert (can be null)
      * @return TimestampWithZone proto message, or null if instant is null
      */
@@ -475,10 +475,10 @@ public class TemporalConverter {
         if (instant == null) {
             return null;
         }
-        
+
         // Build proto timestamp
         Timestamp protoTimestamp = buildProtoTimestamp(instant);
-        
+
         // Build TimestampWithZone with UTC timezone and original type
         return TimestampWithZone.newBuilder()
             .setInstant(protoTimestamp)
@@ -486,11 +486,11 @@ public class TemporalConverter {
             .setOriginalType(TemporalType.TEMPORAL_TYPE_INSTANT)
             .build();
     }
-    
+
     /**
      * Convert TimestampWithZone proto message to java.time.Instant.
      * Ignores the timezone field since Instant is timezone-agnostic.
-     * 
+     *
      * @param timestampWithZone The proto message (can be null)
      * @return java.time.Instant, or null if input is null
      */
@@ -498,14 +498,14 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         // Convert proto timestamp to Instant
         return protoTimestampToInstant(timestampWithZone.getInstant());
     }
-    
+
     /**
      * Convert java.time.LocalDate to google.type.Date proto message.
-     * 
+     *
      * @param localDate The LocalDate to convert (can be null)
      * @return google.type.Date proto message, or null if localDate is null
      */
@@ -513,17 +513,17 @@ public class TemporalConverter {
         if (localDate == null) {
             return null;
         }
-        
+
         return Date.newBuilder()
             .setYear(localDate.getYear())
             .setMonth(localDate.getMonthValue())
             .setDay(localDate.getDayOfMonth())
             .build();
     }
-    
+
     /**
      * Convert google.type.Date proto message to java.time.LocalDate.
-     * 
+     *
      * @param protoDate The proto message (can be null)
      * @return java.time.LocalDate, or null if input is null
      */
@@ -531,17 +531,17 @@ public class TemporalConverter {
         if (protoDate == null) {
             return null;
         }
-        
+
         return LocalDate.of(
             protoDate.getYear(),
             protoDate.getMonth(),
             protoDate.getDay()
         );
     }
-    
+
     /**
      * Convert java.time.LocalTime to google.type.TimeOfDay proto message.
-     * 
+     *
      * @param localTime The LocalTime to convert (can be null)
      * @return google.type.TimeOfDay proto message, or null if localTime is null
      */
@@ -549,7 +549,7 @@ public class TemporalConverter {
         if (localTime == null) {
             return null;
         }
-        
+
         return TimeOfDay.newBuilder()
             .setHours(localTime.getHour())
             .setMinutes(localTime.getMinute())
@@ -557,10 +557,10 @@ public class TemporalConverter {
             .setNanos(localTime.getNano())
             .build();
     }
-    
+
     /**
      * Convert google.type.TimeOfDay proto message to java.time.LocalTime.
-     * 
+     *
      * @param protoTimeOfDay The proto message (can be null)
      * @return java.time.LocalTime, or null if input is null
      */
@@ -568,7 +568,7 @@ public class TemporalConverter {
         if (protoTimeOfDay == null) {
             return null;
         }
-        
+
         return LocalTime.of(
             protoTimeOfDay.getHours(),
             protoTimeOfDay.getMinutes(),
@@ -576,12 +576,12 @@ public class TemporalConverter {
             protoTimeOfDay.getNanos()
         );
     }
-    
+
     /**
      * Convert java.time.OffsetTime to TimestampWithZone proto message.
      * Creates a timestamp at epoch (1970-01-01) with the time and offset.
      * Sets original_type to OFFSET_TIME.
-     * 
+     *
      * @param offsetTime The OffsetTime to convert (can be null)
      * @return TimestampWithZone proto message, or null if offsetTime is null
      */
@@ -589,14 +589,14 @@ public class TemporalConverter {
         if (offsetTime == null) {
             return null;
         }
-        
+
         // Convert OffsetTime to OffsetDateTime at epoch date to get an Instant
         java.time.OffsetDateTime offsetDateTime = offsetTime.atDate(LocalDate.of(1970, 1, 1));
         Instant instant = offsetDateTime.toInstant();
-        
+
         // Build proto timestamp
         Timestamp protoTimestamp = buildProtoTimestamp(instant);
-        
+
         // Build TimestampWithZone with offset and original type
         return TimestampWithZone.newBuilder()
             .setInstant(protoTimestamp)
@@ -604,10 +604,10 @@ public class TemporalConverter {
             .setOriginalType(TemporalType.TEMPORAL_TYPE_OFFSET_TIME)
             .build();
     }
-    
+
     /**
      * Convert TimestampWithZone proto message to java.time.OffsetTime.
-     * 
+     *
      * @param timestampWithZone The proto message (can be null)
      * @return java.time.OffsetTime, or null if input is null
      * @throws IllegalArgumentException if timezone is missing or empty
@@ -616,13 +616,13 @@ public class TemporalConverter {
         if (timestampWithZone == null) {
             return null;
         }
-        
+
         // Validate and parse timezone
         ZoneId zoneId = parseAndValidateTimezone(timestampWithZone);
-        
+
         // Convert proto timestamp to Instant
         Instant instant = protoTimestampToInstant(timestampWithZone.getInstant());
-        
+
         // Create OffsetTime from Instant and ZoneId (extract time component only)
         return java.time.OffsetTime.ofInstant(instant, zoneId);
     }

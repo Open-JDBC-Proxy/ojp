@@ -32,7 +32,7 @@ public class StatementFactory {
      * @return Created Statement
      * @throws SQLException if statement creation fails
      */
-    public static Statement createStatement(SessionManager sessionManager, Connection connection, 
+    public static Statement createStatement(SessionManager sessionManager, Connection connection,
                                           StatementRequest request) throws SQLException {
         try {
             if (StringUtils.isNotEmpty(request.getStatementUUID())) {
@@ -76,8 +76,8 @@ public class StatementFactory {
      * @return Created PreparedStatement
      * @throws SQLException if prepared statement creation fails
      */
-    public static PreparedStatement createPreparedStatement(SessionManager sessionManager, 
-                                                          ConnectionSessionDTO dto, String sql, 
+    public static PreparedStatement createPreparedStatement(SessionManager sessionManager,
+                                                          ConnectionSessionDTO dto, String sql,
                                                           List<Parameter> params, StatementRequest request)
             throws SQLException {
 

@@ -8,13 +8,13 @@ public class CircuitBreakerRegistry {
     private final long openMs;
     private final int failureThreshold;
 
-    public CircuitBreakerRegistry(long openMs, int failureThreshold){
+    public CircuitBreakerRegistry(long openMs, int failureThreshold) {
         this.openMs = openMs;
         this.failureThreshold = failureThreshold;
     }
 
 
-    public CircuitBreaker get(String key){
+    public CircuitBreaker get(String key) {
         return circuitBreakerStore.computeIfAbsent(key, k -> new CircuitBreaker(openMs, failureThreshold, key));
     }
 }

@@ -59,7 +59,7 @@ public class TerminateSessionAction implements Action<SessionInfo, SessionTermin
             // both transaction is complete AND XAConnection is closed
             log.debug("[XA-TERMINATE] terminateSession called for sessionUUID={}, isXA={}, connHash={}",
                     sessionInfo.getSessionUUID(), sessionInfo.getIsXA(), sessionInfo.getConnHash());
-            
+
             if (sessionInfo.getIsXA()) {
                 String connHash = sessionInfo.getConnHash();
                 XATransactionRegistry registry = context.getXaRegistries().get(connHash);

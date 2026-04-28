@@ -1,6 +1,5 @@
 package org.openjproxy.jdbc;
 
-import com.google.common.util.concurrent.SettableFuture;
 import com.openjproxy.grpc.LobDataBlock;
 import lombok.Setter;
 
@@ -8,9 +7,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Iterator over the blocks received when getting a LOB object.

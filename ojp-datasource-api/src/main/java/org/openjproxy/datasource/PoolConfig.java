@@ -3,17 +3,16 @@ package org.openjproxy.datasource;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
  * Immutable configuration class for connection pool settings.
  * Uses a builder pattern for construction and supports secure handling of credentials.
- * 
+ *
  * <p>This class provides canonical fields for configuring JDBC connection pools
  * in a provider-agnostic way. It supports both password strings and secure
  * password suppliers for sensitive credential handling.</p>
- * 
+ *
  * <p>Example usage:</p>
  * <pre>{@code
  * PoolConfig config = PoolConfig.builder()
@@ -34,24 +33,24 @@ public final class PoolConfig {
     private final char[] password;
     private final Supplier<char[]> passwordSupplier;
     private final String driverClassName;
-    
+
     // Pool sizing settings
     private final int maxPoolSize;
     private final int minIdle;
-    
+
     // Timeout settings (in milliseconds)
     private final long connectionTimeoutMs;
     private final long idleTimeoutMs;
     private final long maxLifetimeMs;
-    
+
     // Validation and behavior settings
     private final String validationQuery;
     private final boolean autoCommit;
     private final Integer defaultTransactionIsolation;
-    
+
     // Additional properties
     private final Map<String, String> properties;
-    
+
     // Metrics
     private final String metricsPrefix;
 
@@ -77,7 +76,7 @@ public final class PoolConfig {
         this.validationQuery = builder.validationQuery;
         this.autoCommit = builder.autoCommit;
         this.defaultTransactionIsolation = builder.defaultTransactionIsolation;
-        this.properties = builder.properties != null 
+        this.properties = builder.properties != null
             ? Collections.unmodifiableMap(new HashMap<>(builder.properties))
             : Collections.emptyMap();
         this.metricsPrefix = builder.metricsPrefix;
@@ -85,7 +84,7 @@ public final class PoolConfig {
 
     /**
      * Creates a new builder for constructing PoolConfig instances.
-     * 
+     *
      * @return a new Builder instance
      */
     public static Builder builder() {
@@ -94,7 +93,7 @@ public final class PoolConfig {
 
     /**
      * Gets the JDBC URL for database connections.
-     * 
+     *
      * @return the JDBC URL, may be null if not configured
      */
     public String getUrl() {
@@ -103,7 +102,7 @@ public final class PoolConfig {
 
     /**
      * Gets the username for database authentication.
-     * 
+     *
      * @return the username, may be null if not configured
      */
     public String getUsername() {
@@ -113,10 +112,10 @@ public final class PoolConfig {
     /**
      * Gets the password as a char array for secure credential handling.
      * Returns a defensive copy to prevent external modification.
-     * 
+     *
      * <p>If a password supplier was configured, this method will invoke
      * the supplier to get the current password.</p>
-     * 
+     *
      * @return a copy of the password char array, or null if not configured
      */
     public char[] getPassword() {
@@ -129,11 +128,11 @@ public final class PoolConfig {
 
     /**
      * Gets the password as a String.
-     * 
+     *
      * <p>Note: For security-sensitive applications, prefer using
      * {@link #getPassword()} with char arrays to minimize password
      * exposure in memory.</p>
-     * 
+     *
      * @return the password as a String, or null if not configured
      */
     public String getPasswordAsString() {
@@ -143,7 +142,7 @@ public final class PoolConfig {
 
     /**
      * Gets the JDBC driver class name.
-     * 
+     *
      * @return the driver class name, may be null if auto-detection is used
      */
     public String getDriverClassName() {
@@ -152,7 +151,7 @@ public final class PoolConfig {
 
     /**
      * Gets the maximum pool size (maximum number of connections).
-     * 
+     *
      * @return the maximum pool size
      */
     public int getMaxPoolSize() {
@@ -161,7 +160,7 @@ public final class PoolConfig {
 
     /**
      * Gets the minimum number of idle connections to maintain.
-     * 
+     *
      * @return the minimum idle connections
      */
     public int getMinIdle() {
@@ -171,7 +170,7 @@ public final class PoolConfig {
     /**
      * Gets the connection timeout in milliseconds.
      * This is the maximum time to wait when acquiring a connection.
-     * 
+     *
      * @return the connection timeout in milliseconds
      */
     public long getConnectionTimeoutMs() {
@@ -181,7 +180,7 @@ public final class PoolConfig {
     /**
      * Gets the idle timeout in milliseconds.
      * Connections idle longer than this will be eligible for removal.
-     * 
+     *
      * @return the idle timeout in milliseconds
      */
     public long getIdleTimeoutMs() {
@@ -191,7 +190,7 @@ public final class PoolConfig {
     /**
      * Gets the maximum lifetime of a connection in milliseconds.
      * Connections older than this will be closed and removed.
-     * 
+     *
      * @return the maximum lifetime in milliseconds
      */
     public long getMaxLifetimeMs() {
@@ -200,7 +199,7 @@ public final class PoolConfig {
 
     /**
      * Gets the SQL query used to validate connections.
-     * 
+     *
      * @return the validation query, may be null if not configured
      */
     public String getValidationQuery() {
@@ -209,7 +208,7 @@ public final class PoolConfig {
 
     /**
      * Gets the default auto-commit mode for connections.
-     * 
+     *
      * @return true if auto-commit is enabled by default
      */
     public boolean isAutoCommit() {
@@ -219,7 +218,7 @@ public final class PoolConfig {
     /**
      * Gets the default transaction isolation level.
      * This level will be restored when connections are returned to the pool.
-     * 
+     *
      * @return the default transaction isolation level (e.g., Connection.TRANSACTION_READ_COMMITTED),
      *         or null if not configured (pool will use database default)
      */
@@ -229,7 +228,7 @@ public final class PoolConfig {
 
     /**
      * Gets the additional properties map.
-     * 
+     *
      * @return an unmodifiable map of additional properties
      */
     public Map<String, String> getProperties() {
@@ -238,7 +237,7 @@ public final class PoolConfig {
 
     /**
      * Gets the metrics prefix for monitoring.
-     * 
+     *
      * @return the metrics prefix, may be null
      */
     public String getMetricsPrefix() {
@@ -300,7 +299,7 @@ public final class PoolConfig {
 
         /**
          * Sets the JDBC URL.
-         * 
+         *
          * @param url the JDBC URL
          * @return this builder
          */
@@ -311,7 +310,7 @@ public final class PoolConfig {
 
         /**
          * Sets the username for database authentication.
-         * 
+         *
          * @param username the username
          * @return this builder
          */
@@ -323,7 +322,7 @@ public final class PoolConfig {
         /**
          * Sets the password as a char array for secure credential handling.
          * The array is copied to prevent external modification.
-         * 
+         *
          * @param password the password as a char array
          * @return this builder
          */
@@ -335,10 +334,10 @@ public final class PoolConfig {
 
         /**
          * Sets the password as a String.
-         * 
+         *
          * <p>Note: For security-sensitive applications, prefer using
          * {@link #password(char[])} to minimize password exposure.</p>
-         * 
+         *
          * @param password the password
          * @return this builder
          */
@@ -351,7 +350,7 @@ public final class PoolConfig {
         /**
          * Sets a password supplier for dynamic credential retrieval.
          * This is useful for integrations with secret management systems.
-         * 
+         *
          * @param passwordSupplier a supplier that provides the password
          * @return this builder
          */
@@ -363,7 +362,7 @@ public final class PoolConfig {
 
         /**
          * Sets the JDBC driver class name.
-         * 
+         *
          * @param driverClassName the driver class name
          * @return this builder
          */
@@ -374,7 +373,7 @@ public final class PoolConfig {
 
         /**
          * Sets the maximum pool size.
-         * 
+         *
          * @param maxPoolSize the maximum number of connections
          * @return this builder
          * @throws IllegalArgumentException if maxPoolSize is less than 1
@@ -389,7 +388,7 @@ public final class PoolConfig {
 
         /**
          * Sets the minimum number of idle connections.
-         * 
+         *
          * @param minIdle the minimum idle connections
          * @return this builder
          * @throws IllegalArgumentException if minIdle is negative
@@ -404,7 +403,7 @@ public final class PoolConfig {
 
         /**
          * Sets the connection timeout in milliseconds.
-         * 
+         *
          * @param connectionTimeoutMs the timeout in milliseconds
          * @return this builder
          * @throws IllegalArgumentException if timeout is negative
@@ -419,7 +418,7 @@ public final class PoolConfig {
 
         /**
          * Sets the idle timeout in milliseconds.
-         * 
+         *
          * @param idleTimeoutMs the timeout in milliseconds
          * @return this builder
          * @throws IllegalArgumentException if timeout is negative
@@ -434,7 +433,7 @@ public final class PoolConfig {
 
         /**
          * Sets the maximum lifetime of connections in milliseconds.
-         * 
+         *
          * @param maxLifetimeMs the maximum lifetime in milliseconds
          * @return this builder
          * @throws IllegalArgumentException if maxLifetimeMs is negative
@@ -449,7 +448,7 @@ public final class PoolConfig {
 
         /**
          * Sets the SQL query used for connection validation.
-         * 
+         *
          * @param validationQuery the validation query
          * @return this builder
          */
@@ -460,7 +459,7 @@ public final class PoolConfig {
 
         /**
          * Sets the default auto-commit mode.
-         * 
+         *
          * @param autoCommit true to enable auto-commit by default
          * @return this builder
          */
@@ -474,7 +473,7 @@ public final class PoolConfig {
          * When set, the connection pool will reset connections to this isolation level
          * when they are returned to the pool, preventing transaction isolation state
          * pollution between clients.
-         * 
+         *
          * @param defaultTransactionIsolation the transaction isolation level
          *        (e.g., Connection.TRANSACTION_READ_COMMITTED, Connection.TRANSACTION_SERIALIZABLE),
          *        or null to use database default
@@ -487,7 +486,7 @@ public final class PoolConfig {
 
         /**
          * Sets additional properties.
-         * 
+         *
          * @param properties a map of additional properties
          * @return this builder
          */
@@ -498,7 +497,7 @@ public final class PoolConfig {
 
         /**
          * Adds a single property.
-         * 
+         *
          * @param key the property key
          * @param value the property value
          * @return this builder
@@ -513,7 +512,7 @@ public final class PoolConfig {
 
         /**
          * Sets the metrics prefix for monitoring.
-         * 
+         *
          * @param metricsPrefix the metrics prefix
          * @return this builder
          */
@@ -524,7 +523,7 @@ public final class PoolConfig {
 
         /**
          * Builds a new PoolConfig instance.
-         * 
+         *
          * @return a new PoolConfig instance
          * @throws IllegalStateException if minIdle exceeds maxPoolSize
          */

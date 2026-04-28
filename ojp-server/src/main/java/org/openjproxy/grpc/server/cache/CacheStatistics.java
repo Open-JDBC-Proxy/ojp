@@ -12,42 +12,42 @@ public class CacheStatistics {
     private final AtomicLong evictions = new AtomicLong(0);
     private final AtomicLong invalidations = new AtomicLong(0);
     private final AtomicLong rejections = new AtomicLong(0);
-    
+
     /**
      * Record a cache hit.
      */
     public void recordHit() {
         hits.incrementAndGet();
     }
-    
+
     /**
      * Record a cache miss.
      */
     public void recordMiss() {
         misses.incrementAndGet();
     }
-    
+
     /**
      * Record a cache eviction (entry removed due to size or TTL).
      */
     public void recordEviction() {
         evictions.incrementAndGet();
     }
-    
+
     /**
      * Record a cache invalidation (entry removed due to table write).
      */
     public void recordInvalidation() {
         invalidations.incrementAndGet();
     }
-    
+
     /**
      * Record a cache rejection (entry too large to cache).
      */
     public void recordRejection() {
         rejections.incrementAndGet();
     }
-    
+
     /**
      * Calculate the cache hit rate.
      *
@@ -58,7 +58,7 @@ public class CacheStatistics {
         long m = misses.get();
         return (h + m == 0) ? 0.0 : (double) h / (h + m);
     }
-    
+
     /**
      * Get total number of hits.
      *
@@ -67,7 +67,7 @@ public class CacheStatistics {
     public long getHits() {
         return hits.get();
     }
-    
+
     /**
      * Get total number of misses.
      *
@@ -76,7 +76,7 @@ public class CacheStatistics {
     public long getMisses() {
         return misses.get();
     }
-    
+
     /**
      * Get total number of evictions.
      *
@@ -85,7 +85,7 @@ public class CacheStatistics {
     public long getEvictions() {
         return evictions.get();
     }
-    
+
     /**
      * Get total number of invalidations.
      *
@@ -94,7 +94,7 @@ public class CacheStatistics {
     public long getInvalidations() {
         return invalidations.get();
     }
-    
+
     /**
      * Get total number of rejections.
      *
@@ -103,7 +103,7 @@ public class CacheStatistics {
     public long getRejections() {
         return rejections.get();
     }
-    
+
     /**
      * Reset all statistics to zero.
      */
@@ -114,7 +114,7 @@ public class CacheStatistics {
         invalidations.set(0);
         rejections.set(0);
     }
-    
+
     @Override
     public String toString() {
         return String.format(

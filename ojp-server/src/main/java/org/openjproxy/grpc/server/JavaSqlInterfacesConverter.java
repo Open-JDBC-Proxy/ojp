@@ -44,7 +44,7 @@ public class JavaSqlInterfacesConverter {
             return CallableStatement.class;
         } else if (PreparedStatement.class.isAssignableFrom(clazz)) {
             return PreparedStatement.class;
-        } else if (Statement.class.isAssignableFrom(clazz)) {// Statement has to be after PreparedStatement and CallableStatement as per both inherit Statement
+        } else if (Statement.class.isAssignableFrom(clazz)) { // Statement has to be after PreparedStatement and CallableStatement as per both inherit Statement
             return Statement.class;
         } else if (Connection.class.isAssignableFrom(clazz)) {
             return Connection.class;

@@ -14,10 +14,10 @@ public class TableMetadata {
     private final String tableName;
     private final List<ColumnMetadata> columns;
     private final RelDataType relDataType;
-    
+
     /**
      * Creates table metadata.
-     * 
+     *
      * @param tableName Name of the table
      * @param columns List of column metadata
      * @param relDataType Calcite type representation for the table

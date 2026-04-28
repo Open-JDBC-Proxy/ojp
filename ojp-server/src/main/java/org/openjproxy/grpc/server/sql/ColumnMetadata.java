@@ -14,10 +14,10 @@ public class ColumnMetadata {
     private final boolean nullable;
     private final int precision;
     private final int scale;
-    
+
     /**
      * Creates column metadata.
-     * 
+     *
      * @param columnName Name of the column
      * @param jdbcType JDBC type constant from java.sql.Types
      * @param typeName Database-specific type name
@@ -25,7 +25,7 @@ public class ColumnMetadata {
      * @param precision Column precision (for numeric/character types)
      * @param scale Column scale (for numeric types)
      */
-    public ColumnMetadata(String columnName, int jdbcType, String typeName, 
+    public ColumnMetadata(String columnName, int jdbcType, String typeName,
                          boolean nullable, int precision, int scale) {
         this.columnName = columnName;
         this.jdbcType = jdbcType;

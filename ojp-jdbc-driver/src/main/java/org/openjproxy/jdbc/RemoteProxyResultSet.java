@@ -1,6 +1,5 @@
 package org.openjproxy.jdbc;
 
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
@@ -1277,14 +1276,14 @@ public class RemoteProxyResultSet implements java.sql.ResultSet {
         if (Void.class.equals(returnType)) {
             return null;
         }
-        
+
         List<ParameterValue> values = response.getValuesList();
         if (values.isEmpty()) {
             return null;
         }
-        
+
         Object result = ProtoConverter.fromParameterValue(values.get(0));
-        
+
         // Handle numeric type conversions (Byte/Short come as Integer from proto)
         if (result instanceof Integer && !Integer.class.equals(returnType)) {
             Integer intValue = (Integer) result;
@@ -1294,7 +1293,7 @@ public class RemoteProxyResultSet implements java.sql.ResultSet {
                 result = intValue.byteValue();
             }
         }
-        
+
         return (T) result;
     }
 
@@ -1327,7 +1326,7 @@ public class RemoteProxyResultSet implements java.sql.ResultSet {
         );
         CallResourceResponse response = this.statementService.callResource(reqBuilder.build());
         this.getConnection().setSession(response.getSession());
-        
+
         List<ParameterValue> values = response.getValuesList();
         String lobRefUUID = values.isEmpty() ? null : (String) ProtoConverter.fromParameterValue(values.get(0));
         BinaryStream binaryStream = new BinaryStream(

@@ -19,11 +19,11 @@ public class LobProcessor {
 
     /**
      * Processes a BLOB from a result set using hydrated approach.
-     * 
-     * NOTE: This method now uses a hydrated approach for all databases, where the entire 
-     * BLOB content is materialized in memory as a byte array. This ensures consistent 
+     *
+     * NOTE: This method now uses a hydrated approach for all databases, where the entire
+     * BLOB content is materialized in memory as a byte array. This ensures consistent
      * behavior across all database types and eliminates the complexity of streaming LOBs.
-     * 
+     *
      * Performance implications:
      * - Higher memory usage for large BLOBs (entire content loaded into memory)
      * - Faster access once loaded, but higher initial load time
@@ -38,7 +38,7 @@ public class LobProcessor {
      * @throws SQLException if BLOB processing fails
      */
     @SneakyThrows
-    public static Object treatAsBlob(SessionManager sessionManager, SessionInfo session, 
+    public static Object treatAsBlob(SessionManager sessionManager, SessionInfo session,
                                    ResultSet rs, int columnIndex, Map<String, DbName> dbNameMap) throws SQLException {
         Blob blob = rs.getBlob(columnIndex + 1);
         if (blob == null) {
@@ -51,11 +51,11 @@ public class LobProcessor {
 
     /**
      * Processes binary data from a result set using hydrated approach.
-     * 
-     * NOTE: This method now uses a hydrated approach for all databases, where binary streams 
-     * are materialized in memory as byte arrays. This ensures consistent behavior across all 
+     *
+     * NOTE: This method now uses a hydrated approach for all databases, where binary streams
+     * are materialized in memory as byte arrays. This ensures consistent behavior across all
      * database types and eliminates the complexity of streaming binary data.
-     * 
+     *
      * Performance implications:
      * - Higher memory usage for large binary data (entire content loaded into memory)
      * - Faster access once loaded, but higher initial load time
@@ -71,8 +71,8 @@ public class LobProcessor {
      * @throws SQLException if binary processing fails
      */
     @SneakyThrows
-    public static Object treatAsBinary(SessionManager sessionManager, SessionInfo session, 
-                                     DbName dbName, ResultSet rs, int columnIndex, 
+    public static Object treatAsBinary(SessionManager sessionManager, SessionInfo session,
+                                     DbName dbName, ResultSet rs, int columnIndex,
                                      java.util.List<String> inputStreamTypes) throws SQLException {
         int precision = rs.getMetaData().getPrecision(columnIndex + 1);
         String catalogName = rs.getMetaData().getCatalogName(columnIndex + 1);
@@ -80,11 +80,11 @@ public class LobProcessor {
         String colTypeName = rs.getMetaData().getColumnTypeName(columnIndex + 1);
         colTypeName = colTypeName != null ? colTypeName : "";
         Object binaryValue = null;
-        
-        if (precision == 1 && !"[B".equalsIgnoreCase(colClassName) && !"byte[]".equalsIgnoreCase(colClassName)) { 
+
+        if (precision == 1 && !"[B".equalsIgnoreCase(colClassName) && !"byte[]".equalsIgnoreCase(colClassName)) {
             //it is a single byte and is not of class byte array([B)
             binaryValue = rs.getByte(columnIndex + 1);
-        } else if ((org.apache.commons.lang3.StringUtils.isNotEmpty(catalogName) || 
+        } else if ((org.apache.commons.lang3.StringUtils.isNotEmpty(catalogName) ||
                    "[B".equalsIgnoreCase(colClassName) || "byte[]".equalsIgnoreCase(colClassName)) &&
                    !inputStreamTypes.contains(colTypeName.toUpperCase())) {
             binaryValue = rs.getBytes(columnIndex + 1);

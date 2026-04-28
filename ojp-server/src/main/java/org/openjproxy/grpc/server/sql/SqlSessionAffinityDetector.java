@@ -5,17 +5,17 @@ import java.util.regex.Pattern;
 /**
  * Detects SQL statements that require session affinity to ensure they execute
  * on the same database connection consistently.
- * 
+ *
  * This includes:
  * - Temporary tables (CREATE TEMPORARY TABLE, CREATE TEMP TABLE)
  * - Session variables (SET @var, SET SESSION, SET LOCAL)
  * - Prepared statements (PREPARE)
- * 
+ *
  * Session affinity is critical in multinode deployments to ensure these
  * session-specific database features work correctly across requests.
  */
 public class SqlSessionAffinityDetector {
-    
+
     /**
      * Pattern to detect temporary table creation.
      * Matches:
@@ -30,7 +30,7 @@ public class SqlSessionAffinityDetector {
         "^\\s*(CREATE\\s+(GLOBAL\\s+|LOCAL\\s+)?(TEMP(ORARY)?|TEMPORARY)\\s+TABLE|DECLARE\\s+GLOBAL\\s+TEMPORARY\\s+TABLE)",
         Pattern.CASE_INSENSITIVE
     );
-    
+
     /**
      * Pattern to detect session variable assignment.
      * Matches:
@@ -42,7 +42,7 @@ public class SqlSessionAffinityDetector {
         "^\\s*SET\\s+(@|SESSION\\s+|LOCAL\\s+)",
         Pattern.CASE_INSENSITIVE
     );
-    
+
     /**
      * Pattern to detect prepared statement creation.
      * Matches:
@@ -52,12 +52,12 @@ public class SqlSessionAffinityDetector {
         "^\\s*PREPARE\\s+",
         Pattern.CASE_INSENSITIVE
     );
-    
+
     /**
      * Pattern to detect SQL Server local temporary table creation.
      * Matches:
      * - CREATE TABLE #temp_table (SQL Server local temp)
-     * 
+     *
      * Note: ##global_temp is intentionally not matched as it's accessible
      * across sessions and doesn't require session affinity.
      */
@@ -65,14 +65,14 @@ public class SqlSessionAffinityDetector {
         "^\\s*CREATE\\s+TABLE\\s+#[^#]",
         Pattern.CASE_INSENSITIVE
     );
-    
+
     /**
      * Determines if a SQL statement requires session affinity.
-     * 
+     *
      * This method performs lightweight pattern matching on the SQL to detect
      * session-specific operations. It only examines the beginning of the SQL
      * statement for performance.
-     * 
+     *
      * @param sql The SQL statement to analyze
      * @return true if the statement requires session affinity, false otherwise
      */
@@ -80,42 +80,42 @@ public class SqlSessionAffinityDetector {
         if (sql == null || sql.trim().isEmpty()) {
             return false;
         }
-        
+
         // Only examine first 200 characters for performance
         // (session-specific keywords appear at the start)
         String sqlPrefix = sql.length() > 200 ? sql.substring(0, 200) : sql;
         String normalized = sqlPrefix.trim();
-        
+
         // Check for temporary tables
         if (TEMP_TABLE_PATTERN.matcher(normalized).find()) {
             return true;
         }
-        
+
         // Check for session variables
         if (SESSION_VAR_PATTERN.matcher(normalized).find()) {
             return true;
         }
-        
+
         // Check for prepared statements
         if (PREPARE_PATTERN.matcher(normalized).find()) {
             return true;
         }
-        
+
         // Check for SQL Server local temp tables
         if (SQLSERVER_TEMP_TABLE_PATTERN.matcher(normalized).find()) {
             return true;
         }
-        
+
         return false;
     }
-    
+
     /**
      * Determines if a SQL statement requires session affinity, with additional
      * context about the database type.
-     * 
+     *
      * This method allows for database-specific detection logic in the future
      * if needed. Currently, it delegates to the general detection method.
-     * 
+     *
      * @param sql The SQL statement to analyze
      * @param databaseProductName The database product name (e.g., "PostgreSQL", "MySQL")
      * @return true if the statement requires session affinity, false otherwise

@@ -17,17 +17,17 @@ import javax.sql.DataSource;
  */
 @Slf4j
 public class ProcessClusterHealthAction {
-    
+
     private static final ProcessClusterHealthAction INSTANCE = new ProcessClusterHealthAction();
-    
+
     private ProcessClusterHealthAction() {
         // Private constructor prevents external instantiation
     }
-    
+
     public static ProcessClusterHealthAction getInstance() {
         return INSTANCE;
     }
-    
+
     /**
      * Processes cluster health from the client request and triggers pool rebalancing if needed.
      * This should be called for every request that includes SessionInfo with cluster health.
@@ -37,13 +37,13 @@ public class ProcessClusterHealthAction {
             log.debug("[XA-REBALANCE-DEBUG] processClusterHealth: sessionInfo is null");
             return;
         }
-        
+
         String clusterHealth = sessionInfo.getClusterHealth();
         String connHash = sessionInfo.getConnHash();
-        
-        log.debug("[XA-REBALANCE] processClusterHealth called: connHash={}, clusterHealth='{}', isXA={}, hasXARegistry={}", 
+
+        log.debug("[XA-REBALANCE] processClusterHealth called: connHash={}, clusterHealth='{}', isXA={}, hasXARegistry={}",
                 connHash, clusterHealth, sessionInfo.getIsXA(), context.getXaRegistries().containsKey(connHash));
-        
+
         if (clusterHealth.isEmpty() || connHash.isEmpty()) {
             log.debug("[XA-REBALANCE-DEBUG] Skipping cluster health processing: clusterHealth={}, connHash={}",
                     clusterHealth.isEmpty() ? "empty" : "present",

@@ -14,11 +14,11 @@ import java.util.concurrent.ConcurrentMap;
  */
 @Slf4j
 public class DataSourceConfigurationManager {
-    
+
     // Cache for parsed datasource configurations
-    private static final ConcurrentMap<String, DataSourceConfiguration> configCache = new ConcurrentHashMap<>();
-    private static final ConcurrentMap<String, XADataSourceConfiguration> xaConfigCache = new ConcurrentHashMap<>();
-    
+    private static final ConcurrentMap<String, DataSourceConfiguration> CONFIG_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, XADataSourceConfiguration> XA_CONFIG_CACHE = new ConcurrentHashMap<>();
+
     /**
      * Configuration for a specific datasource
      */
@@ -31,7 +31,7 @@ public class DataSourceConfigurationManager {
         private final long connectionTimeout;
         private final boolean poolEnabled;
         private final Integer defaultTransactionIsolation;
-        
+
         public DataSourceConfiguration(String dataSourceName, Properties properties) {
             this.dataSourceName = dataSourceName;
             this.maximumPoolSize = getIntProperty(properties, CommonConstants.MAXIMUM_POOL_SIZE_PROPERTY, CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE);
@@ -42,7 +42,7 @@ public class DataSourceConfigurationManager {
             this.poolEnabled = getBooleanProperty(properties, CommonConstants.POOL_ENABLED_PROPERTY, true);
             this.defaultTransactionIsolation = getTransactionIsolationProperty(properties, CommonConstants.DEFAULT_TRANSACTION_ISOLATION_PROPERTY);
         }
-        
+
         // Getters
         public String getDataSourceName() { return dataSourceName; }
         public int getMaximumPoolSize() { return maximumPoolSize; }
@@ -52,15 +52,15 @@ public class DataSourceConfigurationManager {
         public long getConnectionTimeout() { return connectionTimeout; }
         public boolean isPoolEnabled() { return poolEnabled; }
         public Integer getDefaultTransactionIsolation() { return defaultTransactionIsolation; }
-        
+
         @Override
         public String toString() {
-            return String.format("DataSourceConfiguration[%s: maxPool=%d, minIdle=%d, timeout=%d, poolEnabled=%b, txIsolation=%s]", 
-                    dataSourceName, maximumPoolSize, minimumIdle, connectionTimeout, poolEnabled, 
+            return String.format("DataSourceConfiguration[%s: maxPool=%d, minIdle=%d, timeout=%d, poolEnabled=%b, txIsolation=%s]",
+                    dataSourceName, maximumPoolSize, minimumIdle, connectionTimeout, poolEnabled,
                     defaultTransactionIsolation != null ? defaultTransactionIsolation : "auto-detect");
         }
     }
-    
+
     /**
      * Configuration for XA-specific datasource (separate from non-XA)
      */
@@ -76,11 +76,11 @@ public class DataSourceConfigurationManager {
         private final int numTestsPerEvictionRun;
         private final long softMinEvictableIdleTime;
         private final Integer defaultTransactionIsolation;
-        
+
         public XADataSourceConfiguration(String dataSourceName, Properties properties) {
             this.dataSourceName = dataSourceName;
             // Use XA-specific properties with XA defaults (no fallback to non-XA properties)
-            this.maximumPoolSize = getIntProperty(properties, CommonConstants.XA_MAXIMUM_POOL_SIZE_PROPERTY, 
+            this.maximumPoolSize = getIntProperty(properties, CommonConstants.XA_MAXIMUM_POOL_SIZE_PROPERTY,
                     CommonConstants.DEFAULT_XA_MAXIMUM_POOL_SIZE);
             this.minimumIdle = getIntProperty(properties, CommonConstants.XA_MINIMUM_IDLE_PROPERTY,
                     CommonConstants.DEFAULT_XA_MINIMUM_IDLE);
@@ -91,18 +91,18 @@ public class DataSourceConfigurationManager {
             this.connectionTimeout = getLongProperty(properties, CommonConstants.XA_CONNECTION_TIMEOUT_PROPERTY,
                     CommonConstants.DEFAULT_CONNECTION_TIMEOUT);
             this.poolEnabled = getBooleanProperty(properties, CommonConstants.XA_POOL_ENABLED_PROPERTY, true);
-            
+
             // Evictor configuration (XA-specific only, no fallback to non-XA)
-            this.timeBetweenEvictionRuns = getLongProperty(properties, CommonConstants.XA_TIME_BETWEEN_EVICTION_RUNS_PROPERTY, 
+            this.timeBetweenEvictionRuns = getLongProperty(properties, CommonConstants.XA_TIME_BETWEEN_EVICTION_RUNS_PROPERTY,
                     CommonConstants.DEFAULT_XA_TIME_BETWEEN_EVICTION_RUNS_MS);
             this.numTestsPerEvictionRun = getIntProperty(properties, CommonConstants.XA_NUM_TESTS_PER_EVICTION_RUN_PROPERTY,
                     CommonConstants.DEFAULT_XA_NUM_TESTS_PER_EVICTION_RUN);
             this.softMinEvictableIdleTime = getLongProperty(properties, CommonConstants.XA_SOFT_MIN_EVICTABLE_IDLE_TIME_PROPERTY,
                     CommonConstants.DEFAULT_XA_SOFT_MIN_EVICTABLE_IDLE_TIME_MS);
-            
+
             this.defaultTransactionIsolation = getTransactionIsolationProperty(properties, CommonConstants.XA_DEFAULT_TRANSACTION_ISOLATION_PROPERTY);
         }
-        
+
         // Getters
         public String getDataSourceName() { return dataSourceName; }
         public int getMaximumPoolSize() { return maximumPoolSize; }
@@ -115,60 +115,60 @@ public class DataSourceConfigurationManager {
         public int getNumTestsPerEvictionRun() { return numTestsPerEvictionRun; }
         public long getSoftMinEvictableIdleTime() { return softMinEvictableIdleTime; }
         public Integer getDefaultTransactionIsolation() { return defaultTransactionIsolation; }
-        
+
         @Override
         public String toString() {
-            return String.format("XADataSourceConfiguration[%s: maxPool=%d, minIdle=%d, timeout=%d, poolEnabled=%b, evictionRuns=%d, testsPerRun=%d, softMinEvictable=%d, txIsolation=%s]", 
-                    dataSourceName, maximumPoolSize, minimumIdle, connectionTimeout, poolEnabled, 
+            return String.format("XADataSourceConfiguration[%s: maxPool=%d, minIdle=%d, timeout=%d, poolEnabled=%b, evictionRuns=%d, testsPerRun=%d, softMinEvictable=%d, txIsolation=%s]",
+                    dataSourceName, maximumPoolSize, minimumIdle, connectionTimeout, poolEnabled,
                     timeBetweenEvictionRuns, numTestsPerEvictionRun, softMinEvictableIdleTime,
                     defaultTransactionIsolation != null ? defaultTransactionIsolation : "auto-detect");
         }
     }
-    
+
     /**
      * Gets or creates a DataSourceConfiguration from client properties.
-     * 
+     *
      * @param clientProperties Properties sent from client, may include datasource name
      * @return DataSourceConfiguration with parsed settings
      */
     public static DataSourceConfiguration getConfiguration(Properties clientProperties) {
         // Extract datasource name from properties (set by Driver)
-        String dataSourceName = clientProperties != null ? 
+        String dataSourceName = clientProperties != null ?
                 clientProperties.getProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "default") : "default";
-        
+
         // Create cache key that includes the properties hash to handle configuration changes
         String cacheKey = createCacheKey(dataSourceName, clientProperties, false);
-        
+
         // Cache lookup with lazy initialization - creates new configuration only if not already cached
-        return configCache.computeIfAbsent(cacheKey, k -> {
+        return CONFIG_CACHE.computeIfAbsent(cacheKey, k -> {
             DataSourceConfiguration config = new DataSourceConfiguration(dataSourceName, clientProperties);
             log.info("Created new DataSourceConfiguration: {}", config);
             return config;
         });
     }
-    
+
     /**
      * Gets or creates an XADataSourceConfiguration from client properties.
-     * 
+     *
      * @param clientProperties Properties sent from client, may include datasource name
      * @return XADataSourceConfiguration with parsed settings (XA-specific or fallback to regular)
      */
     public static XADataSourceConfiguration getXAConfiguration(Properties clientProperties) {
         // Extract datasource name from properties (set by Driver)
-        String dataSourceName = clientProperties != null ? 
+        String dataSourceName = clientProperties != null ?
                 clientProperties.getProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, "default") : "default";
-        
+
         // Create cache key that includes the properties hash to handle configuration changes
         String cacheKey = createCacheKey(dataSourceName, clientProperties, true);
-        
+
         // Cache lookup with lazy initialization (using separate XA cache)
-        return xaConfigCache.computeIfAbsent(cacheKey, k -> {
+        return XA_CONFIG_CACHE.computeIfAbsent(cacheKey, k -> {
             XADataSourceConfiguration config = new XADataSourceConfiguration(dataSourceName, clientProperties);
             log.info("Created new XADataSourceConfiguration: {}", config);
             return config;
         });
     }
-    
+
     /**
      * Creates a cache key that includes datasource name and a hash of relevant properties.
      * The cache key is used to determine if a configuration has already been created and cached,
@@ -179,15 +179,15 @@ public class DataSourceConfigurationManager {
         if (properties == null) {
             return dataSourceName + ":" + (isXA ? "xa:" : "") + "defaults";
         }
-        
+
         // Create a simple hash of the relevant properties to detect changes
         StringBuilder sb = new StringBuilder(dataSourceName).append(":").append(isXA ? "xa:" : "");
-        
+
         String[] keys;
         if (isXA) {
             keys = new String[] {
                     CommonConstants.XA_MAXIMUM_POOL_SIZE_PROPERTY,
-                    CommonConstants.XA_MINIMUM_IDLE_PROPERTY, 
+                    CommonConstants.XA_MINIMUM_IDLE_PROPERTY,
                     CommonConstants.XA_IDLE_TIMEOUT_PROPERTY,
                     CommonConstants.XA_MAX_LIFETIME_PROPERTY,
                     CommonConstants.XA_CONNECTION_TIMEOUT_PROPERTY,
@@ -200,7 +200,7 @@ public class DataSourceConfigurationManager {
         } else {
             keys = new String[] {
                     CommonConstants.MAXIMUM_POOL_SIZE_PROPERTY,
-                    CommonConstants.MINIMUM_IDLE_PROPERTY, 
+                    CommonConstants.MINIMUM_IDLE_PROPERTY,
                     CommonConstants.IDLE_TIMEOUT_PROPERTY,
                     CommonConstants.MAX_LIFETIME_PROPERTY,
                     CommonConstants.CONNECTION_TIMEOUT_PROPERTY,
@@ -208,15 +208,15 @@ public class DataSourceConfigurationManager {
                     CommonConstants.DEFAULT_TRANSACTION_ISOLATION_PROPERTY
             };
         }
-        
+
         for (String key : keys) {
             String value = properties.getProperty(key, "");
             sb.append(key).append("=").append(value).append(";");
         }
-        
+
         return sb.toString();
     }
-    
+
     /**
      * Gets an integer property with a default value.
      */
@@ -231,7 +231,7 @@ public class DataSourceConfigurationManager {
             return defaultValue;
         }
     }
-    
+
     /**
      * Gets a long property with a default value.
      */
@@ -246,7 +246,7 @@ public class DataSourceConfigurationManager {
             return defaultValue;
         }
     }
-    
+
     /**
      * Gets a boolean property with a default value.
      */
@@ -260,16 +260,16 @@ public class DataSourceConfigurationManager {
         }
         return defaultValue;
     }
-    
+
     /**
      * Gets a transaction isolation level property from string names.
      * Returns null if not specified, defaulting to READ_COMMITTED.
-     * 
+     *
      * <p>This method provides explicit validation of transaction isolation values,
      * accepting only well-known string names (case-insensitive). Invalid values
      * are rejected with a warning and null is returned, which causes the system
      * to fall back to the default READ_COMMITTED isolation level.</p>
-     * 
+     *
      * @param properties The properties object
      * @param key The property key
      * @return The transaction isolation level constant, or null if not specified or invalid
@@ -278,14 +278,14 @@ public class DataSourceConfigurationManager {
         if (properties == null || !properties.containsKey(key)) {
             return null;
         }
-        
+
         String value = properties.getProperty(key);
         if (value == null || value.trim().isEmpty()) {
             return null;
         }
-        
+
         value = value.trim();
-        
+
         // Parse string names (case-insensitive) with explicit validation
         switch (value.toUpperCase()) {
             case "TRANSACTION_NONE":
@@ -311,20 +311,20 @@ public class DataSourceConfigurationManager {
                 return null;
         }
     }
-    
+
     /**
      * Clears the configuration caches. Useful for testing.
      */
     public static void clearCache() {
-        configCache.clear();
-        xaConfigCache.clear();
+        CONFIG_CACHE.clear();
+        XA_CONFIG_CACHE.clear();
         log.debug("Cleared DataSourceConfiguration caches");
     }
-    
+
     /**
      * Gets the number of cached configurations. Useful for monitoring.
      */
     public static int getCacheSize() {
-        return configCache.size() + xaConfigCache.size();
+        return CONFIG_CACHE.size() + XA_CONFIG_CACHE.size();
     }
 }

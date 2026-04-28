@@ -68,7 +68,7 @@ public class CommandExecutionHelper {
 
             circuitBreaker.onSuccess(stmtHash);
 
-        } catch(SQLDataException e) {
+        } catch (SQLDataException e) {
             circuitBreaker.onFailure(stmtHash, e);
             log.error("SQL data failure during {} execution: {}",
                     operationName, e.getMessage(), e);

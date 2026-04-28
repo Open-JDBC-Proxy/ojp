@@ -8,7 +8,7 @@ package org.openjproxy.xa.pool.commons.metrics;
  * </p>
  */
 public interface PoolMetrics {
-    
+
     /**
      * Updates all pool metrics based on current pool state.
      * This method should be called periodically or after state changes.
@@ -36,7 +36,7 @@ public interface PoolMetrics {
             long borrowedCount,
             long returnedCount
     );
-    
+
     /**
      * Records the time taken to acquire a connection from the pool.
      *
@@ -44,28 +44,28 @@ public interface PoolMetrics {
      * @param durationMillis the duration in milliseconds
      */
     void recordConnectionAcquisitionTime(String poolName, long durationMillis);
-    
+
     /**
      * Records a pool exhaustion event (when borrowing timed out).
      *
      * @param poolName the name/identifier of the pool
      */
     void recordPoolExhaustion(String poolName);
-    
+
     /**
      * Records a connection validation failure.
      *
      * @param poolName the name/identifier of the pool
      */
     void recordValidationFailure(String poolName);
-    
+
     /**
      * Records a connection leak detection.
      *
      * @param poolName the name/identifier of the pool
      */
     void recordLeakDetection(String poolName);
-    
+
     /**
      * Closes the metrics collector and releases any resources.
      */

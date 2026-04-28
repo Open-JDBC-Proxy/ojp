@@ -28,7 +28,7 @@ public final class CacheRule {
         this.ttl = Objects.requireNonNull(ttl, "ttl must not be null");
         this.invalidateOn = invalidateOn == null ? List.of() : List.copyOf(invalidateOn);
         this.enabled = enabled;
-        
+
         if (ttl.isNegative() || ttl.isZero()) {
             throw new IllegalArgumentException("TTL must be positive: " + ttl);
         }

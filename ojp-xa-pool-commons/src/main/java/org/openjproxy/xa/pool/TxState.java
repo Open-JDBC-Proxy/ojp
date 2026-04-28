@@ -2,14 +2,14 @@ package org.openjproxy.xa.pool;
 
 /**
  * Represents the state of an XA transaction branch in its lifecycle.
- * 
+ *
  * <p>State transitions follow the XA specification:</p>
  * <pre>
  * NONEXISTENT → ACTIVE → ENDED → PREPARED → COMMITTED/ROLLEDBACK
  *                  ↓                 ↓
  *                  → → → → → → → ROLLEDBACK
  * </pre>
- * 
+ *
  * <p>Valid transitions:</p>
  * <ul>
  *   <li>{@code NONEXISTENT → ACTIVE}: xa_start with TMNOFLAGS</li>
@@ -25,25 +25,25 @@ package org.openjproxy.xa.pool;
  * </ul>
  */
 public enum TxState {
-    
+
     /**
      * Transaction does not exist yet. Initial state before xa_start.
      */
     NONEXISTENT,
-    
+
     /**
      * Transaction is active. Work can be performed on the backend session.
      * Entered after xa_start (TMNOFLAGS/TMJOIN/TMRESUME).
      */
     ACTIVE,
-    
+
     /**
      * Transaction has ended but not yet prepared or committed.
      * Entered after xa_end (TMSUCCESS/TMFAIL/TMSUSPEND).
      * No work can be performed, but transaction is not yet durable.
      */
     ENDED,
-    
+
     /**
      * Transaction has been prepared (two-phase commit first phase complete).
      * Entered after xa_prepare returns XA_OK.
@@ -51,42 +51,42 @@ public enum TxState {
      * Backend session must remain pinned until commit/rollback.
      */
     PREPARED,
-    
+
     /**
      * Transaction has been committed. Terminal state.
      * Entered after xa_commit completes successfully.
      * Backend session can be returned to pool.
      */
     COMMITTED,
-    
+
     /**
      * Transaction has been rolled back. Terminal state.
      * Entered after xa_rollback completes successfully.
      * Backend session can be returned to pool.
      */
     ROLLEDBACK;
-    
+
     /**
      * Checks if this state is a terminal state (transaction complete).
-     * 
+     *
      * @return true if state is COMMITTED or ROLLEDBACK
      */
     public boolean isTerminal() {
         return this == COMMITTED || this == ROLLEDBACK;
     }
-    
+
     /**
      * Checks if this state allows work to be performed.
-     * 
+     *
      * @return true if state is ACTIVE
      */
     public boolean canPerformWork() {
         return this == ACTIVE;
     }
-    
+
     /**
      * Checks if the backend session is pinned (cannot be returned to pool).
-     * 
+     *
      * @return true if state is ACTIVE, ENDED, or PREPARED
      */
     public boolean isSessionPinned() {

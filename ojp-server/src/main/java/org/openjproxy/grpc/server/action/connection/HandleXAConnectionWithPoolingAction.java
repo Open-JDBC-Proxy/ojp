@@ -31,7 +31,7 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 /**
  * Helper action for handling XA connection with pooling.
  * This is extracted from handleXAConnectionWithPooling method.
- * 
+ *
  * This action is implemented as a singleton for thread-safety and memory efficiency.
  */
 @Slf4j
@@ -303,8 +303,8 @@ public class HandleXAConnectionWithPoolingAction {
                     .setConnHash(connHash)
                     .setClusterHealth(actualClusterHealth)
                     .build();
-            
-            log.debug("[XA-CONNECT-REBALANCE] Calling processClusterHealth BEFORE borrow for connHash={}, clusterHealth={}", 
+
+            log.debug("[XA-CONNECT-REBALANCE] Calling processClusterHealth BEFORE borrow for connHash={}, clusterHealth={}",
                     connHash, actualClusterHealth);
 
             // Process cluster health to trigger pool rebalancing if needed

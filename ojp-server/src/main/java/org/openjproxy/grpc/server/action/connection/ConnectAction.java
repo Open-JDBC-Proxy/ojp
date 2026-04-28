@@ -1,7 +1,6 @@
 package org.openjproxy.grpc.server.action.connection;
 
 import com.openjproxy.grpc.ConnectionDetails;
-import com.openjproxy.grpc.DbName;
 import com.openjproxy.grpc.SessionInfo;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -18,7 +17,6 @@ import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
-import org.openjproxy.grpc.server.util.DatasourceNameExtractor;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 
@@ -36,13 +34,13 @@ import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMe
 /**
  * Action to establish a database connection (regular or XA).
  * Handles connection pooling, multinode coordination, and both pooled/unpooled modes.
- * 
+ *
  * This action is implemented as a singleton for thread-safety and memory efficiency.
  * It is stateless and receives all necessary context via parameters.
  */
 @Slf4j
 public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
-    
+
     private static final ConnectAction INSTANCE = new ConnectAction();
 
     // Lock objects for synchronizing pool creation per connection hash.
@@ -62,11 +60,11 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
     private Lock getPoolCreationLock(String connHash) {
         return poolCreationLocks.computeIfAbsent(connHash, k -> new ReentrantLock());
     }
-    
+
     public static ConnectAction getInstance() {
         return INSTANCE;
     }
-    
+
     @Override
     public void execute(ActionContext context, ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
         // Handle empty connection details (health check)
@@ -84,8 +82,8 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         // Use default XA configuration values (deprecated pass-through properties no longer supported)
         int maxXaTransactions = org.openjproxy.constants.CommonConstants.DEFAULT_MAX_XA_TRANSACTIONS;
         long xaStartTimeoutMillis = org.openjproxy.constants.CommonConstants.DEFAULT_XA_START_TIMEOUT_MILLIS;
-        
-        log.info("connect connHash = {}, isXA = {}, maxXaTransactions = {}, xaStartTimeout = {}ms", 
+
+        log.info("connect connHash = {}, isXA = {}, maxXaTransactions = {}, xaStartTimeout = {}ms",
                 connHash, connectionDetails.getIsXA(), maxXaTransactions, xaStartTimeoutMillis);
 
         // Check if this is an XA connection request
@@ -93,11 +91,11 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
             handleXAConnection(context, connectionDetails, connHash, maxXaTransactions, xaStartTimeoutMillis, responseObserver);
             return;
         }
-        
+
         // Handle non-XA connection
         handleRegularConnection(context, connectionDetails, connHash, responseObserver);
     }
-    
+
     /**
      * Handle XA connection establishment.
      */
@@ -107,23 +105,23 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         // Check if multinode configuration is present for XA coordination
         List<String> serverEndpoints = connectionDetails.getServerEndpointsList();
         int actualMaxXaTransactions = maxXaTransactions;
-        
+
         if (serverEndpoints != null && !serverEndpoints.isEmpty()) {
             // Multinode: calculate divided XA transaction limits
-            MultinodeXaCoordinator.XaAllocation xaAllocation = 
+            MultinodeXaCoordinator.XaAllocation xaAllocation =
                     context.getXaCoordinator().calculateXaLimits(connHash, maxXaTransactions, serverEndpoints);
-            
+
             actualMaxXaTransactions = xaAllocation.getCurrentMaxTransactions();
-            
-            log.info("Multinode XA coordination enabled for {}: {} servers, divided max transactions: {}", 
+
+            log.info("Multinode XA coordination enabled for {}: {} servers, divided max transactions: {}",
                     connHash, serverEndpoints.size(), actualMaxXaTransactions);
         }
-        
+
         // Branch based on XA pooling configuration
         // XA Pool Provider SPI (always enabled)
         if (context.getXaPoolProvider() != null) {
             HandleXAConnectionWithPoolingAction.getInstance().execute(
-                context, connectionDetails, connHash, actualMaxXaTransactions, 
+                context, connectionDetails, connHash, actualMaxXaTransactions,
                 xaStartTimeoutMillis, responseObserver);
         } else {
             log.error("XA Pool Provider not initialized");
@@ -132,7 +130,7 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                     .asRuntimeException());
         }
     }
-    
+
     /**
      * Handle regular (non-XA) connection establishment.
      */
@@ -259,22 +257,22 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         // Parse and store cache configuration from properties
         if (connectionDetails.getPropertiesCount() > 0) {
             try {
-                org.openjproxy.grpc.server.cache.CacheConfiguration cacheConfig = 
+                org.openjproxy.grpc.server.cache.CacheConfiguration cacheConfig =
                     org.openjproxy.grpc.server.cache.QueryCacheHelper.parseCacheConfiguration(
                         connectionDetails.getUrl(),
                         connectionDetails.getPropertiesList(),
                         connHash);
-                
+
                 // Validate cache configuration
                 if (cacheConfig != null && cacheConfig.isEnabled()) {
-                    org.openjproxy.grpc.server.cache.CacheConfigurationValidator.ValidationResult validation = 
+                    org.openjproxy.grpc.server.cache.CacheConfigurationValidator.ValidationResult validation =
                         org.openjproxy.grpc.server.cache.CacheConfigurationValidator.validate(cacheConfig);
-                    
+
                     // Log warnings
                     for (String warning : validation.getWarnings()) {
                         log.warn("Cache configuration warning for connHash '{}': {}", connHash, warning);
                     }
-                    
+
                     // Check for errors
                     if (!validation.isValid()) {
                         String errorMsg = "Invalid cache configuration: " + String.join("; ", validation.getErrors());
@@ -284,17 +282,17 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                             cacheConfig.getDatasourceName(), false, java.util.List.of());
                     }
                 }
-                
+
                 context.getCacheConfigurationMap().put(connHash, cacheConfig);
-                
+
                 if (cacheConfig.isEnabled()) {
-                    log.info("Cache configuration stored for connHash '{}': {} rules", 
+                    log.info("Cache configuration stored for connHash '{}': {} rules",
                         connHash, cacheConfig.getRules().size());
                 } else {
                     log.debug("Cache configuration disabled for connHash '{}'", connHash);
                 }
             } catch (Exception e) {
-                log.error("Failed to parse cache configuration for connHash '{}': {}", 
+                log.error("Failed to parse cache configuration for connHash '{}': {}",
                     connHash, e.getMessage());
                 // Continue without cache - caching will be disabled for this connection
             }

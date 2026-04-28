@@ -16,11 +16,11 @@ import java.util.Map;
  */
 public class LeakDetectionTask implements Runnable {
     private static final Logger log = LoggerFactory.getLogger(LeakDetectionTask.class);
-    
+
     private final Map<XABackendSession, BorrowInfo> borrowedSessions;
     private final long leakTimeoutNanos;
     private final HousekeepingListener listener;
-    
+
     /**
      * Creates a leak detection task.
      *
@@ -36,21 +36,21 @@ public class LeakDetectionTask implements Runnable {
         this.leakTimeoutNanos = leakTimeoutNanos;
         this.listener = listener;
     }
-    
+
     @Override
     public void run() {
         try {
             long now = System.nanoTime();
             int leakCount = 0;
-            
+
             for (Map.Entry<XABackendSession, BorrowInfo> entry : borrowedSessions.entrySet()) {
                 XABackendSession session = entry.getKey();
                 BorrowInfo info = entry.getValue();
-                
+
                 long heldDuration = now - info.getBorrowTime();
                 if (heldDuration > leakTimeoutNanos) {
                     leakCount++;
-                    
+
                     // Notify listener
                     if (listener != null) {
                         listener.onLeakDetected(
@@ -61,12 +61,12 @@ public class LeakDetectionTask implements Runnable {
                     }
                 }
             }
-            
+
             if (leakCount > 0) {
                 log.debug("Leak detection scan completed: {} leak(s) detected out of {} borrowed sessions",
                     leakCount, borrowedSessions.size());
             }
-            
+
         } catch (Exception e) {
             log.error("Error during leak detection scan", e);
             if (listener != null) {

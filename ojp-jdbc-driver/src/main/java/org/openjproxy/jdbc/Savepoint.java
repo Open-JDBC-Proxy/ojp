@@ -60,7 +60,7 @@ public class Savepoint implements java.sql.Savepoint {
         if (values.isEmpty()) {
             return null;
         }
-        
+
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
     }

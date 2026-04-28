@@ -19,12 +19,12 @@ import java.util.Map;
  */
 public class PoolMetricsFactory {
     private static final Logger log = LoggerFactory.getLogger(PoolMetricsFactory.class);
-    
+
     // Configuration keys
     private static final String METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
     private static final String POOL_NAME_KEY = "ojp.xa.poolName";
     private static final String DEFAULT_POOL_NAME = "ojp-xa-pool";
-    
+
     /**
      * Creates a PoolMetrics instance based on configuration and OpenTelemetry availability.
      *
@@ -37,7 +37,7 @@ public class PoolMetricsFactory {
             log.warn("Configuration is null, metrics disabled");
             return NoOpPoolMetrics.INSTANCE;
         }
-        
+
         // Check if metrics are explicitly disabled
         // Check config map first, then system properties
         String metricsEnabled = config.get(METRICS_ENABLED_KEY);
@@ -48,12 +48,12 @@ public class PoolMetricsFactory {
             log.info("XA pool metrics explicitly disabled via configuration");
             return NoOpPoolMetrics.INSTANCE;
         }
-        
+
         // If no OpenTelemetry instance provided, try to get it from the global holder
         if (openTelemetry == null) {
             openTelemetry = OpenTelemetryHolder.getInstance();
         }
-        
+
         // Try to create OpenTelemetry metrics if available
         if (openTelemetry != null) {
             try {
@@ -68,22 +68,22 @@ public class PoolMetricsFactory {
                 log.info("Creating OpenTelemetry metrics for XA pool: {}", poolName);
                 return new OpenTelemetryPoolMetrics(openTelemetry, poolName);
             } catch (Exception e) {
-                log.warn("Failed to create OpenTelemetry metrics, falling back to no-op: {}", 
+                log.warn("Failed to create OpenTelemetry metrics, falling back to no-op: {}",
                         e.getMessage());
                 return NoOpPoolMetrics.INSTANCE;
             }
         }
-        
+
         // Check if OpenTelemetry is available on classpath
         if (isOpenTelemetryAvailable()) {
             log.info("OpenTelemetry is available but no instance provided, XA pool metrics will not be collected");
         } else {
             log.debug("OpenTelemetry not available on classpath, XA pool metrics disabled");
         }
-        
+
         return NoOpPoolMetrics.INSTANCE;
     }
-    
+
     /**
      * Checks if OpenTelemetry is available on the classpath.
      *

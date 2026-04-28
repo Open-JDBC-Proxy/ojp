@@ -27,7 +27,7 @@ import java.util.List;
 public class OjpServerTelemetry {
 	private static final Logger logger = LoggerFactory.getLogger(OjpServerTelemetry.class);
 	private static final int DEFAULT_PROMETHEUS_PORT = 9159;
-	
+
 	// Store the OpenTelemetry instance for cache metrics initialization
 	private OpenTelemetry openTelemetry;
 
@@ -67,19 +67,19 @@ public class OjpServerTelemetry {
 
 	/**
 	 * Creates GrpcTelemetry with specified Prometheus port and IP whitelist.
-	 * 
+	 *
 	 * @param prometheusPort Port to expose Prometheus metrics on
 	 * @param allowedIps IP whitelist for Prometheus endpoint
 	 * @param grpcMetricsEnabled Whether to enable gRPC metrics
 	 * @param poolMetricsEnabled Whether to enable pool metrics
 	 */
-	public GrpcTelemetry createGrpcTelemetry(int prometheusPort, List<String> allowedIps, 
+	public GrpcTelemetry createGrpcTelemetry(int prometheusPort, List<String> allowedIps,
 			boolean grpcMetricsEnabled, boolean poolMetricsEnabled) {
 		allowedIps = validateAllowedIps(allowedIps);
 
 		logger.info("Initializing OpenTelemetry with Prometheus on port {} with IP whitelist: {}",
 					prometheusPort, allowedIps);
-		logger.info("gRPC metrics enabled: {}, Pool metrics enabled: {}", 
+		logger.info("gRPC metrics enabled: {}, Pool metrics enabled: {}",
 					grpcMetricsEnabled, poolMetricsEnabled);
 
 		PrometheusHttpServer prometheusServer = PrometheusHttpServer.builder()
@@ -92,7 +92,7 @@ public class OjpServerTelemetry {
 								.registerMetricReader(prometheusServer)
 								.build())
 				.build();
-		
+
 		// Store the OpenTelemetry instance for cache metrics
 		this.openTelemetry = openTelemetry;
 
@@ -136,7 +136,7 @@ public class OjpServerTelemetry {
 
 		logger.info("Initializing OpenTelemetry with Prometheus on port {} with IP whitelist: {}",
 				prometheusPort, allowedIps);
-		logger.info("gRPC metrics enabled: {}, Pool metrics enabled: {}", 
+		logger.info("gRPC metrics enabled: {}, Pool metrics enabled: {}",
 				grpcMetricsEnabled, poolMetricsEnabled);
 
 		PrometheusHttpServer prometheusServer = PrometheusHttpServer.builder()
@@ -156,16 +156,16 @@ public class OjpServerTelemetry {
 		}
 
 		OpenTelemetry openTelemetry = sdkBuilder.build();
-		
+
 		// Store the OpenTelemetry instance for cache metrics
 		this.openTelemetry = openTelemetry;
-		
+
 		// Register OpenTelemetry instance for pool metrics if enabled
 		if (poolMetricsEnabled) {
 			org.openjproxy.xa.pool.commons.metrics.OpenTelemetryHolder.setInstance(openTelemetry);
 			logger.info("OpenTelemetry instance registered for pool metrics");
 		}
-		
+
 		// Create GrpcTelemetry with or without metrics based on configuration
 		// Note: When gRPC metrics are disabled, we use noop() to prevent gRPC instrumentation
 		// from collecting and exporting metrics. The OpenTelemetry SDK is still initialized

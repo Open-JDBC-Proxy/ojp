@@ -12,17 +12,17 @@ import java.util.List;
  */
 @Getter
 public class SqlEnhancementResult {
-    
+
     private final String enhancedSql;
     private final boolean modified;
     private final boolean hasErrors;
     private final String errorMessage;
-    
+
     // Optimization metadata
     private final boolean optimized;
     private final List<String> appliedRules;
     private final long optimizationTimeMs;
-    
+
     private SqlEnhancementResult(String enhancedSql, boolean modified, boolean hasErrors, String errorMessage,
                                  boolean optimized, List<String> appliedRules, long optimizationTimeMs) {
         this.enhancedSql = enhancedSql;
@@ -33,10 +33,10 @@ public class SqlEnhancementResult {
         this.appliedRules = appliedRules != null ? appliedRules : Collections.emptyList();
         this.optimizationTimeMs = optimizationTimeMs;
     }
-    
+
     /**
      * Creates a successful enhancement result.
-     * 
+     *
      * @param enhancedSql The enhanced SQL
      * @param modified Whether the SQL was modified
      * @return SqlEnhancementResult
@@ -44,11 +44,11 @@ public class SqlEnhancementResult {
     public static SqlEnhancementResult success(String enhancedSql, boolean modified) {
         return new SqlEnhancementResult(enhancedSql, modified, false, null, false, null, 0);
     }
-    
+
     /**
      * Creates a successful enhancement result with optimization metadata.
      * Phase 2: Used when optimization is applied.
-     * 
+     *
      * @param enhancedSql The enhanced/optimized SQL
      * @param modified Whether the SQL was modified
      * @param appliedRules List of rule names that were applied
@@ -60,20 +60,20 @@ public class SqlEnhancementResult {
         return new SqlEnhancementResult(enhancedSql, modified, false, null,
                                        true, appliedRules, optimizationTimeMs);
     }
-    
+
     /**
      * Creates a pass-through result (original SQL unchanged).
-     * 
+     *
      * @param originalSql The original SQL
      * @return SqlEnhancementResult
      */
     public static SqlEnhancementResult passthrough(String originalSql) {
         return new SqlEnhancementResult(originalSql, false, false, null, false, null, 0);
     }
-    
+
     /**
      * Creates an error result.
-     * 
+     *
      * @param originalSql The original SQL
      * @param errorMessage The error message
      * @return SqlEnhancementResult

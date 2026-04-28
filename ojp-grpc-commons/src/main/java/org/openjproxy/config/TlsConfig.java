@@ -12,12 +12,12 @@ import javax.net.ssl.TrustManagerFactory;
 
 /**
  * Configuration class for TLS/mTLS settings.
- * 
+ *
  * <p>This class handles TLS configuration for both client and server,
  * supporting both explicit keystore/truststore paths and JVM default stores.</p>
  */
 public class TlsConfig {
-    
+
     private final boolean enabled;
     private final String keystorePath;
     private final String keystorePassword;
@@ -25,20 +25,20 @@ public class TlsConfig {
     private final String truststorePassword;
     private final String keystoreType;
     private final String truststoreType;
-    
+
     /**
      * Default keystore type (JKS - Java KeyStore)
      */
     public static final String DEFAULT_KEYSTORE_TYPE = "JKS";
-    
+
     /**
      * Default truststore type (JKS - Java KeyStore)
      */
     public static final String DEFAULT_TRUSTSTORE_TYPE = "JKS";
-    
+
     /**
      * Constructor for TLS configuration.
-     * 
+     *
      * @param enabled Whether TLS is enabled
      * @param keystorePath Path to keystore file (can be null to use JVM default)
      * @param keystorePassword Password for keystore
@@ -58,77 +58,77 @@ public class TlsConfig {
         this.keystoreType = keystoreType != null ? keystoreType : DEFAULT_KEYSTORE_TYPE;
         this.truststoreType = truststoreType != null ? truststoreType : DEFAULT_TRUSTSTORE_TYPE;
     }
-    
+
     /**
      * @return true if TLS is enabled
      */
     public boolean isEnabled() {
         return enabled;
     }
-    
+
     /**
      * @return Path to keystore file
      */
     public String getKeystorePath() {
         return keystorePath;
     }
-    
+
     /**
      * @return Password for keystore
      */
     public String getKeystorePassword() {
         return keystorePassword;
     }
-    
+
     /**
      * @return Path to truststore file
      */
     public String getTruststorePath() {
         return truststorePath;
     }
-    
+
     /**
      * @return Password for truststore
      */
     public String getTruststorePassword() {
         return truststorePassword;
     }
-    
+
     /**
      * @return Keystore type
      */
     public String getKeystoreType() {
         return keystoreType;
     }
-    
+
     /**
      * @return Truststore type
      */
     public String getTruststoreType() {
         return truststoreType;
     }
-    
+
     /**
      * Checks if explicit keystore path is configured.
-     * 
+     *
      * @return true if keystore path is specified
      */
     public boolean hasKeystorePath() {
         return keystorePath != null && !keystorePath.trim().isEmpty();
     }
-    
+
     /**
      * Checks if explicit truststore path is configured.
-     * 
+     *
      * @return true if truststore path is specified
      */
     public boolean hasTruststorePath() {
         return truststorePath != null && !truststorePath.trim().isEmpty();
     }
-    
+
     /**
      * Loads the keystore from the configured path.
-     * 
+     *
      * @return KeyStore instance
      * @throws IOException if the file cannot be read
      * @throws KeyStoreException if keystore cannot be loaded
@@ -139,17 +139,17 @@ public class TlsConfig {
         if (!hasKeystorePath()) {
             throw new IllegalStateException("Keystore path not configured");
         }
-        
+
         KeyStore keyStore = KeyStore.getInstance(keystoreType);
         try (FileInputStream fis = new FileInputStream(new File(keystorePath))) {
             keyStore.load(fis, keystorePassword != null ? keystorePassword.toCharArray() : null);
         }
         return keyStore;
     }
-    
+
     /**
      * Loads the truststore from the configured path.
-     * 
+     *
      * @return KeyStore instance
      * @throws IOException if the file cannot be read
      * @throws KeyStoreException if truststore cannot be loaded
@@ -160,17 +160,17 @@ public class TlsConfig {
         if (!hasTruststorePath()) {
             throw new IllegalStateException("Truststore path not configured");
         }
-        
+
         KeyStore trustStore = KeyStore.getInstance(truststoreType);
         try (FileInputStream fis = new FileInputStream(new File(truststorePath))) {
             trustStore.load(fis, truststorePassword != null ? truststorePassword.toCharArray() : null);
         }
         return trustStore;
     }
-    
+
     /**
      * Creates a KeyManagerFactory from the configured keystore.
-     * 
+     *
      * @return KeyManagerFactory instance
      * @throws TlsConfigurationException if keystore cannot be loaded or KeyManagerFactory cannot be initialized
      */
@@ -184,10 +184,10 @@ public class TlsConfig {
             throw new TlsConfigurationException("Failed to create KeyManagerFactory from keystore: " + keystorePath, e);
         }
     }
-    
+
     /**
      * Creates a TrustManagerFactory from the configured truststore.
-     * 
+     *
      * @return TrustManagerFactory instance
      * @throws TlsConfigurationException if truststore cannot be loaded or TrustManagerFactory cannot be initialized
      */
@@ -201,10 +201,10 @@ public class TlsConfig {
             throw new TlsConfigurationException("Failed to create TrustManagerFactory from truststore: " + truststorePath, e);
         }
     }
-    
+
     /**
      * Creates a TLS configuration with all settings disabled.
-     * 
+     *
      * @return TlsConfig with TLS disabled
      */
     public static TlsConfig disabled() {

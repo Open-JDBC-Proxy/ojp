@@ -24,7 +24,7 @@ public class CommitTransactionAction implements Action<SessionInfo, SessionInfo>
 
     private static final CommitTransactionAction INSTANCE = new CommitTransactionAction();
 
-    private CommitTransactionAction() {        
+    private CommitTransactionAction() {
     }
 
     public static CommitTransactionAction getInstance() {
@@ -33,14 +33,14 @@ public class CommitTransactionAction implements Action<SessionInfo, SessionInfo>
 
     /**
      * Execute the action to commit a transaction.
-     * 
+     *
      * @param context          The action context containing shared state
      * @param sessionInfo      Session info
      * @param responseObserver Response observer
      */
     @Override
     public void execute(ActionContext context, SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
-        log.info("Commiting transaction");        
+        log.info("Commiting transaction");
 
         // Process cluster health from the request
         ProcessClusterHealthAction.getInstance().execute(context, sessionInfo);

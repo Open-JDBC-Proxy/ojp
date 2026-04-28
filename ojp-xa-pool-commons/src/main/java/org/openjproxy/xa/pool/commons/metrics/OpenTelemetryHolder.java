@@ -11,14 +11,14 @@ import org.slf4j.LoggerFactory;
  * that is configured in the ojp-server. The instance is set once during server
  * initialization and can be retrieved by the pool metrics factory.
  * </p>
- * 
+ *
  * <p>Thread-safe: This class uses volatile to ensure visibility across threads.</p>
  */
 public class OpenTelemetryHolder {
     private static final Logger log = LoggerFactory.getLogger(OpenTelemetryHolder.class);
-    
+
     private static volatile OpenTelemetry instance;
-    
+
     /**
      * Sets the global OpenTelemetry instance.
      * This should be called once during server initialization.
@@ -34,7 +34,7 @@ public class OpenTelemetryHolder {
             log.info("OpenTelemetry instance registered for XA pool metrics");
         }
     }
-    
+
     /**
      * Gets the global OpenTelemetry instance.
      *
@@ -49,7 +49,7 @@ public class OpenTelemetryHolder {
         }
         return current;
     }
-    
+
     /**
      * Clears the global OpenTelemetry instance.
      * This is mainly for testing purposes.

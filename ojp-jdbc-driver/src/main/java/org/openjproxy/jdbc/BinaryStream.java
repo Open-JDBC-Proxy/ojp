@@ -1,7 +1,6 @@
 package org.openjproxy.jdbc;
 
 import com.openjproxy.grpc.LobReference;
-import com.openjproxy.grpc.LobType;
 import org.openjproxy.grpc.client.StatementService;
 
 import java.io.InputStream;

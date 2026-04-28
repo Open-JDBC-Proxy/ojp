@@ -1,0 +1,206 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+    Checkstyle configuration for OJP, aligned with SonarLint Java rules.
+
+    Rules map to the following SonarLint/SonarQube keys:
+      java:S100  - Method names should comply with naming conventions
+      java:S101  - Class names should comply with naming conventions
+      java:S106  - Standard outputs should not be used directly to log anything
+      java:S108  - Nested blocks of code should not be left empty
+      java:S115  - Constant names should comply with naming conventions
+      java:S116  - Field names should comply with naming conventions
+      java:S117  - Local variable and parameter names should comply with naming conventions
+      java:S119  - Type parameter names should comply with naming conventions
+      java:S120  - Package names should comply with naming conventions
+      java:S121  - Control structures should use curly braces
+      java:S818  - Long suffix should be uppercase
+      java:S1109 - Trailing whitespace
+      java:S1125 - Boolean literals should not be redundant
+      java:S1128 - Unnecessary imports should be removed
+      java:S2208 - Wildcard imports should not be used
+-->
+<module name="Checker">
+    <property name="severity" value="error"/>
+    <property name="fileExtensions" value="java"/>
+
+    <!-- Exclude generated protobuf sources -->
+    <module name="BeforeExecutionExclusionFileFilter">
+        <property name="fileNamePattern" value="[\\/]generated[\\/]|[\\/]generated-sources[\\/]"/>
+    </module>
+
+    <!-- =========================================================== -->
+    <!-- File-level checks                                           -->
+    <!-- =========================================================== -->
+
+    <!-- java:S1109 - Trailing whitespace -->
+    <module name="RegexpSingleline">
+        <property name="format" value="\s+$"/>
+        <property name="message" value="Trailing whitespace is not allowed (SonarLint java:S1109)."/>
+    </module>
+
+    <!-- java:S106 - No System.out or System.err (use a logger instead) -->
+    <module name="RegexpSingleline">
+        <property name="format" value="System\.(out|err)\.(print|println|printf|format)\("/>
+        <property name="message" value="Use a proper logger instead of System.out / System.err (SonarLint java:S106)."/>
+        <property name="fileExtensions" value="java"/>
+    </module>
+
+    <!-- Newline at end of file -->
+    <module name="NewlineAtEndOfFile">
+        <property name="lineSeparator" value="lf"/>
+    </module>
+
+    <module name="TreeWalker">
+
+        <!-- ======================================================= -->
+        <!-- Naming conventions  (SonarLint java:S100, S101, S115,  -->
+        <!--                      S116, S117, S119, S120)            -->
+        <!-- ======================================================= -->
+
+        <!-- java:S101 - Class / interface / enum / annotation names: PascalCase -->
+        <module name="TypeName">
+            <property name="format" value="^[A-Z][a-zA-Z0-9]*$"/>
+            <message key="name.invalidPattern"
+                     value="Type name ''{0}'' must be PascalCase (SonarLint java:S101)."/>
+        </module>
+
+        <!-- java:S120 - Package names: all lowercase, dot-separated words -->
+        <module name="PackageName">
+            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
+            <message key="name.invalidPattern"
+                     value="Package name ''{0}'' must be all lowercase (SonarLint java:S120)."/>
+        </module>
+
+        <!-- java:S100 - Method names: camelCase starting with a lowercase letter -->
+        <module name="MethodName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+            <message key="name.invalidPattern"
+                     value="Method name ''{0}'' must be camelCase (SonarLint java:S100)."/>
+        </module>
+
+        <!-- java:S116 - Instance / static non-final field names: camelCase -->
+        <module name="MemberName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+            <message key="name.invalidPattern"
+                     value="Member name ''{0}'' must be camelCase (SonarLint java:S116)."/>
+        </module>
+
+        <!-- java:S117 - Local variable names: camelCase -->
+        <module name="LocalVariableName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+            <message key="name.invalidPattern"
+                     value="Local variable name ''{0}'' must be camelCase (SonarLint java:S117)."/>
+        </module>
+
+        <!-- java:S117 - Parameter names: camelCase -->
+        <module name="ParameterName">
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+            <message key="name.invalidPattern"
+                     value="Parameter name ''{0}'' must be camelCase (SonarLint java:S117)."/>
+        </module>
+
+        <!-- java:S119 - Type parameter names: single uppercase letter or PascalCase -->
+        <module name="ClassTypeParameterName">
+            <property name="format" value="^[A-Z][A-Z0-9]?$|^[A-Z][a-zA-Z0-9]*$"/>
+            <message key="name.invalidPattern"
+                     value="Class type parameter name ''{0}'' must be a single uppercase letter or PascalCase (SonarLint java:S119)."/>
+        </module>
+        <module name="MethodTypeParameterName">
+            <property name="format" value="^[A-Z][A-Z0-9]?$|^[A-Z][a-zA-Z0-9]*$"/>
+            <message key="name.invalidPattern"
+                     value="Method type parameter name ''{0}'' must be a single uppercase letter or PascalCase (SonarLint java:S119)."/>
+        </module>
+
+        <!-- java:S115 - Constants: UPPER_SNAKE_CASE (static final fields) -->
+        <!-- Allow 'log' and 'logger' as an exception for SLF4J loggers -->
+        <module name="ConstantName">
+            <property name="format" value="^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$|^log(ger)?$"/>
+            <message key="name.invalidPattern"
+                     value="Constant name ''{0}'' must be UPPER_SNAKE_CASE (SonarLint java:S115)."/>
+        </module>
+
+        <!-- ======================================================= -->
+        <!-- Import checks  (SonarLint java:S1128, java:S2208)       -->
+        <!-- ======================================================= -->
+
+        <!-- java:S2208 - Wildcard imports should not be used -->
+        <module name="AvoidStarImport">
+            <message key="import.avoidStar"
+                     value="Wildcard imports must not be used (SonarLint java:S2208)."/>
+        </module>
+
+        <!-- java:S1128 - Unused imports should be removed -->
+        <module name="UnusedImports">
+            <property name="processJavadoc" value="false"/>
+            <message key="import.unused"
+                     value="Unused import ''{0}'' (SonarLint java:S1128)."/>
+        </module>
+
+        <!-- No duplicate imports -->
+        <module name="RedundantImport">
+            <message key="import.duplicate"
+                     value="Duplicate import ''{1}'' (SonarLint java:S1128)."/>
+        </module>
+
+        <!-- ======================================================= -->
+        <!-- Empty block checks  (SonarLint java:S108)               -->
+        <!-- ======================================================= -->
+
+        <!-- java:S108 - Empty catch blocks are not allowed (must contain a comment) -->
+        <module name="EmptyCatchBlock">
+            <property name="exceptionVariableName" value="expected|ignored|ignore"/>
+            <message key="catch.block.empty"
+                     value="Empty catch blocks must contain a comment explaining why (SonarLint java:S108)."/>
+        </module>
+
+        <!-- ======================================================= -->
+        <!-- Modifier checks                                         -->
+        <!-- ======================================================= -->
+
+        <!-- Modifiers in the standard order (JLS §8.1.1, §8.3.1, §8.4.3) -->
+        <module name="ModifierOrder"/>
+
+        <!-- ======================================================= -->
+        <!-- Miscellaneous style checks                              -->
+        <!-- ======================================================= -->
+
+        <!-- Detect use of deprecated 'finalize()' override -->
+        <module name="NoFinalizer"/>
+
+        <!-- Boolean expression simplification (java:S1125) -->
+        <module name="SimplifyBooleanExpression">
+            <message key="simplify.expression"
+                     value="Boolean expression can be simplified (SonarLint java:S1125)."/>
+        </module>
+        <module name="SimplifyBooleanReturn">
+            <message key="simplify.boolreturn"
+                     value="Boolean return can be simplified (SonarLint java:S1125)."/>
+        </module>
+
+        <!-- Braces around code blocks (helps prevent bugs, maps to SonarLint java:S121) -->
+        <module name="NeedBraces">
+            <message key="needBraces"
+                     value="Code blocks must use braces '{}' (SonarLint java:S121)."/>
+        </module>
+
+        <!-- Upper-case L suffix for long literals (java:S818) -->
+        <module name="UpperEll">
+            <message key="upperEll"
+                     value="Use uppercase 'L' suffix for long literals (SonarLint java:S818)."/>
+        </module>
+
+        <!-- Whitespace around tokens -->
+        <module name="WhitespaceAround">
+            <property name="allowEmptyConstructors" value="true"/>
+            <property name="allowEmptyMethods" value="true"/>
+            <property name="allowEmptyTypes" value="true"/>
+            <property name="allowEmptyLambdas" value="true"/>
+            <property name="allowEmptyCatches" value="true"/>
+        </module>
+
+    </module>
+</module>

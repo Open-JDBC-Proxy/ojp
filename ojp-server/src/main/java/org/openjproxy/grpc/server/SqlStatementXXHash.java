@@ -27,7 +27,7 @@ import java.nio.charset.StandardCharsets;
  * and provides more than enough uniqueness for non-cryptographic use cases—making it ideal for lightweight query identification.
  */
 public class SqlStatementXXHash {
-    private static final XXHashFactory factory = XXHashFactory.fastestInstance();
+    private static final XXHashFactory FACTORY = XXHashFactory.fastestInstance();
     private static final long SEED = 0x9747b28c; // Arbitrary seed, can be any long
 
     /**
@@ -37,7 +37,9 @@ public class SqlStatementXXHash {
      * - Collapse multiple whitespace
      */
     public static String normalizeSql(String sql) {
-        if (sql == null) return "";
+        if (sql == null) {
+            return "";
+        }
         return sql.trim().replaceAll("\\s+", " ").toLowerCase();
     }
 
@@ -47,7 +49,7 @@ public class SqlStatementXXHash {
     public static String hashSqlQuery(String sql) {
         String normalized = normalizeSql(sql);
         byte[] data = normalized.getBytes(StandardCharsets.UTF_8);
-        XXHash64 hash64 = factory.hash64();
+        XXHash64 hash64 = FACTORY.hash64();
         long hash = hash64.hash(data, 0, data.length, SEED);
         return Long.toHexString(hash);
     }

@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * Utility class for serializing and deserializing Java objects (Maps, Lists, Properties)
  * to and from Protocol Buffer format.
- * 
+ *
  * This replaces the legacy SerializationHandler which used Java native serialization.
  * Only supports simple data structures: Maps, Lists, Properties, and primitive types.
  * Does NOT support arbitrary Java objects/POJOs.
@@ -38,14 +38,14 @@ public class ProtoSerialization {
 
     /**
      * Serialize a Java object to Protocol Buffer bytes.
-     * 
+     *
      * Supported types:
      * - java.util.Map (with String keys and supported value types)
      * - java.util.List (with supported element types)
      * - java.util.Properties (String -> String map)
      * - String, Number (Integer, Long, Float, Double), Boolean
      * - null
-     * 
+     *
      * @param value The object to serialize
      * @return byte array containing the protobuf-encoded data
      * @throws SerializationException if the object type is not supported or serialization fails
@@ -86,7 +86,7 @@ public class ProtoSerialization {
 
     /**
      * Deserialize Protocol Buffer bytes to a Java object.
-     * 
+     *
      * @param payload The protobuf-encoded bytes
      * @return The deserialized Java object (Map, List, Properties, or primitive)
      * @throws SerializationException if deserialization fails
@@ -95,14 +95,14 @@ public class ProtoSerialization {
         if (payload == null) {
             throw new SerializationException("Cannot deserialize null payload");
         }
-        
+
         if (payload.length == 0) {
             throw new SerializationException("Cannot deserialize empty payload");
         }
 
         try {
             Container container = Container.parseFrom(payload);
-            
+
             switch (container.getContentCase()) {
                 case VALUE:
                     return valueToJava(container.getValue());
@@ -123,7 +123,7 @@ public class ProtoSerialization {
 
     /**
      * Deserialize Protocol Buffer bytes to a Java object with expected type.
-     * 
+     *
      * @param payload The protobuf-encoded bytes
      * @param expectedType The expected Java type
      * @return The deserialized Java object cast to the expected type
@@ -132,7 +132,7 @@ public class ProtoSerialization {
     @SuppressWarnings("unchecked")
     public static <T> T deserializeFromTransport(byte[] payload, Class<T> expectedType) throws SerializationException {
         java.lang.Object result = deserializeFromTransport(payload);
-        
+
         if (result == null) {
             if (expectedType.isPrimitive()) {
                 throw new SerializationException("Cannot deserialize null to primitive type " + expectedType.getName());
@@ -152,14 +152,14 @@ public class ProtoSerialization {
     // ==================== Helper Methods ====================
 
     private static boolean isPrimitiveType(java.lang.Object value) {
-        return value instanceof String || 
-               value instanceof Number || 
+        return value instanceof String ||
+               value instanceof Number ||
                value instanceof Boolean;
     }
 
     private static Value primitiveToValue(java.lang.Object value) {
         Value.Builder builder = Value.newBuilder();
-        
+
         if (value instanceof String) {
             builder.setS((String) value);
         } else if (value instanceof Number) {
@@ -168,51 +168,51 @@ public class ProtoSerialization {
         } else if (value instanceof Boolean) {
             builder.setB((Boolean) value);
         }
-        
+
         return builder.build();
     }
 
     private static Object mapToProto(Map<?, ?> map) throws SerializationException {
         Object.Builder builder = Object.newBuilder();
-        
+
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             if (!(entry.getKey() instanceof String)) {
                 throw new SerializationException(
-                        "Map keys must be Strings, found: " + 
+                        "Map keys must be Strings, found: " +
                         (entry.getKey() != null ? entry.getKey().getClass().getName() : "null"));
             }
-            
+
             String key = (String) entry.getKey();
             java.lang.Object value = entry.getValue();
-            
+
             Value protoValue = javaToValue(value);
             builder.putEntries(key, protoValue);
         }
-        
+
         return builder.build();
     }
 
     private static Array listToProto(List<?> list) throws SerializationException {
         Array.Builder builder = Array.newBuilder();
-        
+
         for (java.lang.Object item : list) {
             Value protoValue = javaToValue(item);
             builder.addValues(protoValue);
         }
-        
+
         return builder.build();
     }
 
     private static Properties propertiesToProto(java.util.Properties properties) {
         Properties.Builder builder = Properties.newBuilder();
-        
+
         for (String key : properties.stringPropertyNames()) {
             String value = properties.getProperty(key);
             if (value != null) {
                 builder.putEntries(key, value);
             }
         }
-        
+
         return builder.build();
     }
 
@@ -220,7 +220,7 @@ public class ProtoSerialization {
         if (value == null) {
             return Value.newBuilder().setNullValue(NullValue.NULL_VALUE).build();
         }
-        
+
         if (value instanceof String) {
             return Value.newBuilder().setS((String) value).build();
         } else if (value instanceof Number) {
@@ -262,33 +262,33 @@ public class ProtoSerialization {
 
     private static Map<String, java.lang.Object> protoToMap(Object proto) throws SerializationException {
         Map<String, java.lang.Object> map = new LinkedHashMap<>();
-        
+
         for (Map.Entry<String, Value> entry : proto.getEntriesMap().entrySet()) {
             java.lang.Object value = valueToJava(entry.getValue());
             map.put(entry.getKey(), value);
         }
-        
+
         return map;
     }
 
     private static List<java.lang.Object> protoToList(Array proto) throws SerializationException {
         List<java.lang.Object> list = new ArrayList<>();
-        
+
         for (Value value : proto.getValuesList()) {
             java.lang.Object item = valueToJava(value);
             list.add(item);
         }
-        
+
         return list;
     }
 
     private static java.util.Properties protoToProperties(Properties proto) {
         java.util.Properties properties = new java.util.Properties();
-        
+
         for (Map.Entry<String, String> entry : proto.getEntriesMap().entrySet()) {
             properties.setProperty(entry.getKey(), entry.getValue());
         }
-        
+
         return properties;
     }
 }

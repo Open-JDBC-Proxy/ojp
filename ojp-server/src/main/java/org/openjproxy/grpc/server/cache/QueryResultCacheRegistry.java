@@ -10,19 +10,19 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class QueryResultCacheRegistry {
     private static final QueryResultCacheRegistry INSTANCE = new QueryResultCacheRegistry();
-    
+
     // Default cache settings
     private static final int DEFAULT_MAX_ENTRIES = 10_000;
     private static final Duration DEFAULT_MAX_AGE = Duration.ofMinutes(10);
     private static final long DEFAULT_MAX_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
-    
+
     private final ConcurrentMap<String, QueryResultCache> caches = new ConcurrentHashMap<>();
     private QueryCacheMetrics metrics = NoOpQueryCacheMetrics.getInstance();
-    
+
     private QueryResultCacheRegistry() {
         // Private constructor for singleton
     }
-    
+
     /**
      * Get the singleton instance.
      *
@@ -31,7 +31,7 @@ public class QueryResultCacheRegistry {
     public static QueryResultCacheRegistry getInstance() {
         return INSTANCE;
     }
-    
+
     /**
      * Set the metrics collector for all caches.
      * Must be called before any caches are created.
@@ -43,7 +43,7 @@ public class QueryResultCacheRegistry {
             this.metrics = metrics;
         }
     }
-    
+
     /**
      * Get or create a cache for the specified datasource with default settings.
      *
@@ -51,10 +51,10 @@ public class QueryResultCacheRegistry {
      * @return The cache instance
      */
     public QueryResultCache getOrCreate(String datasourceName) {
-        return caches.computeIfAbsent(datasourceName, 
+        return caches.computeIfAbsent(datasourceName,
             k -> new QueryResultCache(datasourceName, DEFAULT_MAX_ENTRIES, DEFAULT_MAX_AGE, DEFAULT_MAX_SIZE_BYTES, metrics));
     }
-    
+
     /**
      * Get or create a cache for the specified datasource with custom settings.
      *
@@ -65,10 +65,10 @@ public class QueryResultCacheRegistry {
      * @return The cache instance
      */
     public QueryResultCache getOrCreate(String datasourceName, int maxEntries, Duration maxAge, long maxSizeBytes) {
-        return caches.computeIfAbsent(datasourceName, 
+        return caches.computeIfAbsent(datasourceName,
             k -> new QueryResultCache(datasourceName, maxEntries, maxAge, maxSizeBytes, metrics));
     }
-    
+
     /**
      * Get an existing cache for the datasource, or null if none exists.
      *
@@ -78,7 +78,7 @@ public class QueryResultCacheRegistry {
     public QueryResultCache get(String datasourceName) {
         return caches.get(datasourceName);
     }
-    
+
     /**
      * Check if a cache exists for the datasource.
      *
@@ -88,7 +88,7 @@ public class QueryResultCacheRegistry {
     public boolean exists(String datasourceName) {
         return caches.containsKey(datasourceName);
     }
-    
+
     /**
      * Remove and invalidate all entries for a datasource.
      *
@@ -98,7 +98,7 @@ public class QueryResultCacheRegistry {
     public QueryResultCache remove(String datasourceName) {
         return caches.remove(datasourceName);
     }
-    
+
     /**
      * Clear all caches.
      */
@@ -106,7 +106,7 @@ public class QueryResultCacheRegistry {
         caches.values().forEach(QueryResultCache::invalidateAll);
         caches.clear();
     }
-    
+
     /**
      * Get the number of registered caches.
      *
@@ -115,7 +115,7 @@ public class QueryResultCacheRegistry {
     public int size() {
         return caches.size();
     }
-    
+
     /**
      * Get statistics for all caches.
      *

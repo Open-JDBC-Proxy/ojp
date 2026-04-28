@@ -1,7 +1,6 @@
 package org.openjproxy.jdbc;
 
 import com.google.common.util.concurrent.SettableFuture;
-import com.google.protobuf.ByteString;
 import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
@@ -18,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.StatementService;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
@@ -145,13 +143,13 @@ public class Lob {
             // The server will return the complete LOB data in a single response
             Iterator<LobDataBlock> dataBlocks = statementService.readLob(lobReference.get(), pos, (int) length);
             InputStream fullDataStream = lobService.parseReceivedBlocks(dataBlocks);
-            
+
             if (fullDataStream == null) {
                 return new java.io.ByteArrayInputStream(new byte[0]); // Return empty stream
             }
-            
+
             return fullDataStream;
-            
+
         } catch (SQLException e) {
             log.error("SQLException in getBinaryStream", e);
             throw e;
@@ -202,12 +200,12 @@ public class Lob {
         if (Void.class.equals(returnType)) {
             return null;
         }
-        
+
         List<ParameterValue> values = response.getValuesList();
         if (values.isEmpty()) {
             return null;
         }
-        
+
         Object result = ProtoConverter.fromParameterValue(values.get(0));
         return (T) result;
     }

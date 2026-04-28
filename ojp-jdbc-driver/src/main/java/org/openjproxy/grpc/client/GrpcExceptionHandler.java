@@ -32,7 +32,7 @@ public class GrpcExceptionHandler {
                     errorResponse.getVendorCode());
         }
     }
-    
+
     /**
      * Determines if an exception signals that the server has no pool for the current
      * connection hash and the client must reconnect.
@@ -58,7 +58,7 @@ public class GrpcExceptionHandler {
      * Determines if an exception represents a session invalidation error.
      * Session invalidation occurs when the health checker removes session bindings
      * after detecting server failure. These sessions are permanently lost.
-     * 
+     *
      * @param exception The exception to check
      * @return true if this is a session invalidation error
      */
@@ -68,7 +68,7 @@ public class GrpcExceptionHandler {
             if (message != null) {
                 String lowerMessage = message.toLowerCase();
                 return lowerMessage.contains("session") &&
-                       (lowerMessage.contains("has no associated server") || 
+                       (lowerMessage.contains("has no associated server") ||
                         lowerMessage.contains("binding was lost") ||
                         lowerMessage.contains("may have expired") ||
                         lowerMessage.contains("were invalidated"));
@@ -76,7 +76,7 @@ public class GrpcExceptionHandler {
         }
         return false;
     }
-    
+
     /**
      * Determines if an exception represents a connection-level error that indicates server unavailability.
      * Connection-level errors include:
@@ -97,44 +97,44 @@ public class GrpcExceptionHandler {
         if (exception instanceof StatusRuntimeException) {
             StatusRuntimeException statusException = (StatusRuntimeException) exception;
             Status.Code code = statusException.getStatus().getCode();
-            
+
             // Only these status codes indicate connection-level failures
             return code == Status.Code.UNAVAILABLE ||
                    code == Status.Code.DEADLINE_EXCEEDED ||
-                   (code == Status.Code.UNKNOWN && 
-                    statusException.getMessage() != null && 
-                    (statusException.getMessage().contains("connection") || 
+                   (code == Status.Code.UNKNOWN &&
+                    statusException.getMessage() != null &&
+                    (statusException.getMessage().contains("connection") ||
                      statusException.getMessage().contains("Connection")));
         }
-        
+
         // For non-gRPC exceptions, check for connection-related keywords
         String message = exception.getMessage();
         if (message != null) {
             String lowerMessage = message.toLowerCase();
-            
+
             // CRITICAL: Pool exhaustion is NOT a server connectivity issue
             // Don't mark server unhealthy when pool is exhausted - it's a resource limit, not a connection failure
             if (lowerMessage.contains("pool exhausted") || lowerMessage.contains("pool is exhausted")) {
                 return false;
             }
-            
+
             // CRITICAL: Session invalidation/loss is NOT a connection-level error
             // Sessions are explicitly invalidated when servers fail. The session is permanently lost.
             // Retrying with the same session will always fail. This needs proper XA transaction handling, not retry.
             if (isSessionInvalidationError(exception)) {
                 return false;
             }
-            
+
             // Check for connectivity-related keywords
             // Using substring matching intentionally - these patterns appear in various error messages
             // from our multinode connection management and should all be treated as connectivity issues
-            return lowerMessage.contains("connection") || 
+            return lowerMessage.contains("connection") ||
                    lowerMessage.contains("timeout") ||
                    lowerMessage.contains("unavailable") ||
                    lowerMessage.contains("failed to connect") ||
                    lowerMessage.contains("no healthy servers");
         }
-        
+
         return false; // Default to not marking unhealthy for unknown errors
     }
 }
