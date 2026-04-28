@@ -182,7 +182,7 @@ public class ReadWriteDataSourceManager {
 
     /**
      * Converts gRPC PropertyEntry list to Java Properties object and parses the read/write configuration.
-     * Centralises the conversion so it is performed exactly once per public API call.
+     * Centralizes the conversion so it is performed exactly once per public API call.
      */
     private ParsedConfig parseReadWriteConfig(ConnectionDetails connectionDetails, String datasourceName) {
         Properties props = convertPropertiesToJava(connectionDetails.getPropertiesList());
