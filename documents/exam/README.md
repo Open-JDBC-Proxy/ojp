@@ -58,6 +58,7 @@ Questions are derived from the OJP eBook and cover all major topics:
 - XA transactions
 - Security and network architecture
 - Connection pool provider SPI
+- Query result caching
 
 ### Part IV: Operations (15% of questions)
 - Telemetry and monitoring

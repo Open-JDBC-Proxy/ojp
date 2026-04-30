@@ -225,7 +225,7 @@ Questions are derived from and reference specific eBook chapters:
 |------------|----------|--------|-----------|
 | Part I: Foundation | 1-3a | Intro, Architecture, Quick Start, K8s | 60 |
 | Part II: Configuration | 4-7 | Drivers, JDBC, Server, Frameworks | 75 |
-| Part III: Advanced Features | 8-12 | Slow Query, Multinode, XA, Security, SPI | 75 |
+| Part III: Advanced Features | 8-12a | Slow Query, Multinode, XA, Security, SPI, Caching | 75 |
 | Part IV: Operations | 13-14 | Telemetry, Protocol | 45 |
 | Part V: Development | 15-18 | Dev Setup, Contributing, Testing | 30 |
 | Part VI-VII: Advanced | 19-22 | Implementation, Vision, Roadmap | 15 |

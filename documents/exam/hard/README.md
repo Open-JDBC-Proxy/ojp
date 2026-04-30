@@ -67,6 +67,7 @@ All hard questions must:
 - XA transaction troubleshooting and recovery
 - Advanced slow query segregation tuning
 - Custom pool provider implementation
+- Complex cache invalidation patterns and multi-server limitations
 
 ### Operations (5 questions)
 - Complex performance troubleshooting

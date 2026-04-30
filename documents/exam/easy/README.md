@@ -63,6 +63,8 @@ All easy questions must:
 - What is multinode deployment?
 - What are XA transactions?
 - Basic security concepts
+- What is query result caching?
+- Cache configuration basics
 
 ### Operations (20 questions)
 - What is Prometheus metrics endpoint?

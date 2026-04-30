@@ -200,7 +200,7 @@ Use the same format as Phase 1A.
 
 **Copilot Prompt:**
 ```
-Create 30 easy-level questions for the OJP certification exam covering Part III: Advanced Features (Chapters 8-12) of the OJP eBook.
+Create 30 easy-level questions for the OJP certification exam covering Part III: Advanced Features (Chapters 8-12a) of the OJP eBook.
 
 Focus on:
 - Slow Query Segregation (Chapter 8): Basic concepts, benefits
@@ -208,6 +208,7 @@ Focus on:
 - XA Transactions (Chapter 10): What XA is, when to use it
 - Security (Chapter 11): Basic security concepts, network architecture
 - Pool Provider SPI (Chapter 12): Available providers, basic concepts
+- Query Result Caching (Chapter 12a): Cache basics, configuration patterns, TTL concepts
 
 Question types to include:
 - 15 multiple choice
@@ -227,7 +228,7 @@ Use the same format as Phase 1A.
 
 **Copilot Prompt:**
 ```
-Create 35 medium-level questions for the OJP certification exam covering Part III: Advanced Features (Chapters 8-12) of the OJP eBook.
+Create 35 medium-level questions for the OJP certification exam covering Part III: Advanced Features (Chapters 8-12a) of the OJP eBook.
 
 Focus on:
 - Configuring slow query segregation for specific scenarios
@@ -235,6 +236,7 @@ Focus on:
 - Implementing XA transaction support
 - Configuring SSL/TLS and access control
 - Implementing custom pool providers
+- Configuring query result caching rules, TTL strategies, and cache invalidation patterns
 
 Question types to include:
 - 12 scenario-based
@@ -255,7 +257,7 @@ Use the same format as Phase 1A.
 
 **Copilot Prompt:**
 ```
-Create 10 hard-level questions for the OJP certification exam covering Part III: Advanced Features (Chapters 8-12) of the OJP eBook.
+Create 10 hard-level questions for the OJP certification exam covering Part III: Advanced Features (Chapters 8-12a) of the OJP eBook.
 
 Focus on:
 - Complex multinode scenarios with failover
@@ -263,6 +265,7 @@ Focus on:
 - Performance tuning for slow query segregation
 - Custom pool provider implementation
 - Advanced security configurations
+- Complex cache invalidation scenarios and multi-server cache limitations
 
 Question types to include:
 - 4 complex scenario-based

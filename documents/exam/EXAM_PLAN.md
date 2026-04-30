@@ -23,13 +23,13 @@ This document provides a comprehensive plan for creating a certification exam qu
 
 ### eBook Structure Analysis
 
-The OJP eBook contains 23 chapters + 7 appendices organized into 7 parts:
+The OJP eBook contains 24 chapters + 7 appendices organized into 7 parts:
 
 | Part | Chapters | Content Focus | Question Weight |
 |------|----------|---------------|-----------------|
 | Part I: Foundation | 5 | Introduction, Architecture, Quick Start, Kubernetes | 20% |
 | Part II: Configuration | 4 | Drivers, JDBC Config, Server Config, Frameworks | 25% |
-| Part III: Advanced Features | 5 | Slow Query, Multinode, XA, Security, SPI | 25% |
+| Part III: Advanced Features | 6 | Slow Query, Multinode, XA, Security, SPI, Caching | 25% |
 | Part IV: Operations | 2 | Telemetry, Protocol | 15% |
 | Part V: Development | 4 | Setup, Contributing, Testing, Recognition | 10% |
 | Part VI-VII: Advanced Topics | 3 | Implementation, Vision, Roadmap | 5% |
@@ -62,6 +62,7 @@ The OJP eBook contains 23 chapters + 7 appendices organized into 7 parts:
 - **XA transactions**: Distributed transactions, pool management
 - **Security**: Network architecture, SSL/TLS, access control
 - **Pool Provider SPI**: Custom implementations, available providers
+- **Query result caching**: Configuration-based caching, cache rules, TTL, invalidation strategies
 
 #### 5. Operations and Monitoring
 - **Telemetry**: OpenTelemetry integration, metrics

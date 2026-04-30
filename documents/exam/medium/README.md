@@ -66,6 +66,7 @@ All medium questions must:
 - Setting up multinode deployments
 - Implementing XA transaction support
 - Configuring SSL/TLS security
+- Configuring query result caching rules and invalidation
 
 ### Operations (20 questions)
 - Setting up monitoring and alerting
