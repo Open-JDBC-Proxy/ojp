@@ -308,7 +308,7 @@
                 <version>${jib.plugin.version}</version>
                 <configuration>
                     <from>
-                        <image>eclipse-temurin:22-jre</image>
+                        <image>eclipse-temurin:24-jre</image>
                     </from>
                     <to>
                         <image>rrobetti/ojp:${project.version}</image>
