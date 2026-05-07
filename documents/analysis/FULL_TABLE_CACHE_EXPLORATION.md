@@ -123,3 +123,25 @@ Again: this sequence is exploratory guidance only, not a scheduled implementatio
 This document records technical exploration findings only.
 It does **not** imply approval, prioritization, staffing, milestone commitment, or delivery target.
 
+## 10) Additional Exploration Note: App-Managed H2 Mirror Datasource
+
+An alternative model is to load full tables (or subsets) into an in-memory H2 database and expose that through a separate datasource for applications that explicitly accept staleness.
+
+### Why this can be attractive
+- Flexible SQL capability for cached data (joins, aggregations, complex predicates).
+- Application-level control of refresh interval and access pattern.
+- Reduced load on the primary database for high-read reference data.
+
+### Main concerns
+- **Dual-write confusion:** if applications mutate H2 data, those writes are not authoritative unless explicitly synchronized back to source systems.
+- **Consistency drift:** staleness is expected, but must be bounded and observable per table/subset.
+- **Behavior mismatch:** H2 semantics and type behavior can differ from production databases.
+- **Multinode divergence:** each node may hold different snapshots unless refresh/coherence is coordinated.
+- **Memory/warmup overhead:** large datasets may increase startup and runtime memory pressure.
+
+### Guardrails if this path is prototyped
+- Treat mirrored tables as **read-optimized snapshots**, not source-of-truth tables.
+- If writable tables are allowed, classify them clearly as **ephemeral scratch space**.
+- Require explicit metadata: refresh cadence, last-refresh timestamp, and staleness budget.
+- Start with small/medium, low-churn, high-read tables before wider scope.
+- Define deterministic fallback behavior to the primary database on cache cold/expired conditions.
