@@ -29,6 +29,10 @@ This directory contains technical analysis documents for various OJP features an
 
 ## Other Analysis Documents
 
+### Caching Exploration
+
+- [FULL_TABLE_CACHE_EXPLORATION.md](./FULL_TABLE_CACHE_EXPLORATION.md) - Exploration-only analysis of full-table caching feasibility (explicitly not scheduled for development)
+
 ### XA Pool Architecture
 
 - [xa-pool-spi/](./xa-pool-spi/) - XA Connection Pool SPI design
@@ -94,5 +98,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-01-08  
+**Last Updated:** 2026-05-07  
 **Maintained By:** OJP Core Team
