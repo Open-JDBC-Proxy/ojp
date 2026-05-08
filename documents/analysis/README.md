@@ -4,6 +4,20 @@ This directory contains technical analysis documents for various OJP features an
 
 ## Latest Analysis (January 2026)
 
+### 🆕 Prepared Statement Affinity and Performance Impact
+
+**Question:** Are prepared statements effectively sticky to one OJP server/session, and what is the performance impact?
+
+**Quick Answer:** Yes, prepared statements are session/connection-bound; gains depend on session affinity quality.
+
+**Document:**
+- [PREPARED_STATEMENT_AFFINITY_ANALYSIS.md](./PREPARED_STATEMENT_AFFINITY_ANALYSIS.md)
+  - Confirms session/connection binding behavior
+  - Explains multinode stickiness implications
+  - Summarizes positive and negative performance outcomes by traffic pattern
+
+---
+
 ### 🆕 Agroal Connection Pool Evaluation
 
 **Question:** Should OJP replace Apache Commons Pool 2 with Agroal for XA connection pooling?
@@ -94,5 +108,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-01-08  
+**Last Updated:** 2026-05-08  
 **Maintained By:** OJP Core Team
