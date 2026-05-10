@@ -29,7 +29,7 @@ import java.nio.charset.StandardCharsets;
  */
 @UtilityClass
 public class SqlStatementXXHash {
-    private static final XXHashFactory FACTORY = XXHashFactory.fastestInstance();
+    private static final XXHashFactory FACTORY = XXHashFactory.safeInstance();
     private static final long SEED = 0x9747b28c; // Arbitrary seed, can be any long
 
     /**

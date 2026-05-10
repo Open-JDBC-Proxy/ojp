@@ -321,10 +321,6 @@
                         <jvmFlags>
                             <jvmFlag>-Dojp.libs.path=/opt/ojp/ojp-libs</jvmFlag>
                             <jvmFlag>-Duser.timezone=UTC</jvmFlag>
-                            <!-- Suppress Netty sun.misc.Unsafe terminally-deprecated warning (Java 23+) -->
-                            <jvmFlag>--sun-misc-unsafe-memory-access=allow</jvmFlag>
-                            <!-- Allow unnamed-module code (e.g. lz4-java) to load native libraries (Java 21+) -->
-                            <jvmFlag>--enable-native-access=ALL-UNNAMED</jvmFlag>
                         </jvmFlags>
                     </container>
                     <!-- Include open source JDBC drivers in Docker image ("batteries included") -->
