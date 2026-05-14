@@ -168,7 +168,7 @@ public class ServerConfiguration {
     public static final long DEFAULT_XA_MAX_LIFETIME_MINUTES = 30;
 
     // Statement eager close default values
-    public static final boolean DEFAULT_STATEMENT_EAGER_CLOSE_ENABLED = false; // Disabled by default, opt-in
+    public static final boolean DEFAULT_STATEMENT_EAGER_CLOSE_ENABLED = true; // Enabled by default
 
     // Configuration values
     private final int serverPort;

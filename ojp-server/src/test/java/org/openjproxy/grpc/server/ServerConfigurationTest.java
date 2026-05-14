@@ -280,10 +280,10 @@ class ServerConfigurationTest {
     }
 
     @Test
-    void shouldDefaultStatementEagerCloseToFalse() {
+    void shouldDefaultStatementEagerCloseToTrue() {
         ServerConfiguration config = new ServerConfiguration();
 
-        assertFalse(config.isStatementEagerCloseEnabled());
+        assertTrue(config.isStatementEagerCloseEnabled());
         assertEquals(ServerConfiguration.DEFAULT_STATEMENT_EAGER_CLOSE_ENABLED, config.isStatementEagerCloseEnabled());
     }
 
