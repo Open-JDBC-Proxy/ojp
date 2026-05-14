@@ -206,8 +206,9 @@ class EagerCloseResultSetModeTest {
         ResultSet mockRs = buildMockResultSet(conn, false);
         String rsUUID = sessionManager.registerResultSet(session, mockRs);
 
-        // Simulate a LOB registered during row processing (e.g. BLOB column)
-        sessionManager.registerLob(session, new Object(), "some-lob-uuid");
+        // Simulate a LOB registered during row processing (e.g. a BLOB column)
+        java.sql.Blob mockBlob = mock(java.sql.Blob.class);
+        sessionManager.registerLob(session, mockBlob, "some-lob-uuid");
 
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());

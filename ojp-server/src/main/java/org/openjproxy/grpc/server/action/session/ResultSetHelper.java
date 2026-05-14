@@ -235,17 +235,7 @@ public class ResultSetHelper {
 
         responseObserver.onCompleted();
 
-        // Eager close: release RS, Statement, and session when all three conditions hold:
-        //   1. eagerClose is enabled
-        //   2. no LOBs/binary streams were encountered (would still be needed by client)
-        //   3. the session is not inside a transaction (auto-commit = true)
-        // DB2 is excluded because its post-iteration metadata is served from a session attribute.
-        // XA sessions are excluded because the connection lifecycle is managed separately.
-        if (eagerCloseEnabled
-                && !DbName.DB2.equals(dbName)
-                && resultSetMode.isEmpty()
-                && context.getSessionManager().getLobs(session).isEmpty()
-                && !session.getIsXA()) {
+        if (shouldEagerClose(context, session, dbName, resultSetMode, eagerCloseEnabled)) {
             Connection connForCheck = context.getSessionManager().getConnection(session);
             if (connForCheck != null && connForCheck.getAutoCommit()) {
                 Statement stmtToClose = rs.getStatement();
@@ -270,6 +260,27 @@ public class ResultSetHelper {
                 }
             }
         }
+    }
+
+    /**
+     * Returns {@code true} when all five conditions for eager close are satisfied:
+     * <ol>
+     *   <li>The eager close feature is enabled.</li>
+     *   <li>The database is not DB2 (DB2 requires post-iteration metadata access via a session attribute).</li>
+     *   <li>The result set was not in row-by-row (LOB) mode for SQL Server / DB2.</li>
+     *   <li>No LOBs or binary streams were registered in the session during row processing.</li>
+     *   <li>The session is not an XA session (XA lifecycle is managed separately).</li>
+     * </ol>
+     * The auto-commit check is intentionally deferred to the caller because it requires a live
+     * connection reference and is therefore a separate guard.
+     */
+    private static boolean shouldEagerClose(ActionContext context, SessionInfo session, DbName dbName,
+            String resultSetMode, boolean eagerCloseEnabled) {
+        return eagerCloseEnabled
+                && !DbName.DB2.equals(dbName)
+                && resultSetMode.isEmpty()
+                && context.getSessionManager().getLobs(session).isEmpty()
+                && !session.getIsXA();
     }
 
     /**
