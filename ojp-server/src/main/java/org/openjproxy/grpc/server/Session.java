@@ -337,7 +337,12 @@ public class Session {
      * @throws SQLException if the connection cannot be closed
      */
     public void releaseConnection() throws SQLException {
-        if (isXA || connection == null) {
+        if (isXA) {
+            log.debug("releaseConnection() called on XA session {}; ignoring – XA connections are managed by the XA pool",
+                    sessionUUID);
+            return;
+        }
+        if (connection == null) {
             return;
         }
         try {

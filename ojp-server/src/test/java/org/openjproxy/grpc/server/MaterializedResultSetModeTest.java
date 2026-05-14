@@ -189,7 +189,6 @@ class MaterializedResultSetModeTest {
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
         ResultSet mockRs = buildMockResultSet(conn, false);
-        sessionManager.registerResultSet(session, mockRs);
         String rsUUID = sessionManager.registerResultSet(session, mockRs);
 
         ActionContext ctx = buildContext(sessionManager, true);

@@ -107,6 +107,8 @@ public class ResultSetHelper {
         }
 
         while (rs.next()) {
+            // DB2 requires metadata to be captured before LOBs can move the cursor;
+            // skip if already collected (e.g., by materialized-mode pre-loop snapshot above).
             if (DbName.DB2.equals(dbName) && !resultSetMetadataCollected) {
                 collectResultSetMetadata(context, session, resultSetUUID, rs);
                 resultSetMetadataCollected = true;
@@ -234,7 +236,8 @@ public class ResultSetHelper {
         responseObserver.onCompleted();
 
         // Materialized mode: release physical JDBC resources early when the RS is
-        // fully exhausted and no LOB cursor is required.
+        // fully exhausted. Row-by-row mode is excluded because it implies live server-side
+        // LOB cursors that the client may still need to read.
         if (materializedMode && !CommonConstants.RESULT_SET_ROW_BY_ROW_MODE.equalsIgnoreCase(resultSetMode)) {
             releaseMaterializedResources(context, session, resultSetUUID, rs);
         }
