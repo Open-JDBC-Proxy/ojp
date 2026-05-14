@@ -5,6 +5,7 @@ package org.openjproxy.constants;
  */
 public class CommonConstants {
     public static final int ROWS_PER_RESULT_SET_DATA_BLOCK = 100;
+    public static final int DEFAULT_RESULTSET_ROWS_PER_BLOCK = ROWS_PER_RESULT_SET_DATA_BLOCK;
     public static final int MAX_LOB_DATA_BLOCK_SIZE = 65536;//64KB per block
     public static final int PREPARED_STATEMENT_BINARY_STREAM_INDEX = 1;
     public static final int PREPARED_STATEMENT_BINARY_STREAM_LENGTH = 2;
@@ -26,6 +27,7 @@ public class CommonConstants {
 
     // Configuration property keys
     public static final String DATASOURCE_NAME_PROPERTY = "ojp.datasource.name";
+    public static final String RESULTSET_ROWS_PER_BLOCK_PROPERTY = "ojp.resultset.rowsPerBlock";
     public static final String MAXIMUM_POOL_SIZE_PROPERTY = "ojp.connection.pool.maximumPoolSize";
     public static final String MINIMUM_IDLE_PROPERTY = "ojp.connection.pool.minimumIdle";
     public static final String IDLE_TIMEOUT_PROPERTY = "ojp.connection.pool.idleTimeout";

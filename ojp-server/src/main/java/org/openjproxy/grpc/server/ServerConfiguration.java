@@ -57,6 +57,7 @@ public class ServerConfiguration {
     private static final String XA_STATEMENT_CACHE_SERVER_PREPARE_KEY = CommonConstants.XA_STATEMENT_CACHE_SERVER_PREPARE_PROPERTY;
     private static final String XA_STATEMENT_CACHE_PREPARE_THRESHOLD_KEY = CommonConstants.XA_STATEMENT_CACHE_PREPARE_THRESHOLD_PROPERTY;
     private static final String STATEMENT_EAGER_CLOSE_ENABLED_KEY = "ojp.statement.eagerClose.enabled";
+    private static final String RESULTSET_ROWS_PER_BLOCK_KEY = CommonConstants.RESULTSET_ROWS_PER_BLOCK_PROPERTY;
 
     // Schema loader configuration keys
     private static final String SCHEMA_REFRESH_ENABLED_KEY = "ojp.sql.enhancer.schema.refresh.enabled";
@@ -170,6 +171,11 @@ public class ServerConfiguration {
     // Statement eager close default values
     public static final boolean DEFAULT_STATEMENT_EAGER_CLOSE_ENABLED = true; // Enabled by default
 
+    // ResultSet streaming default values
+    public static final int DEFAULT_RESULTSET_ROWS_PER_BLOCK = CommonConstants.DEFAULT_RESULTSET_ROWS_PER_BLOCK; // 100 rows per streaming block
+    public static final int MIN_RESULTSET_ROWS_PER_BLOCK = 1;
+    public static final int MAX_RESULTSET_ROWS_PER_BLOCK = 10000;
+
     // Configuration values
     private final int serverPort;
     private final int prometheusPort;
@@ -247,6 +253,9 @@ public class ServerConfiguration {
 
     // Statement eager close configuration
     private final boolean statementEagerCloseEnabled;
+
+    // ResultSet streaming configuration
+    private final int resultsetRowsPerBlock;
 
 
     public ServerConfiguration() {
@@ -329,6 +338,10 @@ public class ServerConfiguration {
         // Statement eager close configuration
         this.statementEagerCloseEnabled = getBooleanProperty(STATEMENT_EAGER_CLOSE_ENABLED_KEY, DEFAULT_STATEMENT_EAGER_CLOSE_ENABLED);
 
+        // ResultSet streaming configuration
+        this.resultsetRowsPerBlock = getBoundedIntProperty(RESULTSET_ROWS_PER_BLOCK_KEY, DEFAULT_RESULTSET_ROWS_PER_BLOCK,
+                MIN_RESULTSET_ROWS_PER_BLOCK, MAX_RESULTSET_ROWS_PER_BLOCK);
+
         logConfigurationSummary();
     }
 
@@ -372,6 +385,16 @@ public class ServerConfiguration {
         int value = getIntProperty(key, defaultValue);
         if (value < 0) {
             logger.warn("Invalid negative value for property '{}': {}, using default: {}", key, value, defaultValue);
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private int getBoundedIntProperty(String key, int defaultValue, int minValue, int maxValue) {
+        int value = getIntProperty(key, defaultValue);
+        if (value < minValue || value > maxValue) {
+            logger.warn("Value {} for property '{}' is outside the allowed range [{}, {}], using default: {}",
+                    value, key, minValue, maxValue, defaultValue);
             return defaultValue;
         }
         return value;
@@ -493,6 +516,8 @@ public class ServerConfiguration {
             logger.info("  Tracing Sample Rate: {}", tracingSampleRate);
         }
         logger.info("  Statement Eager Close Enabled: {}", statementEagerCloseEnabled);
+        logger.info("ResultSet Streaming Configuration:");
+        logger.info("  ResultSet Rows Per Block: {}", resultsetRowsPerBlock);
     }
 
     /**
@@ -769,6 +794,10 @@ public class ServerConfiguration {
 
     public boolean isStatementEagerCloseEnabled() {
         return statementEagerCloseEnabled;
+    }
+
+    public int getResultsetRowsPerBlock() {
+        return resultsetRowsPerBlock;
     }
 
 }
