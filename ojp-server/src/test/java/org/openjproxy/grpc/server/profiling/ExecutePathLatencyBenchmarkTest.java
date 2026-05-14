@@ -379,7 +379,10 @@ class ExecutePathLatencyBenchmarkTest {
         long maxMedian = medians.values().stream().mapToLong(Long::longValue).max().orElse(1L);
 
         int barWidth = 40;
-        int labelWidth = medians.keySet().stream().mapToInt(String::length).max().orElse(10) + 2;
+        String totalRowLabel = "TOTAL (sum of medians)";
+        int labelWidth = Math.max(
+                medians.keySet().stream().mapToInt(String::length).max().orElse(10),
+                totalRowLabel.length()) + 2;
         int totalWidth = barWidth + labelWidth + 26;
 
         System.out.println();
@@ -395,6 +398,13 @@ class ExecutePathLatencyBenchmarkTest {
             System.out.printf("  %-" + labelWidth + "s |%s| %,9d ns  (%,.3f µs)%n",
                     step, bar, medNs, medNs / 1_000.0);
         }
+
+        long totalNs = medians.values().stream().mapToLong(Long::longValue).sum();
+        System.out.println(repeat("-", totalWidth));
+        int totalBars = maxMedian == 0 ? 0 : (int) Math.min((double) totalNs / maxMedian * barWidth, barWidth);
+        String totalBar = repeat("█", totalBars) + repeat("░", barWidth - totalBars);
+        System.out.printf("  %-" + labelWidth + "s |%s| %,9d ns  (%,.3f µs)%n",
+                totalRowLabel, totalBar, totalNs, totalNs / 1_000.0);
         System.out.println(repeat("-", totalWidth));
 
         // Summary line
@@ -402,9 +412,7 @@ class ExecutePathLatencyBenchmarkTest {
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
                 .orElse("?");
-        long totalNs = medians.values().stream().mapToLong(Long::longValue).sum();
-        System.out.printf("  Heaviest step: %-20s  Total instrumented: %,d ns (%,.3f µs)%n",
-                heaviest, totalNs, totalNs / 1_000.0);
+        System.out.printf("  Heaviest step: %s%n", heaviest);
         System.out.println();
     }
 
