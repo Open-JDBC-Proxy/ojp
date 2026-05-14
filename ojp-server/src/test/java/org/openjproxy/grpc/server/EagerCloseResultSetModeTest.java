@@ -4,7 +4,6 @@ import com.openjproxy.grpc.CallResourceRequest;
 import com.openjproxy.grpc.CallResourceResponse;
 import com.openjproxy.grpc.CallType;
 import com.openjproxy.grpc.DbName;
-import com.openjproxy.grpc.OpResult;
 import com.openjproxy.grpc.ResourceType;
 import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.TargetCall;
@@ -28,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -41,11 +41,12 @@ import static org.mockito.Mockito.when;
  *
  * <p>Scenarios covered:
  * <ol>
- *   <li>Mode disabled: RS and Statement are not closed early.</li>
- *   <li>Mode enabled: metadata snapshot is available after exhaustion.</li>
- *   <li>Mode enabled: client {@code close()} call on an exhausted-but-still-open RS succeeds.</li>
- *   <li>Mode enabled: RS and Statement are NOT closed early (safe for subsequent RS method calls).</li>
- *   <li>Active transaction: connection is not released when autoCommit is false.</li>
+ *   <li>Mode disabled: RS, Statement, and session are left intact.</li>
+ *   <li>Mode enabled, auto-commit, no LOBs: session is terminated after exhaustion.</li>
+ *   <li>Mode enabled: client {@code close()} call on an eagerly-closed session returns success.</li>
+ *   <li>Mode enabled, auto-commit, no LOBs: RS and Statement are closed.</li>
+ *   <li>Active transaction: no eager close when {@code autoCommit=false}.</li>
+ *   <li>LOBs registered: no eager close when the session contains LOBs.</li>
  * </ol>
  */
 class EagerCloseResultSetModeTest {
@@ -62,7 +63,7 @@ class EagerCloseResultSetModeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test 1: eager close disabled – RS and Statement not closed early
+    // Test 1: eager close disabled – session and resources left intact
     // -------------------------------------------------------------------------
 
     @Test
@@ -78,14 +79,15 @@ class EagerCloseResultSetModeTest {
 
         verify(mockRs, never()).close();
         verify(mockRs.getStatement(), never()).close();
+        assertNotNull(sessionManager.getSession(session), "Session must remain when eager close is disabled");
     }
 
     // -------------------------------------------------------------------------
-    // Test 2: eager close enabled – metadata snapshot available after exhaustion
+    // Test 2: eager close enabled, auto-commit, no LOBs – session terminated
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldStoreMetadataSnapshotAfterExhaustionWhenEagerCloseEnabled() throws Exception {
+    void shouldTerminateSessionAfterFullyReadResultSetWithNoLobsAndAutoCommit() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -95,23 +97,16 @@ class EagerCloseResultSetModeTest {
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        Object metaAttr = sessionManager.getAttr(session, "rsMetadata|" + rsUUID);
-        assertNotNull(metaAttr, "Metadata snapshot must be stored in session attributes");
-        assertTrue(metaAttr instanceof HydratedResultSetMetadata,
-                "Stored attribute must be a HydratedResultSetMetadata");
-
-        HydratedResultSetMetadata meta = (HydratedResultSetMetadata) metaAttr;
-        assertEquals(1, meta.getColumnCount());
-        assertEquals(Types.INTEGER, meta.getColumnType(1));
-        assertEquals("id", meta.getColumnName(1));
+        assertNull(sessionManager.getSession(session),
+                "Session must be terminated by eager close after fully-read RS with no LOBs in auto-commit mode");
     }
 
     // -------------------------------------------------------------------------
-    // Test 3: eager close enabled – close() on the RS succeeds normally
+    // Test 3: eager close enabled – close() on an eagerly-closed session succeeds
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldAllowClientCloseCallAfterResultSetExhaustion() throws Exception {
+    void shouldAllowClientCloseCallAfterEagerClose() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -121,7 +116,8 @@ class EagerCloseResultSetModeTest {
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        // The RS is still open after exhaustion; the client can call close() and it succeeds.
+        // The session is already terminated. The JDBC client still sends a close() call.
+        // The server must return a success response instead of propagating a NPE as an error.
         CallResourceRequest closeReq = CallResourceRequest.newBuilder()
                 .setSession(session)
                 .setResourceType(ResourceType.RES_RESULT_SET)
@@ -153,38 +149,36 @@ class EagerCloseResultSetModeTest {
 
         CallResourceAction.getInstance().execute(ctx, closeReq, observer);
 
-        assertTrue(errors.isEmpty(), "No error expected for close() after RS exhaustion");
+        assertTrue(errors.isEmpty(), "No error expected for close() after RS eager close");
         assertEquals(1, responses.size(), "Exactly one response expected");
     }
 
     // -------------------------------------------------------------------------
-    // Test 4: eager close enabled – RS and Statement NOT closed early
-    // (early resource release removed to prevent session-level failures)
+    // Test 4: eager close enabled, auto-commit, no LOBs – RS and Statement closed
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldKeepResultSetAndStatementOpenAfterExhaustion() throws Exception {
+    void shouldCloseResultSetAndStatementAfterEagerClose() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
         ResultSet mockRs = buildMockResultSet(conn, false);
         String rsUUID = sessionManager.registerResultSet(session, mockRs);
+        Statement mockStmt = mockRs.getStatement();
 
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        // RS and Statement must remain open so subsequent RS method calls work.
-        verify(mockRs, never()).close();
-        verify(mockRs.getStatement(), never()).close();
+        verify(mockRs).close();
+        verify(mockStmt).close();
     }
 
     // -------------------------------------------------------------------------
-    // Test 5: active transaction – connection not released when autoCommit=false
+    // Test 5: active transaction – no eager close when autoCommit=false
     // -------------------------------------------------------------------------
 
     @Test
     void shouldNotReleaseConnectionWhenInsideActiveTransaction() throws Exception {
-        // autoCommit=false simulates an active transaction.
         Connection conn = buildMockConnection(false);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -194,13 +188,32 @@ class EagerCloseResultSetModeTest {
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        // The connection must NOT have been closed / returned to the pool.
         verify(conn, never()).close();
-
-        // The session must still have a valid connection reference.
         Session s = sessionManager.getSession(session);
-        assertNotNull(s.getConnection(),
-                "Connection must remain bound to session during an active transaction");
+        assertNotNull(s, "Session must remain when inside an active transaction");
+        assertNotNull(s.getConnection(), "Connection must remain bound to session during an active transaction");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 6: LOBs registered – no eager close when session has LOB objects
+    // -------------------------------------------------------------------------
+
+    @Test
+    void shouldNotEagerCloseWhenSessionHasLobs() throws Exception {
+        Connection conn = buildMockConnection(true);
+        SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
+
+        ResultSet mockRs = buildMockResultSet(conn, false);
+        String rsUUID = sessionManager.registerResultSet(session, mockRs);
+
+        // Simulate a LOB registered during row processing (e.g. BLOB column)
+        sessionManager.registerLob(session, new Object(), "some-lob-uuid");
+
+        ActionContext ctx = buildContext(sessionManager, true);
+        ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
+
+        assertNotNull(sessionManager.getSession(session),
+                "Session must remain when LOBs are still registered (client may still read them)");
     }
 
     // =========================================================================

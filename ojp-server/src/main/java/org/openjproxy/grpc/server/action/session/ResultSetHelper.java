@@ -16,9 +16,11 @@ import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
 
 import java.sql.Clob;
+import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -232,6 +234,42 @@ public class ResultSetHelper {
         }
 
         responseObserver.onCompleted();
+
+        // Eager close: release RS, Statement, and session when all three conditions hold:
+        //   1. eagerClose is enabled
+        //   2. no LOBs/binary streams were encountered (would still be needed by client)
+        //   3. the session is not inside a transaction (auto-commit = true)
+        // DB2 is excluded because its post-iteration metadata is served from a session attribute.
+        // XA sessions are excluded because the connection lifecycle is managed separately.
+        if (eagerCloseEnabled
+                && !DbName.DB2.equals(dbName)
+                && resultSetMode.isEmpty()
+                && context.getSessionManager().getLobs(session).isEmpty()
+                && !session.getIsXA()) {
+            Connection connForCheck = context.getSessionManager().getConnection(session);
+            if (connForCheck != null && connForCheck.getAutoCommit()) {
+                Statement stmtToClose = rs.getStatement();
+                try {
+                    rs.close();
+                } catch (SQLException e) {
+                    log.debug("Eager close: error closing ResultSet: {}", e.getMessage());
+                }
+                if (stmtToClose != null) {
+                    try {
+                        stmtToClose.close();
+                    } catch (SQLException e) {
+                        log.debug("Eager close: error closing Statement: {}", e.getMessage());
+                    }
+                }
+                try {
+                    context.getSessionManager().terminateSession(session);
+                    log.debug("Eager close: terminated session {} (no LOBs, auto-commit, non-XA)",
+                            session.getSessionUUID());
+                } catch (SQLException e) {
+                    log.debug("Eager close: error terminating session: {}", e.getMessage());
+                }
+            }
+        }
     }
 
     /**
