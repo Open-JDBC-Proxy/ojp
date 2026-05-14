@@ -80,8 +80,8 @@ public class ServerConfiguration {
     private static final String TELEMETRY_POOL_METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
     private static final String TELEMETRY_CACHE_METRICS_ENABLED_KEY = "ojp.telemetry.cache.metrics.enabled";
 
-    // Materialized ResultSet mode configuration key
-    private static final String MATERIALIZED_MODE_ENABLED_KEY = "ojp.resultset.materializedMode.enabled";
+    // Eager Close ResultSet mode configuration key
+    private static final String EAGER_CLOSE_ENABLED_KEY = "ojp.resultset.eagerClose.enabled";
 
     // TLS configuration keys
     private static final String TLS_ENABLED_KEY = "ojp.server.tls.enabled";
@@ -157,8 +157,8 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_TELEMETRY_POOL_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
     public static final boolean DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
 
-    // Materialized ResultSet mode default values
-    public static final boolean DEFAULT_MATERIALIZED_MODE_ENABLED = true; // Enabled by default
+    // Eager Close ResultSet mode default values
+    public static final boolean DEFAULT_EAGER_CLOSE_ENABLED = true; // Enabled by default
 
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
@@ -247,8 +247,8 @@ public class ServerConfiguration {
     private final String tlsTruststoreType;
     private final boolean tlsClientAuthRequired;
 
-    // Materialized ResultSet mode configuration
-    private final boolean materializedModeEnabled;
+    // Eager Close ResultSet mode configuration
+    private final boolean eagerCloseEnabled;
 
 
     public ServerConfiguration() {
@@ -316,8 +316,8 @@ public class ServerConfiguration {
         this.tlsTruststoreType = getStringProperty(TLS_TRUSTSTORE_TYPE_KEY, "JKS");
         this.tlsClientAuthRequired = getBooleanProperty(TLS_CLIENT_AUTH_REQUIRED_KEY, DEFAULT_TLS_CLIENT_AUTH_REQUIRED);
 
-        // Materialized ResultSet mode configuration
-        this.materializedModeEnabled = getBooleanProperty(MATERIALIZED_MODE_ENABLED_KEY, DEFAULT_MATERIALIZED_MODE_ENABLED);
+        // Eager Close ResultSet mode configuration
+        this.eagerCloseEnabled = getBooleanProperty(EAGER_CLOSE_ENABLED_KEY, DEFAULT_EAGER_CLOSE_ENABLED);
 
         // Tracing configuration
         this.tracingEnabled = getBooleanProperty(TRACING_ENABLED_KEY, DEFAULT_TRACING_ENABLED);
@@ -486,8 +486,8 @@ public class ServerConfiguration {
             logger.info("  TLS Keystore Type: {}", tlsKeystoreType);
             logger.info("  TLS Truststore Type: {}", tlsTruststoreType);
         }
-        logger.info("Materialized ResultSet Mode:");
-        logger.info("  Materialized Mode Enabled: {}", materializedModeEnabled);
+        logger.info("Eager Close ResultSet Mode:");
+        logger.info("  Eager Close Enabled: {}", eagerCloseEnabled);
         logger.info("Tracing Configuration:");
         logger.info("  Tracing Enabled: {}", tracingEnabled);
         if (tracingEnabled) {
@@ -770,8 +770,8 @@ public class ServerConfiguration {
         return telemetryCacheMetricsEnabled;
     }
 
-    public boolean isMaterializedModeEnabled() {
-        return materializedModeEnabled;
+    public boolean isEagerCloseEnabled() {
+        return eagerCloseEnabled;
     }
 
 }

@@ -96,8 +96,8 @@ public class ResultSetHelper {
         String resultSetMode = "";
         boolean resultSetMetadataCollected = false;
 
-        boolean materializedMode = context.getServerConfiguration().isMaterializedModeEnabled();
-        if (materializedMode) {
+        boolean eagerCloseEnabled = context.getServerConfiguration().isEagerCloseEnabled();
+        if (eagerCloseEnabled) {
             // Snapshot metadata early so it survives RS closure.
             collectResultSetMetadata(context, session, resultSetUUID, rs);
             resultSetMetadataCollected = true;
@@ -105,7 +105,7 @@ public class ResultSetHelper {
 
         while (rs.next()) {
             // DB2 requires metadata to be captured before LOBs can move the cursor;
-            // skip if already collected (e.g., by materialized-mode pre-loop snapshot above).
+            // skip if already collected (e.g., by eager-close pre-loop snapshot above).
             if (DbName.DB2.equals(dbName) && !resultSetMetadataCollected) {
                 collectResultSetMetadata(context, session, resultSetUUID, rs);
                 resultSetMetadataCollected = true;

@@ -36,8 +36,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for the optional materialized ResultSet mode
- * ({@code ojp.resultset.materializedMode.enabled}).
+ * Unit tests for the eager close ResultSet mode
+ * ({@code ojp.resultset.eagerClose.enabled}).
  *
  * <p>Scenarios covered:
  * <ol>
@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
  *   <li>Active transaction: connection is not released when autoCommit is false.</li>
  * </ol>
  */
-class MaterializedResultSetModeTest {
+class EagerCloseResultSetModeTest {
 
     private static final String CONN_HASH = "test-conn-hash";
     private static final String CLIENT_UUID = "test-client-uuid";
@@ -62,11 +62,11 @@ class MaterializedResultSetModeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test 1: materialized mode disabled – RS and Statement not closed early
+    // Test 1: eager close disabled – RS and Statement not closed early
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldNotCloseResultSetEarlyWhenMaterializedModeDisabled() throws Exception {
+    void shouldNotCloseResultSetEarlyWhenEagerCloseDisabled() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -81,11 +81,11 @@ class MaterializedResultSetModeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test 2: materialized mode enabled – metadata snapshot available after exhaustion
+    // Test 2: eager close enabled – metadata snapshot available after exhaustion
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldStoreMetadataSnapshotAfterExhaustionWhenMaterializedModeEnabled() throws Exception {
+    void shouldStoreMetadataSnapshotAfterExhaustionWhenEagerCloseEnabled() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -107,11 +107,11 @@ class MaterializedResultSetModeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test 3: materialized mode enabled – close() on the RS succeeds normally
+    // Test 3: eager close enabled – close() on the RS succeeds normally
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldAllowClientCloseCallAfterMaterializedResultSetExhaustion() throws Exception {
+    void shouldAllowClientCloseCallAfterResultSetExhaustion() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -153,17 +153,17 @@ class MaterializedResultSetModeTest {
 
         CallResourceAction.getInstance().execute(ctx, closeReq, observer);
 
-        assertTrue(errors.isEmpty(), "No error expected for close() on a materialized RS");
+        assertTrue(errors.isEmpty(), "No error expected for close() after RS exhaustion");
         assertEquals(1, responses.size(), "Exactly one response expected");
     }
 
     // -------------------------------------------------------------------------
-    // Test 4: materialized mode enabled – RS and Statement NOT closed early
-    // (early resource release was removed to prevent session-level failures)
+    // Test 4: eager close enabled – RS and Statement NOT closed early
+    // (early resource release removed to prevent session-level failures)
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldKeepResultSetAndStatementOpenAfterExhaustionInMaterializedMode() throws Exception {
+    void shouldKeepResultSetAndStatementOpenAfterExhaustion() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -251,9 +251,9 @@ class MaterializedResultSetModeTest {
         return rs;
     }
 
-    private ActionContext buildContext(SessionManager mgr, boolean materializedModeEnabled) {
+    private ActionContext buildContext(SessionManager mgr, boolean eagerCloseEnabled) {
         ServerConfiguration config = mock(ServerConfiguration.class);
-        when(config.isMaterializedModeEnabled()).thenReturn(materializedModeEnabled);
+        when(config.isEagerCloseEnabled()).thenReturn(eagerCloseEnabled);
         when(config.getCircuitBreakerTimeout()).thenReturn(60000L);
         when(config.getCircuitBreakerThreshold()).thenReturn(3);
 
