@@ -10,7 +10,6 @@ import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.dto.OpQueryResult;
 import org.openjproxy.grpc.server.HydratedResultSetMetadata;
-import org.openjproxy.grpc.server.Session;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.lob.LobProcessor;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
@@ -20,7 +19,6 @@ import java.sql.Clob;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,7 +41,6 @@ import java.util.UUID;
 public class ResultSetHelper {
 
     private static final String RESULT_SET_METADATA_ATTR_PREFIX = "rsMetadata|";
-    private static final String MATERIALIZED_RS_ATTR_PREFIX = "materializedRs|";
     private static final List<String> INPUT_STREAM_TYPES = Arrays.asList("RAW", "BINARY VARYING", "BYTEA");
 
     /**
@@ -234,13 +231,6 @@ public class ResultSetHelper {
         }
 
         responseObserver.onCompleted();
-
-        // Materialized mode: release physical JDBC resources early when the RS is
-        // fully exhausted. Row-by-row mode is excluded because it implies live server-side
-        // LOB cursors that the client may still need to read.
-        if (materializedMode && !CommonConstants.RESULT_SET_ROW_BY_ROW_MODE.equalsIgnoreCase(resultSetMode)) {
-            releaseMaterializedResources(context, session, resultSetUUID, rs);
-        }
     }
 
     /**
@@ -281,66 +271,5 @@ public class ResultSetHelper {
             ResultSet rs) {
         context.getSessionManager().registerAttr(session, RESULT_SET_METADATA_ATTR_PREFIX +
                 resultSetUUID, new HydratedResultSetMetadata(rs.getMetaData()));
-    }
-
-    /**
-     * Releases physical JDBC resources after a fully-consumed ResultSet in materialized mode.
-     * <p>
-     * Closes the ResultSet and its owning Statement. If the session is a non-XA session
-     * and the connection is currently in auto-commit mode (i.e., not inside an active
-     * transaction), the JDBC connection is also returned to the pool. A lightweight marker
-     * is stored in the session so that subsequent {@code close()} calls from the client
-     * remain idempotent.
-     * </p>
-     *
-     * @param context       the action context
-     * @param sessionInfo   the session that owns the resources
-     * @param resultSetUUID the UUID of the exhausted result set
-     * @param rs            the exhausted JDBC ResultSet
-     */
-    private static void releaseMaterializedResources(ActionContext context, SessionInfo sessionInfo,
-            String resultSetUUID, ResultSet rs) {
-        // Mark as materialized so CallResourceAction can handle close() gracefully.
-        context.getSessionManager().registerAttr(sessionInfo,
-                MATERIALIZED_RS_ATTR_PREFIX + resultSetUUID, Boolean.TRUE);
-
-        Statement stmt = null;
-        try {
-            stmt = rs.getStatement();
-        } catch (SQLException e) {
-            log.debug("Could not retrieve Statement from exhausted ResultSet {}: {}", resultSetUUID, e.getMessage());
-        }
-
-        try {
-            rs.close();
-            log.debug("Materialized mode: closed ResultSet {}", resultSetUUID);
-        } catch (SQLException e) {
-            log.debug("Materialized mode: error closing ResultSet {}: {}", resultSetUUID, e.getMessage());
-        }
-
-        if (stmt != null) {
-            try {
-                stmt.close();
-                log.debug("Materialized mode: closed Statement for ResultSet {}", resultSetUUID);
-            } catch (SQLException e) {
-                log.debug("Materialized mode: error closing Statement for ResultSet {}: {}", resultSetUUID, e.getMessage());
-            }
-        }
-
-        // Release the connection if outside a transaction and non-XA.
-        Session session = context.getSessionManager().getSession(sessionInfo);
-        if (session == null || session.isXA()) {
-            return;
-        }
-        try {
-            java.sql.Connection conn = session.getConnection();
-            if (conn != null && conn.getAutoCommit()) {
-                session.releaseConnection();
-                log.debug("Materialized mode: returned connection to pool for session {}", sessionInfo.getSessionUUID());
-            }
-        } catch (SQLException e) {
-            log.debug("Materialized mode: error releasing connection for session {}: {}",
-                    sessionInfo.getSessionUUID(), e.getMessage());
-        }
     }
 }

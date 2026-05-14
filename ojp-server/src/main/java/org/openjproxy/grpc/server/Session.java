@@ -328,27 +328,4 @@ public class Session {
     public long getInactiveDuration() {
         return (System.nanoTime() - this.lastActivityTime) / 1_000_000L;
     }
-
-    /**
-     * Releases the JDBC connection back to the pool without terminating the session.
-     * Safe to call only for non-XA sessions that are not inside an active transaction.
-     * After this call, {@link #getConnection()} returns {@code null}.
-     *
-     * @throws SQLException if the connection cannot be closed
-     */
-    public void releaseConnection() throws SQLException {
-        if (isXA) {
-            log.debug("releaseConnection() called on XA session {}; ignoring – XA connections are managed by the XA pool",
-                    sessionUUID);
-            return;
-        }
-        if (connection == null) {
-            return;
-        }
-        try {
-            connection.close();
-        } finally {
-            connection = null;
-        }
-    }
 }

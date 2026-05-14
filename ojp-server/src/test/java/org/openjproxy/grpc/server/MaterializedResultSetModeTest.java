@@ -29,9 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,8 +43,8 @@ import static org.mockito.Mockito.when;
  * <ol>
  *   <li>Mode disabled: RS and Statement are not closed early.</li>
  *   <li>Mode enabled: metadata snapshot is available after exhaustion.</li>
- *   <li>Mode enabled: client {@code close()} after exhaustion is idempotent.</li>
- *   <li>Mode enabled: physical RS and Statement are closed after exhaustion.</li>
+ *   <li>Mode enabled: client {@code close()} call on an exhausted-but-still-open RS succeeds.</li>
+ *   <li>Mode enabled: RS and Statement are NOT closed early (safe for subsequent RS method calls).</li>
  *   <li>Active transaction: connection is not released when autoCommit is false.</li>
  * </ol>
  */
@@ -109,11 +107,11 @@ class MaterializedResultSetModeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test 3: materialized mode enabled – close() after exhaustion is idempotent
+    // Test 3: materialized mode enabled – close() on the RS succeeds normally
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldHandleCloseIdempotentlyForMaterializedResultSet() throws Exception {
+    void shouldAllowClientCloseCallAfterMaterializedResultSetExhaustion() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -123,7 +121,7 @@ class MaterializedResultSetModeTest {
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        // Simulate a second close() call from the client via CallResourceAction.
+        // The RS is still open after exhaustion; the client can call close() and it succeeds.
         CallResourceRequest closeReq = CallResourceRequest.newBuilder()
                 .setSession(session)
                 .setResourceType(ResourceType.RES_RESULT_SET)
@@ -155,16 +153,17 @@ class MaterializedResultSetModeTest {
 
         CallResourceAction.getInstance().execute(ctx, closeReq, observer);
 
-        assertTrue(errors.isEmpty(), "No error expected for idempotent close on materialized RS");
+        assertTrue(errors.isEmpty(), "No error expected for close() on a materialized RS");
         assertEquals(1, responses.size(), "Exactly one response expected");
     }
 
     // -------------------------------------------------------------------------
-    // Test 4: materialized mode enabled – RS and Statement closed after exhaustion
+    // Test 4: materialized mode enabled – RS and Statement NOT closed early
+    // (early resource release was removed to prevent session-level failures)
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldCloseResultSetAndStatementAfterExhaustionWhenMaterializedModeEnabled() throws Exception {
+    void shouldKeepResultSetAndStatementOpenAfterExhaustionInMaterializedMode() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -174,8 +173,9 @@ class MaterializedResultSetModeTest {
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        verify(mockRs, atLeastOnce()).close();
-        verify(mockRs.getStatement(), atLeastOnce()).close();
+        // RS and Statement must remain open so subsequent RS method calls work.
+        verify(mockRs, never()).close();
+        verify(mockRs.getStatement(), never()).close();
     }
 
     // -------------------------------------------------------------------------

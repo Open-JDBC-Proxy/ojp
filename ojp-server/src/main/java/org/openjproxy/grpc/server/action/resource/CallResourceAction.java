@@ -74,7 +74,6 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
 
     private static final CallResourceAction INSTANCE = new CallResourceAction();
     private static final String RESULT_SET_METADATA_ATTR_PREFIX = "rsMetadata|";
-    private static final String MATERIALIZED_RS_ATTR_PREFIX = "materializedRs|";
 
     private CallResourceAction() {
         // Private constructor prevents external instantiation
@@ -114,14 +113,6 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
             CallResourceResponse.Builder responseBuilder = CallResourceResponse.newBuilder();
 
             if (this.db2SpecialResultSetMetadata(context, request, responseObserver)) {
-                return;
-            }
-
-            if (this.materializedResultSetMetadata(context, request, responseObserver)) {
-                return;
-            }
-
-            if (this.materializedResultSetClose(context, request, responseObserver)) {
                 return;
             }
 
@@ -303,91 +294,5 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
             }
         }
         return false;
-    }
-
-    /**
-     * Serves ResultSet metadata from the session attribute cache when the physical
-     * ResultSet has been released in materialized mode.
-     *
-     * <p>When {@code ojp.resultset.materializedMode.enabled=true} and the ResultSet
-     * has been exhausted and its JDBC resources have been released, subsequent
-     * {@code getMetaData()} calls from the client are answered using the
-     * {@link org.openjproxy.grpc.server.HydratedResultSetMetadata} snapshot stored in
-     * the session attribute map at query-execution time.
-     *
-     * @param context          the action context
-     * @param request          the call resource request
-     * @param responseObserver the gRPC observer to receive the response
-     * @return {@code true} if the materialized metadata was served and the response was sent;
-     *         {@code false} otherwise
-     * @throws SQLException if invoking the metadata method fails
-     */
-    private boolean materializedResultSetMetadata(ActionContext context, CallResourceRequest request,
-            StreamObserver<CallResourceResponse> responseObserver) throws SQLException {
-        if (!ResourceType.RES_RESULT_SET.equals(request.getResourceType()) ||
-                !CallType.CALL_GET.equals(request.getTarget().getCallType()) ||
-                !"Metadata".equalsIgnoreCase(request.getTarget().getResourceName())) {
-            return false;
-        }
-        // Only applies when this result set has been materialised (marker attribute present).
-        Boolean materialised = (Boolean) context.getSessionManager().getAttr(
-                request.getSession(), MATERIALIZED_RS_ATTR_PREFIX + request.getResourceUUID());
-        if (!Boolean.TRUE.equals(materialised)) {
-            return false;
-        }
-        ResultSetMetaData resultSetMetaData = (ResultSetMetaData) context.getSessionManager().getAttr(
-                request.getSession(), RESULT_SET_METADATA_ATTR_PREFIX + request.getResourceUUID());
-        if (resultSetMetaData == null) {
-            return false;
-        }
-        List<Object> paramsReceived = (request.getTarget().getNextCall().getParamsCount() > 0) ?
-                ProtoConverter.parameterValuesToObjectList(request.getTarget().getNextCall().getParamsList()) :
-                EMPTY_LIST;
-        Method methodNext = MethodReflectionUtils.findMethodByName(ResultSetMetaData.class,
-                MethodNameGenerator.methodName(request.getTarget().getNextCall()),
-                paramsReceived);
-        try {
-            Object metadataResult = methodNext.invoke(resultSetMetaData, paramsReceived.toArray());
-            responseObserver.onNext(CallResourceResponse.newBuilder()
-                    .setSession(request.getSession())
-                    .addValues(ProtoConverter.toParameterValue(metadataResult))
-                    .build());
-            responseObserver.onCompleted();
-            return true;
-        } catch (Exception e) {
-            throw new SQLException("Failed to call materialized result set metadata", e);
-        }
-    }
-
-    /**
-     * Handles {@code close()} calls on a ResultSet that was already released by materialized mode.
-     *
-     * <p>When a ResultSet has been exhausted and its physical JDBC resources released, the client
-     * may still call {@code close()} on it. This method detects that situation and responds with
-     * a successful no-op, keeping {@code close()} idempotent.
-     *
-     * @param context          the action context
-     * @param request          the call resource request
-     * @param responseObserver the gRPC observer to receive the response
-     * @return {@code true} if the request was a close on a materialized RS and a no-op response
-     *         was sent; {@code false} otherwise
-     */
-    private boolean materializedResultSetClose(ActionContext context, CallResourceRequest request,
-            StreamObserver<CallResourceResponse> responseObserver) {
-        if (!ResourceType.RES_RESULT_SET.equals(request.getResourceType()) ||
-                !CallType.CALL_CLOSE.equals(request.getTarget().getCallType())) {
-            return false;
-        }
-        Boolean materialised = (Boolean) context.getSessionManager().getAttr(
-                request.getSession(), MATERIALIZED_RS_ATTR_PREFIX + request.getResourceUUID());
-        if (!Boolean.TRUE.equals(materialised)) {
-            return false;
-        }
-        // The RS was already released; respond with a successful no-op.
-        responseObserver.onNext(CallResourceResponse.newBuilder()
-                .setSession(request.getSession())
-                .build());
-        responseObserver.onCompleted();
-        return true;
     }
 }
