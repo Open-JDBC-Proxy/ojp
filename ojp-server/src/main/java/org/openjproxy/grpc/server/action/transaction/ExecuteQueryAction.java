@@ -21,6 +21,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 
+import org.openjproxy.grpc.server.profiling.ExecutionPathProfilingContext;
+
 import static org.openjproxy.grpc.server.action.session.ResultSetHelper.handleResultSet;
 import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.sessionConnection;
 import static org.openjproxy.grpc.server.action.transaction.CommandExecutionHelper.executeWithResilience;
@@ -61,6 +63,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
             throws SQLException {
 
         ConnectionSessionDTO dto = sessionConnection(actionContext, request.getSession(), true);
+        ExecutionPathProfilingContext.mark("sessionConnection");
 
         // Phase 6: Cache Lookup (before query execution) - with graceful degradation
         String sql = request.getSql();
@@ -92,6 +95,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 // Continue to database execution
             }
         }
+        ExecutionPathProfilingContext.mark("cacheCheck");
 
         // Phase 2: SQL Enhancement with timing
         long enhancementStartTime = System.nanoTime();
@@ -144,8 +148,10 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 log.debug("SQL enhancement took {}ms (no modifications)", enhancementDuration);
             }
         }
+        ExecutionPathProfilingContext.mark("sqlEnhancement");
 
         List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
+        ExecutionPathProfilingContext.mark("paramConversion");
 
         // Phase 7: Wrap response observer for cache storage (if caching enabled)
         StreamObserver<OpResult> finalObserver = QueryCacheHelper.wrapWithCaching(
@@ -153,13 +159,19 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
 
         if (CollectionUtils.isNotEmpty(params)) {
             PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
+            ExecutionPathProfilingContext.mark("statementCreation");
             String resultSetUUID = sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
+            ExecutionPathProfilingContext.mark("sqlExecution");
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
+            ExecutionPathProfilingContext.mark("resultSetHandling");
         } else {
             Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
+            ExecutionPathProfilingContext.mark("statementCreation");
             String resultSetUUID = sessionManager.registerResultSet(dto.getSession(),
                     stmt.executeQuery(sql));
+            ExecutionPathProfilingContext.mark("sqlExecution");
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
+            ExecutionPathProfilingContext.mark("resultSetHandling");
         }
     }
 }
