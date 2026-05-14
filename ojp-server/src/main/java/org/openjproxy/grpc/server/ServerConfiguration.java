@@ -158,7 +158,7 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
 
     // Materialized ResultSet mode default values
-    public static final boolean DEFAULT_MATERIALIZED_MODE_ENABLED = false; // Disabled by default, opt-in
+    public static final boolean DEFAULT_MATERIALIZED_MODE_ENABLED = true; // Enabled by default
 
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
