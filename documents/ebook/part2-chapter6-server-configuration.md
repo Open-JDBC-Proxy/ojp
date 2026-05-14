@@ -354,7 +354,88 @@ graph TD
     Q --> R[Adjust Classification]
 ```
 
-## 6.8 Configuration Best Practices
+## 6.8 Statement Eager-Close Mode
+
+One of OJP's performance optimizations for write-heavy OLTP workloads is the **statement eager-close mode**. For simple, non-transactional DML operations — `INSERT`, `UPDATE`, `DELETE`, and `MERGE` — the server can bypass session creation entirely. Instead of opening a server-side session, executing the statement, and then waiting for the client to close the session, the server acquires a pooled connection, executes the statement, and returns the connection to the pool immediately, all within a single gRPC call.
+
+This mode is **enabled by default**. For most OLTP workloads that issue many short DML statements without explicit transaction management, it provides a measurable throughput increase because pool connections cycle faster and fewer server-side resources are allocated.
+
+**[IMAGE PROMPT: Create a side-by-side sequence diagram comparing the standard path vs. the eager-close path for a single INSERT statement. Left side "Standard path": Client → Server (open session) → Server (acquire connection) → Database (INSERT) → Server (hold session + connection) → Client (close session) → Server (release connection). Right side "Eager-close path": Client → Server (acquire connection → INSERT → release connection) → Client. Use green highlight on the eager-close path to emphasize fewer round-trips and no session overhead. Style: Technical sequence diagram with clear step labels and colour-coded paths.]**
+
+### How it works
+
+When the eager-close check passes, the server:
+
+1. Borrows a connection from the pool using `ConnectionAcquisitionManager`.
+2. Prepares and executes the statement using a standard `try-with-resources` block.
+3. Returns the connection to the pool immediately when the block exits (normal or exception).
+4. Invalidates any relevant query cache entries if caching is enabled.
+5. Returns the update count to the client.
+
+No session UUID is created, no `Session` object is stored in `SessionManager`, and no additional gRPC round-trips are needed to close the session.
+
+### Eligibility checks
+
+The eager-close path has a conservative set of safety guards. If any of the following conditions is true, the request falls through to the standard session-based path:
+
+| Condition | Reason bypassed |
+|---|---|
+| Active session UUID present | Request belongs to an existing session-pinned connection |
+| Active transaction UUID present | DML is part of an in-flight transaction |
+| Batch operation flag set | Batch sends are accumulated in the session |
+| Generated-keys tracking requested | Cannot snapshot generated keys without a session |
+| Existing statement UUID present | Statement is a session-held prepared statement |
+| SQL contains session-affinity hints | `SET`, `USE`, stored procedure calls, etc. |
+| LOB / stream parameters present | BLOB, CLOB, streams require session-backed storage |
+| First SQL keyword is not DML | Not an `INSERT`, `UPDATE`, `DELETE`, or `MERGE` |
+
+The SQL classification strips leading whitespace, block comments (`/* … */`), and line comments (`-- …`) before matching the first keyword, so commented-out prefixes do not affect routing.
+
+### Configuration
+
+```bash
+# Enabled by default — no action needed for most deployments
+-Dojp.statement.eagerClose.enabled=true
+
+# Disable if you need session-level semantics for all DML operations
+-Dojp.statement.eagerClose.enabled=false
+```
+
+Or via environment variable:
+
+```bash
+export OJP_STATEMENT_EAGERCLOSE_ENABLED=false
+```
+
+### When to disable
+
+Disable eager-close mode in the following scenarios:
+
+- You are using **application-managed transactions** where DML must execute within an open session but the transaction UUID is not propagated (rare, non-standard usage).
+- You have a **custom JDBC wrapper** that relies on session-level state being present for every statement.
+- You are experiencing **unexpected behavior** on DML-heavy workloads and need to isolate the cause.
+
+For the vast majority of standard JDBC applications, the default (`true`) is safe and beneficial.
+
+```mermaid
+flowchart TD
+    A[executeUpdate request] --> B{Session UUID\nor Transaction UUID?}
+    B -->|Yes| Z[Standard session path]
+    B -->|No| C{Batch / Generated keys\n/ Statement UUID?}
+    C -->|Yes| Z
+    C -->|No| D{LOB params\nor affinity SQL?}
+    D -->|Yes| Z
+    D -->|No| E{INSERT / UPDATE /\nDELETE / MERGE?}
+    E -->|No| Z
+    E -->|Yes| F{Pool available\nfor conn hash?}
+    F -->|No| Z
+    F -->|Yes| G[Eager-close path:\nacquire → execute\n→ release]
+    G --> H[Return update count]
+    Z --> I[Open session\n→ execute\n→ await close]
+    I --> H
+```
+
+## 6.9 Configuration Best Practices
 
 With all these configuration options available, how do you choose the right settings? Start with the defaults—they're designed for typical workloads and provide good performance out of the box. Then adjust based on monitoring data and observed behavior. Don't preemptively tune settings based on assumptions; let your actual workload guide your configuration.
 
@@ -408,7 +489,7 @@ graph LR
     E --> C
 ```
 
-## 6.9 Configuration Validation and Troubleshooting
+## 6.10 Configuration Validation and Troubleshooting
 
 When things don't work as expected, configuration issues are often the culprit. OJP provides clear error messages when configuration values are invalid or inconsistent. The server validates configuration at startup and fails fast if critical settings are problematic.
 
@@ -440,8 +521,8 @@ The server logs its active configuration at INFO level during startup. Review th
 
 OJP server configuration gives you precise control over server behavior, security, performance, and observability. The hierarchical configuration system with JVM properties and environment variables provides flexibility for different deployment scenarios. Default settings work well for most use cases, but understanding the available options lets you optimize for your specific workload.
 
-Key configuration areas include core server settings for network and threading, security controls through IP whitelisting, logging levels for operational visibility, OpenTelemetry integration for observability, circuit breakers for resilience, and slow query segregation for performance under mixed workloads. Each area offers sensible defaults that you can refine based on monitoring data.
+Key configuration areas include core server settings for network and threading, security controls through IP whitelisting, logging levels for operational visibility, OpenTelemetry integration for observability, circuit breakers for resilience, statement eager-close mode for faster non-transactional DML throughput, and slow query segregation for performance under mixed workloads. Each area offers sensible defaults that you can refine based on monitoring data.
 
 Start simple, monitor closely, and adjust based on observed behavior. Good configuration emerges from understanding your workload and using OJP's flexibility to match it, not from cargo-culting settings from other environments.
 
-**[IMAGE PROMPT: Create a summary mind map with "OJP Server Configuration" at the center. Six main branches radiating outward: "Core Settings" (server icon), "Security" (lock icon), "Logging" (document icon), "Telemetry" (graph icon), "Circuit Breaker" (shield icon), and "Slow Query Segregation" (speedometer icon). Each branch has 2-3 sub-branches with key points. Use colors to group related concepts and make it visually hierarchical. Style: Modern mind map with icons and color coding.]**
+**[IMAGE PROMPT: Create a summary mind map with "OJP Server Configuration" at the center. Seven main branches radiating outward: "Core Settings" (server icon), "Security" (lock icon), "Logging" (document icon), "Telemetry" (graph icon), "Circuit Breaker" (shield icon), "Eager-Close Mode" (lightning bolt icon), and "Slow Query Segregation" (speedometer icon). Each branch has 2-3 sub-branches with key points. Use colors to group related concepts and make it visually hierarchical. Style: Modern mind map with icons and color coding.]**
