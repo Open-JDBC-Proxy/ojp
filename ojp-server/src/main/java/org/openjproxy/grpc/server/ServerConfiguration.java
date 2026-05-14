@@ -56,6 +56,7 @@ public class ServerConfiguration {
     private static final String XA_STATEMENT_CACHE_SQL_LIMIT_KEY = CommonConstants.XA_STATEMENT_CACHE_SQL_LIMIT_PROPERTY;
     private static final String XA_STATEMENT_CACHE_SERVER_PREPARE_KEY = CommonConstants.XA_STATEMENT_CACHE_SERVER_PREPARE_PROPERTY;
     private static final String XA_STATEMENT_CACHE_PREPARE_THRESHOLD_KEY = CommonConstants.XA_STATEMENT_CACHE_PREPARE_THRESHOLD_PROPERTY;
+    private static final String STATEMENT_EAGER_CLOSE_ENABLED_KEY = "ojp.statement.eagerClose.enabled";
 
     // Schema loader configuration keys
     private static final String SCHEMA_REFRESH_ENABLED_KEY = "ojp.sql.enhancer.schema.refresh.enabled";
@@ -166,6 +167,9 @@ public class ServerConfiguration {
     public static final long DEFAULT_XA_IDLE_TIMEOUT_MINUTES = 10;
     public static final long DEFAULT_XA_MAX_LIFETIME_MINUTES = 30;
 
+    // Statement eager close default values
+    public static final boolean DEFAULT_STATEMENT_EAGER_CLOSE_ENABLED = false; // Disabled by default, opt-in
+
     // Configuration values
     private final int serverPort;
     private final int prometheusPort;
@@ -240,6 +244,9 @@ public class ServerConfiguration {
     private final String tlsKeystoreType;
     private final String tlsTruststoreType;
     private final boolean tlsClientAuthRequired;
+
+    // Statement eager close configuration
+    private final boolean statementEagerCloseEnabled;
 
 
     public ServerConfiguration() {
@@ -318,6 +325,9 @@ public class ServerConfiguration {
         this.telemetryGrpcMetricsEnabled = getBooleanProperty(TELEMETRY_GRPC_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED);
         this.telemetryPoolMetricsEnabled = getBooleanProperty(TELEMETRY_POOL_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_POOL_METRICS_ENABLED);
         this.telemetryCacheMetricsEnabled = getBooleanProperty(TELEMETRY_CACHE_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED);
+
+        // Statement eager close configuration
+        this.statementEagerCloseEnabled = getBooleanProperty(STATEMENT_EAGER_CLOSE_ENABLED_KEY, DEFAULT_STATEMENT_EAGER_CLOSE_ENABLED);
 
         logConfigurationSummary();
     }
@@ -482,6 +492,7 @@ public class ServerConfiguration {
             logger.info("  Tracing Service Name: {}", tracingServiceName);
             logger.info("  Tracing Sample Rate: {}", tracingSampleRate);
         }
+        logger.info("  Statement Eager Close Enabled: {}", statementEagerCloseEnabled);
     }
 
     /**
@@ -754,6 +765,10 @@ public class ServerConfiguration {
 
     public boolean isTelemetryCacheMetricsEnabled() {
         return telemetryCacheMetricsEnabled;
+    }
+
+    public boolean isStatementEagerCloseEnabled() {
+        return statementEagerCloseEnabled;
     }
 
 }
