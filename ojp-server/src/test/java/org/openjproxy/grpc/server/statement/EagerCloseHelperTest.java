@@ -125,6 +125,19 @@ class EagerCloseHelperTest {
         assertTrue(result.startsWith("UPDATE"));
     }
 
+    @Test
+    void shouldHandleMalformedNestedBlockCommentByStoppingAtFirstClose() {
+        // SQL does not support nested block comments; the first */ ends the comment.
+        // /* outer /* inner */ is treated as: comment ends at first */, leaving " is still outer */"
+        // which does not start with a comment token, so the rest is kept as-is.
+        String result = EagerCloseHelper.stripLeadingCommentsAndWhitespace(
+                "/* outer /* inner */ still outer */INSERT INTO foo VALUES (1)");
+        // After the first block comment is stripped, remaining text starts with " still outer */"
+        // which is not a DML keyword — isPlainDml should return false
+        assertFalse(EagerCloseHelper.isPlainDml(
+                "/* outer /* inner */ still outer */INSERT INTO foo VALUES (1)"));
+    }
+
     // ========== canEagerCloseExecuteUpdate tests ==========
 
     @Test

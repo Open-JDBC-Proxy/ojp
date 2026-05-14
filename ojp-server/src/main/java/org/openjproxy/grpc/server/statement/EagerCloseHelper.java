@@ -27,12 +27,12 @@ public class EagerCloseHelper {
             Pattern.CASE_INSENSITIVE
     );
 
-    /** Matches a leading SQL block comment {@code /* ... *\/}. */
+    /** Matches a leading SQL block comment {@code /* ... *\/}.
+     * Uses non-greedy {@code .*?} which is safe for the short SQL strings typical in this context. */
     private static final Pattern LEADING_BLOCK_COMMENT = Pattern.compile(
             "^/\\*.*?\\*/",
             Pattern.DOTALL
     );
-
     /** Matches a leading SQL line comment {@code -- ...} up to the end of the line. */
     private static final Pattern LEADING_LINE_COMMENT = Pattern.compile(
             "^--[^\r\n]*[\r\n]?"
