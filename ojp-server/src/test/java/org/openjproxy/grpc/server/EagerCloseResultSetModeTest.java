@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -42,9 +41,9 @@ import static org.mockito.Mockito.when;
  * <p>Scenarios covered:
  * <ol>
  *   <li>Mode disabled: RS, Statement, and session are left intact.</li>
- *   <li>Mode enabled, auto-commit, no LOBs: session is terminated after exhaustion.</li>
- *   <li>Mode enabled: client {@code close()} call on an eagerly-closed session returns success.</li>
- *   <li>Mode enabled, auto-commit, no LOBs: RS and Statement are closed.</li>
+ *   <li>Mode enabled, auto-commit, forward-only RS: the RS cursor is closed but the session and Statement remain alive.</li>
+ *   <li>Mode enabled: client {@code close()} call on an already-closed RS returns success.</li>
+ *   <li>Mode enabled, auto-commit, forward-only RS: only the RS is closed; Statement stays open for {@code getMoreResults()}.</li>
  *   <li>Active transaction: no eager close when {@code autoCommit=false}.</li>
  *   <li>LOBs registered: no eager close when the session contains LOBs.</li>
  * </ol>
@@ -83,11 +82,12 @@ class EagerCloseResultSetModeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test 2: eager close enabled, auto-commit, no LOBs – session terminated
+    // Test 2: eager close enabled, auto-commit, no LOBs, forward-only RS –
+    //         the RS cursor is closed but the session and connection remain alive
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldTerminateSessionAfterFullyReadResultSetWithNoLobsAndAutoCommit() throws Exception {
+    void shouldCloseForwardOnlyResultSetAfterFullyReadWithNoLobsAndAutoCommit() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -97,12 +97,13 @@ class EagerCloseResultSetModeTest {
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        assertNull(sessionManager.getSession(session),
-                "Session must be terminated by eager close after fully-read RS with no LOBs in auto-commit mode");
+        verify(mockRs).close();
+        assertNotNull(sessionManager.getSession(session),
+                "Session must remain alive after eager RS close – the JDBC connection may be reused for further queries");
     }
 
     // -------------------------------------------------------------------------
-    // Test 3: eager close enabled – close() on an eagerly-closed session succeeds
+    // Test 3: eager close enabled – close() on an already-closed RS succeeds
     // -------------------------------------------------------------------------
 
     @Test
@@ -116,8 +117,9 @@ class EagerCloseResultSetModeTest {
         ActionContext ctx = buildContext(sessionManager, true);
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
-        // The session is already terminated. The JDBC client still sends a close() call.
-        // The server must return a success response instead of propagating a NPE as an error.
+        // The RS cursor was already closed by eager close.
+        // The JDBC client still sends a close() call for the RS resource.
+        // The server must return a success response and must not propagate an error.
         CallResourceRequest closeReq = CallResourceRequest.newBuilder()
                 .setSession(session)
                 .setResourceType(ResourceType.RES_RESULT_SET)
@@ -154,11 +156,12 @@ class EagerCloseResultSetModeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test 4: eager close enabled, auto-commit, no LOBs – RS and Statement closed
+    // Test 4: eager close enabled, auto-commit, forward-only RS –
+    //         only the RS cursor is closed; Statement stays open for getMoreResults()
     // -------------------------------------------------------------------------
 
     @Test
-    void shouldCloseResultSetAndStatementAfterEagerClose() throws Exception {
+    void shouldCloseResultSetButNotStatementAfterEagerClose() throws Exception {
         Connection conn = buildMockConnection(true);
         SessionInfo session = sessionManager.createSession(CLIENT_UUID, conn);
 
@@ -170,7 +173,7 @@ class EagerCloseResultSetModeTest {
         ResultSetHelper.handleResultSet(ctx, session, rsUUID, noopObserver());
 
         verify(mockRs).close();
-        verify(mockStmt).close();
+        verify(mockStmt, never()).close();
     }
 
     // -------------------------------------------------------------------------
@@ -262,6 +265,7 @@ class EagerCloseResultSetModeTest {
         when(rs.getMetaData()).thenReturn(meta);
         when(rs.next()).thenReturn(hasRows ? Boolean.TRUE : Boolean.FALSE);
         when(rs.getStatement()).thenReturn(mockStmt);
+        when(rs.getType()).thenReturn(ResultSet.TYPE_FORWARD_ONLY);
         return rs;
     }
 

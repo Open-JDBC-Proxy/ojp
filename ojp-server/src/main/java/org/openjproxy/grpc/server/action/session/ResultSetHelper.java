@@ -20,7 +20,6 @@ import java.sql.Connection;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -237,33 +236,23 @@ public class ResultSetHelper {
 
         if (shouldEagerClose(context, session, dbName, resultSetMode, eagerCloseEnabled)) {
             Connection connForCheck = context.getSessionManager().getConnection(session);
-            if (connForCheck != null && connForCheck.getAutoCommit()) {
-                Statement stmtToClose = rs.getStatement();
+            if (connForCheck != null && connForCheck.getAutoCommit()
+                    && rs.getType() == ResultSet.TYPE_FORWARD_ONLY) {
                 try {
                     rs.close();
+                    log.debug("Eager close: closed forward-only ResultSet {} (no LOBs, auto-commit, non-XA)",
+                            resultSetUUID);
                 } catch (SQLException e) {
                     log.debug("Eager close: error closing ResultSet: {}", e.getMessage());
-                }
-                if (stmtToClose != null) {
-                    try {
-                        stmtToClose.close();
-                    } catch (SQLException e) {
-                        log.debug("Eager close: error closing Statement: {}", e.getMessage());
-                    }
-                }
-                try {
-                    context.getSessionManager().terminateSession(session);
-                    log.debug("Eager close: terminated session {} (no LOBs, auto-commit, non-XA)",
-                            session.getSessionUUID());
-                } catch (SQLException e) {
-                    log.debug("Eager close: error terminating session: {}", e.getMessage());
                 }
             }
         }
     }
 
     /**
-     * Returns {@code true} when all five conditions for eager close are satisfied:
+     * Returns {@code true} when the preconditions for eagerly closing the ResultSet cursor are met.
+     * <p>
+     * All five conditions must hold:
      * <ol>
      *   <li>The eager close feature is enabled.</li>
      *   <li>The database is not DB2 (DB2 requires post-iteration metadata access via a session attribute).</li>
@@ -271,8 +260,16 @@ public class ResultSetHelper {
      *   <li>No LOBs or binary streams were registered in the session during row processing.</li>
      *   <li>The session is not an XA session (XA lifecycle is managed separately).</li>
      * </ol>
-     * The auto-commit check is intentionally deferred to the caller because it requires a live
-     * connection reference and is therefore a separate guard.
+     * Two additional guards are applied by the caller:
+     * <ul>
+     *   <li><b>auto-commit check</b> — the session must not be inside an active transaction.</li>
+     *   <li><b>forward-only check</b> — only {@link ResultSet#TYPE_FORWARD_ONLY} result sets are
+     *       closed early; scrollable result sets must stay open so the client can call navigation
+     *       methods such as {@code first()}, {@code last()}, and {@code absolute()} after the stream
+     *       completes.</li>
+     * </ul>
+     * The session and its Statement are intentionally left alive after the RS cursor is freed so that
+     * the JDBC connection can be reused for subsequent statements without interruption.
      */
     private static boolean shouldEagerClose(ActionContext context, SessionInfo session, DbName dbName,
             String resultSetMode, boolean eagerCloseEnabled) {
