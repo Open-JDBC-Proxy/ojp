@@ -57,9 +57,10 @@ public class ResultSetHelper {
      * <p>
      * Iterates over all rows in the result set, converting column values according
      * to their SQL types.
-     * Results are sent in blocks of
-     * {@link org.openjproxy.constants.CommonConstants#ROWS_PER_RESULT_SET_DATA_BLOCK}
-     * rows. For SQL Server and DB2, when LOB columns are present, only one row is
+     * Results are sent in blocks whose size is controlled by the
+     * {@code ojp.resultset.rowsPerBlock} server configuration property
+     * (default: {@value org.openjproxy.constants.CommonConstants#ROWS_PER_RESULT_SET_DATA_BLOCK}).
+     * For SQL Server and DB2, when LOB columns are present, only one row is
      * sent per call to support
      * row-by-row fetching.
      * </p>
@@ -214,7 +215,7 @@ public class ResultSetHelper {
                 break;
             }
 
-            if (row % CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK == 0) {
+            if (row % context.getServerConfiguration().getResultsetRowsPerBlock() == 0) {
                 justSent = true;
                 // Send a block of records
                 responseObserver.onNext(ResultSetWrapper.wrapResults(session, results, queryResultBuilder,

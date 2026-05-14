@@ -30,6 +30,7 @@ class ServerConfigurationTest {
         System.clearProperty("ojp.prometheus.allowedIps");
         System.clearProperty("ojp.server.circuitBreakerTimeout");
         System.clearProperty("ojp.libs.path");
+        System.clearProperty("ojp.resultset.rowsPerBlock");
         TestPropertyCleanupUtils.clearStatementCacheProperties();
     }
 
@@ -276,5 +277,76 @@ class ServerConfigurationTest {
         assertEquals(ServerConfiguration.DEFAULT_TRACING_SAMPLE_RATE, config.getTracingSampleRate(), 0.001);
 
         System.clearProperty("ojp.tracing.sampleRate");
+    }
+
+    @Test
+    void testResultsetRowsPerBlockDefaultValue() {
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(100, config.getResultsetRowsPerBlock());
+        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
+    }
+
+    @Test
+    void testResultsetRowsPerBlockCustomValue() {
+        System.setProperty("ojp.resultset.rowsPerBlock", "250");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(250, config.getResultsetRowsPerBlock());
+    }
+
+    @Test
+    void testResultsetRowsPerBlockMinimumBoundary() {
+        System.setProperty("ojp.resultset.rowsPerBlock", "1");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(1, config.getResultsetRowsPerBlock());
+    }
+
+    @Test
+    void testResultsetRowsPerBlockMaximumBoundary() {
+        System.setProperty("ojp.resultset.rowsPerBlock", "10000");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(10000, config.getResultsetRowsPerBlock());
+    }
+
+    @Test
+    void testResultsetRowsPerBlockBelowMinimumFallsBackToDefault() {
+        System.setProperty("ojp.resultset.rowsPerBlock", "0");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
+    }
+
+    @Test
+    void testResultsetRowsPerBlockAboveMaximumFallsBackToDefault() {
+        System.setProperty("ojp.resultset.rowsPerBlock", "10001");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
+    }
+
+    @Test
+    void testResultsetRowsPerBlockNegativeValueFallsBackToDefault() {
+        System.setProperty("ojp.resultset.rowsPerBlock", "-1");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
+    }
+
+    @Test
+    void testResultsetRowsPerBlockInvalidStringFallsBackToDefault() {
+        System.setProperty("ojp.resultset.rowsPerBlock", "not-a-number");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
     }
 }

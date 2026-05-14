@@ -151,6 +151,20 @@ For full integration examples including Docker Compose setups, see the **[Teleme
 | `ojp.server.circuitBreakerTimeout`   | `OJP_SERVER_CIRCUITBREAKERTIMEOUT`   | long | 60000   | Circuit breaker timeout once open in milliseconds | 0.2.0-beta |
 | `ojp.server.circuitBreakerThreshold` | `OJP_SERVER_CIRCUITBREAKERTHRESHOLD` | int  | 3       | Circuit breaker failure threshold                 | 0.2.0-beta |
 
+### ResultSet Streaming Settings
+
+Controls how the server batches rows into gRPC streaming messages when returning `executeQuery` results.
+
+| Property                        | Environment Variable            | Type | Default | Description                                                                                    | Since |
+|---------------------------------|---------------------------------|------|---------|------------------------------------------------------------------------------------------------|-------|
+| `ojp.resultset.rowsPerBlock`    | `OJP_RESULTSET_ROWSPERBLOCK`    | int  | 100     | Number of rows packed into each streaming block. Range: 1–10000. Out-of-range values fall back to the default. | 0.4.15-SNAPSHOT |
+
+**Tuning guidance:**
+- Smaller values (e.g. 10–50) reduce per-message memory pressure and improve first-row latency for large result sets.
+- Larger values (e.g. 200–1000) reduce gRPC framing overhead and improve bulk-query throughput.
+- The default of 100 matches the historical behaviour and is a safe starting point for most workloads.
+- Values below 1 or above 10000 are rejected and the default is used instead.
+
 ### Slow Query Segregation Settings
 
 | Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |

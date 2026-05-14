@@ -99,12 +99,11 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
     @SuppressWarnings("java:S2095")
     private OpResult executeUpdateInternal(ActionContext actionContext, StatementRequest request) throws SQLException {
         int updated = 0;
-        SessionInfo returnSessionInfo;
-        ConnectionSessionDTO dto = ConnectionSessionDTO.builder().build();
+        ConnectionSessionDTO dto = null;
 
         Statement stmt = null;
         String psUUID = "";
-        OpResult.Builder opResultBuilder = OpResult.newBuilder();
+        String generatedKeysUuid = "";
 
         var sessionManager = actionContext.getSessionManager();
 
@@ -118,7 +117,6 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                     StatementRequestValidator.isAddBatchOperation(request)
                             || requiresGeneratedKeys
                             || requiresSessionAffinity);
-            returnSessionInfo = dto.getSession();
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
             PreparedStatement ps = dto.getSession() != null && StringUtils.isNotBlank(dto.getSession().getSessionUUID())
@@ -130,7 +128,9 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                 if (StringUtils.isNotEmpty(request.getStatementUUID()) && ps != null) {
                     bindLobsAndParameters(sessionManager, dto, ps, params);
                 } else {
-                    ps = createAndRegisterPreparedStatement(sessionManager, dto, request, params, opResultBuilder);
+                    ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
+                            request);
+                    generatedKeysUuid = registerForGeneratedKeys(sessionManager, dto, request, ps);
                 }
                 if (StatementRequestValidator.isAddBatchOperation(request)) {
                     psUUID = addBatchAndGetStatementUUID(sessionManager, dto, ps, request);
@@ -143,7 +143,7 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                 updated = stmt.executeUpdate(request.getSql());
             }
 
-            OpResult result = buildOpResult(request, opResultBuilder, returnSessionInfo, psUUID, updated);
+            OpResult result = buildOpResult(request, dto.getSession(), psUUID, updated, generatedKeysUuid);
 
             // Phase 9: Cache Invalidation (after successful update)
             org.openjproxy.grpc.server.cache.QueryCacheHelper.invalidateCacheIfEnabled(actionContext, dto.getSession(), request.getSql());
@@ -183,30 +183,25 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
     }
 
     /**
-     * Creates a prepared statement and registers it when generated-key tracking is
-     * requested (via RETURN_GENERATED_KEYS, column indexes, or column names),
-     * populating the result builder with the statement UUID.
+     * Registers the prepared statement for generated-key tracking when requested
+     * (via RETURN_GENERATED_KEYS, column indexes, or column names), and returns
+     * the assigned statement UUID. Returns an empty string when tracking is not
+     * required.
      *
-     * @param sessionManager  the session manager for statement registration
-     * @param dto             the connection and session DTO
-     * @param request         the statement request
-     * @param params          the parameters to bind
-     * @param opResultBuilder the builder to set the statement UUID on when
-     *                        generated-key tracking is requested
-     * @return the created prepared statement
-     * @throws SQLException if creation or registration fails
+     * @param sessionManager the session manager for statement registration
+     * @param dto            the connection and session DTO
+     * @param request        the statement request
+     * @param ps             the prepared statement to register
+     * @return the registered statement UUID, or an empty string if not applicable
+     * @throws SQLException if registration fails
      */
-    private PreparedStatement createAndRegisterPreparedStatement(SessionManager sessionManager,
-                                                                 ConnectionSessionDTO dto, StatementRequest request, List<Parameter> params,
-                                                                 OpResult.Builder opResultBuilder) throws SQLException {
-        PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
-                request);
+    private String registerForGeneratedKeys(SessionManager sessionManager, ConnectionSessionDTO dto,
+                                            StatementRequest request, PreparedStatement ps) throws SQLException {
         if (StatementRequestValidator.requiresGeneratedKeysTracking(request)
                 && !StatementRequestValidator.isAddBatchOperation(request)) {
-            String psNewUUID = sessionManager.registerPreparedStatement(dto.getSession(), ps);
-            opResultBuilder.setUuid(psNewUUID);
+            return sessionManager.registerPreparedStatement(dto.getSession(), ps);
         }
-        return ps;
+        return "";
     }
 
     /**
@@ -232,27 +227,27 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
 
     /**
      * Builds the appropriate {@link OpResult} based on whether it was an add-batch
-     * operation (returns UUID) or a regular update (returns row count).
+     * operation (returns UUID) or a regular update (returns row count). Sets the
+     * generated-keys UUID on the result when one was registered.
      *
      * @param request           the statement request
-     * @param opResultBuilder   the builder for the result
-     * @param returnSessionInfo the session info to include in the result
+     * @param sessionInfo       the session info to include in the result
      * @param psUUID            the prepared statement UUID (for batch operations)
      * @param updated           the row count (for regular updates)
+     * @param generatedKeysUuid the registered prepared statement UUID for
+     *                          generated-key tracking, or empty string if not used
      * @return the built {@link OpResult}
      */
-    private OpResult buildOpResult(StatementRequest request, OpResult.Builder opResultBuilder,
-                                   SessionInfo returnSessionInfo, String psUUID, int updated) {
-        if (StatementRequestValidator.isAddBatchOperation(request)) {
-            return opResultBuilder
-                    .setType(ResultType.UUID_STRING)
-                    .setSession(returnSessionInfo)
-                    .setUuidValue(psUUID).build();
+    private OpResult buildOpResult(StatementRequest request, SessionInfo sessionInfo,
+                                   String psUUID, int updated, String generatedKeysUuid) {
+        OpResult.Builder builder = OpResult.newBuilder().setSession(sessionInfo);
+        if (!generatedKeysUuid.isEmpty()) {
+            builder.setUuid(generatedKeysUuid);
         }
-        return opResultBuilder
-                .setType(ResultType.INTEGER)
-                .setSession(returnSessionInfo)
-                .setIntValue(updated).build();
+        if (StatementRequestValidator.isAddBatchOperation(request)) {
+            return builder.setType(ResultType.UUID_STRING).setUuidValue(psUUID).build();
+        }
+        return builder.setType(ResultType.INTEGER).setIntValue(updated).build();
     }
 
     /**
@@ -260,11 +255,12 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
      * execution). This must be done when the connection was obtained without a
      * session, as it would otherwise be left open.
      *
-     * @param dto  the connection and session DTO
+     * @param dto  the connection and session DTO, may be {@code null} if
+     *             {@code sessionConnection} was never reached
      * @param stmt the statement to close (may be null)
      */
     private void closeStatementAndConnectionIfNoSession(ConnectionSessionDTO dto, Statement stmt) {
-        if ((dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) && stmt != null) {
+        if ((dto == null || dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) && stmt != null) {
             try {
                 stmt.close();
             } catch (SQLException e) {
