@@ -6,12 +6,12 @@
 
     <name>OJP Server</name>
     <artifactId>ojp-server</artifactId>
-    <version>0.4.15-SNAPSHOT</version>
+    <version>0.4.15-beta</version>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.4.15-SNAPSHOT</version>
+        <version>0.4.15-beta</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -39,26 +39,26 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-grpc-commons</artifactId>
-            <version>0.4.15-SNAPSHOT</version>
+            <version>0.4.15-beta</version>
         </dependency>
 
         <!-- OJP Datasource API and default HikariCP provider -->
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-datasource-api</artifactId>
-            <version>0.4.15-SNAPSHOT</version>
+            <version>0.4.15-beta</version>
         </dependency>
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-datasource-hikari</artifactId>
-            <version>0.4.15-SNAPSHOT</version>
+            <version>0.4.15-beta</version>
         </dependency>
         
         <!-- OJP XA Pool Commons (Phase 1 integration) -->
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-xa-pool-commons</artifactId>
-            <version>0.4.15-SNAPSHOT</version>
+            <version>0.4.15-beta</version>
         </dependency>
 
         <dependency>

@@ -157,7 +157,7 @@ Controls how the server batches rows into gRPC streaming messages when returning
 
 | Property                        | Environment Variable            | Type | Default | Description                                                                                    | Since |
 |---------------------------------|---------------------------------|------|---------|------------------------------------------------------------------------------------------------|-------|
-| `ojp.resultset.rowsPerBlock`    | `OJP_RESULTSET_ROWSPERBLOCK`    | int  | 100     | Number of rows packed into each streaming block. Range: 1–10000. Out-of-range values fall back to the default. | 0.4.15-SNAPSHOT |
+| `ojp.resultset.rowsPerBlock`    | `OJP_RESULTSET_ROWSPERBLOCK`    | int  | 100     | Number of rows packed into each streaming block. Range: 1–10000. Out-of-range values fall back to the default. | 0.4.15-beta |
 
 **Tuning guidance:**
 - Smaller values (e.g. 10–50) reduce per-message memory pressure and improve first-row latency for large result sets.

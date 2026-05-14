@@ -36,7 +36,7 @@ docker run -d \
   -p 1059:1059 \
   -p 9159:9159 \
   -v "$(pwd)/ojp-libs":/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 This starts the OJP Server with:
@@ -62,7 +62,7 @@ docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 #### Memory Configuration
@@ -74,7 +74,7 @@ docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx2g -Xms1g -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 #### Combined JVM Parameters
@@ -86,7 +86,7 @@ docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC -XX:+UseG1GC" \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 ### Common JVM Parameters
@@ -148,7 +148,7 @@ docker run -d \
   -e OJP_SERVER_LOGLEVEL=DEBUG \
   -e OJP_SERVER_VIRTUALTHREADS_ENABLED=true \
   -e OJP_SERVER_THREADPOOLSIZE=300 \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 See [ojp-server-configuration.md](ojp-server-configuration.md) for a complete list of available configuration options.
@@ -164,7 +164,7 @@ docker run -d \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
   -e OJP_SERVER_PORT=1059 \
   -e OJP_SERVER_LOGLEVEL=INFO \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 ---
@@ -199,7 +199,7 @@ docker run -d \
   -e OJP_SERVER_LOG_FILE=/var/log/ojp/server.log \
   -e OJP_SERVER_LOG_MAXHISTORY=90 \
   -e OJP_SERVER_ALLOWEDIPS="10.0.0.0/8" \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 ### Docker Compose
@@ -211,7 +211,7 @@ version: '3.8'
 
 services:
   ojp-server:
-    image: rrobetti/ojp:0.4.14-beta
+    image: rrobetti/ojp:0.4.15-beta
     container_name: ojp-server
     restart: unless-stopped
     ports:
@@ -284,7 +284,7 @@ docker run -d \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx1g -Xms512m -Duser.timezone=UTC" \
   -e OJP_SERVER_LOGLEVEL=DEBUG \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 ### Example 2: High-Memory Production Server
@@ -300,7 +300,7 @@ docker run -d \
   -e OJP_SERVER_THREADPOOLSIZE=500 \
   -e OJP_SERVER_LOGLEVEL=INFO \
   -e OJP_SERVER_ALLOWEDIPS="10.0.0.0/8,172.16.0.0/12" \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 ### Example 3: Remote Debugging
@@ -312,7 +312,7 @@ docker run -d \
   -p 5005:5005 \
   -e JAVA_TOOL_OPTIONS="-Duser.timezone=UTC -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
   -e OJP_SERVER_LOGLEVEL=DEBUG \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 Connect your IDE debugger to `localhost:5005`.
@@ -328,7 +328,7 @@ docker run -d \
   -e JAVA_TOOL_OPTIONS="-Xmx8g -Xms8g -XX:+UseZGC -XX:+UnlockExperimentalVMOptions -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
   -e OJP_SERVER_VIRTUALTHREADS_ENABLED=true \
   -e OJP_SERVER_THREADPOOLSIZE=400 \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 ### Example 5: Adding Proprietary Drivers
@@ -352,7 +352,7 @@ docker run -d \
   -p 1059:1059 \
   -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 ---
@@ -396,7 +396,7 @@ netstat -tuln | grep -E '1059|9159'
 
 3. Test with minimal configuration:
 ```bash
-docker run --rm rrobetti/ojp:0.4.14-beta
+docker run --rm rrobetti/ojp:0.4.15-beta
 ```
 
 ### Out of Memory Errors

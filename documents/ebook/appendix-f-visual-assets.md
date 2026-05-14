@@ -437,7 +437,7 @@ classDiagram
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
@@ -1107,7 +1107,7 @@ docker run --rm -d \
   --name ojp-server \
   --network host \
   -v "$(pwd)/ojp-libs":/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 This downloads the OJP Server image (approximately 50MB) and starts it with your downloaded drivers mounted. The server starts on port 1059 for gRPC communication and exposes metrics on port 9159 for Prometheus. The `-d` flag runs the container in detached mode, while `--rm` ensures the container is automatically removed when stopped.
@@ -1160,7 +1160,7 @@ Professional code documentation style
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
@@ -1957,7 +1957,7 @@ version: '3.8'
 
 services:
   ojp-server:
-    image: rrobetti/ojp:0.4.14-beta
+    image: rrobetti/ojp:0.4.15-beta
     ports:
       - "1059:1059"
       - "9159:9159"

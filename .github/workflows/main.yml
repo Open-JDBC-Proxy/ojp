@@ -99,7 +99,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -206,7 +206,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
       # Tests will run against this server via postgres_connection.csv (port 10593)
@@ -218,7 +218,7 @@ jobs:
           docker run -d --name ojp-server-enhancer \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -342,7 +342,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -438,7 +438,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -525,7 +525,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -693,7 +693,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -795,7 +795,7 @@ jobs:
           docker run -d --name ojp-server-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9159"
 
       # Start second OJP server instance on port 10592
@@ -804,7 +804,7 @@ jobs:
           docker run -d --name ojp-server-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9160"
 
       - name: Wait for OJP servers to start
@@ -913,7 +913,7 @@ jobs:
           docker run -d --name ojp-server-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "OJP Server 1 container restarted"
           sleep 10
 
@@ -998,7 +998,7 @@ jobs:
           docker run -d --name ojp-server-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "OJP Server 2 container restarted"
           sleep 10
 
@@ -1199,7 +1199,7 @@ jobs:
           docker run -d --name ojp-server-xa-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9161 with DEBUG logging"
 
       # Start second OJP server instance on port 10592 with DEBUG logging
@@ -1209,7 +1209,7 @@ jobs:
           docker run -d --name ojp-server-xa-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9162 with DEBUG logging"
 
       - name: Wait for OJP servers to start
@@ -1329,7 +1329,7 @@ jobs:
           docker run -d --name ojp-server-xa-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "OJP Server 1 container restarted"
           
           # Wait for server to fully start
@@ -1432,7 +1432,7 @@ jobs:
           docker run -d --name ojp-server-xa-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
           echo "OJP Server 2 container restarted"
           
           # Wait for server to fully start
@@ -1699,7 +1699,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1802,7 +1802,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.15-SNAPSHOT
+            rrobetti/ojp:0.4.15-beta
 
       - name: Wait for ojp-server to start
         run: sleep 10

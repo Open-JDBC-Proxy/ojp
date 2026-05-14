@@ -16,8 +16,8 @@ The most common way to start the OJP server is using the standalone JAR download
 **Download the JAR from Maven Central** (recommended):
 
 ```bash
-wget https://repo1.maven.org/maven2/org/openjproxy/ojp-server/0.4.14-beta/ojp-server-0.4.14-beta-shaded.jar
-chmod +x ojp-server-0.4.14-beta-shaded.jar
+wget https://repo1.maven.org/maven2/org/openjproxy/ojp-server/0.4.15-beta/ojp-server-0.4.15-beta-shaded.jar
+chmod +x ojp-server-0.4.15-beta-shaded.jar
 java -Duser.timezone=UTC -jar ojp-server-0.3.0.jar
 ```
 
@@ -27,7 +27,7 @@ For development with custom configuration, you can specify properties:
 java -Dojp.server.port=9059 \
      -Dojp.telemetry.enabled=true \
      -Dojp.telemetry.prometheus.enabled=true \
-     -jar ojp-server-0.4.14-beta-shaded.jar
+     -jar ojp-server-0.4.15-beta-shaded.jar
 ```
 
 When running from source during development (see [Building from Source](../runnable-jar/BUILDING_FROM_SOURCE.md)):
@@ -244,7 +244,7 @@ Maven dependency:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>spring-boot-starter-ojp</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
@@ -282,7 +282,7 @@ Maven dependency (no starter):
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 <dependency>
     <groupId>org.springframework.boot</groupId>

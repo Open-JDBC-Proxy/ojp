@@ -20,7 +20,7 @@ Replace any existing `spring-boot-starter-jdbc` in your `pom.xml` with the OJP s
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>spring-boot-starter-ojp</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
@@ -306,7 +306,7 @@ If you cannot use the starter (e.g., Java 11 projects), follow these steps:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
