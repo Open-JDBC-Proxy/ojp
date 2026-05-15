@@ -99,7 +99,7 @@ public class CommonConstants {
     // Multinode configuration defaults - addressing PR #39 review comment #1
     public static final int DEFAULT_MULTINODE_RETRY_ATTEMPTS = -1;  // -1 = retry indefinitely
     public static final long DEFAULT_MULTINODE_RETRY_DELAY_MS = 5000;  // 5 seconds between retries
-    public static final boolean DEFAULT_JDBC_CLOSE_SYNCHRONOUS = false;
+    public static final boolean DEFAULT_JDBC_CLOSE_SYNCHRONOUS = true;
 
     // XA pool evictor defaults (Apache Commons Pool 2)
     public static final long DEFAULT_XA_TIME_BETWEEN_EVICTION_RUNS_MS = 30000;  // 30 seconds

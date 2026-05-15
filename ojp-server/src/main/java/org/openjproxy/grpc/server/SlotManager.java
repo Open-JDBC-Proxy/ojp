@@ -22,6 +22,7 @@ public class SlotManager {
     private final int slowSlots;
     private final int fastSlots;
     private final long idleTimeoutMs;
+    private final int maxWaitQueueDepth;
 
     // Semaphores for slot management
     private final Semaphore slowOperationSemaphore;
@@ -50,6 +51,18 @@ public class SlotManager {
      * @param idleTimeoutMs The time in milliseconds before a slot is considered idle and eligible for borrowing
      */
     public SlotManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs) {
+        this(totalSlots, slowSlotPercentage, idleTimeoutMs, 0);
+    }
+
+    /**
+     * Creates a new SlotManager with optional wait queue depth cap.
+     *
+     * @param totalSlots The maximum total number of concurrent operations (from HikariCP max pool size)
+     * @param slowSlotPercentage The percentage of slots allocated to slow operations (0-100)
+     * @param idleTimeoutMs The time in milliseconds before a slot is considered idle and eligible for borrowing
+     * @param maxWaitQueueDepth Maximum waiting thread queue depth per semaphore (0 = auto: totalSlots * 2)
+     */
+    public SlotManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs, int maxWaitQueueDepth) {
         if (totalSlots <= 0) {
             throw new IllegalArgumentException("Total slots must be positive");
         }
@@ -59,9 +72,13 @@ public class SlotManager {
         if (idleTimeoutMs < 0) {
             throw new IllegalArgumentException("Idle timeout must be non-negative");
         }
+        if (maxWaitQueueDepth < 0) {
+            throw new IllegalArgumentException("Max wait queue depth must be non-negative");
+        }
 
         this.totalSlots = totalSlots;
         this.idleTimeoutMs = idleTimeoutMs;
+        this.maxWaitQueueDepth = maxWaitQueueDepth == 0 ? totalSlots * 2 : maxWaitQueueDepth;
 
         // Calculate slot allocation
         // slowSlotPercentage=0 is used by admission-control-only mode (all slots fast).
@@ -72,8 +89,8 @@ public class SlotManager {
         this.slowOperationSemaphore = new Semaphore(this.slowSlots, true);
         this.fastOperationSemaphore = new Semaphore(this.fastSlots, true);
 
-        log.info("SlotManager initialized with {} total slots: {} slow, {} fast, idle timeout {}ms",
-                totalSlots, this.slowSlots, this.fastSlots, idleTimeoutMs);
+        log.info("SlotManager initialized with {} total slots: {} slow, {} fast, idle timeout {}ms, max wait queue depth {}",
+                totalSlots, this.slowSlots, this.fastSlots, idleTimeoutMs, this.maxWaitQueueDepth);
     }
 
     /**
@@ -109,6 +126,12 @@ public class SlotManager {
         }
 
         // Only wait for slow slot if borrowing is not possible or failed
+        if (!canWaitForSlot(slowOperationSemaphore)) {
+            log.debug("Slow wait queue depth limit reached (limit={}, queue={}), failing fast",
+                    maxWaitQueueDepth, slowOperationSemaphore.getQueueLength());
+            return false;
+        }
+
         if (slowOperationSemaphore.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
             activeSlowOperations.incrementAndGet();
             log.debug("Acquired slow slot from slow pool after waiting. Active slow: {}", activeSlowOperations.get());
@@ -152,6 +175,12 @@ public class SlotManager {
         }
 
         // Only wait for fast slot if borrowing is not possible or failed
+        if (!canWaitForSlot(fastOperationSemaphore)) {
+            log.debug("Fast wait queue depth limit reached (limit={}, queue={}), failing fast",
+                    maxWaitQueueDepth, fastOperationSemaphore.getQueueLength());
+            return false;
+        }
+
         if (fastOperationSemaphore.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
             activeFastOperations.incrementAndGet();
             log.debug("Acquired fast slot from fast pool after waiting. Active fast: {}", activeFastOperations.get());
@@ -248,6 +277,10 @@ public class SlotManager {
         return hasAvailableSlots && isIdle;
     }
 
+    private boolean canWaitForSlot(Semaphore semaphore) {
+        return semaphore.getQueueLength() < maxWaitQueueDepth;
+    }
+
     /**
      * Gets the current status of the slot manager.
      *
@@ -294,4 +327,5 @@ public class SlotManager {
     public int getSlowSlotsBorrowedToFast() { return slowSlotsBorrowedToFast.get(); }
     public int getFastSlotsBorrowedToSlow() { return fastSlotsBorrowedToSlow.get(); }
     public long getIdleTimeoutMs() { return idleTimeoutMs; }
+    public int getMaxWaitQueueDepth() { return maxWaitQueueDepth; }
 }

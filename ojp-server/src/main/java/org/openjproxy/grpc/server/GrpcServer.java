@@ -100,6 +100,7 @@ public class GrpcServer {
                 .addService(statementService)
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
                 .intercept(new IpWhitelistingInterceptor(config.getAllowedIps()))
+                .intercept(new ConcurrencyThrottleInterceptor(config.getMaxConcurrentRequests()))
                 .intercept(grpcTelemetry.newServerInterceptor());
 
         // Configure TLS if enabled

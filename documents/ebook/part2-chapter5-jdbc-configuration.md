@@ -177,14 +177,14 @@ String orOpts = "jdbc:ojp[localhost:1059]_oracle:thin:@localhost:1521/XEPDB1?" +
 
 ### Connection Close Semantics
 
-When your application calls `Connection.close()`, the OJP JDBC driver terminates the server-side session **asynchronously by default**. In practical terms, `close()` returns immediately and termination runs in the background.
+When your application calls `Connection.close()`, the OJP JDBC driver terminates the server-side session **synchronously by default**. In practical terms, `close()` blocks until the server-side session has been terminated.
 
-This default behavior is performance-oriented because session termination runs in the background and avoids blocking application threads on close.
+This default behavior is correctness-oriented because it guarantees that the session is fully released before the application proceeds.
 
-If you need blocking behavior, set:
+If you need non-blocking behavior, set:
 
 ```properties
-ojp.jdbc.connection.close.synchronous=true
+ojp.jdbc.connection.close.synchronous=false
 ```
 
 #### Retry Behavior During Close
@@ -203,8 +203,8 @@ The driver does **not** retry when the failure indicates that retrying will not 
 
 So the operational rule is simple:
 
-- default (`ojp.jdbc.connection.close.synchronous=false`): async close, failures are logged
-- configured synchronous (`true`): close waits, and failures are surfaced to the caller
+- default (`ojp.jdbc.connection.close.synchronous=true`): synchronous close, failures are surfaced to the caller
+- configured asynchronous (`false`): async close, failures are logged
 
 ---
 

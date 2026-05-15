@@ -172,8 +172,9 @@ Controls how the server batches rows into gRPC streaming messages when returning
 | `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | false    | Enable for mixed fast+slow workloads; usually keep off for pure OLTP/OLAP | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotPercentage` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTPERCENTAGE` | int     | 20       | Percentage of slots for slow operations (0-100) | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.idleTimeout`     | `OJP_SERVER_SLOWQUERYSEGREGATION_IDLETIMEOUT`     | long    | 10000    | Idle timeout for slot borrowing (milliseconds)  | 0.2.0-beta |
-| `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Timeout for acquiring slow operation slots (ms) | 0.2.0-beta |
-| `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Timeout for acquiring fast operation slots (ms) | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Slow-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Fast-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
+| `ojp.server.admissionControl.maxQueueDepth`       | `OJP_SERVER_ADMISSIONCONTROL_MAXQUEUEDEPTH`       | int     | 0        | Max admission waiters before fail-fast overload (0 = auto as `totalSlots × 2` per semaphore; `totalSlots` is the pool slot count used by admission control) | 0.4.16-SNAPSHOT |
 
 ### SQL Enhancer and Schema Loader Settings
 
@@ -444,6 +445,9 @@ ojp.server.slowQuerySegregation.slowSlotTimeout=120000
 
 # Timeout for acquiring fast operation slots (milliseconds)
 ojp.server.slowQuerySegregation.fastSlotTimeout=60000
+
+# Admission queue depth cap across all admission-control modes (0 = auto)
+ojp.server.admissionControl.maxQueueDepth=0
 ```
 
 ### Benefits
@@ -453,6 +457,15 @@ ojp.server.slowQuerySegregation.fastSlotTimeout=60000
 - **Prevents resource starvation in mixed workloads**: Fast operations aren't blocked by slow ones within each datasource
 - **Adaptive learning**: Automatically discovers and adapts to slow operations per datasource
 - **Efficient resource utilization**: Smart slot borrowing maximizes connection pool usage while maintaining safety
+
+### Admission Timeout Model (Pooled Lazy Sessions)
+
+OJP uses a single timeout owner for pooled lazy session allocation: the admission semaphore.
+
+- `ojp.connection.pool.connectionTimeout` (non-XA) and `ojp.xa.connection.pool.connectionTimeout` (XA) define the admission wait budget.
+- Backend pool borrow is configured fail-fast after admission.
+- This prevents additive latency under contention (admission wait + pool borrow wait), and keeps timeout semantics consistent across XA and non-XA paths.
+- With slow query segregation enabled, operations are routed to fast/slow slot lanes for isolation, and `ojp.server.slowQuerySegregation.fastSlotTimeout` / `ojp.server.slowQuerySegregation.slowSlotTimeout` take precedence for lane admission waits.
 
 ## Configuration Examples
 

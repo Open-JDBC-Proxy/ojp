@@ -10,6 +10,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.server.CircuitBreaker;
 import org.openjproxy.grpc.server.PoolNotFoundException;
 import org.openjproxy.grpc.server.AdmissionControlManager;
+import org.openjproxy.grpc.server.ServerOverloadException;
 import org.openjproxy.grpc.server.SqlStatementXXHash;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
@@ -17,6 +18,7 @@ import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendServerOverload;
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 import static org.openjproxy.grpc.server.action.session.ResultSetHelper.updateSessionActivity;
 
@@ -83,6 +85,9 @@ public class CommandExecutionHelper {
             log.error("SQL failure during {} execution: {}",
                     operationName, e.getMessage(), e);
             sendSQLExceptionMetadata(e, responseObserver);
+        } catch (ServerOverloadException e) {
+            log.warn("Server overload during {} execution, request rejected: {}", operationName, e.getMessage());
+            sendServerOverload(e, responseObserver);
         } catch (PoolNotFoundException e) {
             // Pool was not found for this connection hash. The server may have restarted
             // and lost its in-memory pool state. Signal the client to reconnect via

@@ -8,20 +8,20 @@ The OJP JDBC driver supports configurable connection pool settings via an `ojp.p
 
 ## Connection Close Behavior
 
-When application code calls `Connection.close()`, the OJP JDBC driver performs session termination **asynchronously by default**.
+When application code calls `Connection.close()`, the OJP JDBC driver performs session termination **synchronously by default**.
 
-That means the close call returns immediately and session termination runs in the background by default.
+That means the close call blocks until the server-side session has been terminated.
 
-If you want strict synchronous behavior, set:
+If you want asynchronous behavior (close returns immediately; termination runs in the background), set:
 
 ```properties
-ojp.jdbc.connection.close.synchronous=true
+ojp.jdbc.connection.close.synchronous=false
 ```
 
 This property also supports datasource prefixes:
 
 ```properties
-myApp.ojp.jdbc.connection.close.synchronous=true
+myApp.ojp.jdbc.connection.close.synchronous=false
 ```
 
 ### Retry Rules
@@ -42,8 +42,8 @@ The driver does **not** retry when the failure is not transient connectivity, fo
 
 This keeps close-path latency low by default while still allowing strict blocking behavior when required.
 
-With asynchronous close (default), termination failures are logged.
-With synchronous close (`ojp.jdbc.connection.close.synchronous=true`), failures are surfaced to the caller.
+With synchronous close (default), failures are surfaced to the caller.
+With asynchronous close (`ojp.jdbc.connection.close.synchronous=false`), termination failures are logged.
 
 ## Multi-DataSource Configuration
 
@@ -326,7 +326,7 @@ These examples demonstrate recommended settings for each environment and can be 
 
 | Property | Type | Default | Description | Since |
 |----------|------|---------|-------------|-------|
-| `ojp.jdbc.connection.close.synchronous` | boolean | false | Controls `Connection.close()` behavior. `false` = async close (default), `true` = close waits for terminate-session RPC. | 0.4.2-beta |
+| `ojp.jdbc.connection.close.synchronous` | boolean | true | Controls `Connection.close()` behavior. `true` = close waits for terminate-session RPC (default), `false` = async close. | 0.4.2-beta |
 
 ### Programmatic Configuration via `DriverManager.getConnection()`
 
@@ -683,7 +683,7 @@ Add the OJP JDBC driver dependency to your project:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 

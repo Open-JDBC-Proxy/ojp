@@ -324,7 +324,20 @@ For **pure OLTP** (mostly short queries) or **pure OLAP** (mostly long-running q
 
 The idle timeout setting controls when slots can borrow from the other pool. If the fast pool is empty but slow slots sit idle, fast operations can temporarily borrow those slots. This prevents resource waste while maintaining the segregation benefits when both pools are active. The default 10-second timeout means slots must be idle briefly before lending—preventing constant oscillation.
 
-Timeout settings for acquiring slots provide backpressure when pools are exhausted. Fast operations wait up to 60 seconds by default, while slow operations get more generous 120-second timeouts. These asymmetric timeouts reflect the different expectations: fast operations should complete quickly or fail, while slow operations naturally take longer and deserve more patience.
+Timeout settings for acquiring slots provide backpressure when pools are exhausted. With slow query segregation enabled, fast/slow lane timeout settings control admission waits per lane. Backend pool borrow remains fail-fast after admission.
+
+For pooled lazy session allocation, OJP uses admission semaphores as the timeout owner and backend pool borrow is forced to fail fast. This avoids additive waits (admission wait + pool borrow wait) under saturation and keeps behavior consistent across XA and non-XA paths.
+When slow query segregation is enabled, `ojp.server.slowQuerySegregation.fastSlotTimeout` and `ojp.server.slowQuerySegregation.slowSlotTimeout` take precedence for fast/slow lane admission waits.
+
+Admission queue depth is also bounded to prevent unbounded waiter buildup under heavy surge traffic. Configure this with `ojp.server.admissionControl.maxQueueDepth` (default `0`, which auto-calculates as `totalSlots × 2` per semaphore, where `totalSlots` is the pool slot count used by admission control). This limit applies to **all** admission-control modes.
+
+```bash
+# Keep auto queue depth (recommended starting point)
+-Dojp.server.admissionControl.maxQueueDepth=0
+
+# Or set an explicit queue cap
+-Dojp.server.admissionControl.maxQueueDepth=128
+```
 
 **[IMAGE PROMPT: Create a dynamic allocation diagram showing how idle slots can be borrowed between pools. Show two pools: "Fast Slots" (4 boxes, 3 active, 1 idle) and "Slow Slots" (2 boxes, 1 active, 1 idle). Draw a curved arrow labeled "Temporary Borrow (if idle >10s)" from the idle slow slot to fast pool. Include a timer icon and "Returns when fast demand drops" annotation. Use green for active, gray for idle, and dotted lines for temporary borrowing. Style: Technical system diagram with clear state visualization.]**
 

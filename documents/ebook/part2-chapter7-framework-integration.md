@@ -47,7 +47,7 @@ The `spring-boot-starter-ojp` artifact provides zero-configuration Spring Boot i
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>spring-boot-starter-ojp</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
@@ -167,7 +167,7 @@ If you cannot use the starter (for example, in Java 11 projects where the starte
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 
 <!-- Spring JDBC Starter WITHOUT HikariCP -->
@@ -260,7 +260,7 @@ Start with the Maven dependency for OJP's JDBC driver:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
@@ -353,7 +353,7 @@ The first step remains familiar—add the OJP JDBC driver dependency:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 
@@ -465,7 +465,7 @@ Jakarta EE applications typically run inside an **application server** (such as 
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.14-beta</version>
+    <version>0.4.15-beta</version>
 </dependency>
 ```
 

@@ -255,4 +255,14 @@ class AdmissionControlManagerTest {
         assertTrue(executed[0]);
         assertTrue(admissionControlManager.getOperationAverageTime(operationHash) > 0);
     }
+
+    @Test
+    void testAdmissionControlTimeoutThrowsServerOverloadException() throws Exception {
+        AdmissionControlManager manager = new AdmissionControlManager(1, 0, 0, 0, 10, 0, 0, true);
+        manager.getSlotManager().acquireFastSlot(1000);
+        ServerOverloadException overloadException = assertThrows(ServerOverloadException.class,
+                () -> manager.executeWithSegregation("overload-op", () -> "never"));
+        assertTrue(overloadException.getMessage().contains("Timeout waiting for admission control slot"));
+        manager.getSlotManager().releaseFastSlot();
+    }
 }

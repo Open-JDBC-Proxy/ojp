@@ -175,7 +175,9 @@ If your application has many legitimate slow operations (like scheduled reports)
 
 ### Timeout Configuration
 
-Two timeout settings control how long operations will wait to acquire slots. These timeouts are important for preventing requests from hanging indefinitely when the system is under heavy load.
+Two timeout settings tune fast and slow lane waits separately.
+With slow query segregation enabled, these settings take precedence for lane admission waits.
+Backend pool borrow still remains fail-fast after admission.
 
 ```properties
 # Timeout for acquiring a slow operation slot (milliseconds)
@@ -185,9 +187,9 @@ ojp.server.slowQuerySegregation.slowSlotTimeout=120000
 ojp.server.slowQuerySegregation.fastSlotTimeout=60000
 ```
 
-The default slow slot timeout is 120 seconds (2 minutes), reflecting the expectation that slow operations might take a while. The fast slot timeout defaults to 60 seconds (1 minute), which is generous for operations that should complete quickly. If a timeout occurs, the client receives an exception indicating that no slot was available within the timeout period.
+If an admission timeout occurs, the client receives an exception indicating that no slot was available within the configured admission timeout window.
 
-You might adjust these based on your SLAs and expected query durations. Consider your actual performance characteristics when setting timeouts—the goal is to catch genuine problems without false positives.
+Use `ojp.connection.pool.connectionTimeout` and `ojp.xa.connection.pool.connectionTimeout` as the admission timeout baseline for non-segregated paths.
 
 ### Idle Timeout for Borrowing
 

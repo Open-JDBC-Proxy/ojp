@@ -12,13 +12,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConnectionCloseBehaviorTest {
 
     @Test
-    void shouldTerminateSessionAsynchronouslyByDefault() throws SQLException, InterruptedException {
+    void shouldTerminateSessionSynchronouslyByDefault() throws SQLException {
         CountDownLatch terminated = new CountDownLatch(1);
         StatementService statementService = createStatementService(session -> terminated.countDown());
         Connection connection = new Connection(buildSessionInfo(), statementService, DbName.POSTGRES);
@@ -26,17 +27,28 @@ class ConnectionCloseBehaviorTest {
         connection.close();
 
         assertTrue(connection.isClosed());
-        assertTrue(terminated.await(2, TimeUnit.SECONDS));
+        // Default is synchronous: terminateSession must have been called before close() returned
+        assertEquals(0, terminated.getCount());
     }
 
     @Test
-    void shouldNotPropagateTerminateFailureWhenCloseIsAsynchronous() throws SQLException, InterruptedException {
+    void shouldPropagateTerminateFailureWhenCloseIsDefaultSynchronous() {
+        StatementService statementService = createStatementService(session -> {
+            throw new SQLException("terminate failed");
+        });
+        Connection connection = new Connection(buildSessionInfo(), statementService, DbName.POSTGRES);
+
+        assertThrows(SQLException.class, connection::close);
+    }
+
+    @Test
+    void shouldNotPropagateTerminateFailureWhenCloseIsConfiguredAsynchronous() throws SQLException, InterruptedException {
         CountDownLatch terminated = new CountDownLatch(1);
         StatementService statementService = createStatementService(session -> {
             terminated.countDown();
             throw new SQLException("terminate failed");
         });
-        Connection connection = new Connection(buildSessionInfo(), statementService, DbName.POSTGRES);
+        Connection connection = new Connection(buildSessionInfo(), statementService, DbName.POSTGRES, false);
 
         assertDoesNotThrow(connection::close);
         assertTrue(connection.isClosed());

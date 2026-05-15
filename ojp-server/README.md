@@ -18,7 +18,7 @@ You can pass JVM parameters to the Docker container using the `JAVA_TOOL_OPTIONS
 docker run -d \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.14-beta
+  rrobetti/ojp:0.4.15-beta
 ```
 
 For comprehensive Docker deployment examples and configuration options, see the **[Docker Deployment Guide](../documents/configuration/DOCKER_DEPLOYMENT.md)**.

@@ -4,6 +4,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
+import org.openjproxy.constants.CommonConstants;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -151,6 +152,18 @@ class H2OpenLoopLatencyIntegrationTest {
         config.setMaximumPoolSize(HIKARI_POOL_SIZE);
         config.setMinimumIdle(HIKARI_POOL_SIZE);
         config.setPoolName("H2OpenLoopLatencyPool");
+        // OJP server-side connection pool defaults — set explicitly so behaviour is not
+        // silently governed by the classpath ojp.properties or server fallbacks.
+        config.addDataSourceProperty(CommonConstants.MAXIMUM_POOL_SIZE_PROPERTY,
+                String.valueOf(CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE));
+        config.addDataSourceProperty(CommonConstants.MINIMUM_IDLE_PROPERTY,
+                String.valueOf(CommonConstants.DEFAULT_MINIMUM_IDLE));
+        config.addDataSourceProperty(CommonConstants.IDLE_TIMEOUT_PROPERTY,
+                String.valueOf(CommonConstants.DEFAULT_IDLE_TIMEOUT));
+        config.addDataSourceProperty(CommonConstants.MAX_LIFETIME_PROPERTY,
+                String.valueOf(CommonConstants.DEFAULT_MAX_LIFETIME));
+        config.addDataSourceProperty(CommonConstants.CONNECTION_TIMEOUT_PROPERTY,
+                String.valueOf(CommonConstants.DEFAULT_CONNECTION_TIMEOUT));
         return new HikariDataSource(config);
     }
 

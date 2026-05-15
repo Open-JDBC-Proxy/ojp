@@ -222,6 +222,9 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                                 .metricsPrefix("OJP-Pool-" + dsConfig.getDataSourceName())
                                 .build();
 
+                        log.info("Connection timeout model for {}: admissionTimeout={}ms, backendPoolTimeout={}ms (fail-fast, provider clamped if needed)",
+                                connHash, dsConfig.getConnectionTimeout(), CommonConstants.FAIL_FAST_POOL_CONNECTION_TIMEOUT_MS);
+
                         // Create DataSource with properly configured transaction isolation
                         ds = ConnectionPoolProviderRegistry.createDataSource(poolConfig);
                         log.info("Created DataSource with transaction isolation level: {}", defaultTransactionIsolation);
