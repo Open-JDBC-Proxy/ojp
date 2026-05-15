@@ -53,6 +53,9 @@ import static org.mockito.Mockito.mock;
  * <p><b>This test is for assessment purposes only and is not intended to be
  * merged to the main branch.</b></p>
  *
+ * <p><b>Main branch sync:</b> this branch is current with main as of commit
+ * {@code e59f4eb2} (Merge PR #520 – throttle incoming requests, 2026-05-15).</p>
+ *
  * <p><b>executeQuery steps instrumented:</b></p>
  * <ol>
  *   <li>{@code sessionConnection} – connection look-up from the session map (pre-created sessions)</li>
