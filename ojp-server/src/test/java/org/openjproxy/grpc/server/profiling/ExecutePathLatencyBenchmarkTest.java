@@ -387,7 +387,7 @@ class ExecutePathLatencyBenchmarkTest {
 
         System.out.println();
         System.out.println(center("Step Timing Report — " + title, totalWidth));
-        System.out.println(center("median of " + CONCURRENT_REQUESTS + " concurrent requests (H2 in-memory)", totalWidth));
+        System.out.println(center("median of " + CONCURRENT_REQUESTS + " concurrent requests (H2 in-memory) — OJP overhead only, JDBC time excluded", totalWidth));
         System.out.println(repeat("-", totalWidth));
 
         for (Map.Entry<String, Long> entry : medians.entrySet()) {

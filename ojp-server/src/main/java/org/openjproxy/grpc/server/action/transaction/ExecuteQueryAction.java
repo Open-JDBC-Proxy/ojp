@@ -17,6 +17,7 @@ import org.openjproxy.grpc.server.statement.StatementFactory;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
@@ -158,17 +159,26 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
                 responseObserver, cacheConfig, sql, params, dto.getSession().getConnHash());
 
         if (CollectionUtils.isNotEmpty(params)) {
+            ExecutionPathProfilingContext.beginJdbcCall();
             PreparedStatement ps = StatementFactory.createPreparedStatement(sessionManager, dto, sql, params, request);
+            ExecutionPathProfilingContext.endJdbcCall();
             ExecutionPathProfilingContext.mark("statementCreation");
-            String resultSetUUID = sessionManager.registerResultSet(dto.getSession(), ps.executeQuery());
+            ExecutionPathProfilingContext.beginJdbcCall();
+            ResultSet rs = ps.executeQuery();
+            ExecutionPathProfilingContext.endJdbcCall();
+            String resultSetUUID = sessionManager.registerResultSet(dto.getSession(), rs);
             ExecutionPathProfilingContext.mark("sqlExecution");
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
             ExecutionPathProfilingContext.mark("resultSetHandling");
         } else {
+            ExecutionPathProfilingContext.beginJdbcCall();
             Statement stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
+            ExecutionPathProfilingContext.endJdbcCall();
             ExecutionPathProfilingContext.mark("statementCreation");
-            String resultSetUUID = sessionManager.registerResultSet(dto.getSession(),
-                    stmt.executeQuery(sql));
+            ExecutionPathProfilingContext.beginJdbcCall();
+            ResultSet rs = stmt.executeQuery(sql);
+            ExecutionPathProfilingContext.endJdbcCall();
+            String resultSetUUID = sessionManager.registerResultSet(dto.getSession(), rs);
             ExecutionPathProfilingContext.mark("sqlExecution");
             handleResultSet(actionContext, dto.getSession(), resultSetUUID, finalObserver);
             ExecutionPathProfilingContext.mark("resultSetHandling");

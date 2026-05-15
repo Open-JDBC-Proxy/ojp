@@ -26,6 +26,9 @@ public final class ExecutionPathProfilingContext {
 
     private static final ThreadLocal<ExecutionPathProfiler> ACTIVE = new ThreadLocal<>();
 
+    /** Start timestamp (ns) recorded by {@link #beginJdbcCall()}. */
+    private static final ThreadLocal<Long> JDBC_CALL_START = new ThreadLocal<>();
+
     /** Utility class — no instances. */
     private ExecutionPathProfilingContext() {
     }
@@ -46,6 +49,7 @@ public final class ExecutionPathProfilingContext {
      */
     public static void deactivate() {
         ACTIVE.remove();
+        JDBC_CALL_START.remove();
     }
 
     /**
@@ -68,6 +72,37 @@ public final class ExecutionPathProfilingContext {
         ExecutionPathProfiler profiler = ACTIVE.get();
         if (profiler != null) {
             profiler.mark(step);
+        }
+    }
+
+    /**
+     * Marks the start of a JDBC driver call whose duration should be excluded
+     * from the current step's OJP measurement.
+     * <p>
+     * Must be paired with a subsequent {@link #endJdbcCall()}. This is a no-op
+     * when no profiler is active.
+     * </p>
+     */
+    public static void beginJdbcCall() {
+        if (ACTIVE.get() != null) {
+            JDBC_CALL_START.set(System.nanoTime());
+        }
+    }
+
+    /**
+     * Marks the end of a JDBC driver call and subtracts its duration from the
+     * current step's measurement window so that only OJP-internal time is counted.
+     * <p>
+     * Safe to call even when {@link #beginJdbcCall()} was not called first (no-op
+     * in that case).
+     * </p>
+     */
+    public static void endJdbcCall() {
+        ExecutionPathProfiler profiler = ACTIVE.get();
+        Long start = JDBC_CALL_START.get();
+        if (profiler != null && start != null) {
+            profiler.excludeNs(System.nanoTime() - start);
+            JDBC_CALL_START.remove();
         }
     }
 }

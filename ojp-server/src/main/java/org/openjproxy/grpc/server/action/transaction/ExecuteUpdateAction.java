@@ -133,22 +133,30 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                 if (StringUtils.isNotEmpty(request.getStatementUUID()) && ps != null) {
                     bindLobsAndParameters(sessionManager, dto, ps, params);
                 } else {
+                    ExecutionPathProfilingContext.beginJdbcCall();
                     ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
                             request);
+                    ExecutionPathProfilingContext.endJdbcCall();
                     generatedKeysUuid = registerForGeneratedKeys(sessionManager, dto, request, ps);
                 }
                 ExecutionPathProfilingContext.mark("statementCreation");
                 if (StatementRequestValidator.isAddBatchOperation(request)) {
                     psUUID = addBatchAndGetStatementUUID(sessionManager, dto, ps, request);
                 } else {
+                    ExecutionPathProfilingContext.beginJdbcCall();
                     updated = ps.executeUpdate();
+                    ExecutionPathProfilingContext.endJdbcCall();
                 }
                 ExecutionPathProfilingContext.mark("sqlExecution");
                 stmt = ps;
             } else {
+                ExecutionPathProfilingContext.beginJdbcCall();
                 stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
+                ExecutionPathProfilingContext.endJdbcCall();
                 ExecutionPathProfilingContext.mark("statementCreation");
+                ExecutionPathProfilingContext.beginJdbcCall();
                 updated = stmt.executeUpdate(request.getSql());
+                ExecutionPathProfilingContext.endJdbcCall();
                 ExecutionPathProfilingContext.mark("sqlExecution");
             }
 

@@ -45,6 +45,20 @@ public class ExecutionPathProfiler {
     }
 
     /**
+     * Advances the reference timestamp by {@code ns} nanoseconds, effectively
+     * excluding that duration from the current step's measurement window.
+     * <p>
+     * Use this to discount time spent inside external JDBC calls so that the
+     * subsequent {@link #mark(String)} records only OJP-internal overhead.
+     * </p>
+     *
+     * @param ns nanoseconds to exclude from the current step's elapsed time
+     */
+    public void excludeNs(long ns) {
+        this.lastMarkNs += ns;
+    }
+
+    /**
      * Returns an unmodifiable view of all recorded step timings in insertion order.
      *
      * @return list of step timings
