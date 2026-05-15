@@ -102,9 +102,7 @@ public class ResultSetHelper {
         DbName dbName = DatabaseUtils.resolveDbName(rs.getStatement().getConnection().getMetaData().getURL());
         ExecutionPathProfilingContext.endJdbcCall();
 
-        ExecutionPathProfilingContext.beginJdbcCall();
-        boolean rowAvailable = rs.next();
-        ExecutionPathProfilingContext.endJdbcCall();
+        boolean rowAvailable = profiledNext(rs);
         while (rowAvailable) {
             if (DbName.DB2.equals(dbName) && !resultSetMetadataCollected) {
                 collectResultSetMetadata(context, session, resultSetUUID, rs);
@@ -221,9 +219,7 @@ public class ResultSetHelper {
                 results = new ArrayList<>();
             }
 
-            ExecutionPathProfilingContext.beginJdbcCall();
-            rowAvailable = rs.next();
-            ExecutionPathProfilingContext.endJdbcCall();
+            rowAvailable = profiledNext(rs);
         }
 
         if (!justSent) {
@@ -274,5 +270,24 @@ public class ResultSetHelper {
             ResultSet rs) {
         context.getSessionManager().registerAttr(session, RESULT_SET_METADATA_ATTR_PREFIX +
                 resultSetUUID, new HydratedResultSetMetadata(rs.getMetaData()));
+    }
+
+    /**
+     * Advances the result set cursor and excludes the JDBC call time from the
+     * current profiling step. This is a no-op in production (when no profiler is
+     * active).
+     *
+     * @param rs the result set to advance
+     * @return {@code true} if the new current row is valid, {@code false} if there
+     *         are no more rows
+     * @throws SQLException if a database access error occurs
+     */
+    private static boolean profiledNext(ResultSet rs) throws SQLException {
+        ExecutionPathProfilingContext.beginJdbcCall();
+        try {
+            return rs.next();
+        } finally {
+            ExecutionPathProfilingContext.endJdbcCall();
+        }
     }
 }

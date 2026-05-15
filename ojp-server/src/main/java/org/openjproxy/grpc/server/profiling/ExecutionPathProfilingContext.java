@@ -79,7 +79,9 @@ public final class ExecutionPathProfilingContext {
      * Marks the start of a JDBC driver call whose duration should be excluded
      * from the current step's OJP measurement.
      * <p>
-     * Must be paired with a subsequent {@link #endJdbcCall()}. This is a no-op
+     * Must be paired with a subsequent {@link #endJdbcCall()}. Nesting is not
+     * supported: a second {@code beginJdbcCall()} before a matching
+     * {@code endJdbcCall()} will overwrite the first timestamp. This is a no-op
      * when no profiler is active.
      * </p>
      */
