@@ -26,7 +26,7 @@ public class DateTimeUtils {
             }
 
             // Print class name to verify
-            log.info("raw object class: " + rawObject.getClass().getName());
+            log.info("raw object class: {}", rawObject.getClass().getName());
 
             // Step 2: Access getTimestamp and getMinutesOffset via reflection
             Method getTimestampMethod = rawObject.getClass().getMethod("getTimestamp");

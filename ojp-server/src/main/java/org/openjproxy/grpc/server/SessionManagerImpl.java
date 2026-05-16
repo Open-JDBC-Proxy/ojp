@@ -45,39 +45,39 @@ public class SessionManagerImpl implements SessionManager {
 
     @Override
     public void registerClientUUID(String connectionHash, String clientUUID) {
-        log.info("Registering client uuid {}", clientUUID);
+        log.debug("Registering client uuid {}", clientUUID);
         this.connectionHashMap.put(clientUUID, connectionHash);
     }
 
     @Override
     public SessionInfo createSession(String clientUUID, Connection connection) {
-        log.info("Create session for client uuid {}", clientUUID);
+        log.debug("Create session for client uuid {}", clientUUID);
         String connectionHash = connectionHashMap.get(clientUUID);
         CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
         Session session = new Session(connection, connectionHash, clientUUID, false, null, cacheConfig);
-        log.info("Session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
+        log.debug("Session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
     }
 
     @Override
     public SessionInfo createXASession(String clientUUID, Connection connection, XAConnection xaConnection) {
-        log.info("Create XA session for client uuid {}", clientUUID);
+        log.debug("Create XA session for client uuid {}", clientUUID);
         String connectionHash = connectionHashMap.get(clientUUID);
         CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
         Session session = new Session(connection, connectionHash, clientUUID, true, xaConnection, cacheConfig);
-        log.info("XA Session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
+        log.debug("XA Session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
     }
 
     @Override
     public SessionInfo createDeferredXASession(String clientUUID, String connectionHash) {
-        log.info("Create deferred XA session for client uuid {}", clientUUID);
+        log.debug("Create deferred XA session for client uuid {}", clientUUID);
         CacheConfiguration cacheConfig = getCacheConfiguration(connectionHash);
         // Create session without XAConnection - will be bound later via bindXAConnection()
         Session session = new Session(null, connectionHash, clientUUID, true, null, cacheConfig);
-        log.info("Deferred XA Session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
+        log.debug("Deferred XA Session {} created for client uuid {}", session.getSessionUUID(), clientUUID);
         this.sessionMap.put(session.getSessionUUID(), session);
         return session.getSessionInfo();
     }
@@ -188,7 +188,7 @@ public class SessionManagerImpl implements SessionManager {
 
     @Override
     public void terminateSession(SessionInfo sessionInfo) throws SQLException {
-        log.info("Terminating session -> {}", sessionInfo.getSessionUUID());
+        log.debug("Terminating session -> {}", sessionInfo.getSessionUUID());
         Session targetSession = this.sessionMap.remove(sessionInfo.getSessionUUID());
 
         // Handle case where session doesn't exist on this server (multinode scenario)
@@ -200,7 +200,7 @@ public class SessionManagerImpl implements SessionManager {
 
         if (TransactionStatus.TRX_ACTIVE.equals(sessionInfo.getTransactionInfo().getTransactionStatus())) {
             if (!targetSession.getConnection().getAutoCommit()) {
-                log.info("Rolling back active transaction");
+                log.debug("Rolling back active transaction");
                 targetSession.getConnection().rollback();
             }
         }
@@ -210,25 +210,25 @@ public class SessionManagerImpl implements SessionManager {
     @SneakyThrows
     @Override
     public void waitLobStreamsConsumption(SessionInfo sessionInfo) {
-        log.info("Check if there are any binary stream lobs in session");
+        log.debug("Check if there are any binary stream lobs in session");
         Session session = this.sessionMap.get(sessionInfo.getSessionUUID());
         List<LobDataBlocksInputStream> binaryStreamsLobs = session.getAllLobs().stream()
                 .filter((o) -> o instanceof LobDataBlocksInputStream)
                 .map(LobDataBlocksInputStream.class::cast).toList();
-        log.info("{} binary stream lobs found ", binaryStreamsLobs.size());
+        log.debug("{} binary stream lobs found ", binaryStreamsLobs.size());
         for (LobDataBlocksInputStream lob : binaryStreamsLobs) {
-            log.info("Verifying that lob {} is fully consumed.", lob.getUuid());
+            log.debug("Verifying that lob {} is fully consumed.", lob.getUuid());
             while (!lob.getFullyConsumed().get()) {
                 Thread.sleep(10);
             }
-            log.info("Lob {} fully consumed.", lob.getUuid());
+            log.debug("Lob {} fully consumed.", lob.getUuid());
             //During postgres tests it was found out that if the update is executed immediately after the lob injection
             //the lob is not yet set in the prepared statement, this thread sleep currently is required as per there is
             // no way to be sure that the prepared statement is ready, as this only affects Binary streams (not blobs or
             // clobs), the MVP will use this solution.
             // TODO attempt reengineering.
             Thread.sleep(100);
-            log.info("Binary stream lob finished");
+            log.debug("Binary stream lob finished");
         }
     }
 

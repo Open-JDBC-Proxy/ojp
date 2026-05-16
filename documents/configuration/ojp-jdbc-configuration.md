@@ -6,6 +6,45 @@ This document covers configuration options for the OJP JDBC driver, including cl
 
 The OJP JDBC driver supports configurable connection pool settings via an `ojp.properties` file with advanced multi-datasource capabilities. This allows customization of HikariCP connection pool behavior on a per-client basis with support for multiple named datasources for enhanced flexibility.
 
+## Connection Close Behavior
+
+When application code calls `Connection.close()`, the OJP JDBC driver performs session termination **synchronously by default**.
+
+That means the close call blocks until the server-side session has been terminated.
+
+If you want asynchronous behavior (close returns immediately; termination runs in the background), set:
+
+```properties
+ojp.jdbc.connection.close.synchronous=false
+```
+
+This property also supports datasource prefixes:
+
+```properties
+myApp.ojp.jdbc.connection.close.synchronous=false
+```
+
+### Retry Rules
+
+The driver retries session termination **up to 3 times** only when the failure is clearly connection-related, for example:
+
+- gRPC `UNAVAILABLE`
+- gRPC `DEADLINE_EXCEEDED`
+- equivalent transport/connectivity failures
+
+The driver does **not** retry when the failure is not transient connectivity, for example:
+
+- pool or session not found (`NOT_FOUND`)
+- server-side `SQLException` / database error
+- other non-connection failures
+
+### Why This Matters
+
+This keeps close-path latency low by default while still allowing strict blocking behavior when required.
+
+With synchronous close (default), failures are surfaced to the caller.
+With asynchronous close (`ojp.jdbc.connection.close.synchronous=false`), termination failures are logged.
+
 ## Multi-DataSource Configuration
 
 ### Flexibility and Operational Benefits
@@ -276,12 +315,51 @@ These examples demonstrate recommended settings for each environment and can be 
 | `ojp.connection.pool.minimumIdle`     | int  | 5       | Minimum number of idle connections maintained            | 0.2.0-beta |
 | `ojp.connection.pool.idleTimeout`     | long | 600000  | Maximum time (ms) a connection can sit idle (10 minutes) | 0.2.0-beta |
 | `ojp.connection.pool.maxLifetime`     | long | 1800000 | Maximum lifetime (ms) of a connection (30 minutes)       | 0.2.0-beta |
-| `ojp.connection.pool.connectionTimeout` | long | 10000   | Maximum time (ms) to wait for a connection (10 seconds)  | 0.2.0-beta |
+| `ojp.connection.pool.connectionTimeout` | long | 10000   | Semaphore admission wait budget (ms) for non-XA requests; pool acquisition is fail-fast  | 0.2.0-beta |
 | `ojp.connection.pool.defaultTransactionIsolation` | string/int | READ_COMMITTED | Default transaction isolation level (see below) | 0.2.0-beta |
 
 **Note**: These properties can be used with or without a datasource name prefix. For example:
 - `ojp.connection.pool.maximumPoolSize=20` (default datasource)
 - `myApp.ojp.connection.pool.maximumPoolSize=50` (myApp datasource)
+
+### JDBC Client Properties
+
+| Property | Type | Default | Description | Since |
+|----------|------|---------|-------------|-------|
+| `ojp.jdbc.connection.close.synchronous` | boolean | true | Controls `Connection.close()` behavior. `true` = close waits for terminate-session RPC (default), `false` = async close. | 0.4.2-beta |
+
+### Programmatic Configuration via `DriverManager.getConnection()`
+
+In addition to `ojp.properties` files and system properties, you can supply pool configuration
+**directly in the `Properties` object** passed to `DriverManager.getConnection(url, info)`.
+Any `ojp.connection.pool.*` or `ojp.xa.*` key present in `info` is merged on top of the
+file-based configuration and takes the **highest precedence**.
+
+```java
+Properties info = new Properties();
+info.setProperty("user", "alice");
+info.setProperty("password", "secret");
+
+// These override any matching value in ojp.properties / system properties / env vars
+info.setProperty("ojp.connection.pool.maximumPoolSize", String.valueOf(allocatedMaxConnections));
+info.setProperty("ojp.connection.pool.minimumIdle", "3");
+
+Connection conn = DriverManager.getConnection(
+    "jdbc:ojp[ojp-server:1059]_postgresql://db:5432/mydb", info);
+```
+
+**Property precedence** (highest to lowest):
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 | `info` argument to `getConnection()` | `info.setProperty("ojp.connection.pool.maximumPoolSize", "50")` |
+| 2 | Environment variables | `OJP_CONNECTION_POOL_MAXIMUMPOOLSIZE=50` |
+| 3 | System properties | `-Dojp.connection.pool.maximumPoolSize=50` |
+| 4 | Properties file (`ojp.properties`) | `ojp.connection.pool.maximumPoolSize=50` |
+
+Only `ojp.connection.pool.*`, `ojp.xa.*`, and `ojp.jdbc.*` keys are read from `info`.
+JDBC-standard keys such as `user` and `password` are extracted separately and are never
+treated as pool configuration.
 
 ### Transaction Isolation Configuration
 
@@ -472,7 +550,7 @@ When using XA (distributed transaction) connections via `OjpXADataSource` **with
 | `ojp.xa.connection.pool.enabled` | boolean | true | Enable/disable XA connection pooling | 0.2.0-beta |
 | `ojp.xa.connection.pool.maxTotal` | int | 20 | Maximum XA backend sessions per server | 0.2.0-beta |
 | `ojp.xa.connection.pool.minIdle` | int | 5 | Minimum idle XA sessions (pre-warmed) | 0.2.0-beta |
-| `ojp.xa.connection.pool.connectionTimeout` | long | 20000 | Max wait time (ms) to borrow session (20 seconds) | 0.2.0-beta |
+| `ojp.xa.connection.pool.connectionTimeout` | long | 20000 | Semaphore admission wait budget (ms) for XA requests; backend pool borrow is fail-fast | 0.2.0-beta |
 | `ojp.xa.connection.pool.idleTimeout` | long | 600000 | Max idle time (ms) before eviction (10 minutes) | 0.2.0-beta |
 | `ojp.xa.connection.pool.maxLifetime` | long | 1800000 | Max lifetime (ms) of XA session (30 minutes) | 0.2.0-beta |
 | `ojp.xa.connection.pool.timeBetweenEvictionRuns` | long | 30000 | How often evictor runs (ms) to clean up excess idle connections (30 seconds) | 0.2.0-beta |
@@ -605,7 +683,7 @@ Add the OJP JDBC driver dependency to your project:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.8-beta</version>
+    <version>0.4.16-beta</version>
 </dependency>
 ```
 

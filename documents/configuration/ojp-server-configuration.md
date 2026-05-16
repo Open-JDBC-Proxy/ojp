@@ -15,7 +15,8 @@ The server supports configuration through both JVM system properties and environ
 |--------------------------------------|--------------------------------------|---------|-----------|--------------------------------------------------------|---------|
 | `ojp.server.port`                    | `OJP_SERVER_PORT`                    | int     | 1059      | gRPC server port                                       | 0.2.0-beta |
 | `ojp.prometheus.port`                | `OJP_PROMETHEUS_PORT`                | int     | 9159      | Prometheus metrics HTTP server port                    | 0.2.0-beta |
-| `ojp.server.threadPoolSize`          | `OJP_SERVER_THREADPOOLSIZE`          | int     | 200       | gRPC server thread pool size                           | 0.2.0-beta |
+| `ojp.server.virtualThreads.enabled`  | `OJP_SERVER_VIRTUALTHREADS_ENABLED`  | boolean | true      | Use Java virtual threads for gRPC request handling     | 0.4.11-beta |
+| `ojp.server.threadPoolSize`          | `OJP_SERVER_THREADPOOLSIZE`          | int     | 200       | Fixed thread pool size when virtual threads are disabled | 0.2.0-beta |
 | `ojp.server.maxRequestSize`          | `OJP_SERVER_MAXREQUESTSIZE`          | int     | 4194304   | Maximum request size in bytes (4MB)                    | 0.2.0-beta |
 | `ojp.server.connectionIdleTimeout`   | `OJP_SERVER_CONNECTIONIDLETIMEOUT`   | long    | 30000     | Connection idle timeout in milliseconds                | 0.2.0-beta |
 
@@ -150,15 +151,30 @@ For full integration examples including Docker Compose setups, see the **[Teleme
 | `ojp.server.circuitBreakerTimeout`   | `OJP_SERVER_CIRCUITBREAKERTIMEOUT`   | long | 60000   | Circuit breaker timeout once open in milliseconds | 0.2.0-beta |
 | `ojp.server.circuitBreakerThreshold` | `OJP_SERVER_CIRCUITBREAKERTHRESHOLD` | int  | 3       | Circuit breaker failure threshold                 | 0.2.0-beta |
 
+### ResultSet Streaming Settings
+
+Controls how the server batches rows into gRPC streaming messages when returning `executeQuery` results.
+
+| Property                        | Environment Variable            | Type | Default | Description                                                                                    | Since |
+|---------------------------------|---------------------------------|------|---------|------------------------------------------------------------------------------------------------|-------|
+| `ojp.resultset.rowsPerBlock`    | `OJP_RESULTSET_ROWSPERBLOCK`    | int  | 100     | Number of rows packed into each streaming block. Range: 1–10000. Out-of-range values fall back to the default. | 0.4.15-SNAPSHOT |
+
+**Tuning guidance:**
+- Smaller values (e.g. 10–50) reduce per-message memory pressure and improve first-row latency for large result sets.
+- Larger values (e.g. 200–1000) reduce gRPC framing overhead and improve bulk-query throughput.
+- The default of 100 matches the historical behaviour and is a safe starting point for most workloads.
+- Values below 1 or above 10000 are rejected and the default is used instead.
+
 ### Slow Query Segregation Settings
 
 | Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |
 |----------------------------------------------------|----------------------------------------------------|---------|----------|--------------------------------------------------|-------|
-| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | false    | Enable/disable slow query segregation feature   | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | false    | Enable for mixed fast+slow workloads; usually keep off for pure OLTP/OLAP | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotPercentage` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTPERCENTAGE` | int     | 20       | Percentage of slots for slow operations (0-100) | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.idleTimeout`     | `OJP_SERVER_SLOWQUERYSEGREGATION_IDLETIMEOUT`     | long    | 10000    | Idle timeout for slot borrowing (milliseconds)  | 0.2.0-beta |
-| `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Timeout for acquiring slow operation slots (ms) | 0.2.0-beta |
-| `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Timeout for acquiring fast operation slots (ms) | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Slow-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Fast-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
+| `ojp.server.admissionControl.maxQueueDepth`       | `OJP_SERVER_ADMISSIONCONTROL_MAXQUEUEDEPTH`       | int     | 0        | Max admission waiters before fail-fast overload (0 = auto as `totalSlots × 2` per semaphore; `totalSlots` is the pool slot count used by admission control) | 0.4.16-SNAPSHOT |
 
 ### SQL Enhancer and Schema Loader Settings
 
@@ -296,6 +312,7 @@ java -Duser.timezone=UTC \
      -Dojp.server.port=8080 \
      -Dojp.prometheus.port=9091 \
      -Dojp.telemetry.enabled=false \
+     -Dojp.server.virtualThreads.enabled=true \
      -Dojp.server.threadPoolSize=100 \
      -Dojp.server.circuitBreakerTimeout=120000 \
      -Dojp.server.circuitBreakerThreshold=3 \
@@ -313,6 +330,7 @@ Set configuration using environment variables:
 export OJP_SERVER_PORT=8080
 export OJP_PROMETHEUS_PORT=9091
 export OJP_OPENTELEMETRY_ENABLED=false
+export OJP_SERVER_VIRTUALTHREADS_ENABLED=true
 export OJP_SERVER_THREADPOOLSIZE=100
 export OJP_SERVER_CIRCUITBREAKERTIMEOUT=120000
 export OJP_SERVER_CIRCUITBREAKERTHRESHOLD=3
@@ -398,6 +416,10 @@ You can configure different IP restrictions for the Prometheus metrics endpoint:
 
 The Slow Query Segregation feature monitors all database operations and classifies them as "slow" or "fast" based on their execution time, then manages the number of concurrently executing operations to prevent slow operations from blocking the system.
 
+**Strong recommendation:** Enable this when one OJP server handles both fast transactional queries and slower analytical/reporting queries.
+
+**Discouraged usage:** For pure OLTP (mostly fast queries) or pure OLAP (mostly long queries), this usually brings limited value. Keep it disabled unless monitoring shows clear starvation of one query class by another.
+
 ### How It Works
 
 1. **Operation Monitoring**: Every SQL operation is tracked using a hash of the SQL statement
@@ -423,15 +445,27 @@ ojp.server.slowQuerySegregation.slowSlotTimeout=120000
 
 # Timeout for acquiring fast operation slots (milliseconds)
 ojp.server.slowQuerySegregation.fastSlotTimeout=60000
+
+# Admission queue depth cap across all admission-control modes (0 = auto)
+ojp.server.admissionControl.maxQueueDepth=0
 ```
 
 ### Benefits
 
 - **Per-datasource isolation**: Each datasource maintains independent slow/fast lanes based on actual pool sizes
 - **Enhanced resource protection**: Smart borrowing preserves at least one slot per pool and requires prior activity
-- **Prevents resource starvation**: Fast operations aren't blocked by slow ones within each datasource
+- **Prevents resource starvation in mixed workloads**: Fast operations aren't blocked by slow ones within each datasource
 - **Adaptive learning**: Automatically discovers and adapts to slow operations per datasource
 - **Efficient resource utilization**: Smart slot borrowing maximizes connection pool usage while maintaining safety
+
+### Admission Timeout Model (Pooled Lazy Sessions)
+
+OJP uses a single timeout owner for pooled lazy session allocation: the admission semaphore.
+
+- `ojp.connection.pool.connectionTimeout` (non-XA) and `ojp.xa.connection.pool.connectionTimeout` (XA) define the admission wait budget.
+- Backend pool borrow is configured fail-fast after admission.
+- This prevents additive latency under contention (admission wait + pool borrow wait), and keeps timeout semantics consistent across XA and non-XA paths.
+- With slow query segregation enabled, operations are routed to fast/slow slot lanes for isolation, and `ojp.server.slowQuerySegregation.fastSlotTimeout` / `ojp.server.slowQuerySegregation.slowSlotTimeout` take precedence for lane admission waits.
 
 ## Configuration Examples
 
@@ -458,6 +492,7 @@ java -Duser.timezone=UTC \
      -Dojp.server.log.file=/var/log/ojp/server.log \
      -Dojp.server.log.maxHistory=90 \
      -Dojp.server.log.totalSizeCap=10GB \
+     -Dojp.server.virtualThreads.enabled=true \
      -Dojp.server.threadPoolSize=300 \
      -Dojp.server.circuitBreakerTimeout=60000 \
      -Dojp.server.slowQuerySegregation.enabled=true \
@@ -473,6 +508,7 @@ java -Duser.timezone=UTC \
 ```bash
 java -Duser.timezone=UTC \
      -Dojp.server.port=1059 \
+     -Dojp.server.virtualThreads.enabled=true \
      -Dojp.server.threadPoolSize=500 \
      -Dojp.server.maxRequestSize=16777216 \
      -Dojp.server.connectionIdleTimeout=60000 \
@@ -493,6 +529,7 @@ metadata:
 data:
   OJP_SERVER_PORT: "1059"
   OJP_PROMETHEUS_PORT: "9159"
+  OJP_SERVER_VIRTUALTHREADS_ENABLED: "true"
   OJP_SERVER_THREADPOOLSIZE: "200"
   OJP_SERVER_LOGLEVEL: "INFO"
   OJP_SERVER_LOG_FILE: "/var/log/ojp/server.log"
@@ -524,8 +561,8 @@ data:
 1. **Server won't start**: Check IP whitelist configuration and port availability
 2. **Can't connect**: Verify client IP is in the allowed list
 3. **Metrics unavailable**: Check Prometheus port and IP whitelist
-4. **Performance issues**: Adjust thread pool size, connection timeouts, and slow query segregation settings
-5. **Slow queries blocking fast ones**: Enable slow query segregation and tune slot percentages
+4. **Performance issues**: Tune virtual thread mode, thread pool size (if virtual threads are disabled), connection timeouts, and slow query segregation settings
+5. **Slow queries blocking fast ones in mixed workloads**: Enable slow query segregation and tune slot percentages (for pure OLTP/OLAP, keep it disabled unless metrics prove a benefit)
 
 ### Debugging Configuration
 

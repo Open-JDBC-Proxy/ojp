@@ -28,10 +28,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class Connection implements java.sql.Connection {
+
+    private static final int COMPUTED_ASYNC_CLOSE_EXECUTOR_SIZE = Math.max(2, Math.min(8,
+            Runtime.getRuntime().availableProcessors()));
+    private static final AtomicInteger ASYNC_CLOSE_THREAD_COUNTER = new AtomicInteger();
+    // Daemon executor intentionally lives for JVM lifetime; close tasks are lightweight and infrequent.
+    private static final ExecutorService ASYNC_CLOSE_EXECUTOR = Executors.newFixedThreadPool(
+            COMPUTED_ASYNC_CLOSE_EXECUTOR_SIZE,
+            runnable -> {
+                Thread thread = new Thread(runnable);
+                thread.setName("ojp-jdbc-close-" + ASYNC_CLOSE_THREAD_COUNTER.incrementAndGet());
+                thread.setDaemon(true);
+                return thread;
+            });
 
     @Getter
     @Setter
@@ -42,15 +59,21 @@ public class Connection implements java.sql.Connection {
     private boolean autoCommit = true;
     private boolean readOnly = false;
     private boolean closed;
+    private final boolean closeSynchronously;
 
     // For server recovery and connection redistribution
     private volatile boolean forceInvalid = false;
 
     public Connection(SessionInfo session, StatementService statementService, DbName dbName) {
+        this(session, statementService, dbName, CommonConstants.DEFAULT_JDBC_CLOSE_SYNCHRONOUS);
+    }
+
+    public Connection(SessionInfo session, StatementService statementService, DbName dbName, boolean closeSynchronously) {
         this.session = session;
         this.statementService = statementService;
         this.closed = false;
         this.dbName = dbName;
+        this.closeSynchronously = closeSynchronously;
     }
 
     /**
@@ -181,7 +204,19 @@ public class Connection implements java.sql.Connection {
         // Always call terminateSession to ensure server-side resources are released
         // This is critical for multinode scenarios where connect() may have been called on multiple servers
         if (this.session != null) {
-            this.statementService.terminateSession(this.session);
+            // Capture before nulling to ensure async termination uses the original session reference.
+            SessionInfo sessionToTerminate = this.session;
+            if (this.closeSynchronously) {
+                this.statementService.terminateSession(sessionToTerminate);
+            } else {
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        this.statementService.terminateSession(sessionToTerminate);
+                    } catch (SQLException e) {
+                        log.warn("Async terminateSession failed for session {}", sessionToTerminate.getSessionUUID(), e);
+                    }
+                }, ASYNC_CLOSE_EXECUTOR);
+            }
             this.session = null;
         }
         this.closed = true;

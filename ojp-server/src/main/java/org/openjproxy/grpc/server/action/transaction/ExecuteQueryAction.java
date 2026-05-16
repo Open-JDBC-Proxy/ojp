@@ -47,7 +47,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
 
     @Override
     public void execute(ActionContext context, StatementRequest request, StreamObserver<OpResult> responseObserver) {
-        log.info("Executing query for {}", request.getSql());
+        log.debug("Executing query for {}", request.getSql());
 
         executeWithResilience(context, request, responseObserver, () ->
                         executeQueryInternal(context, request, responseObserver),

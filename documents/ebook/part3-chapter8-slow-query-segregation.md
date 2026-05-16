@@ -4,7 +4,10 @@
 
 Picture this scenario: your application is humming along nicely, processing hundreds of quick database queries per second. Users are getting instant responses, everything feels snappy. Then end-of-month balance closure begins, launching 25 complex reporting queries simultaneously. With a pool of 30 connections, only 5 remain for everything else. When all 30 connections are consumed by these slow operations, the entire system grinds to a halt. Those fast queries that usually return in milliseconds are now waiting for heavy queries to complete, and your users are staring at loading spinners.
 
-This is the classic problem of resource contention in database systems. When slow operations monopolize connection pool resources, fast operations suffer unnecessarily. Open J Proxy's Slow Query Segregation feature solves this problem elegantly by learning which operations are slow and managing them separately from fast operations.
+This is the classic problem of resource contention in database systems. When slow operations monopolize connection pool resources, fast operations suffer unnecessarily. Open J Proxy's Slow Query Segregation feature solves this by learning which operations are slow and managing them separately from fast operations.
+
+**Use this feature emphatically for mixed workloads** (fast + slow queries on the same server).  
+For **pure OLTP** or **pure OLAP** workloads, it often brings limited benefit, so keep it disabled unless metrics show clear contention.
 
 > **AI Image Prompt**: Create a before/after comparison diagram showing database query processing. The "Before" side shows a single queue where fast queries (small boxes) are stuck behind slow queries (large boxes), with frustrated user icons. The "After" side shows two separate queues - one for fast queries processing smoothly and one for slow queries running independently, with happy user icons. Use traffic light colors (red for slow, green for fast) and visual flow arrows.
 
@@ -155,7 +158,7 @@ The feature is controlled by a single enable/disable flag. When enabled, OJP per
 ojp.server.slowQuerySegregation.enabled=false
 ```
 
-Starting with the feature disabled is the default. Enable it explicitly when you have a mixed workload of fast and slow queries that would benefit from segregation. If you need to disable it for troubleshooting after enabling, you can do so without restarting the server by updating the property and reloading configuration.
+Starting with the feature disabled is the default. Enable it explicitly when you have a mixed workload of fast and slow queries that would benefit from segregation. For pure OLTP or pure OLAP systems, keep it disabled unless monitoring proves there is a clear starvation problem. If you need to disable it for troubleshooting after enabling, you can do so without restarting the server by updating the property and reloading configuration.
 
 ### Slot Allocation Percentage
 
@@ -172,7 +175,9 @@ If your application has many legitimate slow operations (like scheduled reports)
 
 ### Timeout Configuration
 
-Two timeout settings control how long operations will wait to acquire slots. These timeouts are important for preventing requests from hanging indefinitely when the system is under heavy load.
+Two timeout settings tune fast and slow lane waits separately.
+With slow query segregation enabled, these settings take precedence for lane admission waits.
+Backend pool borrow still remains fail-fast after admission.
 
 ```properties
 # Timeout for acquiring a slow operation slot (milliseconds)
@@ -182,9 +187,9 @@ ojp.server.slowQuerySegregation.slowSlotTimeout=120000
 ojp.server.slowQuerySegregation.fastSlotTimeout=60000
 ```
 
-The default slow slot timeout is 120 seconds (2 minutes), reflecting the expectation that slow operations might take a while. The fast slot timeout defaults to 60 seconds (1 minute), which is generous for operations that should complete quickly. If a timeout occurs, the client receives an exception indicating that no slot was available within the timeout period.
+If an admission timeout occurs, the client receives an exception indicating that no slot was available within the configured admission timeout window.
 
-You might adjust these based on your SLAs and expected query durations. Consider your actual performance characteristics when setting timeouts—the goal is to catch genuine problems without false positives.
+Use `ojp.connection.pool.connectionTimeout` and `ojp.xa.connection.pool.connectionTimeout` as the admission timeout baseline for non-segregated paths.
 
 ### Idle Timeout for Borrowing
 
@@ -324,7 +329,9 @@ When you enable the feature, it activates smoothly without requiring application
 
 Based on our experience, here are some best practices for using Slow Query Segregation effectively.
 
-**Start with defaults**: The default configuration (disabled) means no segregation overhead out of the box. Enable it and start with 20% slow slots when you observe mixed workloads causing performance issues. Only tune further if you have specific requirements.
+**Start with defaults**: The default configuration (disabled) means no segregation overhead out of the box. Enable it and start with 20% slow slots when you observe mixed workloads causing performance issues.
+
+**Use only where it fits**: Strongly prefer this feature for mixed fast/slow workloads. For pure OLTP or pure OLAP workloads, leave it disabled unless metrics show clear benefit.
 
 **Monitor before tuning**: Run with default settings for a few days while collecting metrics. Understand your actual workload before making configuration changes. You might be surprised by which queries are classified as slow.
 
@@ -352,8 +359,8 @@ While Slow Query Segregation typically works smoothly, here are some common issu
 
 ## Summary
 
-Slow Query Segregation helps maintain application responsiveness in scenarios where you have mixed workloads. By automatically learning which operations are slow and reserving separate resources for each operation type, it can help protect your fast queries from being starved by slow ones.
+Slow Query Segregation helps maintain application responsiveness when you have mixed workloads. By automatically learning which operations are slow and reserving separate resources for each operation type, it helps protect fast queries from being starved by slow ones.
 
-The feature requires minimal configuration and adapts automatically to your workload. For applications that serve both interactive users and analytical workloads, it can be beneficial, though results will vary based on your specific use case and query patterns.
+The feature requires minimal configuration and adapts automatically. For applications that serve both interactive users and analytical workloads, it is strongly recommended. For pure OLTP or pure OLAP systems, keep it disabled unless your monitoring data shows that separation improves behavior.
 
 In the next chapter, we'll explore another feature that enhances availability and scalability: Multinode Deployment. While Slow Query Segregation ensures efficient use of resources on a single server, multinode deployment lets you spread load across multiple servers for even greater capacity and resilience.

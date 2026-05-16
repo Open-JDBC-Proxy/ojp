@@ -9,7 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.server.CircuitBreaker;
 import org.openjproxy.grpc.server.PoolNotFoundException;
-import org.openjproxy.grpc.server.SlowQuerySegregationManager;
+import org.openjproxy.grpc.server.AdmissionControlManager;
+import org.openjproxy.grpc.server.ServerOverloadException;
 import org.openjproxy.grpc.server.SqlStatementXXHash;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
@@ -17,6 +18,7 @@ import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendServerOverload;
 import static org.openjproxy.grpc.server.GrpcExceptionHandler.sendSQLExceptionMetadata;
 import static org.openjproxy.grpc.server.action.session.ResultSetHelper.updateSessionActivity;
 
@@ -25,7 +27,7 @@ public class CommandExecutionHelper {
 
     /**
      * Helper method to centralize session validation, activity updates, cluster
-     * health processing, circuit breaker checks, and slow query segregation for
+     * health processing, circuit breaker checks, and admission control for
      * statement execution. This resolves SonarQube duplication issues.
      *
      * @param context          the action context
@@ -54,13 +56,13 @@ public class CommandExecutionHelper {
         String connHash = request.getSession().getConnHash();
         CircuitBreaker circuitBreaker = context.getCircuitBreakerRegistry().get(connHash);
 
-        // Get the appropriate slow query segregation manager for this datasource
-        SlowQuerySegregationManager manager = getSlowQuerySegregationManagerForConnection(context, connHash);
+        // Get the appropriate admission control manager for this datasource
+        AdmissionControlManager manager = getAdmissionControlManagerForConnection(context, connHash);
         long sqlStartNs = System.nanoTime();
         try {
             circuitBreaker.preCheck(stmtHash);
 
-            // Execute with slow query segregation, passing actual SQL for metric labelling
+            // Execute with admission control, passing actual SQL for metric labelling
             manager.executeWithSegregation(stmtHash, request.getSql(), () -> {
                 executionLogic.execute();
                 return null;
@@ -83,6 +85,9 @@ public class CommandExecutionHelper {
             log.error("SQL failure during {} execution: {}",
                     operationName, e.getMessage(), e);
             sendSQLExceptionMetadata(e, responseObserver);
+        } catch (ServerOverloadException e) {
+            log.warn("Server overload during {} execution, request rejected: {}", operationName, e.getMessage());
+            sendServerOverload(e, responseObserver);
         } catch (PoolNotFoundException e) {
             // Pool was not found for this connection hash. The server may have restarted
             // and lost its in-memory pool state. Signal the client to reconnect via
@@ -118,23 +123,23 @@ public class CommandExecutionHelper {
 
 
     /**
-     * Gets the slow query segregation manager for a specific connection hash.
+     * Gets the admission control manager for a specific connection hash.
      * If no manager exists, creates a disabled one as a fallback.
      *
      * @param context  the action context with segregation managers
      * @param connHash the connection hash to look up
-     * @return the slow query segregation manager for the connection
+     * @return the admission control manager for the connection
      */
-    private static SlowQuerySegregationManager getSlowQuerySegregationManagerForConnection(ActionContext context,
+    private static AdmissionControlManager getAdmissionControlManagerForConnection(ActionContext context,
                                                                                            String connHash) {
-        var slowQuerySegregationManagers = context.getSlowQuerySegregationManagers();
+        var admissionControlManagers = context.getAdmissionControlManagers();
 
-        SlowQuerySegregationManager manager = slowQuerySegregationManagers.get(connHash);
+        AdmissionControlManager manager = admissionControlManagers.get(connHash);
         if (manager == null) {
-            log.warn("No SlowQuerySegregationManager found for connection hash {}, creating disabled fallback",
+            log.warn("No AdmissionControlManager found for connection hash {}, creating disabled fallback",
                     connHash);
-            manager = new SlowQuerySegregationManager(1, 0, 0, 0, 0, 0, false);
-            slowQuerySegregationManagers.put(connHash, manager);
+            manager = new AdmissionControlManager(1, 0, 0, 0, 0, 0, false);
+            admissionControlManagers.put(connHash, manager);
         }
         return manager;
     }

@@ -553,7 +553,7 @@ Understanding new failure modes helps you prepare mitigation strategies:
 - Right-size OJP Server connection pool based on workload (Chapter 6)
 - Enable and monitor pool metrics (Chapter 13)
 - Configure appropriate timeout values to fail fast
-- Use slow query segregation to prevent pool monopolization (Chapter 8)
+- Use slow query segregation to prevent pool monopolization in mixed workloads (Chapter 8)
 
 #### 5. Cascading Failures
 **New Failure Mode**: Issues in one application can affect other applications sharing the same OJP Server.
@@ -636,7 +636,7 @@ Learn from others' mistakes—here are the top 5 ways teams have struggled with 
 
 **Symptoms**: Fast queries blocked by slow queries, inconsistent response times, connection pool monopolized by analytics.
 
-**Solution**: Use slow query segregation (Chapter 8), consider separate OJP instances for OLTP vs. analytics, or move pure analytics to direct database connections.
+**Solution**: Use slow query segregation (Chapter 8) when workloads are mixed, consider separate OJP instances for OLTP vs. analytics, or move pure analytics to direct database connections. For pure OLTP or pure OLAP, keep segregation disabled unless metrics show a real benefit.
 
 ---
 

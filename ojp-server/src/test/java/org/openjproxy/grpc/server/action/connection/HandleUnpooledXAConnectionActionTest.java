@@ -10,7 +10,7 @@ import org.openjproxy.grpc.server.ClusterHealthTracker;
 import org.openjproxy.grpc.server.MultinodeXaCoordinator;
 import org.openjproxy.grpc.server.ServerConfiguration;
 import org.openjproxy.grpc.server.SessionManager;
-import org.openjproxy.grpc.server.SlowQuerySegregationManager;
+import org.openjproxy.grpc.server.AdmissionControlManager;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.xa.XADataSourceFactory;
 import org.openjproxy.xa.pool.spi.XAConnectionPoolProvider;
@@ -29,9 +29,9 @@ class HandleUnpooledXAConnectionActionTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void testExecuteCreatesSlowQuerySegregationManager() {
+    void testExecuteCreatesAdmissionControlManager() {
         // Arrange
-        Map<String, SlowQuerySegregationManager> slowQueryManagers = new ConcurrentHashMap<>();
+        Map<String, AdmissionControlManager> admissionControlManagers = new ConcurrentHashMap<>();
 
         SessionManager sessionManager = mock(SessionManager.class);
         ServerConfiguration serverConfiguration = new ServerConfiguration();
@@ -45,7 +45,7 @@ class HandleUnpooledXAConnectionActionTest {
                 new ConcurrentHashMap<>(),
                 new ConcurrentHashMap<>(),
                 new ConcurrentHashMap<>(),
-                slowQueryManagers,
+                admissionControlManagers,
                 new ConcurrentHashMap<>(),
                 mock(XAConnectionPoolProvider.class),
                 new MultinodeXaCoordinator(),
@@ -77,8 +77,8 @@ class HandleUnpooledXAConnectionActionTest {
                     context, connectionDetails, connHash, responseObserver);
         }
 
-        // Assert – a SlowQuerySegregationManager must now be registered for this connHash
-        assertNotNull(slowQueryManagers.get(connHash),
-                "SlowQuerySegregationManager should be created for unpooled XA connection");
+        // Assert – a AdmissionControlManager must now be registered for this connHash
+        assertNotNull(admissionControlManagers.get(connHash),
+                "AdmissionControlManager should be created for unpooled XA connection");
     }
 }

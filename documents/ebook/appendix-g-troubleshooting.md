@@ -75,7 +75,7 @@ The JDBC driver must be accessible to your application's classloader. For Maven 
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.8-beta</version>
+    <version>0.4.16-beta</version>
 </dependency>
 ```
 
@@ -154,7 +154,7 @@ Check connection pool metrics in Prometheus. `hikaricp_connections_active` shows
 
 Identify why connections aren't being released. The two most common causes:
 
-Long-running queries hold connections for extended periods. Check your database's slow query log to identify expensive queries. Optimize them or segregate them using OJP's slow query segregation feature (Chapter 8).
+Long-running queries hold connections for extended periods. Check your database's slow query log to identify expensive queries. Optimize them or segregate them using OJP's slow query segregation feature (Chapter 8) when you run mixed fast+slow workloads.
 
 Connection leaks occur when applications don't close connections, statements, or result sets properly. Always use try-with-resources in Java:
 
@@ -783,7 +783,7 @@ When databases experience performance degradation, the effects ripple through OJ
 
 **Prevention strategies**:
 - Implement query timeout limits: `hikariCP.connectionTimeout`, `hikariCP.validationTimeout`
-- Enable slow query segregation (Chapter 8) to isolate problematic queries
+- Enable slow query segregation (Chapter 8) to isolate problematic queries in mixed workloads (for pure OLTP/OLAP, keep it disabled unless monitoring shows benefit)
 - Set application-level timeouts shorter than database timeouts
 - Implement circuit breakers in applications to fail fast
 - Monitor query performance and alert on degradation before pools exhaust
@@ -1191,7 +1191,7 @@ Once identified, poison queries require immediate mitigation to prevent system i
 4. **Application changes**: Modify application to avoid problematic query patterns
 
 **Long-term prevention**:
-1. **Query validation**: Implement slow query segregation (Chapter 8)
+1. **Query validation**: Implement slow query segregation (Chapter 8) for mixed workloads with clear fast-vs-slow contention
 2. **Performance testing**: Test query performance before production deployment
 3. **Monitoring and alerting**: Alert on query performance degradation
 4. **Regular optimization**: Maintain database indexes, update statistics, vacuum tables

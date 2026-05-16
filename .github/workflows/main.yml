@@ -49,7 +49,7 @@ jobs:
   # for catching basic issues before running expensive database-specific tests.
   #
   # Test execution: Runs with -DenableH2Tests=true flag
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   #
   # ===========================================================================
   build-test:
@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     steps:
 
@@ -68,27 +68,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Verify all modules with JDK 22
+      - name: Verify all modules with JDK 24
         run: mvn clean verify -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -99,7 +99,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -132,7 +132,7 @@ jobs:
   # and XA transaction capabilities.
   #
   # Database: PostgreSQL 17
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
   # SQL Enhancer Testing:
@@ -151,7 +151,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     steps:
       - name: Git checkout
@@ -176,24 +176,24 @@ jobs:
           # Verify setting
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -206,7 +206,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
       # Tests will run against this server via postgres_connection.csv (port 10593)
@@ -218,7 +218,7 @@ jobs:
           docker run -d --name ojp-server-enhancer \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -276,7 +276,7 @@ jobs:
   # MySQL is one of the most widely used open-source databases.
   #
   # Database: MySQL 8.0
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
   # ===========================================================================
@@ -289,7 +289,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     services:
       # MySQL database service container
@@ -314,24 +314,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -342,7 +342,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -372,7 +372,7 @@ jobs:
   # MariaDB is a MySQL-compatible database with enhanced features.
   #
   # Database: MariaDB 10.11
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
   # ===========================================================================
@@ -385,7 +385,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     services:
       # MariaDB database service container
@@ -410,24 +410,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -438,7 +438,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -469,7 +469,7 @@ jobs:
   # CockroachDB is a distributed SQL database compatible with PostgreSQL.
   #
   # Database: CockroachDB v24.3.4
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
   # ===========================================================================
@@ -482,7 +482,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     steps:
       - name: Git checkout
@@ -497,24 +497,24 @@ jobs:
           # Wait for CockroachDB to be ready
           timeout 60 bash -c 'until curl -f http://localhost:8080/health?ready=1 2>/dev/null; do sleep 2; done'
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -525,7 +525,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -556,7 +556,7 @@ jobs:
   # DB2 is an enterprise-grade database system from IBM.
   #
   # Database: IBM DB2 11.5.8.0
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
   # Note: DB2 container is large and takes longer to start up.
@@ -571,7 +571,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     steps:
       - name: Git checkout
@@ -665,24 +665,24 @@ jobs:
           echo "=== DB2 JDBC driver downloaded to ojp-server/ojp-libs ==="
           ls -lh ojp-server/ojp-libs/
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -693,7 +693,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -766,24 +766,24 @@ jobs:
           # Verify setting
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -795,7 +795,7 @@ jobs:
           docker run -d --name ojp-server-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9159"
 
       # Start second OJP server instance on port 10592
@@ -804,7 +804,7 @@ jobs:
           docker run -d --name ojp-server-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9160"
 
       - name: Wait for OJP servers to start
@@ -814,7 +814,7 @@ jobs:
           echo "Checking if servers are listening..."
           netstat -tuln | grep -E ':(10591|10592)' || echo "Warning: Servers might not be listening yet"
 
-      - name: Build (ojp-jdbc-driver) with JDK 22
+      - name: Build (ojp-jdbc-driver) with JDK 24
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Create temp directory for test logs
@@ -913,7 +913,7 @@ jobs:
           docker run -d --name ojp-server-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "OJP Server 1 container restarted"
           sleep 10
 
@@ -998,7 +998,7 @@ jobs:
           docker run -d --name ojp-server-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "OJP Server 2 container restarted"
           sleep 10
 
@@ -1169,24 +1169,24 @@ jobs:
           # Verify setting
           PGPASSWORD=testpassword psql -h 127.0.0.1 -U testuser -d defaultdb -c "SHOW max_prepared_transactions;"
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -1199,7 +1199,7 @@ jobs:
           docker run -d --name ojp-server-xa-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9161 with DEBUG logging"
 
       # Start second OJP server instance on port 10592 with DEBUG logging
@@ -1209,7 +1209,7 @@ jobs:
           docker run -d --name ojp-server-xa-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9162 with DEBUG logging"
 
       - name: Wait for OJP servers to start
@@ -1219,7 +1219,7 @@ jobs:
           echo "Checking if servers are listening..."
           netstat -tuln | grep -E ':(10591|10592)' || echo "Warning: Servers might not be listening yet"
 
-      - name: Build (ojp-jdbc-driver) with JDK 22
+      - name: Build (ojp-jdbc-driver) with JDK 24
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
 
       - name: Create temp directory for test logs
@@ -1329,7 +1329,7 @@ jobs:
           docker run -d --name ojp-server-xa-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "OJP Server 1 container restarted"
           
           # Wait for server to fully start
@@ -1432,7 +1432,7 @@ jobs:
           docker run -d --name ojp-server-xa-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
           echo "OJP Server 2 container restarted"
           
           # Wait for server to fully start
@@ -1561,7 +1561,7 @@ jobs:
   # to licensing). The test uses Oracle XE container with full configuration.
   #
   # Database: Oracle XE 21c
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
   # ===========================================================================
@@ -1578,7 +1578,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     services:
       # Oracle XE database service container
@@ -1671,24 +1671,24 @@ jobs:
           echo "=== Oracle JDBC driver downloaded to ojp-server/ojp-libs ==="
           ls -lh ojp-server/ojp-libs/
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -1699,7 +1699,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1731,7 +1731,7 @@ jobs:
   # so no manual container setup is needed.
   #
   # Database: SQL Server (via TestContainers)
-  # Matrix strategy: Tests against Java 11, 17, 21, 22
+  # Matrix strategy: Tests against Java 11, 17, 21, 22, 24
   # Execution: Only runs AFTER build-test job succeeds (needs: [build-test])
   #
   # ===========================================================================
@@ -1748,7 +1748,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ 11, 17, 21, 22 ]
+        java-version: [ 11, 17, 21, 22, 24 ]
 
     steps:
       - name: Git checkout
@@ -1774,24 +1774,24 @@ jobs:
           echo "=== SQL Server JDBC driver downloaded to ojp-server/ojp-libs ==="
           ls -lh ojp-server/ojp-libs/
 
-      - name: Set up JDK 22 for build
+      - name: Set up JDK 24 for build
         uses: actions/setup-java@v5
         with:
-          java-version: 22
+          java-version: 24
           distribution: 'temurin'
           cache: maven
 
-      - name: Build and Install (ojp-grpc-commons) with JDK 22
+      - name: Build and Install (ojp-grpc-commons) with JDK 24
         run: mvn clean install -pl ojp-grpc-commons -am -DskipTests -Dgpg.skip=true
 
-      - name: Test (ojp-grpc-commons) with JDK 22
+      - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
       # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
-      - name: Build (ojp-server) with JDK 22
+      - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
@@ -1802,7 +1802,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.9-SNAPSHOT
+            rrobetti/ojp:0.4.17-SNAPSHOT
 
       - name: Wait for ojp-server to start
         run: sleep 10

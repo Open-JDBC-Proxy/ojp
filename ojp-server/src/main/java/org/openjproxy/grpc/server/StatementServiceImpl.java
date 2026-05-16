@@ -80,8 +80,8 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
         ClusterHealthTracker clusterHealthTracker = new ClusterHealthTracker();
         Map<String, DataSource> datasourceMap = new ConcurrentHashMap<>();
         Map<String, DbName> dbNameMap = new ConcurrentHashMap<>();
-        // Per-datasource slow query segregation managers
-        Map<String, SlowQuerySegregationManager> slowQuerySegregationManagers = new ConcurrentHashMap<>();
+        // Per-datasource admission control managers
+        Map<String, AdmissionControlManager> admissionControlManagers = new ConcurrentHashMap<>();
         // Per-datasource cache configurations (shared with SessionManager)
         Map<String, org.openjproxy.grpc.server.cache.CacheConfiguration> cacheCfgMap =
                 cacheConfigurationMap != null ? cacheConfigurationMap : new ConcurrentHashMap<>();
@@ -92,7 +92,7 @@ public class StatementServiceImpl extends StatementServiceGrpc.StatementServiceI
                 xaRegistries,
                 unpooledConnectionDetailsMap,
                 dbNameMap,
-                slowQuerySegregationManagers,
+                admissionControlManagers,
                 cacheCfgMap,
                 xaPoolProvider,
                 XA_COORDINATOR,

@@ -628,69 +628,61 @@ public class MultinodeStatementService implements StatementService {
     }
 
     @Override
-    public void terminateSession(SessionInfo session) {
+    public void terminateSession(SessionInfo session) throws SQLException {
+        SQLException terminationFailure = null;
+
         try {
             // For sessions with a UUID, terminate only on the bound server
             if (session != null && session.getSessionUUID() != null && !session.getSessionUUID().isEmpty()) {
                 String boundServer = connectionManager.getBoundTargetServer(session.getSessionUUID());
                 if (boundServer != null) {
-                    // Session is bound - terminate on that specific server
                     log.info("Terminating session {} on bound server {}", session.getSessionUUID(), boundServer);
-                    try {
-                        ServerEndpoint server = connectionManager.affinityServer(session.getSessionUUID());
-                        StatementServiceGrpcClient client = getClient(server);
-                        client.terminateSession(session);
-                        log.info("Successfully terminated session {} on server {}",
-                                session.getSessionUUID(), server.getAddress());
-                    } catch (SQLException e) {
-                        log.warn("Error terminating session {} on bound server: {}",
-                                session.getSessionUUID(), e.getMessage());
-                    }
+                    ServerEndpoint server = connectionManager.affinityServer(session.getSessionUUID());
+                    StatementServiceGrpcClient client = getClient(server);
+                    client.terminateSession(session);
+                    log.info("Successfully terminated session {} on server {}",
+                            session.getSessionUUID(), server.getAddress());
                 } else {
-                    // Session not bound - try all servers that received connect()
                     log.info("Session {} not bound, attempting termination on all connected servers",
                             session.getSessionUUID());
-                    List<ServerEndpoint> serversToTerminate = connectionManager.getServersForConnHash(
-                            session.getConnHash());
-                    if (serversToTerminate != null && !serversToTerminate.isEmpty()) {
-                        for (ServerEndpoint server : serversToTerminate) {
-                            try {
-                                StatementServiceGrpcClient client = getClient(server);
-                                client.terminateSession(session);
-                                log.debug("Terminated session on server {}", server.getAddress());
-                            } catch (Exception e) {
-                                log.warn("Error terminating session on server {}: {}",
-                                        server.getAddress(), e.getMessage());
-                            }
-                        }
-                    }
+                    terminationFailure = terminateSessionOnServers(connectionManager.getServersForConnHash(
+                            session.getConnHash()), session);
                 }
             } else {
-                // No session UUID - try terminating on all servers that received connect()
                 log.info("No sessionUUID, attempting termination on all connected servers");
-                List<ServerEndpoint> serversToTerminate = connectionManager.getServersForConnHash(
-                        session != null ? session.getConnHash() : null);
-                if (serversToTerminate != null && !serversToTerminate.isEmpty()) {
-                    for (ServerEndpoint server : serversToTerminate) {
-                        try {
-                            StatementServiceGrpcClient client = getClient(server);
-                            client.terminateSession(session);
-                            log.debug("Terminated session on server {}", server.getAddress());
-                        } catch (Exception e) {
-                            log.warn("Error terminating session on server {}: {}",
-                                    server.getAddress(), e.getMessage());
-                        }
-                    }
+                terminationFailure = terminateSessionOnServers(connectionManager.getServersForConnHash(
+                        session != null ? session.getConnHash() : null), session);
+            }
+        } finally {
+            connectionManager.terminateSession(session);
+        }
+
+        if (terminationFailure != null) {
+            throw terminationFailure;
+        }
+    }
+
+    private SQLException terminateSessionOnServers(List<ServerEndpoint> serversToTerminate, SessionInfo session) {
+        SQLException firstFailure = null;
+
+        if (serversToTerminate == null || serversToTerminate.isEmpty()) {
+            return null;
+        }
+
+        for (ServerEndpoint server : serversToTerminate) {
+            try {
+                StatementServiceGrpcClient client = getClient(server);
+                client.terminateSession(session);
+                log.debug("Terminated session on server {}", server.getAddress());
+            } catch (SQLException e) {
+                log.warn("Error terminating session on server {}: {}", server.getAddress(), e.getMessage());
+                if (firstFailure == null) {
+                    firstFailure = e;
                 }
             }
-
-            // Clean up connection manager's session tracking
-            connectionManager.terminateSession(session);
-        } catch (Exception e) {
-            log.warn("Error terminating session {}: {}",
-                    session != null ? session.getSessionUUID() : "null", e.getMessage());
-            // Best effort - don't throw exception for terminate
         }
+
+        return firstFailure;
     }
 
     @Override

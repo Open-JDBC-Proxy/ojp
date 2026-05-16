@@ -3,6 +3,7 @@ package org.openjproxy.jdbc;
 import com.openjproxy.grpc.ConnectionDetails;
 import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.MultinodeUrlParser;
@@ -74,8 +75,11 @@ public class Driver implements java.sql.Driver {
             }
         }
 
-        // Load ojp.properties file and extract datasource-specific configuration
+        // Load ojp.properties file and extract datasource-specific configuration.
+        // Then merge any ojp.connection.pool.* / ojp.xa.* / ojp.jdbc.* keys from the caller-supplied info
+        // on top (info properties take the highest priority).
         Properties ojpProperties = DatasourcePropertiesLoader.loadOjpPropertiesForDataSource(dataSourceName);
+        ojpProperties = DatasourcePropertiesLoader.applyInfoProperties(ojpProperties, info, dataSourceName);
 
         ConnectionDetails.Builder connBuilder = ConnectionDetails.newBuilder()
                 .setUrl(connectionUrl)
@@ -116,8 +120,14 @@ public class Driver implements java.sql.Driver {
             log.error("Failed to establish connection", e);
             throw e;
         }
+        boolean closeSynchronously = Boolean.parseBoolean(
+                ojpProperties != null
+                        ? ojpProperties.getProperty(
+                                CommonConstants.JDBC_CLOSE_SYNC_PROPERTY,
+                                String.valueOf(CommonConstants.DEFAULT_JDBC_CLOSE_SYNCHRONOUS))
+                        : String.valueOf(CommonConstants.DEFAULT_JDBC_CLOSE_SYNCHRONOUS));
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
-        return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl));
+        return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl), closeSynchronously);
     }
 
 

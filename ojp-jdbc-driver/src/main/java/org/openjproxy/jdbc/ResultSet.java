@@ -53,6 +53,7 @@ public class ResultSet extends RemoteProxyResultSet {
     private List<Object[]> currentDataBlock;//Current block of data being processed.
     private AtomicInteger blockIdx = new AtomicInteger(-1);//Current block index
     private AtomicInteger blockCount = new AtomicInteger(1);//Current block count
+    private int completedBlocksRowCount; // running total of rows in all completed blocks
     private java.sql.ResultSetMetaData resultSetMetadata;
     private boolean inProxyMode;
     private boolean closed;
@@ -116,6 +117,9 @@ public class ResultSet extends RemoteProxyResultSet {
 
     private void setNextOpResult(OpResult result) {
         OpQueryResult opQueryResult = ProtoConverter.fromProto(result.getQueryResult());
+        // Accumulate the row count of the outgoing block before replacing it,
+        // so that getRow() can compute correct absolute row numbers for any block size.
+        this.completedBlocksRowCount += this.currentDataBlock.size();
         this.currentDataBlock = opQueryResult.getRows();
         this.blockCount.incrementAndGet();
         this.blockIdx.set(0);
@@ -796,7 +800,7 @@ public class ResultSet extends RemoteProxyResultSet {
         if (this.inProxyMode) {
             return super.getRow();
         }
-        return ((this.blockCount.get() - 1) * CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK) + this.blockIdx.get() + 1;
+        return this.completedBlocksRowCount + this.blockIdx.get() + 1;
     }
 
     @Override

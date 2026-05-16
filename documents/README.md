@@ -59,6 +59,7 @@ Located in [connection-pool/](connection-pool/):
 
 Located in [analysis/](analysis/):
 - [Transaction Isolation Handling](analysis/TRANSACTION_ISOLATION_HANDLING.md) - Complete technical documentation on transaction isolation reset behavior
+- [Request Admission, Timeouts, and Backpressure](analysis/ADMISSION_CONTROL_BACKPRESSURE_SUMMARY.md) - Short explanation of the current admission gate and overload model
 
 ## Database Setup Guides
 
@@ -112,7 +113,7 @@ Located in [targeted-problem/](targeted-problem/):
 ### Design Documents
 
 Located in [designs/](designs/):
-- [Slow Query Segregation](designs/SLOW_QUERY_SEGREGATION.md)
+- [Slow Query Segregation](designs/SLOW_QUERY_SEGREGATION.md) (strongly recommended for mixed fast+slow workloads; usually unnecessary for pure OLTP or pure OLAP)
 - [StatementServiceImpl Action Pattern Migration](designs/STATEMENTSERVICE_ACTION_PATTERN_MIGRATION.md)
 
 ### Fixed Issues

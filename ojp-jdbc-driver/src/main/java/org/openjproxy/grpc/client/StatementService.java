@@ -45,7 +45,7 @@ public interface StatementService {
     Iterator<LobDataBlock> readLob(LobReference lobReference, long pos, int length) throws SQLException;
 
     //Session management.
-    void terminateSession(SessionInfo session);
+    void terminateSession(SessionInfo session) throws SQLException;
 
     //Transaction management.
     SessionInfo startTransaction(SessionInfo session) throws SQLException;

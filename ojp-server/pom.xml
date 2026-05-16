@@ -6,18 +6,18 @@
 
     <name>OJP Server</name>
     <artifactId>ojp-server</artifactId>
-    <version>0.4.9-SNAPSHOT</version>
+    <version>0.4.17-SNAPSHOT</version>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.4.9-SNAPSHOT</version>
+        <version>0.4.17-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <properties>
         <grpc.version>1.80.0</grpc.version>
-        <netty.version>4.1.132.Final</netty.version>
+        <netty.version>4.1.133.Final</netty.version>
         <slf4j.version>2.0.17</slf4j.version>
         <jib.plugin.version>3.4.5</jib.plugin.version>
         <maven.compiler.source>21</maven.compiler.source>
@@ -39,26 +39,26 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-grpc-commons</artifactId>
-            <version>0.4.9-SNAPSHOT</version>
+            <version>0.4.17-SNAPSHOT</version>
         </dependency>
 
         <!-- OJP Datasource API and default HikariCP provider -->
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-datasource-api</artifactId>
-            <version>0.4.9-SNAPSHOT</version>
+            <version>0.4.17-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-datasource-hikari</artifactId>
-            <version>0.4.9-SNAPSHOT</version>
+            <version>0.4.17-SNAPSHOT</version>
         </dependency>
         
         <!-- OJP XA Pool Commons (Phase 1 integration) -->
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-xa-pool-commons</artifactId>
-            <version>0.4.9-SNAPSHOT</version>
+            <version>0.4.17-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -139,7 +139,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.60.1</version>
+            <version>1.62.0</version>
         </dependency>
 
         <!-- OpenTelemetry SDK -->
@@ -147,7 +147,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk</artifactId>
-            <version>1.60.1</version>
+            <version>1.62.0</version>
         </dependency>
 
         <!-- OpenTelemetry gRPC instrumentation -->
@@ -171,7 +171,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-zipkin</artifactId>
-            <version>1.60.1</version>
+            <version>1.62.0</version>
         </dependency>
 
         <!-- OTLP trace exporter (alternative to Zipkin, e.g. for Jaeger/Tempo) -->
@@ -179,7 +179,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
-            <version>1.60.1</version>
+            <version>1.62.0</version>
         </dependency>
 
         <!-- HTTP server for metrics endpoint -->
@@ -259,7 +259,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk-testing</artifactId>
-            <version>1.60.1</version>
+            <version>1.62.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -308,7 +308,7 @@
                 <version>${jib.plugin.version}</version>
                 <configuration>
                     <from>
-                        <image>rrobetti/ojp-base:jre24-alpine</image>
+                        <image>eclipse-temurin:24-jre</image>
                     </from>
                     <to>
                         <image>rrobetti/ojp:${project.version}</image>

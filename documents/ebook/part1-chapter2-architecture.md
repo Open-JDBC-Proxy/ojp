@@ -116,6 +116,7 @@ The server offers flexible deployment options to fit various infrastructure need
 # Core Server Settings
 ojp.server.port=1059
 ojp.prometheus.port=9159
+ojp.server.virtualThreads.enabled=true
 ojp.server.threadPoolSize=200
 ojp.server.maxRequestSize=4194304
 
@@ -126,6 +127,8 @@ ojp.server.allowedIps=0.0.0.0/0
 ojp.server.connectionIdleTimeout=30000
 ojp.server.circuitBreakerTimeout=60000
 ```
+
+`ojp.server.threadPoolSize` is used only when `ojp.server.virtualThreads.enabled=false`.
 
 ### ojp-jdbc-driver: The JDBC Implementation
 
@@ -207,7 +210,7 @@ classDiagram
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.8-beta</version>
+    <version>0.4.16-beta</version>
 </dependency>
 ```
 

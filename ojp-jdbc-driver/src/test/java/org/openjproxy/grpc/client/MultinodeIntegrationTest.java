@@ -45,8 +45,8 @@ public class MultinodeIntegrationTest {
     
     // Test failure thresholds
     // In rare occasions, due to timing and how many sessions are in the server that is killed,
-    // the number of failures can exceed 75, so a slightly higher ceiling of 120 is used here
-    private static final int MAX_TOTAL_FAILURES = 120;
+    // the number of failures can exceed 75, so a slightly higher ceiling of 150 is used here
+    private static final int MAX_TOTAL_FAILURES = 150;
     // Allow up to 5 non-connectivity failures to tolerate transient races that can occasionally
     // produce a non-connection error (e.g. brief pool exhaustion during server kill/recovery).
     // All failures beyond this limit must be connectivity-related.

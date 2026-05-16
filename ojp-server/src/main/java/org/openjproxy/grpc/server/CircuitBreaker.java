@@ -30,22 +30,13 @@ public class CircuitBreaker {
         }
 
         public boolean isOpen() {
-            long until = openUntil.get();
-            if (failureCount.get() < failureThreshold) {
-                return false;
-            }
-            if (System.nanoTime() > until) {
-                return false;
-            }
-            return true;
+            return failureCount.get() >= failureThreshold
+                && System.nanoTime() <= openUntil.get();
         }
 
         public boolean tryReset() {
-            long until = openUntil.get();
-            if (System.nanoTime() > until && failureCount.get() >= failureThreshold) {
-                return true;
-            }
-            return false;
+            return System.nanoTime() > openUntil.get()
+                && failureCount.get() >= failureThreshold;
         }
 
         public void reset() {

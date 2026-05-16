@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 /**
- * Test to verify that each datasource gets its own SlowQuerySegregationManager
+ * Test to verify that each datasource gets its own AdmissionControlManager
  * with pool sizes based on actual HikariCP configuration.
  */
 class PerDatasourceSlowQuerySegregationTest {
@@ -48,7 +48,7 @@ class PerDatasourceSlowQuerySegregationTest {
     }
 
     @Test
-    void testPerDatasourceSlowQuerySegregationManagerCreation() throws Exception {
+    void testPerDatasourceAdmissionControlManagerCreation() throws Exception {
         // Create properties for first connection
         Properties clientProperties1 = new Properties();
         clientProperties1.setProperty("ojp.connection.pool.maximumPoolSize", "10");
@@ -99,7 +99,7 @@ class PerDatasourceSlowQuerySegregationTest {
         actionContextField.setAccessible(true);
         ActionContext actionContext = (ActionContext) actionContextField.get(statementService);
 
-        Map<String, SlowQuerySegregationManager> managers = actionContext.getSlowQuerySegregationManagers();
+        Map<String, AdmissionControlManager> managers = actionContext.getAdmissionControlManagers();
 
         // Verify that we have two separate managers
         assertEquals(2, managers.size(), "Should have created separate managers for each datasource");
@@ -108,8 +108,8 @@ class PerDatasourceSlowQuerySegregationTest {
         String connHash1 = ConnectionHashGenerator.hashConnectionDetails(connectionDetails1);
         String connHash2 = ConnectionHashGenerator.hashConnectionDetails(connectionDetails2);
 
-        SlowQuerySegregationManager manager1 = managers.get(connHash1);
-        SlowQuerySegregationManager manager2 = managers.get(connHash2);
+        AdmissionControlManager manager1 = managers.get(connHash1);
+        AdmissionControlManager manager2 = managers.get(connHash2);
 
         assertNotNull(manager1, "Manager for first datasource should exist");
         assertNotNull(manager2, "Manager for second datasource should exist");
@@ -172,11 +172,11 @@ class PerDatasourceSlowQuerySegregationTest {
         ActionContext actionContext = (ActionContext) actionContextField.get(statementService);
 
         java.lang.reflect.Method getManagerMethod = CommandExecutionHelper.class
-                .getDeclaredMethod("getSlowQuerySegregationManagerForConnection", ActionContext.class, String.class);
+                .getDeclaredMethod("getAdmissionControlManagerForConnection", ActionContext.class, String.class);
         getManagerMethod.setAccessible(true);
 
-        SlowQuerySegregationManager manager =
-                (SlowQuerySegregationManager) getManagerMethod.invoke(null, actionContext, connHash);
+        AdmissionControlManager manager =
+                (AdmissionControlManager) getManagerMethod.invoke(null, actionContext, connHash);
 
         assertNotNull(manager, "Should return existing manager for connection hash");
         assertTrue(manager.isEnabled(), "Manager should be enabled");
@@ -192,13 +192,86 @@ class PerDatasourceSlowQuerySegregationTest {
 
         // Use reflection to call the private static method with non-existent connection hash
         java.lang.reflect.Method getManagerMethod = CommandExecutionHelper.class
-                .getDeclaredMethod("getSlowQuerySegregationManagerForConnection", ActionContext.class, String.class);
+                .getDeclaredMethod("getAdmissionControlManagerForConnection", ActionContext.class, String.class);
         getManagerMethod.setAccessible(true);
         
-        SlowQuerySegregationManager manager =
-                (SlowQuerySegregationManager) getManagerMethod.invoke(null, actionContext, "non-existent-hash");
+        AdmissionControlManager manager =
+                (AdmissionControlManager) getManagerMethod.invoke(null, actionContext, "non-existent-hash");
 
         assertNotNull(manager, "Should return fallback manager for non-existent connection hash");
         assertFalse(manager.isEnabled(), "Fallback manager should be disabled");
+    }
+
+    @Test
+    void shouldUseConfiguredSlowQuerySlotTimeoutsWhenSegregationEnabled() throws Exception {
+        String originalSqsEnabled = System.getProperty("ojp.server.slowQuerySegregation.enabled");
+        String originalFastSlotTimeout = System.getProperty("ojp.server.slowQuerySegregation.fastSlotTimeout");
+        String originalSlowSlotTimeout = System.getProperty("ojp.server.slowQuerySegregation.slowSlotTimeout");
+
+        System.setProperty("ojp.server.slowQuerySegregation.enabled", "true");
+        System.setProperty("ojp.server.slowQuerySegregation.fastSlotTimeout", "9100");
+        System.setProperty("ojp.server.slowQuerySegregation.slowSlotTimeout", "17300");
+
+        try {
+            ServerConfiguration localConfig = new ServerConfiguration();
+            SessionManager localSessionManager = mock(SessionManager.class);
+            CircuitBreakerRegistry localCircuitBreakerRegistry = new CircuitBreakerRegistry(
+                    localConfig.getCircuitBreakerTimeout(),
+                    localConfig.getCircuitBreakerThreshold()
+            );
+            StatementServiceImpl localStatementService = new StatementServiceImpl(
+                    localSessionManager,
+                    localCircuitBreakerRegistry,
+                    localConfig,
+                    new java.util.concurrent.ConcurrentHashMap<>()
+            );
+
+            Properties clientProperties = new Properties();
+            clientProperties.setProperty("ojp.connection.pool.maximumPoolSize", "6");
+            clientProperties.setProperty("ojp.connection.pool.connectionTimeout", "250");
+
+            Map<String, Object> propertiesMap = new HashMap<>();
+            for (String key : clientProperties.stringPropertyNames()) {
+                propertiesMap.put(key, clientProperties.getProperty(key));
+            }
+
+            ConnectionDetails connectionDetails = ConnectionDetails.newBuilder()
+                    .setUrl("jdbc:h2:mem:test-timeout-precedence")
+                    .setUser("test")
+                    .setPassword("test")
+                    .setClientUUID("client-timeout-precedence")
+                    .addAllProperties(ProtoConverter.propertiesToProto(propertiesMap))
+                    .build();
+
+            StreamObserver<SessionInfo> responseObserver = Mockito.mock(StreamObserver.class);
+            localStatementService.connect(connectionDetails, responseObserver);
+
+            Field actionContextField = StatementServiceImpl.class.getDeclaredField("actionContext");
+            actionContextField.setAccessible(true);
+            ActionContext actionContext = (ActionContext) actionContextField.get(localStatementService);
+
+            String connHash = ConnectionHashGenerator.hashConnectionDetails(connectionDetails);
+            AdmissionControlManager manager = actionContext.getAdmissionControlManagers().get(connHash);
+
+            assertNotNull(manager, "Manager should exist for connected datasource");
+
+            long fastTimeout = manager.getFastSlotTimeoutMs();
+            long slowTimeout = manager.getSlowSlotTimeoutMs();
+
+            assertEquals(9100L, fastTimeout, "Fast slot timeout should come from slow query segregation setting");
+            assertEquals(17300L, slowTimeout, "Slow slot timeout should come from slow query segregation setting");
+        } finally {
+            restoreSystemProperty("ojp.server.slowQuerySegregation.enabled", originalSqsEnabled);
+            restoreSystemProperty("ojp.server.slowQuerySegregation.fastSlotTimeout", originalFastSlotTimeout);
+            restoreSystemProperty("ojp.server.slowQuerySegregation.slowSlotTimeout", originalSlowSlotTimeout);
+        }
+    }
+
+    private static void restoreSystemProperty(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
     }
 }

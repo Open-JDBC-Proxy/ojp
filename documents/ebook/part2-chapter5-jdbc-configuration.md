@@ -175,6 +175,37 @@ String orOpts = "jdbc:ojp[localhost:1059]_oracle:thin:@localhost:1521/XEPDB1?" +
 
 **Key Point**: OJP passes all database-specific parameters directly to the underlying driver. Configure SSL, timeouts, and other database settings as you normally would.
 
+### Connection Close Semantics
+
+When your application calls `Connection.close()`, the OJP JDBC driver terminates the server-side session **synchronously by default**. In practical terms, `close()` blocks until the server-side session has been terminated.
+
+This default behavior is correctness-oriented because it guarantees that the session is fully released before the application proceeds.
+
+If you need non-blocking behavior, set:
+
+```properties
+ojp.jdbc.connection.close.synchronous=false
+```
+
+#### Retry Behavior During Close
+
+If the termination call fails because of a **connection-level** problem, the driver retries it up to **3 times** before giving up. This retry applies to failures such as:
+
+- gRPC `UNAVAILABLE`
+- gRPC `DEADLINE_EXCEEDED`
+- comparable transport/connectivity failures
+
+The driver does **not** retry when the failure indicates that retrying will not help, such as:
+
+- `NOT_FOUND` / pool or session not found
+- server-side `SQLException`
+- other non-connectivity failures
+
+So the operational rule is simple:
+
+- default (`ojp.jdbc.connection.close.synchronous=true`): synchronous close, failures are surfaced to the caller
+- configured asynchronous (`false`): async close, failures are logged
+
 ---
 
 ## 5.2 Connection Pool Settings
@@ -283,16 +314,14 @@ graph TB
 
 | Property | Type | Default | Description | Since |
 |----------|------|---------|-------------|-------|
-| `maximumPoolSize` | int | 10 | Maximum number of connections in pool | 0.2.0-beta |
-| `minimumIdle` | int | same as max | Minimum number of idle connections | 0.2.0-beta |
-| `connectionTimeout` | long | 30000 | Max wait for connection (ms) | 0.2.0-beta |
-| `idleTimeout` | long | 600000 | Max idle time before close (ms) | 0.2.0-beta |
-| `maxLifetime` | long | 1800000 | Max connection lifetime (ms) | 0.2.0-beta |
-| `connectionTestQuery` | String | null | Query to test connection validity | 0.2.0-beta |
-| `initializationFailTimeout` | long | 1 | Timeout for pool initialization (ms) | 0.2.0-beta |
-| `leakDetectionThreshold` | long | 0 | Connection leak detection (ms, 0=off) | 0.2.0-beta |
-| `validationTimeout` | long | 5000 | Max time for connection validation (ms) | 0.2.0-beta |
-| `keepaliveTime` | long | 0 | Keepalive interval (ms, 0=off) | 0.2.0-beta |
+| `ojp.connection.pool.enabled` | boolean | true | Enable/disable connection pooling | 0.2.0-beta |
+| `ojp.connection.pool.maximumPoolSize` | int | 20 | Maximum number of connections in pool | 0.2.0-beta |
+| `ojp.connection.pool.minimumIdle` | int | 5 | Minimum number of idle connections | 0.2.0-beta |
+| `ojp.connection.pool.connectionTimeout` | long | 10000 | Max wait for connection (ms) | 0.2.0-beta |
+| `ojp.connection.pool.idleTimeout` | long | 600000 | Max idle time before close (ms) | 0.2.0-beta |
+| `ojp.connection.pool.maxLifetime` | long | 1800000 | Max connection lifetime (ms) | 0.2.0-beta |
+| `ojp.connection.pool.leakDetectionThreshold` | long | 0 | Connection leak detection (ms, 0=off) | 0.2.0-beta |
+| `ojp.connection.pool.defaultTransactionIsolation` | string/int | READ_COMMITTED | Default transaction isolation level | 0.2.0-beta |
 
 ### Pool Sizing Guidelines
 
@@ -389,7 +418,11 @@ Setting properties before getting connection
 Use IDE/code style with syntax highlighting
 Professional Java configuration guide
 
-For applications that need dynamic configuration:
+For applications that need dynamic configuration (for example, where pool size is computed at
+runtime), you can pass `ojp.connection.pool.*` and `ojp.xa.*` properties directly in the
+`Properties` object supplied to `DriverManager.getConnection()`. These programmatic values have
+the **highest precedence** and override any matching setting in `ojp.properties`, system
+properties, or environment variables.
 
 ```java
 import java.sql.*;
@@ -397,7 +430,7 @@ import java.util.Properties;
 
 public class OjpProgrammaticConfig {
     
-    public static Connection getConfiguredConnection() throws SQLException {
+    public static Connection getConfiguredConnection(int allocatedMaxConnections) throws SQLException {
         String url = "jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb";
         
         // Create properties
@@ -405,12 +438,12 @@ public class OjpProgrammaticConfig {
         props.setProperty("user", "myuser");
         props.setProperty("password", "mypassword");
         
-        // OJP-specific properties (optional)
-        props.setProperty("ojp.connection.pool.maximumPoolSize", "30");
-        props.setProperty("ojp.connection.pool.minimumIdle", "10");
+        // OJP pool properties - override ojp.properties / env vars / system properties
+        props.setProperty("ojp.connection.pool.maximumPoolSize", String.valueOf(allocatedMaxConnections));
+        props.setProperty("ojp.connection.pool.minimumIdle", "5");
         props.setProperty("ojp.connection.pool.connectionTimeout", "25000");
         
-        // Database-specific properties
+        // Database-specific properties are passed through to the underlying driver
         props.setProperty("ssl", "true");
         props.setProperty("sslfactory", "org.postgresql.ssl.NonValidatingFactory");
         
@@ -418,13 +451,26 @@ public class OjpProgrammaticConfig {
     }
     
     public static void main(String[] args) throws SQLException {
-        try (Connection conn = getConfiguredConnection()) {
+        try (Connection conn = getConfiguredConnection(20)) {
             DatabaseMetaData meta = conn.getMetaData();
             System.out.println("Connected to: " + meta.getDatabaseProductName());
         }
     }
 }
 ```
+
+**Property precedence** (highest to lowest):
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 | `Properties` argument to `getConnection()` | `props.setProperty("ojp.connection.pool.maximumPoolSize", "50")` |
+| 2 | Environment variables | `OJP_CONNECTION_POOL_MAXIMUMPOOLSIZE=50` |
+| 3 | System properties | `-Dojp.connection.pool.maximumPoolSize=50` |
+| 4 | Properties file (`ojp.properties`) | `ojp.connection.pool.maximumPoolSize=50` |
+
+> **Note**: Only `ojp.connection.pool.*` and `ojp.xa.*` keys are read from the `Properties`
+> argument. JDBC-standard keys (`user`, `password`) and database-specific keys (`ssl`, etc.) are
+> handled separately and are never treated as pool configuration.
 
 ### Environment-Specific Configuration
 

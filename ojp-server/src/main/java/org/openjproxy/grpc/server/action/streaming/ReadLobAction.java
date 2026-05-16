@@ -112,7 +112,7 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
                 nextBlockFullyEmpty = false;
                 if (idx == nextBlockSize - 1) {
                     currentPos += (idx + 1);
-                    log.info("Sending block of data size {} pos {}", idx + 1, currentPos);
+                    log.debug("Sending block of data size {} pos {}", idx + 1, currentPos);
                     // Send data to client in limited size blocks to safeguard server memory.
                     responseObserver.onNext(LobDataBlock.newBuilder()
                             .setSession(lobRef.getSession())
@@ -142,7 +142,7 @@ public class ReadLobAction implements Action<ReadLobRequest, LobDataBlock> {
                     adjustedSizeArray = new byte[0];
                 }
                 currentPos = (int) request.getPosition() + idx;
-                log.info("Sending leftover bytes size {} pos {}", idx, currentPos);
+                log.debug("Sending leftover bytes size {} pos {}", idx, currentPos);
                 responseObserver.onNext(LobDataBlock.newBuilder()
                         .setSession(lobRef.getSession())
                         .setPosition(currentPos)

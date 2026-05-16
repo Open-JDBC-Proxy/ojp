@@ -24,6 +24,54 @@ public class DatasourcePropertiesLoader {
     private static final String DEFAULT_DATASOURCE_NAME = "default";
     private static final String OJP_POOL_PREFIX = "ojp.connection.pool.";
     private static final String OJP_XA_PREFIX = "ojp.xa.";
+    private static final String OJP_JDBC_PREFIX = "ojp.jdbc.";
+
+    /**
+     * Apply OJP-relevant properties from the JDBC {@code info} {@link Properties} argument
+     * (passed to {@link java.sql.Driver#connect}) on top of the existing {@code base} properties.
+     *
+     * <p>Properties from {@code info} have the <em>highest</em> precedence and override any value
+     * already present in {@code base} (which was loaded from the properties file, system properties,
+     * or environment variables). Only keys matching the {@code ojp.connection.pool.*},
+     * {@code ojp.xa.*}, or {@code ojp.jdbc.*} pattern are copied; JDBC-standard keys such as {@code user} and
+     * {@code password} are intentionally ignored.
+     *
+     * <p>Full property precedence after merging (highest to lowest):
+     * <ol>
+     *   <li>{@code info} properties passed to {@code DriverManager.getConnection()}</li>
+     *   <li>Environment variables (e.g. {@code OJP_CONNECTION_POOL_MAXIMUMPOOLSIZE=20})</li>
+     *   <li>System properties (e.g. {@code -Dojp.connection.pool.maximumPoolSize=20})</li>
+     *   <li>Properties file ({@code ojp.properties} or environment-specific variant)</li>
+     * </ol>
+     *
+     * @param base           properties already resolved from file / system-props / env-vars,
+     *                       or {@code null} if none were found
+     * @param info           the raw {@link Properties} passed by the caller to {@code connect()},
+     *                       or {@code null}
+     * @param datasourceName the datasource name, used to stamp
+     *                       {@link CommonConstants#DATASOURCE_NAME_PROPERTY} when the result is
+     *                       built solely from {@code info}
+     * @return merged properties, or {@code null} if both {@code base} and the OJP-relevant subset
+     *         of {@code info} are empty
+     */
+    public static Properties applyInfoProperties(Properties base, Properties info, String datasourceName) {
+        if (info == null || info.isEmpty()) {
+            return (base == null || base.isEmpty()) ? null : base;
+        }
+        Properties result = base != null ? base : new Properties();
+        boolean added = false;
+        for (String key : info.stringPropertyNames()) {
+            if (isUnprefixedOjpKey(key)) {
+                result.setProperty(key, info.getProperty(key));
+                log.debug("Overriding property from connect() info argument: {} = {}", key, info.getProperty(key));
+                added = true;
+            }
+        }
+        if (added && result.getProperty(CommonConstants.DATASOURCE_NAME_PROPERTY) == null) {
+            result.setProperty(CommonConstants.DATASOURCE_NAME_PROPERTY, datasourceName);
+        }
+        return result.isEmpty() ? null : result;
+    }
 
     /**
      * Load ojp.properties and extract configuration for the datasource identified by
@@ -105,11 +153,15 @@ public class DatasourcePropertiesLoader {
     }
 
     private static boolean hasPrefixedOjpKey(String key, String prefixDot) {
-        return key.startsWith(prefixDot + OJP_POOL_PREFIX) || key.startsWith(prefixDot + OJP_XA_PREFIX);
+        return key.startsWith(prefixDot + OJP_POOL_PREFIX)
+                || key.startsWith(prefixDot + OJP_XA_PREFIX)
+                || key.startsWith(prefixDot + OJP_JDBC_PREFIX);
     }
 
     private static boolean isUnprefixedOjpKey(String key) {
-        return key.startsWith(OJP_POOL_PREFIX) || key.startsWith(OJP_XA_PREFIX);
+        return key.startsWith(OJP_POOL_PREFIX)
+                || key.startsWith(OJP_XA_PREFIX)
+                || key.startsWith(OJP_JDBC_PREFIX);
     }
 
     private static void copyUnprefixedOjpProperties(Properties target, Properties source) {

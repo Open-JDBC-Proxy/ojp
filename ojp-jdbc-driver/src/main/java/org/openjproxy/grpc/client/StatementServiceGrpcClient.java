@@ -13,6 +13,8 @@ import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.SessionTerminationStatus;
 import com.openjproxy.grpc.StatementRequest;
 import com.openjproxy.grpc.StatementServiceGrpc;
+import io.grpc.Metadata;
+import io.grpc.Status;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.ServerCallStreamObserver;
@@ -46,6 +48,7 @@ public class StatementServiceGrpcClient implements StatementService {
     private static final String DEFAULT_HOST = "localhost";
     private static final String DNS_PREFIX = "dns:///";
     private static final String COLON = ":";
+    private static final int TERMINATE_SESSION_MAX_RETRIES = 3;
     private final Pattern pattern = Pattern.compile(CommonConstants.OJP_REGEX_PATTERN);
 
     private StatementServiceGrpc.StatementServiceBlockingStub statemetServiceBlockingStub;
@@ -377,70 +380,69 @@ public class StatementServiceGrpcClient implements StatementService {
     }
 
     @Override
-    public void terminateSession(SessionInfo session) {
-        //Fire and forget - done async intentionally to improve client performance.
-        this.statemetServiceStub.terminateSession(session, new ServerCallStreamObserver<>() {
-            @Override
-            public boolean isCancelled() {
-                return false;
-            }
+    public void terminateSession(SessionInfo session) throws SQLException {
+        if (session == null) {
+            return;
+        }
 
-            @Override
-            public void setOnCancelHandler(Runnable runnable) {
+        Exception lastFailure = null;
 
-            }
-
-            @Override
-            public void setCompression(String s) {
-
-            }
-
-            @Override
-            public boolean isReady() {
-                return false;
-            }
-
-            @Override
-            public void setOnReadyHandler(Runnable runnable) {
-
-            }
-
-            @Override
-            public void request(int i) {
-
-            }
-
-            @Override
-            public void setMessageCompression(boolean b) {
-
-            }
-
-            @Override
-            public void disableAutoInboundFlowControl() {
-
-            }
-
-            @Override
-            public void onNext(SessionTerminationStatus sessionTerminationStatus) {
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                Throwable t = throwable;
-                if (throwable instanceof StatusRuntimeException) {
-                    try {
-                        handle((StatusRuntimeException) throwable);
-                    } catch (SQLException e) {
-                        t = e;
-                    }
+        for (int attempt = 1; attempt <= TERMINATE_SESSION_MAX_RETRIES; attempt++) {
+            try {
+                SessionTerminationStatus terminationStatus = terminateSessionRpc(session);
+                if (terminationStatus == null || !terminationStatus.getTerminated()) {
+                    throw new SQLException("Session termination was not confirmed by the server");
                 }
-                log.error("Error while terminating session: " + t.getMessage(), t);
-            }
+                return;
+            } catch (Exception e) {
+                Exception normalizedException = normalizeTerminateSessionException(e);
+                lastFailure = normalizedException;
 
-            @Override
-            public void onCompleted() {
+                if (shouldRetryTerminateSessionFailure(e, normalizedException, attempt)) {
+                    log.warn("Connection-level failure while terminating session {} on attempt {}/{}: {}",
+                            session.getSessionUUID(), attempt, TERMINATE_SESSION_MAX_RETRIES, e.getMessage());
+                    continue;
+                }
+
+                throw toTerminateSessionSQLException(normalizedException);
             }
-        });
+        }
+
+        throw toTerminateSessionSQLException(lastFailure);
+    }
+
+    SessionTerminationStatus terminateSessionRpc(SessionInfo session) throws Exception {
+        return this.statemetServiceBlockingStub.terminateSession(session);
+    }
+
+    private Exception normalizeTerminateSessionException(Exception exception) {
+        if (exception instanceof StatusRuntimeException) {
+            Metadata metadata = Status.trailersFromThrowable((StatusRuntimeException) exception);
+            if (metadata == null) {
+                return exception;
+            }
+            try {
+                handle((StatusRuntimeException) exception);
+            } catch (SQLException sqlException) {
+                return sqlException;
+            }
+        }
+        return exception;
+    }
+
+    private boolean shouldRetryTerminateSessionFailure(Exception originalException, Exception normalizedException,
+                                                       int attempt) {
+        return attempt < TERMINATE_SESSION_MAX_RETRIES
+                && !GrpcExceptionHandler.isPoolNotFoundException(originalException)
+                && !(normalizedException instanceof SQLException)
+                && GrpcExceptionHandler.isConnectionLevelError(originalException);
+    }
+
+    private SQLException toTerminateSessionSQLException(Exception exception) {
+        if (exception instanceof SQLException) {
+            return (SQLException) exception;
+        }
+        return new SQLException("Error while terminating session: " + exception.getMessage(), exception);
     }
 
     @Override

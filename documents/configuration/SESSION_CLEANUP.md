@@ -4,6 +4,8 @@
 
 OJP (Open J Proxy) now includes automatic session cleanup functionality to handle abandoned sessions. This feature prevents memory leaks and resource exhaustion when clients disconnect without properly calling `terminateSession()`.
 
+For normal client shutdown, the JDBC driver now calls session termination **synchronously** during `Connection.close()`. The driver retries that termination request up to **3 times** when the failure is connection-related (for example `UNAVAILABLE` or timeout). It does **not** retry pool/session-not-found cases or server-side SQL exceptions.
+
 ## Problem Statement
 
 Previously, if a client disconnected abruptly (network failure, crash, etc.) without explicitly calling `terminateSession()`, the session object would remain in the server's memory indefinitely, along with:
@@ -218,7 +220,7 @@ ojp.server.sessionCleanup.enabled=false
 ```
 
 **Warning**: Disabling session cleanup means you rely entirely on:
-1. Clients properly calling `terminateSession()`
+1. Clients properly calling `terminateSession()` (the JDBC driver does this during `Connection.close()` and retries up to 3 times for transient connection-level failures)
 2. Connection pool timeouts to reclaim database connections
 3. JVM garbage collection to free memory
 

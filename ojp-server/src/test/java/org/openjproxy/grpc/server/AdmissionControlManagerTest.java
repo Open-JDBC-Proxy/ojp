@@ -11,33 +11,50 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for SlowQuerySegregationManager functionality.
+ * Tests for AdmissionControlManager functionality.
  */
-class SlowQuerySegregationManagerTest {
+class AdmissionControlManagerTest {
 
-    private SlowQuerySegregationManager segregationManager;
+    private AdmissionControlManager admissionControlManager;
 
     @BeforeEach
     void setUp() {
         // 10 total slots, 20% slow (2 slots), 100ms idle timeout, 5000ms slow timeout, 1000ms fast timeout, enabled
-        segregationManager = new SlowQuerySegregationManager(10, 20, 100, 5000, 1000, true);
+        admissionControlManager = new AdmissionControlManager(10, 20, 100, 5000, 1000, true);
     }
 
     @Test
     void testInitialization() {
-        assertTrue(segregationManager.isEnabled());
-        assertNotNull(segregationManager.getPerformanceMonitor());
-        assertNotNull(segregationManager.getSlotManager());
-        assertEquals(0.0, segregationManager.getOverallAverageExecutionTime(), 0.001);
+        assertTrue(admissionControlManager.isEnabled());
+        assertNotNull(admissionControlManager.getPerformanceMonitor());
+        assertNotNull(admissionControlManager.getSlotManager());
+        assertEquals(0.0, admissionControlManager.getOverallAverageExecutionTime(), 0.001);
     }
 
     @Test
     void testDisabledManager() {
-        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 5000, 1000, false);
+        AdmissionControlManager disabledManager = new AdmissionControlManager(10, 20, 100, 5000, 1000, false);
 
         assertFalse(disabledManager.isEnabled());
+        assertFalse(disabledManager.isAdmissionControlOnly());
         assertNotNull(disabledManager.getPerformanceMonitor());
         assertNull(disabledManager.getSlotManager());
+    }
+
+    @Test
+    void testAdmissionControlOnlyMode() throws Exception {
+        AdmissionControlManager admissionManager = new AdmissionControlManager(5, 0, 0, 0, 1000, 0, true);
+
+        assertTrue(admissionManager.isEnabled());
+        assertTrue(admissionManager.isAdmissionControlOnly());
+        assertNotNull(admissionManager.getSlotManager());
+        assertEquals(0, admissionManager.getSlotManager().getSlowSlots());
+        assertEquals(5, admissionManager.getSlotManager().getFastSlots());
+
+        String result = admissionManager.executeWithSegregation("admission-op", () -> "ok");
+        assertEquals("ok", result);
+        assertEquals(0, admissionManager.getSlotManager().getActiveFastOperations());
+        assertTrue(admissionManager.getStatus().contains("admissionControlOnly=true"));
     }
 
     @Test
@@ -46,7 +63,7 @@ class SlowQuerySegregationManagerTest {
         String expectedResult = "operation-result";
 
         // Execute an operation
-        String result = segregationManager.executeWithSegregation(operationHash, () -> {
+        String result = admissionControlManager.executeWithSegregation(operationHash, () -> {
             // Simulate some work
             Thread.sleep(50); //NOSONAR
             return expectedResult;
@@ -55,14 +72,14 @@ class SlowQuerySegregationManagerTest {
         assertEquals(expectedResult, result);
 
         // Check that performance was recorded
-        assertTrue(segregationManager.getOperationAverageTime(operationHash) > 0);
-        assertEquals(1, segregationManager.getPerformanceMonitor().getTrackedOperationCount());
-        assertEquals(1, segregationManager.getPerformanceMonitor().getTotalExecutionCount());
+        assertTrue(admissionControlManager.getOperationAverageTime(operationHash) > 0);
+        assertEquals(1, admissionControlManager.getPerformanceMonitor().getTrackedOperationCount());
+        assertEquals(1, admissionControlManager.getPerformanceMonitor().getTotalExecutionCount());
     }
 
     @Test
     void testExecuteWithSegregationDisabled() throws Exception {
-        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 5000, 1000, false);
+        AdmissionControlManager disabledManager = new AdmissionControlManager(10, 20, 100, 5000, 1000, false);
         String operationHash = "test-operation";
         String expectedResult = "operation-result";
 
@@ -84,22 +101,22 @@ class SlowQuerySegregationManagerTest {
         String slowOp = "slow-operation";
 
         // Execute fast operations to establish baseline
-        segregationManager.executeWithSegregation(fastOp, () -> {
+        admissionControlManager.executeWithSegregation(fastOp, () -> {
             Thread.sleep(10); //NOSONAR
             return "fast";
         });
 
-        segregationManager.executeWithSegregation("another-fast", () -> {
+        admissionControlManager.executeWithSegregation("another-fast", () -> {
             Thread.sleep(10); //NOSONAR
             return "fast";
         });
 
         // Initially, operations should be classified as fast
-        assertFalse(segregationManager.isSlowOperation(fastOp));
+        assertFalse(admissionControlManager.isSlowOperation(fastOp));
 
         // Execute a slow operation multiple times to make it clearly slow
         for (int i = 0; i < 3; i++) {
-            segregationManager.executeWithSegregation(slowOp, () -> {
+            admissionControlManager.executeWithSegregation(slowOp, () -> {
                 Thread.sleep(100); //NOSONAR
                 return "slow";
             });
@@ -108,14 +125,14 @@ class SlowQuerySegregationManagerTest {
         // The slow operation should now be classified differently
         // Note: Due to the 2x threshold and averaging, we might need more executions or longer delays
         // to trigger the slow classification
-        double slowAvg = segregationManager.getOperationAverageTime(slowOp);
-        double overallAvg = segregationManager.getOverallAverageExecutionTime();
+        double slowAvg = admissionControlManager.getOperationAverageTime(slowOp);
+        double overallAvg = admissionControlManager.getOverallAverageExecutionTime();
 
         assertTrue(slowAvg > 0);
         assertTrue(overallAvg > 0);
 
         // At minimum, verify the performance tracking is working
-        assertTrue(segregationManager.getPerformanceMonitor().getTrackedOperationCount() >= 3);
+        assertTrue(admissionControlManager.getPerformanceMonitor().getTrackedOperationCount() >= 3);
     }
 
     @Test
@@ -124,7 +141,7 @@ class SlowQuerySegregationManagerTest {
         RuntimeException expectedException = new RuntimeException("Test exception");
 
         // Verify that exceptions are propagated
-        Exception thrownException = assertThrows(RuntimeException.class, () -> segregationManager.executeWithSegregation(operationHash, () -> {
+        Exception thrownException = assertThrows(RuntimeException.class, () -> admissionControlManager.executeWithSegregation(operationHash, () -> {
             Thread.sleep(50); //NOSONAR
             throw expectedException;
         }));
@@ -132,7 +149,7 @@ class SlowQuerySegregationManagerTest {
         assertEquals(expectedException, thrownException);
 
         // Check that performance was still recorded even for failed operations
-        assertTrue(segregationManager.getOperationAverageTime(operationHash) > 0);
+        assertTrue(admissionControlManager.getOperationAverageTime(operationHash) > 0);
     }
 
     @Test
@@ -147,7 +164,7 @@ class SlowQuerySegregationManagerTest {
             final int threadIndex = i;
             threads[i] = new Thread(() -> {
                 try {
-                    results[threadIndex] = segregationManager.executeWithSegregation(
+                    results[threadIndex] = admissionControlManager.executeWithSegregation(
                             "concurrent-op-" + threadIndex,
                             () -> {
                                 Thread.sleep(50); //NOSONAR
@@ -177,15 +194,15 @@ class SlowQuerySegregationManagerTest {
         }
 
         // Verify performance tracking
-        assertEquals(numThreads, segregationManager.getPerformanceMonitor().getTrackedOperationCount());
-        assertEquals(numThreads, segregationManager.getPerformanceMonitor().getTotalExecutionCount());
+        assertEquals(numThreads, admissionControlManager.getPerformanceMonitor().getTrackedOperationCount());
+        assertEquals(numThreads, admissionControlManager.getPerformanceMonitor().getTotalExecutionCount());
     }
 
     @Test
     void testStatusString() {
-        String status = segregationManager.getStatus();
+        String status = admissionControlManager.getStatus();
         assertNotNull(status);
-        assertTrue(status.contains("SlowQuerySegregationManager"));
+        assertTrue(status.contains("AdmissionControlManager"));
         assertTrue(status.contains("enabled=true"));
         assertTrue(status.contains("trackedOps="));
         assertTrue(status.contains("totalExecs="));
@@ -198,19 +215,19 @@ class SlowQuerySegregationManagerTest {
         String slowOp = "resource-intensive-op";
 
         // First, establish a baseline with some fast operations
-        segregationManager.executeWithSegregation("fast-1", () -> {
+        admissionControlManager.executeWithSegregation("fast-1", () -> {
             Thread.sleep(5); //NOSONAR
             return "fast";
         });
 
-        segregationManager.executeWithSegregation("fast-2", () -> {
+        admissionControlManager.executeWithSegregation("fast-2", () -> {
             Thread.sleep(5);  //NOSONAR
             return "fast";
         });
 
         // Now try to make the operation clearly slow
         for (int i = 0; i < 5; i++) {
-            segregationManager.executeWithSegregation(slowOp, () -> {
+            admissionControlManager.executeWithSegregation(slowOp, () -> {
                 // Much longer than fast operations
                 Thread.sleep(200);  //NOSONAR
                 return "slow";
@@ -218,8 +235,8 @@ class SlowQuerySegregationManagerTest {
         }
 
         // The operation should have been tracked and executed
-        assertTrue(segregationManager.getOperationAverageTime(slowOp) > 0);
-        assertTrue(segregationManager.getPerformanceMonitor().getTotalExecutionCount() >= 7);
+        assertTrue(admissionControlManager.getOperationAverageTime(slowOp) > 0);
+        assertTrue(admissionControlManager.getPerformanceMonitor().getTotalExecutionCount() >= 7);
     }
 
     @Test
@@ -228,7 +245,7 @@ class SlowQuerySegregationManagerTest {
         final boolean[] executed = {false};
 
         // Test with void operations (like those used in executeQuery)
-        Object result = segregationManager.executeWithSegregation(operationHash, () -> {
+        Object result = admissionControlManager.executeWithSegregation(operationHash, () -> {
             executed[0] = true;
             Thread.sleep(30); //NOSONAR
             return null;
@@ -236,6 +253,16 @@ class SlowQuerySegregationManagerTest {
 
         assertNull(result);
         assertTrue(executed[0]);
-        assertTrue(segregationManager.getOperationAverageTime(operationHash) > 0);
+        assertTrue(admissionControlManager.getOperationAverageTime(operationHash) > 0);
+    }
+
+    @Test
+    void testAdmissionControlTimeoutThrowsServerOverloadException() throws Exception {
+        AdmissionControlManager manager = new AdmissionControlManager(1, 0, 0, 0, 10, 0, 0, true);
+        manager.getSlotManager().acquireFastSlot(1000);
+        ServerOverloadException overloadException = assertThrows(ServerOverloadException.class,
+                () -> manager.executeWithSegregation("overload-op", () -> "never"));
+        assertTrue(overloadException.getMessage().contains("Timeout waiting for admission control slot"));
+        manager.getSlotManager().releaseFastSlot();
     }
 }

@@ -4,6 +4,10 @@
 
 The Slow Query Segregation feature monitors all database operations (`executeQuery` and `executeUpdate`) and classifies them as "slow" or "fast" based on their execution time. It then manages the number of concurrently executing operations in each category to prevent slow operations from blocking the system.
 
+**Recommendation:** Enable this feature when your system runs a **mix** of fast OLTP-style queries and slower reporting/analytics queries on the same OJP server. In that scenario, it is strongly recommended because it protects fast user-facing traffic.
+
+For **pure OLTP** systems (almost all queries are short) or **pure OLAP** systems (most queries are long), this feature often provides little benefit and can stay disabled unless your metrics show clear slow-vs-fast contention.
+
 ## How It Works
 
 ### 1. Operation Monitoring
@@ -50,7 +54,7 @@ ojp.server.slowQuerySegregation.fastSlotTimeout=60000
 ## Benefits
 
 1. **Prevents Resource Starvation**: Fast operations aren't blocked by slow ones
-2. **Maintains Throughput**: System remains responsive even under mixed workloads
+2. **Maintains Throughput in Mixed Workloads**: System remains responsive when fast and slow queries run together
 3. **Adaptive**: Automatically learns which operations are slow based on historical data
 4. **Efficient**: Allows slot borrowing when pools are idle
 5. **Configurable**: Tune the balance between slow and fast operation slots
@@ -82,6 +86,11 @@ The feature is designed to be non-intrusive:
 - Overall average: ~177ms
 - Slow threshold: 353ms
 - Result: Only the complex query is classified as slow
+
+### Scenario 1b: Pure Workloads (When to Keep Disabled)
+- **Pure OLTP**: Almost all queries are already fast and similar in latency
+- **Pure OLAP**: Most queries are long-running and belong to the same performance class
+- **Result**: Segregation usually adds little value; keep it disabled unless monitoring shows blocking between clearly different query classes
 
 ### Scenario 2: Resource Protection
 - 20 total connection slots

@@ -2,7 +2,32 @@
 
 This directory contains technical analysis documents for various OJP features and decisions.
 
-## Latest Analysis (January 2026)
+## Latest Analysis (May 2026)
+
+### 🆕 Prepared Statement Cache Server Settings Design
+
+**Question:** How should OJP expose default-enabled prepared statement caching using standard OJP server properties and runtime datasource translation?
+
+**Quick Answer:** Add canonical `ojp.connection.pool.statementCache.*` and `ojp.xa.connection.pool.statementCache.*` settings (default enabled), then translate to driver-specific datasource properties during pool creation.
+
+**Documents:**
+- **Executive Summary**: [PREPARED_STATEMENT_CACHE_SETTINGS_SUMMARY.md](./PREPARED_STATEMENT_CACHE_SETTINGS_SUMMARY.md)
+  - Proposed canonical property keys
+  - Default values and precedence
+  - Runtime translation model by database
+  
+- **Full Analysis**: [PREPARED_STATEMENT_CACHE_SETTINGS_ANALYSIS.md](./PREPARED_STATEMENT_CACHE_SETTINGS_ANALYSIS.md)
+  - Detailed property model (global server settings only)
+  - Canonical-to-driver translation matrix
+  - Scope/units clarification for each setting
+  - Validation, observability, risk assessment
+  - Future implementation outline (design-only report)
+
+**Key Takeaway:** Keep user configuration database-agnostic in OJP notation and centralize DB-specific behavior in a server-side translation layer applied at datasource creation time.
+
+---
+
+## Previous Latest Analysis (January 2026)
 
 ### 🆕 Agroal Connection Pool Evaluation
 
@@ -48,6 +73,10 @@ This directory contains technical analysis documents for various OJP features an
 ### Pool Management
 
 - [POOL_DISABLE_FINAL_SUMMARY.md](./POOL_DISABLE_FINAL_SUMMARY.md) - Analysis of pool disable functionality
+- [ALWAYS_ON_ADMISSION_CONTROL_SEMAPHORE_ANALYSIS.md](./ALWAYS_ON_ADMISSION_CONTROL_SEMAPHORE_ANALYSIS.md) - Always-on semaphore admission control rationale and implementation notes
+- [ADMISSION_CONTROL_BACKPRESSURE_SUMMARY.md](./ADMISSION_CONTROL_BACKPRESSURE_SUMMARY.md) - Short summary of the current request admission, timeout, and backpressure model
+- [PREPARED_STATEMENT_CACHE_SETTINGS_SUMMARY.md](./PREPARED_STATEMENT_CACHE_SETTINGS_SUMMARY.md) - Prepared statement cache settings design (summary)
+- [PREPARED_STATEMENT_CACHE_SETTINGS_ANALYSIS.md](./PREPARED_STATEMENT_CACHE_SETTINGS_ANALYSIS.md) - Prepared statement cache settings design (detailed)
 
 ### Driver Architecture
 
@@ -94,5 +123,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-01-08  
+**Last Updated:** 2026-05-10  
 **Maintained By:** OJP Core Team

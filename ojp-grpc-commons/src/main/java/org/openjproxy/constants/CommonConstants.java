@@ -5,7 +5,8 @@ package org.openjproxy.constants;
  */
 public class CommonConstants {
     public static final int ROWS_PER_RESULT_SET_DATA_BLOCK = 100;
-    public static final int MAX_LOB_DATA_BLOCK_SIZE = 1024;//1KB per block
+    public static final int DEFAULT_RESULTSET_ROWS_PER_BLOCK = ROWS_PER_RESULT_SET_DATA_BLOCK;
+    public static final int MAX_LOB_DATA_BLOCK_SIZE = 65536;//64KB per block
     public static final int PREPARED_STATEMENT_BINARY_STREAM_INDEX = 1;
     public static final int PREPARED_STATEMENT_BINARY_STREAM_LENGTH = 2;
     public static final int PREPARED_STATEMENT_BINARY_STREAM_SQL = 3;
@@ -26,6 +27,7 @@ public class CommonConstants {
 
     // Configuration property keys
     public static final String DATASOURCE_NAME_PROPERTY = "ojp.datasource.name";
+    public static final String RESULTSET_ROWS_PER_BLOCK_PROPERTY = "ojp.resultset.rowsPerBlock";
     public static final String MAXIMUM_POOL_SIZE_PROPERTY = "ojp.connection.pool.maximumPoolSize";
     public static final String MINIMUM_IDLE_PROPERTY = "ojp.connection.pool.minimumIdle";
     public static final String IDLE_TIMEOUT_PROPERTY = "ojp.connection.pool.idleTimeout";
@@ -49,10 +51,25 @@ public class CommonConstants {
     // Multinode configuration property keys
     public static final String MULTINODE_RETRY_ATTEMPTS_PROPERTY = "ojp.multinode.retryAttempts";
     public static final String MULTINODE_RETRY_DELAY_PROPERTY = "ojp.multinode.retryDelayMs";
+    public static final String JDBC_CLOSE_SYNC_PROPERTY = "ojp.jdbc.connection.close.synchronous";
 
     // Transaction isolation configuration property key
     public static final String DEFAULT_TRANSACTION_ISOLATION_PROPERTY = "ojp.connection.pool.defaultTransactionIsolation";
     public static final String XA_DEFAULT_TRANSACTION_ISOLATION_PROPERTY = "ojp.xa.connection.pool.defaultTransactionIsolation";
+
+    // Prepared statement cache configuration property keys (global server-side)
+    public static final String STATEMENT_CACHE_ENABLED_PROPERTY = "ojp.connection.pool.statementCache.enabled";
+    public static final String STATEMENT_CACHE_MAX_SIZE_PROPERTY = "ojp.connection.pool.statementCache.maxSize";
+    public static final String STATEMENT_CACHE_SQL_LIMIT_PROPERTY = "ojp.connection.pool.statementCache.sqlLimit";
+    public static final String STATEMENT_CACHE_SERVER_PREPARE_PROPERTY = "ojp.connection.pool.statementCache.serverPrepare";
+    public static final String STATEMENT_CACHE_PREPARE_THRESHOLD_PROPERTY = "ojp.connection.pool.statementCache.prepareThreshold";
+
+    // XA prepared statement cache configuration property keys (global server-side)
+    public static final String XA_STATEMENT_CACHE_ENABLED_PROPERTY = "ojp.xa.connection.pool.statementCache.enabled";
+    public static final String XA_STATEMENT_CACHE_MAX_SIZE_PROPERTY = "ojp.xa.connection.pool.statementCache.maxSize";
+    public static final String XA_STATEMENT_CACHE_SQL_LIMIT_PROPERTY = "ojp.xa.connection.pool.statementCache.sqlLimit";
+    public static final String XA_STATEMENT_CACHE_SERVER_PREPARE_PROPERTY = "ojp.xa.connection.pool.statementCache.serverPrepare";
+    public static final String XA_STATEMENT_CACHE_PREPARE_THRESHOLD_PROPERTY = "ojp.xa.connection.pool.statementCache.prepareThreshold";
 
     // HikariCP default connection pool settings - optimized for high concurrency
     // ISSUE #29 FIX: Updated these values to prevent indefinite blocking under high load
@@ -61,6 +78,14 @@ public class CommonConstants {
     public static final long DEFAULT_IDLE_TIMEOUT = 600000;  // 10 minutes
     public static final long DEFAULT_MAX_LIFETIME = 1800000; // 30 minutes
     public static final long DEFAULT_CONNECTION_TIMEOUT = 10000; // Reduced from 30s to 10s for faster failure
+    public static final long FAIL_FAST_POOL_CONNECTION_TIMEOUT_MS = 1L; // HikariCP clamps this to 250ms minimum; semaphore gatekeeper enforces the wait budget
+
+    // Prepared statement cache defaults (global server-side)
+    public static final boolean DEFAULT_STATEMENT_CACHE_ENABLED = true;
+    public static final int DEFAULT_STATEMENT_CACHE_MAX_SIZE = 250;
+    public static final int DEFAULT_STATEMENT_CACHE_SQL_LIMIT = 2048;
+    public static final boolean DEFAULT_STATEMENT_CACHE_SERVER_PREPARE = true;
+    public static final int DEFAULT_STATEMENT_CACHE_PREPARE_THRESHOLD = 5;
 
     // XA pool defaults - matching non-XA connection pool defaults for consistency
     public static final int DEFAULT_XA_MAXIMUM_POOL_SIZE = 20;  // Same as non-XA for consistency
@@ -74,6 +99,7 @@ public class CommonConstants {
     // Multinode configuration defaults - addressing PR #39 review comment #1
     public static final int DEFAULT_MULTINODE_RETRY_ATTEMPTS = -1;  // -1 = retry indefinitely
     public static final long DEFAULT_MULTINODE_RETRY_DELAY_MS = 5000;  // 5 seconds between retries
+    public static final boolean DEFAULT_JDBC_CLOSE_SYNCHRONOUS = true;
 
     // XA pool evictor defaults (Apache Commons Pool 2)
     public static final long DEFAULT_XA_TIME_BETWEEN_EVICTION_RUNS_MS = 30000;  // 30 seconds

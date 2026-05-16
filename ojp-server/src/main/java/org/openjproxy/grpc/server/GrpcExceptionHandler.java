@@ -52,4 +52,16 @@ public class GrpcExceptionHandler {
         }
         streamObserver.onError(Status.INTERNAL.asRuntimeException(metadata));
     }
+
+    /**
+     * Sends an overload signal to clients so they can retry with backoff.
+     *
+     * @param e overload exception
+     * @param streamObserver target stream observer
+     * @param <T> Stream observer generic type.
+     */
+    public static <T> void sendServerOverload(ServerOverloadException e, StreamObserver<T> streamObserver) {
+        String description = e.getMessage() != null ? e.getMessage() : "Server overloaded";
+        streamObserver.onError(Status.RESOURCE_EXHAUSTED.withDescription(description).asRuntimeException());
+    }
 }

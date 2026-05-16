@@ -66,20 +66,20 @@ cd ..
 docker run --rm -d \
   --network host \
   -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.4.8-beta
+  rrobetti/ojp:0.4.16-beta
 ```
 
 **Alternative: Runnable JAR (No Docker)**
 
 ```bash
 # Download OJP Server JAR from Maven Central
-wget https://repo1.maven.org/maven2/org/openjproxy/ojp-server/0.4.8-beta/ojp-server-0.4.8-beta-shaded.jar
-chmod +x ojp-server-0.4.8-beta-shaded.jar
+wget https://repo1.maven.org/maven2/org/openjproxy/ojp-server/0.4.16-beta/ojp-server-0.4.16-beta-shaded.jar
+chmod +x ojp-server-0.4.16-beta-shaded.jar
 
 # Download open source JDBC drivers
 curl -LO https://raw.githubusercontent.com/Open-J-Proxy/ojp/main/ojp-server/download-drivers.sh
 bash download-drivers.sh  # Downloads H2, PostgreSQL, MySQL, MariaDB to ojp-libs/
-java -Duser.timezone=UTC -jar ojp-server-0.4.8-beta-shaded.jar
+java -Duser.timezone=UTC -jar ojp-server-0.4.16-beta-shaded.jar
 ```
 
 📖 See [Executable JAR Setup Guide](documents/runnable-jar/README.md) for details.
@@ -89,7 +89,7 @@ java -Duser.timezone=UTC -jar ojp-server-0.4.8-beta-shaded.jar
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.8-beta</version>
+    <version>0.4.16-beta</version>
 </dependency>
 ```
 
@@ -152,7 +152,7 @@ If Docker is not available in your environment, you can run OJP Server as a stan
 - [Connection Pool Configuration](documents/configuration/ojp-jdbc-configuration.md) - OJP JDBC driver setup, connection pool settings, and environment-specific configuration (ojp-dev.properties, ojp-staging.properties, ojp-prod.properties).
 - [OJP Server Configuration](documents/configuration/ojp-server-configuration.md) - Server startup options, runtime configuration, and SQL enhancer with schema loading.
 - [Multinode Configuration](documents/multinode/README.md) - High availability and load balancing with multiple OJP servers.
-- [Slow query segregation feature](documents/designs/SLOW_QUERY_SEGREGATION.md) - Feature that prevent connection starvation by slow queries (or statements).
+- [Slow query segregation feature](documents/designs/SLOW_QUERY_SEGREGATION.md) - Strongly recommended for mixed fast+slow query workloads; usually not needed for pure OLTP or pure OLAP workloads.
 - [Telemetry and Observability](documents/telemetry/README.md) - OpenTelemetry integration and monitoring setup.
 - [OJP Components](documents/OJPComponents.md) - Core modules that define OJP’s architecture, including the server, JDBC driver, and shared gRPC contracts.
 - [Targeted Problem and Solution](documents/targeted-problem/README.md) - Explanation of the problem OJP solves and how it addresses it.
