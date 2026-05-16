@@ -199,16 +199,15 @@ jobs:
       - name: Build OJP Server Docker image
         run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
 
-      # Start first OJP server without SQL enhancer (default configuration)
+      # Start first OJP server without SQL enhancer and with SQS disabled (default configuration)
       # Tests will run against this server via postgres_connection.csv (port 1059)
       - name: Start OJP Server container
         run: |
           docker run -d --name ojp-server \
             --network host \
-            -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
             rrobetti/ojp:0.4.17-SNAPSHOT
 
-      # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
+      # Start second OJP server with SQS enabled and SQL enhancer enabled in OPTIMIZE mode
       # Tests will run against this server via postgres_connection.csv (port 10593)
       # OPTIMIZE mode enables conversion and optimization with schema loading support
       # PostgreSQL dialect ensures proper SQL parsing and validation
