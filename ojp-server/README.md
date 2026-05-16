@@ -1,8 +1,25 @@
 ## Docker Image
 
-### Build docker image locally
+The base image is a custom Alpine JRE built with `jlink` (only the modules required by OJP), bringing the final image size to **68MB**.
 
-> mvn compile jib:dockerBuild
+### Build the base image (first time or when dependencies change)
+
+```bash
+# From the repository root
+docker build -f ojp-server/base.Dockerfile -t rrobetti/ojp-base:jre24-alpine .
+```
+
+### Build the app image locally
+
+```bash
+mvn -pl ojp-server/ jib:dockerBuild -Djib.from.image=docker://rrobetti/ojp-base:jre24-alpine
+```
+
+### Run locally
+
+```bash
+docker run -p 1059:1059 rrobetti/ojp:0.4.9-SNAPSHOT
+```
 
 ### Build and push to Docker Hub
 PS: Only authorized users.
