@@ -1,6 +1,6 @@
 ## Docker Image
 
-The base image is a custom Alpine JRE built with `jlink` (only the modules required by OJP), bringing the final image size to **68MB**.
+The base image is a custom Alpine JRE built with `jlink` (only the modules required by OJP), bringing the final image size to **128MB**.
 
 ### Build the base image (first time or when dependencies change)
 
