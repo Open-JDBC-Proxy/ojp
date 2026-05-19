@@ -165,6 +165,34 @@ Controls how the server batches rows into gRPC streaming messages when returning
 - The default of 100 matches the historical behaviour and is a safe starting point for most workloads.
 - Values below 1 or above 10000 are rejected and the default is used instead.
 
+### Statement Eager-Close Settings
+
+Controls whether simple, non-transactional DML operations (`INSERT`, `UPDATE`, `DELETE`, `MERGE`) take a fast path that acquires a pooled connection, executes the statement, and immediately returns the connection — without creating a server-side session.
+
+| Property                              | Environment Variable                  | Type    | Default | Description                                                                 | Since           |
+|---------------------------------------|---------------------------------------|---------|---------|-----------------------------------------------------------------------------|-----------------|
+| `ojp.statement.eagerClose.enabled`   | `OJP_STATEMENT_EAGERCLOSE_ENABLED`   | boolean | true    | Enable the eager-close fast path for eligible non-transactional DML updates | 0.4.15-SNAPSHOT |
+
+**When the eager-close path is taken:**
+- No server-side session is created — the connection is returned to the pool immediately after execution.
+- The cache invalidation hook (`ojp.query.cache.enabled`) still fires when enabled.
+
+**When the eager-close path is bypassed (falls through to the standard path):**
+- An active session UUID is present (session-pinned connection).
+- An active transaction UUID is present.
+- A batch operation flag is set.
+- Generated-keys tracking is requested.
+- An existing statement UUID is present (session-held prepared statement).
+- The SQL contains session-affinity hints (`SET`, `USE`, `CALL`, stored procedures, etc.).
+- Parameters include LOB or stream types (BLOB, CLOB, ASCII_STREAM, UNICODE_STREAM, BINARY_STREAM).
+- The first SQL keyword is not `INSERT`, `UPDATE`, `DELETE`, or `MERGE`.
+
+**Disabling the eager-close path:**
+```bash
+# Disable eager-close if you need session-level semantics for all DML
+-Dojp.statement.eagerClose.enabled=false
+```
+
 ### Slow Query Segregation Settings
 
 | Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |
