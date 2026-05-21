@@ -32,6 +32,14 @@ class ServerConfigurationTest {
         System.clearProperty("ojp.server.maxConcurrentRequests");
         System.clearProperty("ojp.server.admissionControl.maxQueueDepth");
         System.clearProperty("ojp.server.slowQuerySegregation.maxQueueDepth");
+        System.clearProperty("ojp.server.slowQuerySegregation.classificationMode");
+        System.clearProperty("ojp.server.slowQuerySegregation.slowQueryThresholdMs");
+        System.clearProperty("ojp.server.slowQuerySegregation.minimumSlowQueryMs");
+        System.clearProperty("ojp.server.slowQuerySegregation.slowMultiplier");
+        System.clearProperty("ojp.server.slowQuerySegregation.recoveryMultiplier");
+        System.clearProperty("ojp.server.slowQuerySegregation.minSamples");
+        System.clearProperty("ojp.server.slowQuerySegregation.baselinePercentile");
+        System.clearProperty("ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds");
         System.clearProperty("ojp.libs.path");
         System.clearProperty("ojp.resultset.rowsPerBlock");
         TestPropertyCleanupUtils.clearStatementCacheProperties();
@@ -55,6 +63,15 @@ class ServerConfigurationTest {
         assertEquals(ServerConfiguration.DEFAULT_CIRCUIT_BREAKER_TIMEOUT, config.getCircuitBreakerTimeout());
         assertEquals(ServerConfiguration.DEFAULT_MAX_CONCURRENT_REQUESTS, config.getMaxConcurrentRequests());
         assertEquals(ServerConfiguration.DEFAULT_ADMISSION_CONTROL_MAX_QUEUE_DEPTH, config.getAdmissionControlMaxQueueDepth());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_CLASSIFICATION_MODE, config.getSlowQueryClassificationMode());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_THRESHOLD_MS, config.getSlowQueryThresholdMs());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_MINIMUM_SLOW_QUERY_MS, config.getSlowQueryMinimumSlowQueryMs());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_SLOW_MULTIPLIER, config.getSlowQuerySlowMultiplier());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_RECOVERY_MULTIPLIER, config.getSlowQueryRecoveryMultiplier());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_MIN_SAMPLES, config.getSlowQueryMinSamples());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_BASELINE_PERCENTILE, config.getSlowQueryBaselinePercentile());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_BASELINE_REFRESH_INTERVAL_SECONDS,
+                config.getSlowQueryBaselineRefreshIntervalSeconds());
         assertEquals(ServerConfiguration.DEFAULT_CIRCUIT_BREAKER_THRESHOLD, config.getCircuitBreakerThreshold());
         assertEquals(ServerConfiguration.DEFAULT_DRIVERS_PATH, config.getDriversPath());
         assertTrue(config.isStatementCacheEnabled());
@@ -112,6 +129,64 @@ class ServerConfigurationTest {
         ServerConfiguration config = new ServerConfiguration();
 
         assertEquals(88, config.getAdmissionControlMaxQueueDepth());
+    }
+
+    @Test
+    void testSlowQueryClassificationProperties() {
+        System.setProperty("ojp.server.slowQuerySegregation.classificationMode", "ABSOLUTE_THRESHOLD");
+        System.setProperty("ojp.server.slowQuerySegregation.slowQueryThresholdMs", "2500");
+        System.setProperty("ojp.server.slowQuerySegregation.minimumSlowQueryMs", "120");
+        System.setProperty("ojp.server.slowQuerySegregation.slowMultiplier", "6.0");
+        System.setProperty("ojp.server.slowQuerySegregation.recoveryMultiplier", "2.5");
+        System.setProperty("ojp.server.slowQuerySegregation.minSamples", "30");
+        System.setProperty("ojp.server.slowQuerySegregation.baselinePercentile", "60");
+        System.setProperty("ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds", "15");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(SlowQueryClassificationMode.ABSOLUTE_THRESHOLD, config.getSlowQueryClassificationMode());
+        assertEquals(2500L, config.getSlowQueryThresholdMs());
+        assertEquals(120L, config.getSlowQueryMinimumSlowQueryMs());
+        assertEquals(6.0, config.getSlowQuerySlowMultiplier(), 0.001);
+        assertEquals(2.5, config.getSlowQueryRecoveryMultiplier(), 0.001);
+        assertEquals(30, config.getSlowQueryMinSamples());
+        assertEquals(60, config.getSlowQueryBaselinePercentile());
+        assertEquals(15L, config.getSlowQueryBaselineRefreshIntervalSeconds());
+    }
+
+    @Test
+    void testInvalidSlowQueryClassificationPropertiesFallbackToDefault() {
+        System.setProperty("ojp.server.slowQuerySegregation.classificationMode", "NOT_A_MODE");
+        System.setProperty("ojp.server.slowQuerySegregation.slowQueryThresholdMs", "-1");
+        System.setProperty("ojp.server.slowQuerySegregation.minimumSlowQueryMs", "-1");
+        System.setProperty("ojp.server.slowQuerySegregation.slowMultiplier", "1.0");
+        System.setProperty("ojp.server.slowQuerySegregation.recoveryMultiplier", "10.0");
+        System.setProperty("ojp.server.slowQuerySegregation.minSamples", "0");
+        System.setProperty("ojp.server.slowQuerySegregation.baselinePercentile", "100");
+        System.setProperty("ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds", "-1");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_CLASSIFICATION_MODE, config.getSlowQueryClassificationMode());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_THRESHOLD_MS, config.getSlowQueryThresholdMs());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_MINIMUM_SLOW_QUERY_MS, config.getSlowQueryMinimumSlowQueryMs());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_SLOW_MULTIPLIER, config.getSlowQuerySlowMultiplier());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_RECOVERY_MULTIPLIER, config.getSlowQueryRecoveryMultiplier());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_MIN_SAMPLES, config.getSlowQueryMinSamples());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_BASELINE_PERCENTILE, config.getSlowQueryBaselinePercentile());
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_BASELINE_REFRESH_INTERVAL_SECONDS,
+                config.getSlowQueryBaselineRefreshIntervalSeconds());
+    }
+
+    @Test
+    void testRecoveryMultiplierEqualToSlowMultiplierFallsBack() {
+        System.setProperty("ojp.server.slowQuerySegregation.slowMultiplier", "5.0");
+        System.setProperty("ojp.server.slowQuerySegregation.recoveryMultiplier", "5.0");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_RECOVERY_MULTIPLIER,
+                config.getSlowQueryRecoveryMultiplier(), 0.001);
     }
 
     @Test

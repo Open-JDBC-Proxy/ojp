@@ -16,9 +16,14 @@ For **pure OLTP** systems (almost all queries are short) or **pure OLAP** system
 - This gives 20% weight to the newest measurement, smoothing out outliers
 
 ### 2. Slow vs Fast Classification
-- An operation is classified as "slow" if its average execution time is **2x or greater** than the overall average execution time
-- The overall average is calculated as the average of all individual operation averages
-- All other operations are classified as "fast"
+- Default mode is `RELATIVE_FAST_BASELINE`.
+- An operation enters slow classification when:
+  - `operationAverageMs >= minimumSlowQueryMs`
+  - `operationAverageMs >= fastBaselineMs * slowMultiplier`
+- An operation recovers to fast when:
+  - `operationAverageMs < minimumSlowQueryMs`, or
+  - `operationAverageMs <= fastBaselineMs * recoveryMultiplier`
+- Fast baseline is computed from currently-fast query-shape averages only (slow-classified operations are excluded).
 
 ### 3. Execution Slot Management
 - The total number of concurrent operations is limited by the HikariCP connection pool maximum size

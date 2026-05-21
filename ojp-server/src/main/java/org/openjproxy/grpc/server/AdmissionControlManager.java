@@ -40,28 +40,68 @@ public class AdmissionControlManager {
      * @param slowSlotTimeoutMs The timeout in milliseconds for acquiring slow operation slots
      * @param fastSlotTimeoutMs The timeout in milliseconds for acquiring fast operation slots
      * @param updateGlobalAvgIntervalSeconds The interval in seconds for updating global average (0 = update every query)
+     * @param classificationMode SQS classification mode
+     * @param slowQueryThresholdMs Slow-query threshold in milliseconds for ABSOLUTE_THRESHOLD mode
+     * @param minimumSlowQueryMs Minimum query average in milliseconds required before entering slow classification
+     * @param slowMultiplier Multiplier against fast baseline for entering slow classification
+     * @param recoveryMultiplier Multiplier against fast baseline for recovering back to fast classification
+     * @param minSamples Minimum number of operation samples required before classification
+     * @param baselinePercentile Percentile used to compute fast baseline from fast operations
+     * @param baselineRefreshIntervalSeconds Fast baseline refresh interval in seconds (0 = refresh every check)
      * @param maxWaitQueueDepth Maximum waiting thread queue depth per semaphore (0 = auto)
      * @param enabled Whether admission control is enabled
      */
     public AdmissionControlManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
-                                     long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds,
+                                      long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds,
+                                     SlowQueryClassificationMode classificationMode, long slowQueryThresholdMs,
+                                     long minimumSlowQueryMs, double slowMultiplier, double recoveryMultiplier,
+                                     int minSamples, int baselinePercentile, long baselineRefreshIntervalSeconds,
                                      int maxWaitQueueDepth, boolean enabled) {
         this.enabled = enabled;
         this.admissionControlOnly = enabled && slowSlotPercentage == 0;
         this.slowSlotTimeoutMs = slowSlotTimeoutMs;
         this.fastSlotTimeoutMs = fastSlotTimeoutMs;
-        this.performanceMonitor = new QueryPerformanceMonitor(updateGlobalAvgIntervalSeconds);
+        this.performanceMonitor = new QueryPerformanceMonitor(
+                updateGlobalAvgIntervalSeconds, classificationMode, slowQueryThresholdMs,
+                minimumSlowQueryMs, slowMultiplier, recoveryMultiplier,
+                minSamples, baselinePercentile, baselineRefreshIntervalSeconds);
 
         if (enabled) {
             this.slotManager = new SlotManager(totalSlots, slowSlotPercentage, idleTimeoutMs, maxWaitQueueDepth);
-            logger.info("AdmissionControlManager initialized: enabled={}, admissionControlOnly={}, totalSlots={}, slowSlotPercentage={}%, idleTimeout={}ms, slowSlotTimeout={}ms, fastSlotTimeout={}ms, updateGlobalAvgInterval={}s, maxWaitQueueDepth={}",
+            logger.info("AdmissionControlManager initialized: enabled={}, admissionControlOnly={}, totalSlots={}, slowSlotPercentage={}%, idleTimeout={}ms, slowSlotTimeout={}ms, fastSlotTimeout={}ms, updateGlobalAvgInterval={}s, classificationMode={}, minimumSlowQueryMs={}, slowMultiplier={}, recoveryMultiplier={}, minSamples={}, baselinePercentile={}, baselineRefreshIntervalSeconds={}, slowQueryThreshold={}ms, maxWaitQueueDepth={}",
                     enabled, admissionControlOnly, totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs,
-                    fastSlotTimeoutMs, updateGlobalAvgIntervalSeconds, slotManager.getMaxWaitQueueDepth());
+                    fastSlotTimeoutMs, updateGlobalAvgIntervalSeconds, performanceMonitor.getClassificationMode(),
+                    performanceMonitor.getMinimumSlowQueryMs(), performanceMonitor.getSlowMultiplier(),
+                    performanceMonitor.getRecoveryMultiplier(), performanceMonitor.getMinSamples(),
+                    performanceMonitor.getBaselinePercentile(), performanceMonitor.getBaselineRefreshIntervalSeconds(),
+                    performanceMonitor.getSlowQueryThresholdMs(), slotManager.getMaxWaitQueueDepth());
         } else {
             this.slotManager = null;
-            logger.info("AdmissionControlManager initialized: enabled={}, admissionControlOnly={}, updateGlobalAvgInterval={}s",
-                    enabled, admissionControlOnly, updateGlobalAvgIntervalSeconds);
+            logger.info("AdmissionControlManager initialized: enabled={}, admissionControlOnly={}, updateGlobalAvgInterval={}s, classificationMode={}, minimumSlowQueryMs={}, slowMultiplier={}, recoveryMultiplier={}, minSamples={}, baselinePercentile={}, baselineRefreshIntervalSeconds={}, slowQueryThreshold={}ms",
+                    enabled, admissionControlOnly, updateGlobalAvgIntervalSeconds, performanceMonitor.getClassificationMode(),
+                    performanceMonitor.getMinimumSlowQueryMs(), performanceMonitor.getSlowMultiplier(),
+                    performanceMonitor.getRecoveryMultiplier(), performanceMonitor.getMinSamples(),
+                    performanceMonitor.getBaselinePercentile(), performanceMonitor.getBaselineRefreshIntervalSeconds(),
+                    performanceMonitor.getSlowQueryThresholdMs());
         }
+    }
+
+    /**
+     * Creates a new AdmissionControlManager with relative-average classification defaults.
+     */
+    public AdmissionControlManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
+                                   long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds,
+                                    int maxWaitQueueDepth, boolean enabled) {
+        this(totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs,
+                updateGlobalAvgIntervalSeconds, QueryPerformanceMonitor.DEFAULT_CLASSIFICATION_MODE,
+                QueryPerformanceMonitor.DEFAULT_SLOW_QUERY_THRESHOLD_MS,
+                QueryPerformanceMonitor.DEFAULT_MINIMUM_SLOW_QUERY_MS,
+                QueryPerformanceMonitor.DEFAULT_SLOW_MULTIPLIER,
+                QueryPerformanceMonitor.DEFAULT_RECOVERY_MULTIPLIER,
+                QueryPerformanceMonitor.DEFAULT_MIN_SAMPLES,
+                QueryPerformanceMonitor.DEFAULT_BASELINE_PERCENTILE,
+                QueryPerformanceMonitor.DEFAULT_BASELINE_REFRESH_INTERVAL_SECONDS,
+                maxWaitQueueDepth, enabled);
     }
 
     /**
@@ -76,7 +116,7 @@ public class AdmissionControlManager {
      * @param enabled Whether admission control is enabled
      */
     public AdmissionControlManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
-                                      long slowSlotTimeoutMs, long fastSlotTimeoutMs, boolean enabled) {
+                                       long slowSlotTimeoutMs, long fastSlotTimeoutMs, boolean enabled) {
         this(totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs, 0L, 0, enabled);
     }
 
@@ -84,7 +124,7 @@ public class AdmissionControlManager {
      * Creates a new AdmissionControlManager with configured queue depth cap.
      */
     public AdmissionControlManager(int totalSlots, int slowSlotPercentage, long idleTimeoutMs,
-                                      long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds, boolean enabled) {
+                                       long slowSlotTimeoutMs, long fastSlotTimeoutMs, long updateGlobalAvgIntervalSeconds, boolean enabled) {
         this(totalSlots, slowSlotPercentage, idleTimeoutMs, slowSlotTimeoutMs, fastSlotTimeoutMs,
                 updateGlobalAvgIntervalSeconds, 0, enabled);
     }
@@ -259,9 +299,18 @@ public class AdmissionControlManager {
         }
 
         return String.format(
-            "AdmissionControlManager[enabled=true, admissionControlOnly=%s, trackedOps=%d, totalExecs=%d, overallAvg=%.2fms, %s]",
+            "AdmissionControlManager[enabled=true, admissionControlOnly=%s, classificationMode=%s, fastBaselineMs=%.2f, minimumSlowQueryMs=%d, slowMultiplier=%.2f, recoveryMultiplier=%.2f, minSamples=%d, baselinePercentile=%d, slowQueryThreshold=%dms, trackedOps=%d, classifiedSlowOps=%d, totalExecs=%d, overallAvg=%.2fms, %s]",
             admissionControlOnly,
+            performanceMonitor.getClassificationMode(),
+            performanceMonitor.getFastBaselineMs(),
+            performanceMonitor.getMinimumSlowQueryMs(),
+            performanceMonitor.getSlowMultiplier(),
+            performanceMonitor.getRecoveryMultiplier(),
+            performanceMonitor.getMinSamples(),
+            performanceMonitor.getBaselinePercentile(),
+            performanceMonitor.getSlowQueryThresholdMs(),
             performanceMonitor.getTrackedOperationCount(),
+            performanceMonitor.getClassifiedSlowOperationCount(),
             performanceMonitor.getTotalExecutionCount(),
             performanceMonitor.getOverallAverageExecutionTime(),
             slotManager.getStatus()

@@ -174,6 +174,14 @@ Controls how the server batches rows into gRPC streaming messages when returning
 | `ojp.server.slowQuerySegregation.idleTimeout`     | `OJP_SERVER_SLOWQUERYSEGREGATION_IDLETIMEOUT`     | long    | 10000    | Idle timeout for slot borrowing (milliseconds)  | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Slow-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Fast-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.classificationMode` | `OJP_SERVER_SLOWQUERYSEGREGATION_CLASSIFICATIONMODE` | enum (`RELATIVE_FAST_BASELINE` / `ABSOLUTE_THRESHOLD`) | `RELATIVE_FAST_BASELINE` | Slow-query classification strategy. `RELATIVE_FAST_BASELINE` is the default adaptive mode. | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.slowQueryThresholdMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWQUERYTHRESHOLDMS` | long | 1000 | Deterministic slow-query threshold in milliseconds used by `ABSOLUTE_THRESHOLD` mode. | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.minimumSlowQueryMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINIMUMSLOWQUERYMS` | long | 100 | Minimum operation average in milliseconds required before entering slow classification in relative mode. | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.slowMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWMULTIPLIER` | double | 5.0 | Relative-mode multiplier against fast baseline required to enter slow classification. | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.recoveryMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_RECOVERYMULTIPLIER` | double | 3.0 | Relative-mode multiplier against fast baseline for recovering from slow to fast. Must be less than `slowMultiplier`. | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.minSamples` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINSAMPLES` | int | 20 | Minimum per-query-shape sample count required before classification. | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.baselinePercentile` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEPERCENTILE` | int | 50 | Percentile used to compute fast baseline from currently-fast query-shape averages (1-99). | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEREFRESHINTERVALSECONDS` | long | 10 | Interval for refreshing cached fast baseline (seconds). `0` recomputes baseline on each classification check. | 0.4.17-SNAPSHOT |
 | `ojp.server.admissionControl.maxQueueDepth`       | `OJP_SERVER_ADMISSIONCONTROL_MAXQUEUEDEPTH`       | int     | 0        | Max admission waiters before fail-fast overload (0 = auto as `totalSlots × 2` per semaphore; `totalSlots` is the pool slot count used by admission control) | 0.4.16-SNAPSHOT |
 
 ### SQL Enhancer and Schema Loader Settings
@@ -424,7 +432,12 @@ The Slow Query Segregation feature monitors all database operations and classifi
 
 1. **Operation Monitoring**: Every SQL operation is tracked using a hash of the SQL statement
 2. **Execution Time Tracking**: Execution times are recorded and averaged using a weighted formula: `new_average = ((stored_average * 4) + new_measurement) / 5`
-3. **Classification**: An operation is classified as "slow" if its average execution time is **2x or greater** than the overall average execution time
+3. **Classification**:
+   - `RELATIVE_FAST_BASELINE` (default): compares each query-shape average against a fast baseline (default median of currently-fast query-shape averages), with hysteresis for stable enter/recover behavior.
+   - `ABSOLUTE_THRESHOLD`: operation average is **greater than or equal to** `ojp.server.slowQuerySegregation.slowQueryThresholdMs` (deterministic mode).
+   - In relative mode, already-classified slow query-shapes are excluded from the baseline to prevent baseline pollution.
+   - `minimumSlowQueryMs` prevents tiny-latency operations from being marked slow when baseline is very low.
+   - `slowMultiplier` controls slow-lane entry and `recoveryMultiplier` controls return to fast lane.
 4. **Slot Management**: The total number of concurrent operations is limited by the HikariCP connection pool maximum size
 5. **Slot Borrowing**: If one pool (slow/fast) is idle for a configurable time, the other pool can borrow its slots
 
@@ -445,6 +458,20 @@ ojp.server.slowQuerySegregation.slowSlotTimeout=120000
 
 # Timeout for acquiring fast operation slots (milliseconds)
 ojp.server.slowQuerySegregation.fastSlotTimeout=60000
+
+# Classification mode (`RELATIVE_FAST_BASELINE` or `ABSOLUTE_THRESHOLD`)
+ojp.server.slowQuerySegregation.classificationMode=RELATIVE_FAST_BASELINE
+
+# Relative-fast-baseline controls (defaults shown)
+ojp.server.slowQuerySegregation.minimumSlowQueryMs=100
+ojp.server.slowQuerySegregation.slowMultiplier=5.0
+ojp.server.slowQuerySegregation.recoveryMultiplier=3.0
+ojp.server.slowQuerySegregation.minSamples=20
+ojp.server.slowQuerySegregation.baselinePercentile=50
+ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds=10
+
+# Deterministic slow-query threshold in milliseconds (used by ABSOLUTE_THRESHOLD mode)
+ojp.server.slowQuerySegregation.slowQueryThresholdMs=1000
 
 # Admission queue depth cap across all admission-control modes (0 = auto)
 ojp.server.admissionControl.maxQueueDepth=0
