@@ -104,14 +104,21 @@ Attributes carry `datasource` and, where meaningful, `lane = fast|slow`.
 
 ## 5. Proposed metrics — Driver / client side
 
-The driver has no metrics infrastructure today. Two options:
+The driver has no metrics infrastructure today. Two pure options and one
+hybrid; see **Appendix §9** for the full deep dive.
 
-- **Option A (recommended): JMX MBeans.** Lowest dependency cost; integrates
-  with any monitoring stack via the JMX→Prometheus exporter; no new transitive
-  OpenTelemetry dependency added to applications using the driver.
-- **Option B: OpenTelemetry API (not SDK) as a driver dependency.** Higher
-  integration value but a non-trivial dependency decision for a JDBC driver —
-  warrants its own ADR before adopting.
+- **Option A: JMX MBeans.** Zero new driver dependency, universal consumer
+  support (JConsole, `jmx_exporter`, any APM agent). Scalars only; needs
+  exporter config for Prometheus.
+- **Option B: OpenTelemetry API in the driver.** Native dimensional model
+  and histograms, but introduces a real classpath dependency for every host
+  application — including those that don't use OTel — and creates a non-zero
+  version-skew risk.
+- **Option C (recommended): Hybrid.** JMX in the driver core, plus an
+  optional `ojp-jdbc-driver-otel-metrics` adapter jar published separately.
+  Mirrors HikariCP's history (JMX core + opt-in Micrometer/Dropwizard
+  adapters). Decision is reversible and Phase 2 is gated on real adoption
+  signal.
 
 Metrics themselves (regardless of transport), attributes `connHash`, `mode`:
 
@@ -169,9 +176,10 @@ Each layer can ship independently; each is observable from PromQL the same day.
 
 ## 8. Open decisions (need approval before implementing)
 
-- **Driver-side transport.** JMX (recommended) vs adding the OpenTelemetry API
-  as a driver dependency. Confidence: Medium — leaning JMX, but this is a
-  design call the maintainers should own. Likely warrants an ADR.
+- **Driver-side transport.** See Appendix §9 for the full deep dive.
+  Recommendation: hybrid (JMX in driver core + opt-in OTel adapter module
+  published separately). Confidence: ~80%. Still warrants an ADR before
+  Phase 2.
 - **`datasource` attribute identity.** The hash (`connHash`) is already
   available in code; a human-friendly datasource name would require config
   plumbing. Recommend starting with the hash and revisiting once needs are
@@ -184,7 +192,197 @@ Each layer can ship independently; each is observable from PromQL the same day.
 
 ---
 
-## 9. Code references
+## 9. Appendix — Deep dive: JMX vs OpenTelemetry for **driver-side** metrics
+
+> Scope: this appendix is **driver-only**. The server already uses
+> OpenTelemetry and that is not in question. The asymmetry matters: a JDBC
+> driver is loaded into someone else's JVM, so it must be a polite guest in a
+> way the server never has to be.
+
+### 9.1 Baseline facts that frame the decision
+
+- **Driver has zero OTel dependency today** (`grep opentelemetry
+  ojp-jdbc-driver/pom.xml` → 0; server → 21). Adding OTel is therefore an
+  *introduction*, not an extension.
+- **Driver minimum runtime is Java 11**, server is Java 21. Anything pulled
+  into the driver must compile and run on 11.
+- **The driver ships into the host application's classpath.** It does not
+  control which JVM, which OTel version (if any), or which exporter the host
+  application uses.
+- **Driver metric volume is tiny** (~8 series per `connHash`, no per-query
+  cardinality). The technical demand is well below what JMX can handle.
+
+### 9.2 Option A — JMX MBeans
+
+**How it would work.** Register one `ThrottleManagerMXBean` per `connHash`
+under e.g. `org.openjproxy:type=ClientThrottle,connHash=<hash>` with attributes
+mirroring §5 (inflight, limits, counters). No new runtime dependency. Host
+apps consume via:
+- JConsole / VisualVM out of the box,
+- `jmx_exporter` Java agent → Prometheus,
+- any APM agent (New Relic, AppDynamics, Datadog) that already scrapes JMX
+  (they all do).
+
+**Benefits**
+- **Zero new dependencies.** Stays inside `java.management`. No classloader,
+  no shading, no version-skew risk for host applications.
+- **Universally consumable.** Every Java monitoring tool understands JMX.
+  Operators don't need to install or configure anything OJP-specific.
+- **Java 11 friendly with no caveats.** No multi-release jar concerns, no
+  conditional bytecode.
+- **Cheap to remove or evolve.** MBeans are a thin façade over the existing
+  `AtomicInteger`s; if we change our mind in 6 months, deletion is trivial and
+  affects no public Java API.
+- **Matches the cultural norm for JDBC drivers.** HikariCP exposes pool
+  metrics via JMX by default (it added Micrometer/Dropwizard as *optional*
+  adapters). Operators expect this.
+- **No risk of "double OTel".** If the host app already uses OTel with a
+  different version, OJP's metrics still work — there is no classpath
+  collision to resolve.
+
+**Implications and downsides**
+- **Pull-only and rate-unaware by itself.** JMX exports raw values; rates
+  (`rate(rejected[5m])`) happen on the scraper side. This is exactly what
+  `jmx_exporter` is built for, but it is one more moving part operators must
+  configure.
+- **Naming / hierarchy maps awkwardly to dimensional metrics.** Prometheus
+  labels via `jmx_exporter` require a regex-based YAML config; operators must
+  copy or be given a sample rules file. We should ship one.
+- **No histograms natively.** JMX attributes are scalars. We would expose
+  `count` + `sum` + a few percentiles computed locally (e.g. via HdrHistogram)
+  if needed. For the proposed driver metric set this is acceptable because
+  there are no histograms — wait time lives only on the server side.
+- **No trace correlation.** JMX cannot attach exemplars or link a metric
+  point to a trace span. For a driver that does no tracing today, this is
+  zero practical loss.
+- **MBean lifecycle = a small footgun.** We must unregister on
+  `Connection`/throttle-manager teardown, and re-register safely if the same
+  `connHash` reappears. A static set of registered ObjectNames plus a JVM
+  shutdown hook handles this; it is a known pattern but real work.
+- **Security manager / module-system friction is essentially nil today** but
+  worth noting: `java.management` is a base module; no `--add-opens`
+  gymnastics.
+
+### 9.3 Option B — OpenTelemetry **API** in the driver
+
+> Important distinction: **API**, not **SDK**. The driver would call
+> `GlobalOpenTelemetry.get().meterBuilder(...)`, and the host application
+> supplies the SDK and exporter. If the host app has no SDK installed, OTel's
+> API returns a no-op meter and nothing breaks.
+
+**Benefits**
+- **Native dimensional model.** Attributes (`connHash`, `mode`, …) map 1:1 to
+  the proposed metric design. No YAML translation rules to maintain.
+- **Histograms first-class.** If we later want client-side wait-time
+  histograms (we currently don't), they are free.
+- **Trace correlation / exemplars.** A future "trace each throttled
+  rejection" feature lands without extra plumbing.
+- **One observability stack across server and driver.** A single dashboard
+  template, one mental model for operators who are already on OTel.
+- **Modern, where the industry is heading.** Most new-issue observability work
+  in Java assumes OTel.
+
+**Implications and downsides**
+- **Real dependency on the host application's classpath.** Even just the API
+  jar (`io.opentelemetry:opentelemetry-api`) means:
+  - One more jar in apps that don't use OTel.
+  - **Version-skew risk** is the dominant concern. If the host already pulls
+    a different OTel API version, the usual "newest wins" classpath rule
+    applies. OTel's API has been stable since 1.0 and tries hard to avoid
+    breaks, but transitive dependency conflicts are the #1 reason JDBC
+    drivers get blamed for "weird" startup failures. *Confidence this will
+    bite us at least once: ~70%.*
+  - We may eventually need to **shade and relocate** the OTel API
+    (`org.openjproxy.shaded.io.opentelemetry`) to be safe — but that breaks
+    the "metrics flow into the host's OTel pipeline" property, which is the
+    main reason to choose OTel in the first place. Shading defeats the
+    purpose; not shading risks conflicts. There is no clean middle.
+- **Silent no-op trap.** If the host application has the API but not an SDK
+  installed (a very common state — many apps include OTel transitively
+  without configuring it), `GlobalOpenTelemetry.get()` returns a no-op meter
+  and OJP metrics silently disappear. Operators will file bugs.
+- **API stability is *good*, not perfect.** The metrics API was incubating
+  for longer than tracing. We must pin a minimum version (≥ 1.31 is safe)
+  and document it.
+- **Larger driver jar / longer cold start.** Marginal (~200 KB, a few classes
+  loaded), but JDBC drivers compete on smallness.
+- **Java 11 baseline is fine** for current OTel API versions, but we lose
+  some freedom — if upstream raises its baseline to 17, we either pin an
+  older OTel or raise the driver's baseline. Either is awkward.
+- **Harder to remove.** Once shipped, removing the OTel dependency is a
+  breaking change for any user who wired exporters to our metric names.
+
+### 9.4 Hybrid — JMX now, optional OTel adapter later
+
+A pragmatic third path:
+
+1. **Phase 1:** Ship JMX. Counters/gauges live behind a tiny
+   `ClientThrottleMetrics` interface with a `JmxClientThrottleMetrics`
+   implementation, plus a `NoOp` (same pattern as
+   `OpenTelemetrySqlStatementMetrics` / `NoOpSqlStatementMetrics` on the
+   server side).
+2. **Phase 2 (optional, separate release):** Add a *separate Maven
+   coordinate* — e.g. `ojp-jdbc-driver-otel-metrics` — that depends on the
+   OTel API and implements the same interface. Users who want OTel add the
+   adapter jar; users who don't, don't pay any cost. No shading needed
+   because users opt in. No version conflicts for non-OTel users.
+
+**Why this is attractive**
+- The hard architectural decision (`ClientThrottleMetrics` interface) is
+  needed under *any* option. Doing it once unlocks both.
+- Mirrors HikariCP's history: JMX in core; Micrometer/Dropwizard as
+  separately-published adapters that nobody is forced to depend on.
+- Lets the maintainers see real adoption signal before committing the driver
+  to an OTel dependency.
+- Reversible. Phase 2 can be cancelled with zero impact on Phase 1 users.
+
+### 9.5 Comparison summary
+
+| Dimension | JMX | OTel API in driver | Hybrid (JMX core + adapter) |
+|---|---|---|---|
+| New driver dependency | None | `opentelemetry-api` | None (adapter is optional jar) |
+| Risk of host-classpath conflicts | None | Medium-High | None for core; opt-in for adapter |
+| Out-of-the-box for OTel users | Needs `jmx_exporter` or APM agent | Native | Native (with adapter) |
+| Out-of-the-box for non-OTel users | Native (JConsole, APMs) | They pay the dep cost anyway | Native |
+| Dimensional labels | Via `jmx_exporter` rules | Native | Both, depending on jar |
+| Histograms | Scalars only (fine for §5) | Native | Both, depending on jar |
+| Trace exemplars | No | Yes | Adapter-only |
+| Driver jar size impact | ~0 | ~200 KB | ~0 for core |
+| Reversibility | High | Low | High |
+| Cultural fit for a JDBC driver | Strong (Hikari precedent) | Mixed | Strong + future-proof |
+| Implementation effort | Low | Low | Low + Low (separate module) |
+
+### 9.6 Recommendation
+
+**Adopt the hybrid.** Concretely:
+
+1. Introduce `org.openjproxy.jdbc.metrics.ClientThrottleMetrics` in
+   `ojp-jdbc-driver` with `NoOp` and `Jmx` implementations.
+2. Wire `ClientThrottleManager` and `Connection` to the interface; default
+   binding selected by a system property (`ojp.jdbc.metrics=jmx|none`,
+   default `jmx`).
+3. Open a follow-up issue to evaluate an `ojp-jdbc-driver-otel-metrics`
+   adapter module after one minor release of real-world usage.
+
+**Confidence: ~80% (High).** The main residual uncertainty is whether enough
+users will ask for native OTel in the driver to justify Phase 2; that
+question answers itself with telemetry-of-the-telemetry over the next couple
+of releases.
+
+### 9.7 Things that would *change* the recommendation
+
+- If maintainers already plan to add tracing to the driver, jumping straight
+  to OTel becomes more defensible — counters and spans want to share the
+  same context.
+- If we want exemplar-linked debugging (`rejected.total{trace_id=...}`) as a
+  first-class operator feature, OTel becomes strongly preferred.
+- If the project decides to raise the driver's minimum Java to 17+, the
+  classpath-conflict risk shrinks (more apps will have aligned to modern OTel
+  baselines), nudging toward straight OTel.
+
+---
+
+## 10. Code references
 
 - `ojp-server/src/main/java/org/openjproxy/grpc/server/ConcurrencyThrottleInterceptor.java`
 - `ojp-server/src/main/java/org/openjproxy/grpc/server/SlotManager.java`
