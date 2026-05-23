@@ -178,7 +178,7 @@ public class ClientThrottleManager {
         inFlight.updateAndGet(v -> Math.max(0, v - 1));
     }
 
-    public int getEffectiveLimit(ClientThrottleMode mode) {
+    int getEffectiveLimit(ClientThrottleMode mode) {
         switch (mode) {
             case PROACTIVE: return proactiveLimit;
             case REACTIVE: return reactiveLimit;
