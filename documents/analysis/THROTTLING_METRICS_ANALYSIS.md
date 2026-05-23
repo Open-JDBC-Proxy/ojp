@@ -176,10 +176,11 @@ Each layer can ship independently; each is observable from PromQL the same day.
 
 ## 8. Open decisions (need approval before implementing)
 
-- **Driver-side transport.** See Appendix §9 for the full deep dive.
-  Recommendation: hybrid (JMX in driver core + opt-in OTel adapter module
-  published separately). Confidence: ~80%. Still warrants an ADR before
-  Phase 2.
+- **Driver-side transport.** Decided in **ADR-010**: hybrid (JMX in driver
+  core + opt-in `ojp-jdbc-driver-otel-metrics` adapter module). Phase 1 (JMX
+  + `ClientThrottleMetrics` interface + `ClientThrottleMetricsFactory`) is
+  implemented in this PR. Phase 2 (OTel adapter module) deferred to a
+  follow-up issue.
 - **`datasource` attribute identity.** The hash (`connHash`) is already
   available in code; a human-friendly datasource name would require config
   plumbing. Recommend starting with the hash and revisiting once needs are

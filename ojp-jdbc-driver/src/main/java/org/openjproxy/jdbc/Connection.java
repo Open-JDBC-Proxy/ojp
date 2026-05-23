@@ -15,6 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.StatementService;
+import org.openjproxy.jdbc.metrics.ClientThrottleMetrics;
+import org.openjproxy.jdbc.metrics.ClientThrottleMetricsFactory;
+import org.openjproxy.jdbc.metrics.ClientThrottleStateProvider;
 
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
@@ -92,14 +95,51 @@ public class Connection implements java.sql.Connection {
 
     private void updateThrottleLimits(SessionInfo info) {
         if (info != null && !info.getConnHash().isEmpty()) {
-            THROTTLE_MANAGERS.computeIfAbsent(info.getConnHash(), k -> new ClientThrottleManager())
-                    .updateFromSessionInfo(info);
+            ClientThrottleManager manager = THROTTLE_MANAGERS.computeIfAbsent(info.getConnHash(),
+                    k -> createThrottleManager(k));
+            manager.updateFromSessionInfo(info);
         }
+    }
+
+    private ClientThrottleManager createThrottleManager(String connHash) {
+        ClientThrottleManager manager = new ClientThrottleManager();
+        // Snapshot the mode to avoid the state provider holding a reference back to this Connection
+        // (this throttle manager lives in a static map for the lifetime of the JVM).
+        final ClientThrottleMode capturedMode = throttleMode == null ? ClientThrottleMode.OFF : throttleMode;
+        ClientThrottleStateProvider stateProvider = new ClientThrottleStateProvider() {
+            @Override
+            public String getMode() {
+                return capturedMode.name();
+            }
+
+            @Override
+            public int getInFlight() {
+                return manager.getInFlight();
+            }
+
+            @Override
+            public int getProactiveLimit() {
+                return manager.getProactiveLimit();
+            }
+
+            @Override
+            public int getReactiveLimit() {
+                return manager.getReactiveLimit();
+            }
+
+            @Override
+            public int getEffectiveLimit() {
+                return manager.getEffectiveLimit(capturedMode);
+            }
+        };
+        ClientThrottleMetrics metrics = ClientThrottleMetricsFactory.create(connHash, stateProvider);
+        manager.setMetrics(metrics);
+        return manager;
     }
 
     ClientThrottleManager getThrottleManager() {
         if (session != null && !session.getConnHash().isEmpty()) {
-            return THROTTLE_MANAGERS.computeIfAbsent(session.getConnHash(), k -> new ClientThrottleManager());
+            return THROTTLE_MANAGERS.computeIfAbsent(session.getConnHash(), k -> createThrottleManager(k));
         }
         return null;
     }
