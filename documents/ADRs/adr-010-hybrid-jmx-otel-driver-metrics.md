@@ -49,8 +49,8 @@ If `otel` is requested but the OTel adapter is not on the classpath, the factory
 
 ## Rollout
 
-1. **Phase 1 (this ADR).** Land `ClientThrottleMetrics` interface, `NoOp` and `JMX` implementations, factory, and wiring in `ClientThrottleManager` / `Connection`. Default: `jmx`. No new runtime dependencies in `ojp-jdbc-driver`.
-2. **Phase 2 (follow-up issue).** Author `ojp-jdbc-driver-otel-metrics` as a separate Maven module that depends on `opentelemetry-api` and implements the same interface. Users who want OTel add the adapter jar; users who don't, don't pay any cost.
+1. **Phase 1 (this ADR).** Land `ClientThrottleMetrics` interface, `NoOp` and `JMX` implementations, factory, and wiring in `ClientThrottleManager` / `Connection`. Default: `jmx`. No new runtime dependencies in `ojp-jdbc-driver`. **Status: implemented.**
+2. **Phase 2 (this ADR).** `ojp-jdbc-driver-otel-metrics` Maven module: depends on `opentelemetry-api` (scope `provided`), implements `ClientThrottleMetrics` against `GlobalOpenTelemetry.get()`, and registers an `OpenTelemetryClientThrottleMetricsProvider` via `META-INF/services` so the driver-core factory discovers it through `ServiceLoader` when `-Dojp.jdbc.metrics=otel` is set. Users who want OTel add the adapter jar; users who don't, pay nothing. **Status: implemented.** See `ojp-jdbc-driver-otel-metrics/`.
 
 | Status        | PROPOSED            |
 |---------------|---------------------|

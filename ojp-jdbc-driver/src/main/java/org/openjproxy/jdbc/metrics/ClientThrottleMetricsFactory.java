@@ -2,6 +2,9 @@ package org.openjproxy.jdbc.metrics;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Locale;
+import java.util.ServiceLoader;
+
 /**
  * Selects the {@link ClientThrottleMetrics} implementation based on the
  * {@code ojp.jdbc.metrics} system property.
@@ -9,9 +12,11 @@ import lombok.extern.slf4j.Slf4j;
  * <ul>
  *   <li>{@code jmx}  — default; registers a {@link JmxClientThrottleMetrics} MBean.</li>
  *   <li>{@code none} — returns {@link NoOpClientThrottleMetrics#INSTANCE}.</li>
- *   <li>{@code otel} — reserved for the future {@code ojp-jdbc-driver-otel-metrics}
- *       adapter; if the adapter is not on the classpath, falls back to {@code jmx}
- *       with a single WARN log.</li>
+ *   <li>Any other value — looked up via {@link ServiceLoader} for a
+ *       {@link ClientThrottleMetricsProvider} whose {@link ClientThrottleMetricsProvider#name() name}
+ *       matches (case-insensitive). For example, the {@code ojp-jdbc-driver-otel-metrics}
+ *       adapter registers a provider named {@code "otel"}. If no matching provider is
+ *       found, falls back to {@code jmx} with a single WARN log.</li>
  * </ul>
  *
  * <p>See ADR-010.</p>
@@ -43,15 +48,33 @@ public final class ClientThrottleMetricsFactory {
         switch (binding) {
             case "none":
                 return NoOpClientThrottleMetrics.INSTANCE;
-            case "otel":
-                // Phase 2 adapter is not yet implemented in driver core; fall back to JMX.
-                log.warn("ojp.jdbc.metrics=otel requires the ojp-jdbc-driver-otel-metrics adapter "
-                        + "on the classpath; falling back to JMX. See ADR-010.");
-                return new JmxClientThrottleMetrics(connHash, stateProvider);
             case "jmx":
-            default:
                 return new JmxClientThrottleMetrics(connHash, stateProvider);
+            default:
+                return loadProvider(binding, connHash, stateProvider);
         }
+    }
+
+    private static ClientThrottleMetrics loadProvider(String binding, String connHash,
+                                                      ClientThrottleStateProvider stateProvider) {
+        try {
+            for (ClientThrottleMetricsProvider provider : ServiceLoader.load(ClientThrottleMetricsProvider.class)) {
+                if (provider != null && binding.equalsIgnoreCase(provider.name())) {
+                    ClientThrottleMetrics metrics = provider.create(connHash, stateProvider);
+                    if (metrics != null) {
+                        return metrics;
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            // ServiceLoader.iterator() can throw ServiceConfigurationError; never let metrics break JDBC.
+            log.warn("ServiceLoader lookup for ojp.jdbc.metrics={} failed: {}; falling back to JMX.",
+                    binding, t.getMessage());
+            return new JmxClientThrottleMetrics(connHash, stateProvider);
+        }
+        log.warn("ojp.jdbc.metrics={} requires a matching ClientThrottleMetricsProvider on the classpath "
+                + "(e.g. ojp-jdbc-driver-otel-metrics for 'otel'); falling back to JMX. See ADR-010.", binding);
+        return new JmxClientThrottleMetrics(connHash, stateProvider);
     }
 
     private static String resolveBinding() {
@@ -59,7 +82,7 @@ public final class ClientThrottleMetricsFactory {
         if (raw == null) {
             return DEFAULT;
         }
-        String value = raw.trim().toLowerCase();
+        String value = raw.trim().toLowerCase(Locale.ROOT);
         if (value.isEmpty()) {
             return DEFAULT;
         }

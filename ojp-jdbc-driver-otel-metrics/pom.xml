@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <name>OJP JDBC Driver OpenTelemetry Metrics Adapter</name>
+    <artifactId>ojp-jdbc-driver-otel-metrics</artifactId>
+    <version>0.4.18-SNAPSHOT</version>
+    <description>
+        Optional OpenTelemetry adapter for the OJP JDBC driver's client-side
+        throttling metrics. Drop this jar on the classpath and set
+        -Dojp.jdbc.metrics=otel to publish ojp.client.throttle.* metrics through
+        the host application's OpenTelemetry pipeline. See ADR-010.
+    </description>
+
+    <parent>
+        <groupId>org.openjproxy</groupId>
+        <artifactId>ojp-parent</artifactId>
+        <version>0.4.18-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <properties>
+        <opentelemetry.version>1.62.0</opentelemetry.version>
+    </properties>
+
+    <dependencies>
+        <!-- OJP JDBC driver: brings the ClientThrottleMetrics SPI -->
+        <dependency>
+            <groupId>org.openjproxy</groupId>
+            <artifactId>ojp-jdbc-driver</artifactId>
+            <version>0.4.18-SNAPSHOT</version>
+        </dependency>
+
+        <!-- OpenTelemetry API. Provided so the host application controls the OTel version. -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <version>${opentelemetry.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- SLF4J API is provided by the consuming application -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.14.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+            <version>${opentelemetry.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
+            <version>${opentelemetry.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.2.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <configuration>
+                    <failOnWarnings>false</failOnWarnings>
+                    <doclint>none</doclint>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <scm>
+        <url>https://github.com/Open-J-Proxy/ojp</url>
+        <connection>scm:git:https://github.com/Open-J-Proxy/ojp.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com:Open-J-Proxy/ojp.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>rrobetti</id>
+            <name>Rogerio Robetti</name>
+        </developer>
+    </developers>
+
+    <url>https://github.com/Open-J-Proxy/ojp</url>
+
+</project>

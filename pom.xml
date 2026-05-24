@@ -15,6 +15,7 @@
     <modules>
         <module>ojp-grpc-commons</module>
         <module>ojp-jdbc-driver</module>
+        <module>ojp-jdbc-driver-otel-metrics</module>
         <module>ojp-server</module>
         <module>ojp-datasource-api</module>
         <module>ojp-datasource-hikari</module>
