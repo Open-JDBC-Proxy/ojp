@@ -142,6 +142,11 @@ public class ClientThrottleManager {
 
         int effectiveLimit = getEffectiveLimit(mode);
         if (effectiveLimit == Integer.MAX_VALUE) {
+            // No limit configured yet (e.g. before first SessionInfo arrives, or REACTIVE mode
+            // pre-overload). Still increment inFlight so that the observability gauge reflects
+            // actual concurrent driver load, and so acquire/release remain symmetric (release()
+            // always decrements). The increment is cheap (one CAS) and never blocks the request.
+            inFlight.incrementAndGet();
             metrics.recordAcquired();
             return true;
         }

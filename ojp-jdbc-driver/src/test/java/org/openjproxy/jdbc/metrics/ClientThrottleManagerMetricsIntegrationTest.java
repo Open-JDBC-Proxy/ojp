@@ -75,4 +75,21 @@ class ClientThrottleManagerMetricsIntegrationTest {
         assertEquals(0, metrics.acquired.get());
         assertEquals(0, metrics.rejected.get());
     }
+
+    @Test
+    void shouldTrackInFlightEvenWhenLimitIsUnlimited() {
+        // Before any SessionInfo arrives the effective limit is Integer.MAX_VALUE. The inflight
+        // gauge must still reflect concurrent driver load and stay symmetric with release().
+        ClientThrottleManager manager = new ClientThrottleManager();
+        manager.setMetrics(new CountingMetrics());
+
+        assertEquals(0, manager.getInFlight());
+        assertEquals(true, manager.tryAcquire(ClientThrottleMode.COMBINED, false));
+        assertEquals(true, manager.tryAcquire(ClientThrottleMode.COMBINED, false));
+        assertEquals(2, manager.getInFlight());
+
+        manager.release(ClientThrottleMode.COMBINED, false);
+        manager.release(ClientThrottleMode.COMBINED, false);
+        assertEquals(0, manager.getInFlight());
+    }
 }

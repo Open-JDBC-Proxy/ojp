@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.jdbc.metrics.ClientThrottleMetrics;
 import org.openjproxy.jdbc.metrics.ClientThrottleStateProvider;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * OpenTelemetry-backed {@link ClientThrottleMetrics}.
  *
@@ -40,6 +42,9 @@ public final class OpenTelemetryClientThrottleMetrics implements ClientThrottleM
     static final AttributeKey<String> CONN_HASH_KEY = AttributeKey.stringKey("ojp.connection.hash");
     static final AttributeKey<String> DIRECTION_KEY = AttributeKey.stringKey("direction");
 
+    /** One-shot guard for the "GlobalOpenTelemetry is noop" warning (process-wide). */
+    private static final AtomicBoolean NOOP_WARNED = new AtomicBoolean(false);
+
     private final Attributes baseAttrs;
     private final Attributes increaseAttrs;
     private final Attributes decreaseAttrs;
@@ -57,7 +62,25 @@ public final class OpenTelemetryClientThrottleMetrics implements ClientThrottleM
     private volatile boolean closed;
 
     public OpenTelemetryClientThrottleMetrics(String connHash, ClientThrottleStateProvider stateProvider) {
-        this(GlobalOpenTelemetry.get(), connHash, stateProvider);
+        this(resolveGlobalOpenTelemetryWithWarning(), connHash, stateProvider);
+    }
+
+    /**
+     * Resolve {@link GlobalOpenTelemetry#get()} and log a single WARN the first time we observe
+     * that the global is the no-op instance. Without an SDK registered (e.g. via the OTel
+     * Java agent, {@code opentelemetry-sdk-extension-autoconfigure}, or a manual
+     * {@code GlobalOpenTelemetry.set(...)}), every counter and gauge below silently drops on the
+     * floor. This warning surfaces the misconfiguration so the operator knows why no metrics appear.
+     */
+    private static OpenTelemetry resolveGlobalOpenTelemetryWithWarning() {
+        OpenTelemetry otel = GlobalOpenTelemetry.get();
+        if (otel == OpenTelemetry.noop() && NOOP_WARNED.compareAndSet(false, true)) {
+            log.warn("ojp.jdbc.metrics=otel selected, but GlobalOpenTelemetry is the no-op instance — "
+                    + "no client throttle metrics will be exported. Register an OpenTelemetry SDK before "
+                    + "the first JDBC connection (e.g. via the OpenTelemetry Java agent, "
+                    + "opentelemetry-sdk-extension-autoconfigure, or GlobalOpenTelemetry.set(sdk)).");
+        }
+        return otel;
     }
 
     public OpenTelemetryClientThrottleMetrics(OpenTelemetry openTelemetry, String connHash,
