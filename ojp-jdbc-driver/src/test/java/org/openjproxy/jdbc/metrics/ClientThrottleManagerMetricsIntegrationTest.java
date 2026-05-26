@@ -8,6 +8,7 @@ import org.openjproxy.jdbc.ClientThrottleMode;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that {@link ClientThrottleManager} invokes the attached
@@ -84,8 +85,8 @@ class ClientThrottleManagerMetricsIntegrationTest {
         manager.setMetrics(new CountingMetrics());
 
         assertEquals(0, manager.getInFlight());
-        assertEquals(true, manager.tryAcquire(ClientThrottleMode.COMBINED, false));
-        assertEquals(true, manager.tryAcquire(ClientThrottleMode.COMBINED, false));
+        assertTrue(manager.tryAcquire(ClientThrottleMode.COMBINED, false));
+        assertTrue(manager.tryAcquire(ClientThrottleMode.COMBINED, false));
         assertEquals(2, manager.getInFlight());
 
         manager.release(ClientThrottleMode.COMBINED, false);
