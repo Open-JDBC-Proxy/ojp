@@ -4,6 +4,17 @@ This directory contains technical analysis documents for various OJP features an
 
 ## Latest Analysis (May 2026)
 
+### 🆕 Throttling Metrics Exposure
+
+**Question:** OJP throttles requests in three independent layers but exposes no metrics. What should be exposed?
+
+**Quick Answer:** Introduce an `ojp.throttle.*` OpenTelemetry meter scope covering the global gRPC gate, per-datasource `SlotManager` (fast/slow lanes, queue depth, observed peak, AIMD), and the driver-side `ClientThrottleManager` (in-flight, proactive/reactive limits, server-overload events). Driver-side transport (JMX vs OTel API) is left as an open decision.
+
+**Document:** [THROTTLING_METRICS_ANALYSIS.md](./THROTTLING_METRICS_ANALYSIS.md)
+
+---
+
+
 ### 🆕 Prepared Statement Cache Server Settings Design
 
 **Question:** How should OJP expose default-enabled prepared statement caching using standard OJP server properties and runtime datasource translation?

@@ -2,6 +2,8 @@ package org.openjproxy.jdbc;
 
 import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
+import org.openjproxy.jdbc.metrics.ClientThrottleMetrics;
+import org.openjproxy.jdbc.metrics.NoOpClientThrottleMetrics;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -27,6 +29,21 @@ public class ClientThrottleManager {
     private volatile int reactiveLimit = Integer.MAX_VALUE;
     private volatile int lastProactiveLimit = Integer.MAX_VALUE;
     private volatile int lastReactiveLimit = Integer.MAX_VALUE;
+    private volatile ClientThrottleMetrics metrics = NoOpClientThrottleMetrics.INSTANCE;
+
+    /**
+     * Attach a metrics sink. Idempotent for the No-op default; for a real
+     * sink, the caller (typically {@link Connection}) is responsible for
+     * lifecycle (close on connection-pool eviction is not required because
+     * the manager lives for the JVM lifetime in {@code THROTTLE_MANAGERS}).
+     */
+    public void setMetrics(ClientThrottleMetrics metrics) {
+        this.metrics = metrics == null ? NoOpClientThrottleMetrics.INSTANCE : metrics;
+    }
+
+    public ClientThrottleMetrics getMetrics() {
+        return metrics;
+    }
 
     /**
      * Update limits from a fresh SessionInfo.
@@ -59,8 +76,10 @@ public class ClientThrottleManager {
             }
             if (newProactive < lastProactiveLimit) {
                 proactiveLimit = newProactive;
+                metrics.recordLimitChange(ClientThrottleMetrics.LimitChangeDirection.DECREASE);
             } else if (newProactive > lastProactiveLimit) {
                 proactiveLimit = lastProactiveLimit + 1;
+                metrics.recordLimitChange(ClientThrottleMetrics.LimitChangeDirection.INCREASE);
             }
             lastProactiveLimit = proactiveLimit;
         }
@@ -74,8 +93,10 @@ public class ClientThrottleManager {
             }
             if (newReactive < lastReactiveLimit) {
                 reactiveLimit = newReactive;
+                metrics.recordLimitChange(ClientThrottleMetrics.LimitChangeDirection.DECREASE);
             } else if (newReactive > lastReactiveLimit) {
                 reactiveLimit = lastReactiveLimit + 1;
+                metrics.recordLimitChange(ClientThrottleMetrics.LimitChangeDirection.INCREASE);
             }
             lastReactiveLimit = reactiveLimit;
         } else {
@@ -121,12 +142,19 @@ public class ClientThrottleManager {
 
         int effectiveLimit = getEffectiveLimit(mode);
         if (effectiveLimit == Integer.MAX_VALUE) {
+            // No limit configured yet (e.g. before first SessionInfo arrives, or REACTIVE mode
+            // pre-overload). Still increment inFlight so that the observability gauge reflects
+            // actual concurrent driver load, and so acquire/release remain symmetric (release()
+            // always decrements). The increment is cheap (one CAS) and never blocks the request.
+            inFlight.incrementAndGet();
+            metrics.recordAcquired();
             return true;
         }
 
         int current = inFlight.get();
         if (current >= effectiveLimit) {
             log.debug("Client throttle rejected: inFlight={}, effectiveLimit={}, mode={}", current, effectiveLimit, mode);
+            metrics.recordRejected();
             return false;
         }
         // CAS loop: atomically check-and-increment to avoid exceeding the limit due to races
@@ -134,9 +162,11 @@ public class ClientThrottleManager {
             int cur = inFlight.get();
             if (cur >= effectiveLimit) {
                 log.debug("Client throttle rejected (CAS): inFlight={}, effectiveLimit={}, mode={}", cur, effectiveLimit, mode);
+                metrics.recordRejected();
                 return false;
             }
             if (inFlight.compareAndSet(cur, cur + 1)) {
+                metrics.recordAcquired();
                 return true;
             }
         }
@@ -153,7 +183,7 @@ public class ClientThrottleManager {
         inFlight.updateAndGet(v -> Math.max(0, v - 1));
     }
 
-    private int getEffectiveLimit(ClientThrottleMode mode) {
+    int getEffectiveLimit(ClientThrottleMode mode) {
         switch (mode) {
             case PROACTIVE: return proactiveLimit;
             case REACTIVE: return reactiveLimit;
@@ -196,6 +226,10 @@ public class ClientThrottleManager {
         }
         reactiveLimit = newLimit;
         lastReactiveLimit = newLimit;
+        metrics.recordServerOverload();
+        if (current != newLimit) {
+            metrics.recordLimitChange(ClientThrottleMetrics.LimitChangeDirection.DECREASE);
+        }
         log.debug("ClientThrottleManager notifyServerOverload: reactiveLimit {} -> {}", current, newLimit);
     }
 
