@@ -4,6 +4,12 @@ import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
+
+import static org.openjproxy.constants.CommonConstants.DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_ERROR_THRESHOLD;
+import static org.openjproxy.constants.CommonConstants.DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_WINDOW_MILLIS;
+import static org.openjproxy.constants.CommonConstants.JDBC_CLIENT_THROTTLE_REACTIVE_ERROR_THRESHOLD_PROPERTY;
+import static org.openjproxy.constants.CommonConstants.JDBC_CLIENT_THROTTLE_REACTIVE_WINDOW_MILLIS_PROPERTY;
 
 /**
  * Per-connHash, per-node client-side throttle.
@@ -27,6 +33,52 @@ public class ClientThrottleManager {
     private volatile int reactiveLimit = Integer.MAX_VALUE;
     private volatile int lastProactiveLimit = Integer.MAX_VALUE;
     private volatile int lastReactiveLimit = Integer.MAX_VALUE;
+
+    // Rolling-window burst detection for notifyServerOverload().
+    // Halve reactiveLimit only when at least overloadErrorThreshold RESOURCE_EXHAUSTED
+    // events occur within overloadWindowNanos. State is touched only in the (cold) error
+    // path, never in tryAcquire/release, so the hot path has zero added overhead.
+    private final int overloadErrorThreshold;
+    private final long overloadWindowNanos;
+    private final long[] overloadTimestamps;
+    private int overloadCount = 0;
+    private final LongSupplier nowNanos;
+
+    public ClientThrottleManager() {
+        this(readErrorThreshold(), readWindowMillis(), System::nanoTime);
+    }
+
+    /** Package-private constructor for tests: injectable threshold, window and clock. */
+    ClientThrottleManager(int errorThreshold, long windowMillis, LongSupplier nowNanos) {
+        this.overloadErrorThreshold = Math.max(1, errorThreshold);
+        this.overloadWindowNanos = Math.max(0L, windowMillis) * 1_000_000L;
+        this.overloadTimestamps = new long[this.overloadErrorThreshold];
+        this.nowNanos = nowNanos;
+    }
+
+    private static int readErrorThreshold() {
+        String raw = System.getProperty(JDBC_CLIENT_THROTTLE_REACTIVE_ERROR_THRESHOLD_PROPERTY);
+        if (raw == null || raw.isEmpty()) {
+            return DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_ERROR_THRESHOLD;
+        }
+        try {
+            return Math.max(1, Integer.parseInt(raw.trim()));
+        } catch (NumberFormatException e) {
+            return DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_ERROR_THRESHOLD;
+        }
+    }
+
+    private static long readWindowMillis() {
+        String raw = System.getProperty(JDBC_CLIENT_THROTTLE_REACTIVE_WINDOW_MILLIS_PROPERTY);
+        if (raw == null || raw.isEmpty()) {
+            return DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_WINDOW_MILLIS;
+        }
+        try {
+            return Math.max(0L, Long.parseLong(raw.trim()));
+        } catch (NumberFormatException e) {
+            return DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_WINDOW_MILLIS;
+        }
+    }
 
     /**
      * Update limits from a fresh SessionInfo.
@@ -171,20 +223,28 @@ public class ClientThrottleManager {
 
     /**
      * Called when the server rejects a request with RESOURCE_EXHAUSTED (slot admission timeout).
-     * Applies a multiplicative decrease to the reactive limit (AIMD: halve on overload).
+     * Applies a multiplicative decrease to the reactive limit (AIMD: halve on overload), but
+     * only when a burst of RESOURCE_EXHAUSTED events has been observed — specifically, at
+     * least {@code overloadErrorThreshold} events within {@code overloadWindowNanos}. A single
+     * isolated error is treated as transient noise and does not change the limit. When
+     * {@code overloadErrorThreshold == 1} the historical "halve on every overload" behaviour
+     * is preserved.
      *
      * <p>Example: reactiveLimit = 8 → notifyServerOverload() → reactiveLimit = 4.
      * The next request will be blocked client-side instead of hitting the still-overloaded server.
      * If the reactive limit was uninitialised (MAX_VALUE), it is seeded from half the proactive
      * limit so the client immediately backs off to a reasonable level.</p>
      *
-     * <p>Thread safety: reads and writes to {@code reactiveLimit} and {@code lastReactiveLimit}
-     * are individually atomic (volatile), but the read-compute-write sequence is not atomic.
-     * This is intentional: concurrent calls both halve the limit, producing a more aggressive
-     * decrease that is desirable when multiple threads observe the same overload. This matches
-     * the eventually-consistent AIMD design used throughout this class.</p>
+     * <p>Thread safety: the rolling-window bookkeeping is serialised on this instance's
+     * monitor. This is only contended on the (rare) RESOURCE_EXHAUSTED path; the hot
+     * tryAcquire/release path is unaffected. Reads and writes to {@code reactiveLimit} and
+     * {@code lastReactiveLimit} remain volatile.</p>
      */
     public void notifyServerOverload() {
+        if (!recordOverloadAndCheckBurst()) {
+            log.debug("ClientThrottleManager notifyServerOverload: ignored (below burst threshold)");
+            return;
+        }
         int current = reactiveLimit;
         int newLimit;
         if (current == Integer.MAX_VALUE) {
@@ -196,7 +256,38 @@ public class ClientThrottleManager {
         }
         reactiveLimit = newLimit;
         lastReactiveLimit = newLimit;
-        log.debug("ClientThrottleManager notifyServerOverload: reactiveLimit {} -> {}", current, newLimit);
+        log.debug("ClientThrottleManager notifyServerOverload: reactiveLimit {} -> {} (burst threshold {} reached within {} ms)",
+                current, newLimit, overloadErrorThreshold, overloadWindowNanos / 1_000_000L);
+    }
+
+    /**
+     * Record an overload event and return true if it completes a burst of at least
+     * {@code overloadErrorThreshold} events within {@code overloadWindowNanos}. The burst
+     * counter is reset on a positive return so the next halving requires a fresh burst.
+     */
+    private synchronized boolean recordOverloadAndCheckBurst() {
+        long now = nowNanos.getAsLong();
+        if (overloadErrorThreshold <= 1) {
+            // Legacy behaviour: every overload triggers a halving.
+            return true;
+        }
+        int idx = overloadCount % overloadErrorThreshold;
+        long oldest = overloadTimestamps[idx];
+        overloadTimestamps[idx] = now;
+        overloadCount++;
+        if (overloadCount < overloadErrorThreshold) {
+            return false;
+        }
+        // oldest is the timestamp of the (errorThreshold-1)-th previous event.
+        if ((now - oldest) <= overloadWindowNanos) {
+            // Reset: next halving requires a fresh burst.
+            overloadCount = 0;
+            for (int i = 0; i < overloadTimestamps.length; i++) {
+                overloadTimestamps[i] = 0L;
+            }
+            return true;
+        }
+        return false;
     }
 
     public int getProactiveLimit() {

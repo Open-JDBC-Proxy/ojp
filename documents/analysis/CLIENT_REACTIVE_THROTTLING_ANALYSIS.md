@@ -44,8 +44,18 @@ flowchart TD
 
 **Example 2 (overload signal):**
 - A request gets `RESOURCE_EXHAUSTED` from server.
-- Driver halves reactive limit (for example `40 → 20`).
+- The driver records the event in a small rolling-window buffer. A single isolated error is
+  ignored as transient noise; the reactive limit is **only** halved when at least
+  `ojp.jdbc.clientThrottle.reactive.errorThreshold` (default `3`) errors are observed within
+  `ojp.jdbc.clientThrottle.reactive.windowMillis` (default `60000` ms — one minute).
+- Once a burst is detected, the driver halves the reactive limit (for example `40 → 20`) and
+  resets the buffer so the next halving requires a fresh burst.
 - Next bursts are rejected in the client first, so fewer requests hit an overloaded server.
+- The rolling-window bookkeeping lives entirely in the (cold) error-handling path; the hot
+  `tryAcquire`/`release` path remains a single `AtomicInteger` CAS.
+
+To preserve the historical behaviour of "halve on the first error", set
+`ojp.jdbc.clientThrottle.reactive.errorThreshold=1`.
 
 ---
 

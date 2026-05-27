@@ -55,6 +55,16 @@ public class CommonConstants {
     public static final String JDBC_CLIENT_THROTTLE_MODE_PROPERTY = "ojp.jdbc.clientThrottle.mode";
     public static final String DEFAULT_JDBC_CLIENT_THROTTLE_MODE = "reactive";
 
+    // Reactive throttle burst-detection: only halve the reactive limit when at least
+    // errorThreshold RESOURCE_EXHAUSTED events occur within windowMillis. A threshold of
+    // 1 preserves the legacy "halve on first error" behaviour.
+    public static final String JDBC_CLIENT_THROTTLE_REACTIVE_ERROR_THRESHOLD_PROPERTY =
+            "ojp.jdbc.clientThrottle.reactive.errorThreshold";
+    public static final int DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_ERROR_THRESHOLD = 3;
+    public static final String JDBC_CLIENT_THROTTLE_REACTIVE_WINDOW_MILLIS_PROPERTY =
+            "ojp.jdbc.clientThrottle.reactive.windowMillis";
+    public static final long DEFAULT_JDBC_CLIENT_THROTTLE_REACTIVE_WINDOW_MILLIS = 60_000L;
+
     // Transaction isolation configuration property key
     public static final String DEFAULT_TRANSACTION_ISOLATION_PROPERTY = "ojp.connection.pool.defaultTransactionIsolation";
     public static final String XA_DEFAULT_TRANSACTION_ISOLATION_PROPERTY = "ojp.xa.connection.pool.defaultTransactionIsolation";

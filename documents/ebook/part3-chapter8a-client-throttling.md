@@ -167,6 +167,21 @@ recalculates a much higher limit and sends a burst of queued requests. With AIMD
 grows by 1 each time a `SessionInfo` arrives (every few milliseconds under load), so the burst
 takes seconds to materialise — too slow to cause a spike.
 
+**Reactive multiplicative decrease — burst-detected, not single-error-triggered.**
+A single `RESOURCE_EXHAUSTED` is often transient (a brief queue spike, a network blip, one
+slow query). Halving the reactive limit on the very first error would over-react to noise.
+Instead, the driver records overload events in a small rolling-window buffer and only halves
+the reactive limit when at least `ojp.jdbc.clientThrottle.reactive.errorThreshold` (default
+`3`) errors occur within `ojp.jdbc.clientThrottle.reactive.windowMillis` (default `60000` ms —
+one minute). After a halving the buffer is reset, so the next halving requires a fresh burst.
+
+To restore the historical "halve on every error" behaviour, set
+`ojp.jdbc.clientThrottle.reactive.errorThreshold=1`.
+
+The rolling-window bookkeeping lives exclusively in the (cold) error-handling path. The hot
+`tryAcquire`/`release` path is unchanged: still one `AtomicInteger` CAS per request, with no
+added synchronisation or memory traffic.
+
 ---
 
 ## Three Modes

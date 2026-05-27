@@ -328,6 +328,8 @@ These examples demonstrate recommended settings for each environment and can be 
 |----------|------|---------|-------------|-------|
 | `ojp.jdbc.connection.close.synchronous` | boolean | true | Controls `Connection.close()` behavior. `true` = close waits for terminate-session RPC (default), `false` = async close. | 0.4.2-beta |
 | `ojp.jdbc.clientThrottle.mode` | string | `reactive` | Client-side throttling mode. Controls how the driver limits concurrent in-flight requests per application instance. `off` = disabled, `proactive` = static fair-share only, `reactive` = adaptive `observedPeak` only (default — delivers the most adaptive performance for most workloads), `combined` = min(proactive, reactive). For workloads that cannot tolerate any bursts, use `combined` or `proactive`. See [Chapter 8a: Client-Side Throttling](../ebook/part3-chapter8a-client-throttling.md). | 0.5.0-beta |
+| `ojp.jdbc.clientThrottle.reactive.errorThreshold` | int | `3` | Number of `RESOURCE_EXHAUSTED` errors that must be observed within `ojp.jdbc.clientThrottle.reactive.windowMillis` before the reactive limit is halved (AIMD multiplicative decrease). A value of `1` preserves the legacy "halve on the first overload" behaviour. Bookkeeping happens only on the (rare) error path, so the normal request path is unaffected. | 0.5.0-beta |
+| `ojp.jdbc.clientThrottle.reactive.windowMillis` | long | `60000` | Rolling-window length, in milliseconds, used together with `errorThreshold` to detect a sustained overload burst. Only when `errorThreshold` `RESOURCE_EXHAUSTED` errors occur within this window does the reactive limit get halved. | 0.5.0-beta |
 
 ### Programmatic Configuration via `DriverManager.getConnection()`
 
