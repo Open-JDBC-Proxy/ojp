@@ -19,7 +19,6 @@
         <grpc.version>1.80.0</grpc.version>
         <netty.version>4.1.133.Final</netty.version>
         <slf4j.version>2.0.17</slf4j.version>
-        <jib.plugin.version>3.4.5</jib.plugin.version>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
     </properties>
@@ -77,6 +76,14 @@
         <!-- H2, PostgreSQL, MySQL, and MariaDB drivers are now loaded from ojp-libs directory -->
         <!-- This allows customers to control driver versions and reduces the base JAR size -->
         <!-- See: documents/analysis/OPEN_SOURCE_DRIVERS_IN_OJP_LIBS.md -->
+
+        <!-- ojp-testcontainers: used in OjpDockerImageIT to spin up the locally-built image -->
+        <dependency>
+            <groupId>org.openjproxy</groupId>
+            <artifactId>ojp-testcontainers</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- PROPRIETARY DATABASE DRIVERS PLACEHOLDER -->
         <!-- CI workflows dynamically add Oracle, SQL Server, and DB2 drivers here -->
@@ -301,38 +308,47 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- Docker image: Jib plugin -->
+            <!-- Docker image: build via Dockerfile (multi-stage jlink image) -->
             <plugin>
-                <groupId>com.google.cloud.tools</groupId>
-                <artifactId>jib-maven-plugin</artifactId>
-                <version>${jib.plugin.version}</version>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>docker-build</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>docker</executable>
+                            <arguments>
+                                <argument>build</argument>
+                                <argument>-t</argument>
+                                <argument>rrobetti/ojp:${project.version}</argument>
+                                <argument>${project.basedir}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Integration tests: verify Docker image starts correctly -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.2.5</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
-                    <from>
-                        <image>eclipse-temurin:24-jre</image>
-                    </from>
-                    <to>
-                        <image>rrobetti/ojp:${project.version}</image>
-                    </to>
-                    <container>
-                        <mainClass>org.openjproxy.grpc.server.GrpcServer</mainClass>
-                        <ports>
-                            <port>1059</port>
-                        </ports>
-                        <jvmFlags>
-                            <jvmFlag>-Dojp.libs.path=/opt/ojp/ojp-libs</jvmFlag>
-                            <jvmFlag>-Duser.timezone=UTC</jvmFlag>
-                        </jvmFlags>
-                    </container>
-                    <!-- Include open source JDBC drivers in Docker image ("batteries included") -->
-                    <!-- Drivers are downloaded to ojp-libs during build -->
-                    <extraDirectories>
-                        <paths>
-                            <path>
-                                <from>ojp-libs</from>
-                                <into>/opt/ojp/ojp-libs</into>
-                            </path>
-                        </paths>
-                    </extraDirectories>
+                    <systemPropertyVariables>
+                        <ojp.image.version>${project.version}</ojp.image.version>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <!-- Sources JAR -->

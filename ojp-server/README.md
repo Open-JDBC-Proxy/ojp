@@ -1,42 +1,49 @@
 ## Docker Image
 
-The base image is a custom Alpine JRE built with `jlink` (only the modules required by OJP), bringing the final image size to **128MB**.
+The image is a custom Alpine JRE built with `jlink` (only the modules required by OJP), bringing the final image size to **128MB**.
 
-### Build the base image (first time or when dependencies change)
+The build is a single multi-stage `Dockerfile`: Stage 1 runs `jlink` to produce the custom JRE, Stage 2 copies it alongside the fat JAR and JDBC drivers into a minimal Alpine image.
 
-```bash
-# From the repository root
-docker build -f ojp-server/base.Dockerfile -t rrobetti/ojp-base:jre24-alpine .
-```
-
-### Build the app image locally
+### Build the image locally
 
 ```bash
-mvn -pl ojp-server/ jib:dockerBuild -Djib.from.image=docker://rrobetti/ojp-base:jre24-alpine
+cd ojp-server && ./docker-build.sh
 ```
+
+This will:
+1. Download open source JDBC drivers into `ojp-libs/`
+2. Build the fat JAR via Maven
+3. Run `docker build` using the multi-stage `Dockerfile`
 
 ### Run locally
 
 ```bash
-docker run -p 1059:1059 rrobetti/ojp:0.4.9-SNAPSHOT
+docker run -p 1059:1059 rrobetti/ojp:0.4.17-SNAPSHOT
 ```
 
 ### Build and push to Docker Hub
+
 PS: Only authorized users.
-> docker login
 
-> mvn compile jib:build
+```bash
+cd ojp-server && ./docker-build.sh push
+```
 
-### Run Docker image with JVM parameters
-
-You can pass JVM parameters to the Docker container using the `JAVA_TOOL_OPTIONS` environment variable:
+### Run with JVM parameters
 
 ```bash
 docker run -d \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.16-beta
+  rrobetti/ojp:0.4.17-SNAPSHOT
+```
+
+### Verify the image (integration test)
+
+Running `mvn verify` builds the image and runs an integration test that starts the container and confirms the server comes up without missing class errors:
+
+```bash
+mvn verify -pl ojp-server -am
 ```
 
 For comprehensive Docker deployment examples and configuration options, see the **[Docker Deployment Guide](../documents/configuration/DOCKER_DEPLOYMENT.md)**.
-
