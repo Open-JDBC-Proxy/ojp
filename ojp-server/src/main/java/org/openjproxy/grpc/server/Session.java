@@ -294,6 +294,16 @@ public class Session {
         this.connectionPermitReleaseHook = connectionPermitReleaseHook;
     }
 
+    /**
+     * Returns true if this session currently owns an admission-control permit
+     * (acquired at session creation and released on session termination).
+     * Used by request handlers to avoid acquiring a second per-statement slot
+     * for a session that already holds one.
+     */
+    public synchronized boolean hasConnectionPermit() {
+        return this.connectionPermitReleaseHook != null;
+    }
+
     private synchronized void releaseConnectionPermitIfPresent() {
         if (this.connectionPermitReleaseHook != null) {
             try {

@@ -15,10 +15,24 @@ The server supports configuration through both JVM system properties and environ
 |--------------------------------------|--------------------------------------|---------|-----------|--------------------------------------------------------|---------|
 | `ojp.server.port`                    | `OJP_SERVER_PORT`                    | int     | 1059      | gRPC server port                                       | 0.2.0-beta |
 | `ojp.prometheus.port`                | `OJP_PROMETHEUS_PORT`                | int     | 9159      | Prometheus metrics HTTP server port                    | 0.2.0-beta |
-| `ojp.server.virtualThreads.enabled`  | `OJP_SERVER_VIRTUALTHREADS_ENABLED`  | boolean | true      | Use Java virtual threads for gRPC request handling     | 0.4.11-beta |
+| `ojp.server.virtualThreads.enabled`  | `OJP_SERVER_VIRTUALTHREADS_ENABLED`  | boolean | false     | Use Java virtual threads for gRPC request handling     | 0.4.11-beta |
 | `ojp.server.threadPoolSize`          | `OJP_SERVER_THREADPOOLSIZE`          | int     | 200       | Fixed thread pool size when virtual threads are disabled | 0.2.0-beta |
 | `ojp.server.maxRequestSize`          | `OJP_SERVER_MAXREQUESTSIZE`          | int     | 4194304   | Maximum request size in bytes (4MB)                    | 0.2.0-beta |
 | `ojp.server.connectionIdleTimeout`   | `OJP_SERVER_CONNECTIONIDLETIMEOUT`   | long    | 30000     | Connection idle timeout in milliseconds                | 0.2.0-beta |
+| `ojp.server.maxConcurrentRequests`   | `OJP_SERVER_MAXCONCURRENTREQUESTS`   | int     | 200       | Global hard cap on concurrent in-flight gRPC calls across **all** datasources and clients. Over-limit calls are rejected with `RESOURCE_EXHAUSTED`. `0` disables the cap. Intended as **JVM self-protection, not workload shaping** — see [Global Concurrency Cap](#global-concurrency-cap-jvm-self-protection). | 0.4.0-beta |
+
+#### Global Concurrency Cap (JVM self-protection)
+
+OJP uses a layered concurrency model:
+
+- **Soft cap, per-datasource (primary backpressure).** Per-datasource admission semaphores (HikariCP slots + `ojp.server.admissionControl.maxQueueDepth` waiters, plus SQS fast/slow lanes when enabled) shape workload and isolate noisy neighbours. Almost all `RESOURCE_EXHAUSTED` rejections under normal load should come from this layer.
+- **Hard cap, global (safety net).** `ojp.server.maxConcurrentRequests` is a single process-wide gRPC in-flight counter ([`ConcurrencyThrottleInterceptor`](../../ojp-server/src/main/java/org/openjproxy/grpc/server/ConcurrencyThrottleInterceptor.java)). It protects the server JVM (gRPC threads, heap, file descriptors) from total collapse when per-datasource limits are misconfigured or when many datasources surge at once.
+
+Because the global cap is shared across all datasources and clients, tripping it rejects requests indiscriminately and can cause unrelated clients to throttle. Size it generously — a rule of thumb is **sum of per-datasource `(poolSize + maxQueueDepth)` × 1.5** — so the per-datasource caps reject first under expected load. Treat the global cap as JVM self-protection, not workload shaping; if you find yourself tuning it to shape traffic, tune the per-datasource limits instead.
+
+
+
+> **Note on `ojp.server.virtualThreads.enabled`:** Virtual threads are disabled by default because, during heavy-concurrency testing with the current OJP code, they proved less efficient than platform threads. This may change as the OJP code evolves — further investigation is needed to determine whether future improvements could make virtual threads beneficial. You can still opt in by setting this property to `true`.
 
 ### Logging Settings
 
@@ -174,14 +188,14 @@ Controls how the server batches rows into gRPC streaming messages when returning
 | `ojp.server.slowQuerySegregation.idleTimeout`     | `OJP_SERVER_SLOWQUERYSEGREGATION_IDLETIMEOUT`     | long    | 10000    | Idle timeout for slot borrowing (milliseconds)  | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Slow-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Fast-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
-| `ojp.server.slowQuerySegregation.classificationMode` | `OJP_SERVER_SLOWQUERYSEGREGATION_CLASSIFICATIONMODE` | enum (`RELATIVE_FAST_BASELINE` / `ABSOLUTE_THRESHOLD`) | `RELATIVE_FAST_BASELINE` | Slow-query classification strategy. `RELATIVE_FAST_BASELINE` is the default adaptive mode. | 0.4.17-SNAPSHOT |
-| `ojp.server.slowQuerySegregation.slowQueryThresholdMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWQUERYTHRESHOLDMS` | long | 1000 | Deterministic slow-query threshold in milliseconds used by `ABSOLUTE_THRESHOLD` mode. | 0.4.17-SNAPSHOT |
-| `ojp.server.slowQuerySegregation.minimumSlowQueryMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINIMUMSLOWQUERYMS` | long | 100 | Minimum operation average in milliseconds required before entering slow classification in relative mode. | 0.4.17-SNAPSHOT |
-| `ojp.server.slowQuerySegregation.slowMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWMULTIPLIER` | double | 5.0 | Relative-mode multiplier against fast baseline required to enter slow classification. | 0.4.17-SNAPSHOT |
-| `ojp.server.slowQuerySegregation.recoveryMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_RECOVERYMULTIPLIER` | double | 3.0 | Relative-mode multiplier against fast baseline for recovering from slow to fast. Must be less than `slowMultiplier`. | 0.4.17-SNAPSHOT |
-| `ojp.server.slowQuerySegregation.minSamples` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINSAMPLES` | int | 20 | Minimum per-query-shape sample count required before classification. | 0.4.17-SNAPSHOT |
-| `ojp.server.slowQuerySegregation.baselinePercentile` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEPERCENTILE` | int | 50 | Percentile used to compute fast baseline from currently-fast query-shape averages (1-99). | 0.4.17-SNAPSHOT |
-| `ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEREFRESHINTERVALSECONDS` | long | 10 | Interval for refreshing cached fast baseline (seconds). `0` recomputes baseline on each classification check. | 0.4.17-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.classificationMode` | `OJP_SERVER_SLOWQUERYSEGREGATION_CLASSIFICATIONMODE` | enum (`RELATIVE_FAST_BASELINE` / `ABSOLUTE_THRESHOLD`) | `RELATIVE_FAST_BASELINE` | Slow-query classification strategy. `RELATIVE_FAST_BASELINE` is the default adaptive mode. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.slowQueryThresholdMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWQUERYTHRESHOLDMS` | long | 1000 | Deterministic slow-query threshold in milliseconds used by `ABSOLUTE_THRESHOLD` mode. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.minimumSlowQueryMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINIMUMSLOWQUERYMS` | long | 100 | Minimum operation average in milliseconds required before entering slow classification in relative mode. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.slowMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWMULTIPLIER` | double | 5.0 | Relative-mode multiplier against fast baseline required to enter slow classification. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.recoveryMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_RECOVERYMULTIPLIER` | double | 3.0 | Relative-mode multiplier against fast baseline for recovering from slow to fast. Must be less than `slowMultiplier`. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.minSamples` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINSAMPLES` | int | 20 | Minimum per-query-shape sample count required before classification. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.baselinePercentile` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEPERCENTILE` | int | 50 | Percentile used to compute fast baseline from currently-fast query-shape averages (1-99). | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEREFRESHINTERVALSECONDS` | long | 10 | Interval for refreshing cached fast baseline (seconds). `0` recomputes baseline on each classification check. | 0.4.19-SNAPSHOT |
 | `ojp.server.admissionControl.maxQueueDepth`       | `OJP_SERVER_ADMISSIONCONTROL_MAXQUEUEDEPTH`       | int     | 0        | Max admission waiters before fail-fast overload (0 = auto as `totalSlots × 2` per semaphore; `totalSlots` is the pool slot count used by admission control) | 0.4.16-SNAPSHOT |
 
 ### SQL Enhancer and Schema Loader Settings

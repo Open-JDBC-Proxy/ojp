@@ -154,7 +154,8 @@ public class AdmissionControlManager {
                 slotAcquired = slotManager.acquireFastSlot(fastSlotTimeoutMs);
                 if (!slotAcquired) {
                     throw new ServerOverloadException(
-                            "Timeout waiting for admission control slot for operation: " + operationHash);
+                            "Timeout waiting for admission control slot for operation: " + operationHash,
+                            ServerOverloadException.Lane.FAST);
                 }
                 logger.debug("Acquired admission control slot for operation: {}", operationHash);
                 threadHeldSlot.set(new HeldSlot(false));
@@ -180,7 +181,8 @@ public class AdmissionControlManager {
                 slotAcquired = slotManager.acquireSlowSlot(slowSlotTimeoutMs);
                 if (!slotAcquired) {
                     throw new ServerOverloadException(
-                            "Timeout waiting for slow operation slot for operation: " + operationHash);
+                            "Timeout waiting for slow operation slot for operation: " + operationHash,
+                            ServerOverloadException.Lane.SLOW);
                 }
                 logger.debug("Acquired slow slot for operation: {}", operationHash);
                 threadHeldSlot.set(new HeldSlot(true));
@@ -188,7 +190,8 @@ public class AdmissionControlManager {
                 slotAcquired = slotManager.acquireFastSlot(fastSlotTimeoutMs);
                 if (!slotAcquired) {
                     throw new ServerOverloadException(
-                            "Timeout waiting for fast operation slot for operation: " + operationHash);
+                            "Timeout waiting for fast operation slot for operation: " + operationHash,
+                            ServerOverloadException.Lane.FAST);
                 }
                 logger.debug("Acquired fast slot for operation: {}", operationHash);
                 threadHeldSlot.set(new HeldSlot(false));
@@ -265,6 +268,23 @@ public class AdmissionControlManager {
      */
     public <T> T executeWithSegregation(String operationHash, SegregatedOperation<T> operation) throws Exception {
         return executeWithSegregation(operationHash, operationHash, operation);
+    }
+
+    /**
+     * Executes an operation without acquiring any admission slot, only running the
+     * performance monitor. Intended for requests whose session already holds a
+     * session-scoped {@link SessionPermit} acquired at session creation time —
+     * such sessions should not be double-counted by acquiring a per-statement slot.
+     *
+     * @param operationHash The hash of the SQL operation
+     * @param sql           The actual SQL statement text (used as metric label)
+     * @param operation     The operation to execute
+     * @param <T>           The return type of the operation
+     * @return The result of the operation
+     * @throws Exception if the operation fails
+     */
+    public <T> T executeWithMonitoringOnly(String operationHash, String sql, SegregatedOperation<T> operation) throws Exception {
+        return executeAndMonitor(operationHash, sql, operation);
     }
 
     /**

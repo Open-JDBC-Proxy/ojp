@@ -36,7 +36,7 @@ cd ojp-server && ./docker-build.sh push
 docker run -d \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.17-SNAPSHOT
+  rrobetti/ojp:0.4.21-beta
 ```
 
 ### Verify the image (integration test)

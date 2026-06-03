@@ -58,15 +58,29 @@ public class CommandExecutionHelper {
 
         // Get the appropriate admission control manager for this datasource
         AdmissionControlManager manager = getAdmissionControlManagerForConnection(context, connHash);
+
+        // If the session already owns a session-scoped admission permit (acquired at
+        // session creation and released only on session termination), do not acquire
+        // another per-statement slot — that would double-count the same session and
+        // unnecessarily compete for capacity with brand new sessions.
+        final boolean sessionHoldsPermit = sessionHoldsPermit(context, request);
+
         long sqlStartNs = System.nanoTime();
         try {
             circuitBreaker.preCheck(stmtHash);
 
             // Execute with admission control, passing actual SQL for metric labelling
-            manager.executeWithSegregation(stmtHash, request.getSql(), () -> {
-                executionLogic.execute();
-                return null;
-            });
+            if (sessionHoldsPermit) {
+                manager.executeWithMonitoringOnly(stmtHash, request.getSql(), () -> {
+                    executionLogic.execute();
+                    return null;
+                });
+            } else {
+                manager.executeWithSegregation(stmtHash, request.getSql(), () -> {
+                    executionLogic.execute();
+                    return null;
+                });
+            }
 
             circuitBreaker.onSuccess(stmtHash);
 
@@ -155,5 +169,27 @@ public class CommandExecutionHelper {
          * Executes the statement logic.
          */
         void execute() throws Exception;
+    }
+
+    /**
+     * Returns true if the session referenced by {@code request} already owns a
+     * session-scoped admission permit. Returns false if the session does not yet
+     * exist (lazy creation during this very request), is XA/unpooled, or admission
+     * control is disabled — in all of those cases the normal per-statement
+     * acquisition path remains appropriate.
+     */
+    static boolean sessionHoldsPermit(ActionContext context, StatementRequest request) {
+        try {
+            if (StringUtils.isBlank(request.getSession().getSessionUUID())) {
+                return false;
+            }
+            org.openjproxy.grpc.server.Session session =
+                    context.getSessionManager().getSession(request.getSession());
+            return session != null && session.hasConnectionPermit();
+        } catch (Exception e) {
+            // Defensive: never block statement execution on a lookup error.
+            log.debug("Failed to check session permit ownership, falling back to per-statement slot", e);
+            return false;
+        }
     }
 }

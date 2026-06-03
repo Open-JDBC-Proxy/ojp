@@ -393,4 +393,9 @@ Slow Query Segregation helps maintain application responsiveness when you have m
 
 The feature requires minimal configuration and adapts automatically. For applications that serve both interactive users and analytical workloads, it is strongly recommended. For pure OLTP or pure OLAP systems, keep it disabled unless your monitoring data shows that separation improves behavior.
 
-In the next chapter, we'll explore another feature that enhances availability and scalability: Multinode Deployment. While Slow Query Segregation ensures efficient use of resources on a single server, multinode deployment lets you spread load across multiple servers for even greater capacity and resilience.
+In the next chapter, we'll look at Client-Side Throttling — a complementary feature that prevents application instances from overloading the OJP server in the first place. While Slow Query Segregation protects fast queries from slow ones on the server side, client-side throttling prevents the admission queue from building up on the client side. The two features work well together.
+
+---
+
+**Previous Chapter**: [← Chapter 7: Framework Integration](part2-chapter7-framework-integration.md)
+**Next Chapter**: [Chapter 8a: Client-Side Throttling →](part3-chapter8a-client-throttling.md)

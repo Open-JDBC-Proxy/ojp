@@ -126,8 +126,14 @@ public class Driver implements java.sql.Driver {
                                 CommonConstants.JDBC_CLOSE_SYNC_PROPERTY,
                                 String.valueOf(CommonConstants.DEFAULT_JDBC_CLOSE_SYNCHRONOUS))
                         : String.valueOf(CommonConstants.DEFAULT_JDBC_CLOSE_SYNCHRONOUS));
+        ClientThrottleMode throttleMode = ClientThrottleMode.fromString(
+                ojpProperties != null
+                        ? ojpProperties.getProperty(CommonConstants.JDBC_CLIENT_THROTTLE_MODE_PROPERTY,
+                                CommonConstants.DEFAULT_JDBC_CLIENT_THROTTLE_MODE)
+                        : CommonConstants.DEFAULT_JDBC_CLIENT_THROTTLE_MODE);
         log.debug("Returning new Connection with sessionInfo: {}", sessionInfo);
-        return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl), closeSynchronously);
+        return new Connection(sessionInfo, statementService, DatabaseUtils.resolveDbName(cleanUrl),
+                closeSynchronously, throttleMode);
     }
 
 

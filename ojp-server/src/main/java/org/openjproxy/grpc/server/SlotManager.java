@@ -18,6 +18,11 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 public class SlotManager {
 
+    // Fraction of totalSlots used as a lower bound for observedPeak on admission timeout.
+    private static final double MIN_OBSERVED_PEAK_RATIO = 0.1;
+    // AIMD: additive-increase period = totalSlots * this multiplier releases.
+    private static final int AIMD_RECOVERY_PERIOD_MULTIPLIER = 2;
+
     private final int totalSlots;
     private final int slowSlots;
     private final int fastSlots;
@@ -39,6 +44,10 @@ public class SlotManager {
     // Idle time tracking
     private final AtomicLong lastSlowActivity = new AtomicLong(0);
     private final AtomicLong lastFastActivity = new AtomicLong(0);
+
+    // AIMD peak tracking
+    private final AtomicInteger observedPeak = new AtomicInteger(0);
+    private final AtomicLong releaseCount = new AtomicLong(0);
 
     // Configuration
     private final AtomicBoolean enabled = new AtomicBoolean(true);
@@ -139,6 +148,7 @@ public class SlotManager {
         }
 
         log.debug("Failed to acquire slow slot within {}ms timeout", timeoutMs);
+        recordAdmissionTimeout();
         return false;
     }
 
@@ -188,6 +198,7 @@ public class SlotManager {
         }
 
         log.debug("Failed to acquire fast slot within {}ms timeout", timeoutMs);
+        recordAdmissionTimeout();
         return false;
     }
 
@@ -213,6 +224,7 @@ public class SlotManager {
             slowOperationSemaphore.release();
             log.debug("Released slow slot back to slow pool. Active slow: {}", activeSlowOperations.get());
         }
+        tickAimdRecovery();
     }
 
     /**
@@ -237,6 +249,7 @@ public class SlotManager {
             fastOperationSemaphore.release();
             log.debug("Released fast slot back to fast pool. Active fast: {}", activeFastOperations.get());
         }
+        tickAimdRecovery();
     }
 
     /**
@@ -279,6 +292,24 @@ public class SlotManager {
 
     private boolean canWaitForSlot(Semaphore semaphore) {
         return semaphore.getQueueLength() < maxWaitQueueDepth;
+    }
+
+    private void recordAdmissionTimeout() {
+        int currentActive = activeFastOperations.get() + activeSlowOperations.get();
+        int floor = Math.max(1, (int) (totalSlots * MIN_OBSERVED_PEAK_RATIO));
+        // Multiplicative decrease: clamp peak down to currentActive (observed saturation point).
+        // When cur == 0 (no timeout seen yet), use totalSlots as the initial upper bound so that
+        // Math.min always resolves to currentActive on the first call.
+        observedPeak.updateAndGet(cur -> Math.max(floor, Math.min(cur == 0 ? totalSlots : cur, currentActive)));
+    }
+
+    private void tickAimdRecovery() {
+        long count = releaseCount.incrementAndGet();
+        long period = Math.max(1L, (long) totalSlots * AIMD_RECOVERY_PERIOD_MULTIPLIER);
+        // Additive increase: nudge the peak up by 1 every `period` releases once saturation eases.
+        if (count % period == 0) {
+            observedPeak.updateAndGet(cur -> (cur > 0 && cur < totalSlots) ? cur + 1 : cur);
+        }
     }
 
     /**
@@ -328,4 +359,28 @@ public class SlotManager {
     public int getFastSlotsBorrowedToSlow() { return fastSlotsBorrowedToSlow.get(); }
     public long getIdleTimeoutMs() { return idleTimeoutMs; }
     public int getMaxWaitQueueDepth() { return maxWaitQueueDepth; }
+    public int getObservedPeak() { return observedPeak.get(); }
+
+    /**
+     * Returns the admission slot count to advertise to JDBC clients for throttle budget
+     * calculations.
+     *
+     * <p>Returns {@link #getTotalSlots()} — the full admission-control pool, not just the
+     * fast lane. Rationale:</p>
+     * <ul>
+     *   <li>Lane borrowing (idle donor → busy borrower) means a fast query can land on a
+     *       slow slot and vice versa, so the realistic concurrency ceiling is the total
+     *       pool size.</li>
+     *   <li>Advertising only {@code fastSlots} understates capacity by ~20–30% under
+     *       default SQS configuration and contributes to throughput cliffs at near-peak
+     *       load.</li>
+     *   <li>Cross-lane contamination (a slow-lane overload affecting fast-lane budget)
+     *       is now handled separately by lane-tagged overload notifications.</li>
+     * </ul>
+     *
+     * @return the total admission slot count for client-side throttle budget
+     */
+    public int getEffectiveMaxAdmission() {
+        return totalSlots;
+    }
 }

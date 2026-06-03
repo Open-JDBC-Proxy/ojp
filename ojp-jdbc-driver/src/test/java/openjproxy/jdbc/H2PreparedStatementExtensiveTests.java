@@ -195,6 +195,35 @@ public class H2PreparedStatementExtensiveTests {
         assertNull(ps.getWarnings());
     }
 
+    /**
+     * Regression test for the Spring Data JDBC failure where calling
+     * {@code getWarnings()} on a freshly executed PreparedStatement (without
+     * a server-side statement UUID assigned yet) caused the server to attempt
+     * a {@code prepareStatement(null)} and throw an NPE
+     * ("Cannot invoke \"String.startsWith(String)\" because \"sql\" is null").
+     * The {@code getWarnings()}, {@code clearWarnings()} and other
+     * {@link java.sql.Statement} methods inherited by {@link java.sql.PreparedStatement}
+     * must include the SQL in the proxied request so the server can resolve the
+     * underlying PreparedStatement.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testGetWarningsAfterExecuteQueryWithoutPriorCallProxy(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
+        ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test");
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                // consume
+            }
+        }
+        // These calls are inherited from Statement and previously bypassed the
+        // PreparedStatement.callProxy override that injects the SQL property.
+        assertNull(ps.getWarnings());
+        ps.clearWarnings();
+        assertNull(ps.getWarnings());
+    }
+
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
     void testStatementCommonMethods(String driverClass, String url, String user, String password) throws Exception {

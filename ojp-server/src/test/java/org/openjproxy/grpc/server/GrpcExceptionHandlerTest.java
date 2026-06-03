@@ -1,5 +1,6 @@
 package org.openjproxy.grpc.server;
 
+import io.grpc.Metadata;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -23,6 +24,43 @@ class GrpcExceptionHandlerTest {
         StatusRuntimeException statusRuntimeException = assertInstanceOf(StatusRuntimeException.class, observer.error);
         assertEquals(Status.Code.RESOURCE_EXHAUSTED, statusRuntimeException.getStatus().getCode());
         assertTrue(statusRuntimeException.getStatus().getDescription().contains("too busy"));
+    }
+
+    @Test
+    void shouldIncludeLaneMetadataOnSlowLaneOverload() {
+        CapturingObserver<Object> observer = new CapturingObserver<>();
+        ServerOverloadException exception = new ServerOverloadException(
+                "slow lane saturated", ServerOverloadException.Lane.SLOW);
+
+        GrpcExceptionHandler.sendServerOverload(exception, observer);
+
+        StatusRuntimeException sre = assertInstanceOf(StatusRuntimeException.class, observer.error);
+        Metadata trailers = sre.getTrailers();
+        assertNotNull(trailers);
+        assertEquals("slow", trailers.get(GrpcExceptionHandler.OVERLOAD_LANE_KEY));
+    }
+
+    @Test
+    void shouldIncludeLaneMetadataOnFastLaneOverload() {
+        CapturingObserver<Object> observer = new CapturingObserver<>();
+        ServerOverloadException exception = new ServerOverloadException(
+                "fast lane saturated", ServerOverloadException.Lane.FAST);
+
+        GrpcExceptionHandler.sendServerOverload(exception, observer);
+
+        StatusRuntimeException sre = assertInstanceOf(StatusRuntimeException.class, observer.error);
+        assertEquals("fast", sre.getTrailers().get(GrpcExceptionHandler.OVERLOAD_LANE_KEY));
+    }
+
+    @Test
+    void shouldDefaultLaneToUnknownWhenNotSpecified() {
+        CapturingObserver<Object> observer = new CapturingObserver<>();
+        ServerOverloadException exception = new ServerOverloadException("legacy overload");
+
+        GrpcExceptionHandler.sendServerOverload(exception, observer);
+
+        StatusRuntimeException sre = assertInstanceOf(StatusRuntimeException.class, observer.error);
+        assertEquals("unknown", sre.getTrailers().get(GrpcExceptionHandler.OVERLOAD_LANE_KEY));
     }
 
     private static class CapturingObserver<T> implements StreamObserver<T> {

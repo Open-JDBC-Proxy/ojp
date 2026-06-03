@@ -265,4 +265,42 @@ class AdmissionControlManagerTest {
         assertTrue(overloadException.getMessage().contains("Timeout waiting for admission control slot"));
         manager.getSlotManager().releaseFastSlot();
     }
+
+    @Test
+    void testExecuteWithMonitoringOnlyDoesNotAcquireSlot() throws Exception {
+        // All fast slots pre-acquired so executeWithSegregation would block/timeout.
+        AdmissionControlManager manager = new AdmissionControlManager(2, 0, 0, 0, 50, 0, 0, true);
+        manager.getSlotManager().acquireFastSlot(1000);
+        manager.getSlotManager().acquireFastSlot(1000);
+        try {
+            int activeBefore = manager.getSlotManager().getActiveFastOperations();
+            long execsBefore = manager.getPerformanceMonitor().getTotalExecutionCount();
+            // executeWithMonitoringOnly must run without acquiring a slot and without timing out.
+            String result = manager.executeWithMonitoringOnly("permit-op", "select 1", () -> {
+                Thread.sleep(2); //NOSONAR
+                return "ok";
+            });
+            assertEquals("ok", result);
+            assertEquals(activeBefore, manager.getSlotManager().getActiveFastOperations(),
+                    "executeWithMonitoringOnly must not change active fast operation count");
+            assertEquals(execsBefore + 1, manager.getPerformanceMonitor().getTotalExecutionCount(),
+                    "Performance monitor should record the execution");
+        } finally {
+            manager.getSlotManager().releaseFastSlot();
+            manager.getSlotManager().releaseFastSlot();
+        }
+    }
+
+    @Test
+    void testExecuteWithMonitoringOnlyPropagatesExceptions() {
+        RuntimeException boom = new RuntimeException("boom");
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> admissionControlManager.executeWithMonitoringOnly("failing-op", "select 1", () -> {
+                    throw boom;
+                }));
+        assertEquals(boom, thrown);
+        // Performance must still be recorded for failed monitor-only operations.
+        assertTrue(admissionControlManager.getOperationAverageTime("failing-op") >= 0);
+        assertTrue(admissionControlManager.getPerformanceMonitor().getTotalExecutionCount() >= 1);
+    }
 }

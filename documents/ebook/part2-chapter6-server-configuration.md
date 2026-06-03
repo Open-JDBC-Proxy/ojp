@@ -28,13 +28,17 @@ Let's start with the foundational settings that control how your OJP server oper
 
 The server also exposes a separate Prometheus metrics endpoint on port 9159 by default. This separation is intentional—it allows you to apply different network policies and access controls to your operational metrics versus your database traffic. In production, you might expose the gRPC port only to your application network while making the Prometheus endpoint available to your monitoring infrastructure on a separate network segment.
 
-By default, OJP uses Java virtual threads for gRPC request handling. This gives high concurrency without tuning a large platform thread pool. If you need conventional platform threads, set `ojp.server.virtualThreads.enabled=false`; in that mode, `ojp.server.threadPoolSize` (default 200) controls concurrency.
+By default, OJP uses a fixed platform thread pool for gRPC request handling, with `ojp.server.threadPoolSize` (default 200) controlling concurrency. If you want to use Java virtual threads instead — which can give high concurrency without tuning a large platform thread pool — set `ojp.server.virtualThreads.enabled=true`.
+
+> **Why virtual threads are off by default:** During heavy-concurrency testing with the current OJP code, virtual threads proved less efficient than platform threads, so they are disabled by default. This may change as the OJP code evolves — further investigation is needed to determine whether future upgrades could make virtual threads beneficial.
 
 **[IMAGE PROMPT: Create a technical server architecture diagram showing OJP Server as a central component with two network interfaces: one labeled "gRPC Port :1059" (shown with database connection icons) and another labeled "Prometheus Port :9159" (shown with metrics/monitoring icons). Include a thread pool visualization showing multiple worker threads (default: 200) handling concurrent requests. Use professional blue and gray color scheme with clear labels and connection lines. Style: Modern technical architecture diagram.]**
 
 The maximum request size setting provides protection against oversized requests that could impact server stability. The default of 4MB is generous for typical JDBC operations, but you might increase it if you're working with very large result sets or binary data. Just remember that larger request sizes consume more memory, so balance this against your available resources.
 
 Connection idle timeout controls how long the server waits before closing inactive **gRPC connections** from clients. The default of 30 seconds strikes a balance between resource conservation and connection overhead. When a gRPC connection times out due to inactivity, the client automatically reconnects on demand when the next JDBC operation is requested, so there's no need for manual reconnection handling.
+
+OJP also enforces a global hard cap on concurrent in-flight gRPC calls via `ojp.server.maxConcurrentRequests` (default `200`, `0` disables). When tripped, over-limit calls are rejected with `RESOURCE_EXHAUSTED`. This cap is **shared across all datasources and all clients on the JVM**, so it is intended as JVM self-protection (gRPC threads, heap, file descriptors), not as a workload-shaping tool. Per-datasource backpressure should come from HikariCP pool sizing, `ojp.server.admissionControl.maxQueueDepth`, and SQS fast/slow lanes. As a rule of thumb, size the global cap to roughly the sum of per-datasource `(poolSize + maxQueueDepth)` × 1.5 so that the per-datasource limits reject first under expected load.
 
 **Important**: These are gRPC connection timeouts, not database connection timeouts. Each gRPC connection uses HTTP/2 multiplexing, allowing many virtual JDBC connections to share a single gRPC connection. This multiplexed architecture means one gRPC connection can handle hundreds of `getConnection()` calls from the client side.
 
@@ -51,6 +55,7 @@ java -Duser.timezone=UTC \
      -Dojp.server.threadPoolSize=100 \
      -Dojp.server.maxRequestSize=8388608 \
      -Dojp.server.connectionIdleTimeout=60000 \
+     -Dojp.server.maxConcurrentRequests=200 \
      -jar ojp-server.jar
 ```
 
@@ -367,7 +372,40 @@ graph TD
     Q --> R[Adjust Classification]
 ```
 
-## 6.8 Configuration Best Practices
+## 6.8 Client Throttling Signals
+
+While client-side throttling is configured on the **driver side** (see
+[Chapter 8a: Client-Side Throttling](../ebook/part3-chapter8a-client-throttling.md)),
+the server plays an important role: it provides the signals that clients use to compute
+their per-instance limit.
+
+On every `connect()` response, the server populates three fields in `SessionInfo`:
+
+| Field | What it carries | Source |
+|---|---|---|
+| `maxAdmission` | The configured pool size on this node | `SlotManager.totalSlots` |
+| `clientCount` | Number of distinct application instances (JVMs) connected for this datasource/credential pair | `SessionManagerImpl` ref-count map |
+| `observedPeak` | Real peak in-flight count before the last admission timeout; `0` = no timeout yet | `SlotManager` AIMD tracking |
+
+The server updates `observedPeak` automatically whenever an admission timeout occurs —
+no configuration needed. By default, `observedPeak` recovers toward `maxAdmission` at a
+rate of +1 every `totalSlots × 2` successful releases. If you need to tune recovery speed,
+set `ojp.server.admissionControl.observedPeakRecoveryFactor` to a different multiplier:
+
+```bash
+# Default: recover observedPeak by +1 every (totalSlots × 2) successful releases
+-Dojp.server.admissionControl.observedPeakRecoveryFactor=2
+
+# Faster recovery (useful for bursty workloads that return to normal quickly)
+-Dojp.server.admissionControl.observedPeakRecoveryFactor=1
+
+# Slower recovery (more conservative — useful for systems that stay degraded)
+-Dojp.server.admissionControl.observedPeakRecoveryFactor=4
+```
+
+No other server-side configuration is needed to support client throttling.
+
+## 6.9 Configuration Best Practices
 
 With all these configuration options available, how do you choose the right settings? Start with the defaults—they're designed for typical workloads and provide good performance out of the box. Then adjust based on monitoring data and observed behavior. Don't preemptively tune settings based on assumptions; let your actual workload guide your configuration.
 
@@ -421,7 +459,7 @@ graph LR
     E --> C
 ```
 
-## 6.9 Configuration Validation and Troubleshooting
+## 6.10 Configuration Validation and Troubleshooting
 
 When things don't work as expected, configuration issues are often the culprit. OJP provides clear error messages when configuration values are invalid or inconsistent. The server validates configuration at startup and fails fast if critical settings are problematic.
 

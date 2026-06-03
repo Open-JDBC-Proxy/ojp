@@ -143,7 +143,7 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                 updated = stmt.executeUpdate(request.getSql());
             }
 
-            OpResult result = buildOpResult(request, dto.getSession(), psUUID, updated, generatedKeysUuid);
+            OpResult result = buildOpResult(request, dto.getSession(), psUUID, updated, generatedKeysUuid, actionContext);
 
             // Phase 9: Cache Invalidation (after successful update)
             org.openjproxy.grpc.server.cache.QueryCacheHelper.invalidateCacheIfEnabled(actionContext, dto.getSession(), request.getSql());
@@ -239,8 +239,11 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
      * @return the built {@link OpResult}
      */
     private OpResult buildOpResult(StatementRequest request, SessionInfo sessionInfo,
-                                   String psUUID, int updated, String generatedKeysUuid) {
-        OpResult.Builder builder = OpResult.newBuilder().setSession(sessionInfo);
+                                   String psUUID, int updated, String generatedKeysUuid,
+                                   ActionContext context) {
+        SessionInfo enrichedSession = org.openjproxy.grpc.server.utils.SessionInfoUtils
+                .enrichWithThrottle(sessionInfo, context);
+        OpResult.Builder builder = OpResult.newBuilder().setSession(enrichedSession);
         if (!generatedKeysUuid.isEmpty()) {
             builder.setUuid(generatedKeysUuid);
         }

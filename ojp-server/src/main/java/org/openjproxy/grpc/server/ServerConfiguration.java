@@ -109,7 +109,7 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_OPENTELEMETRY_ENABLED = true;
     public static final String DEFAULT_OPENTELEMETRY_ENDPOINT = "";
     public static final int DEFAULT_THREAD_POOL_SIZE = 200;
-    public static final boolean DEFAULT_VIRTUAL_THREADS_ENABLED = true;
+    public static final boolean DEFAULT_VIRTUAL_THREADS_ENABLED = false;
     public static final int DEFAULT_MAX_REQUEST_SIZE = 4 * 1024 * 1024; // 4MB
     public static final String DEFAULT_LOG_LEVEL = "INFO";
     public static final boolean DEFAULT_ACCESS_LOGGING = false;

@@ -71,9 +71,23 @@ For pooled session creation, OJP reuses the same admission semaphores.
 | `ojp.server.slowQuerySegregation.idleTimeout` | How long one lane must stay idle before the other lane can borrow its slots |
 | `ojp.server.slowQuerySegregation.fastSlotTimeout` | Fast-lane wait budget when slow query segregation is enabled |
 | `ojp.server.slowQuerySegregation.slowSlotTimeout` | Slow-lane wait budget when slow query segregation is enabled |
-| `ojp.server.admissionControl.maxQueueDepth` | Max number of waiters before OJP rejects new work immediately (`0` = auto, `totalSlots x 2` per semaphore) |
+| `ojp.server.admissionControl.maxQueueDepth` | Max number of waiters before OJP rejects new work immediately. Applied **per admission semaphore**, which in practice means **per datasource** (and per lane within a datasource when Slow Query Segregation is enabled — one semaphore for the fast lane and one for the slow lane). `0` = auto: `totalSlots × 2`, where `totalSlots` is that datasource's HikariCP max pool size. |
 | `ojp.connection.pool.connectionTimeout` | Admission wait budget when slow query segregation is off; also the fallback admission budget for pooled non-XA setup |
 | `ojp.xa.connection.pool.connectionTimeout` | Same idea as above, but for XA pooled admission |
+
+### Example: two datasources
+
+Suppose the server hosts two datasources:
+
+- **`ordersDB`** — `ojp.connection.pool.maximumPoolSize=20` (so `totalSlots=20`)
+- **`reportsDB`** — `ojp.connection.pool.maximumPoolSize=5` (so `totalSlots=5`)
+
+With `ojp.server.admissionControl.maxQueueDepth=0` (auto) and SQS disabled, each datasource gets its own admission semaphore with its own waiter cap:
+
+- `ordersDB` admits up to `20` in-flight requests + `40` waiters (`20 × 2`); the 41st waiter is rejected with `RESOURCE_EXHAUSTED`.
+- `reportsDB` admits up to `5` in-flight requests + `10` waiters (`5 × 2`); the 11th waiter is rejected.
+
+The caps are independent: a queue backup on `reportsDB` does not consume `ordersDB`'s waiter budget. If you instead set `ojp.server.admissionControl.maxQueueDepth=64`, **both** datasources use 64 as their waiter cap (the value is not split across datasources). With SQS enabled, that same cap applies to each lane (fast and slow) within each datasource.
 
 ## Practical mental model
 

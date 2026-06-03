@@ -12,6 +12,7 @@ import org.openjproxy.datasource.PoolConfig;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.server.MultinodePoolCoordinator;
 import org.openjproxy.grpc.server.MultinodeXaCoordinator;
+import org.openjproxy.grpc.server.AdmissionControlManager;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
@@ -318,10 +319,22 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
 
         // For regular connections, just return session info without creating a session yet (lazy allocation)
         // Server does not populate targetServer - client will set it on future requests
+        int clientCount = context.getSessionManager().getClientCount(connHash);
+        int maxAdmission = 0;
+        int observedPeakValue = 0;
+        AdmissionControlManager acm = context.getAdmissionControlManagers().get(connHash);
+        if (acm != null && acm.isEnabled() && acm.getSlotManager() != null) {
+            maxAdmission = acm.getSlotManager().getEffectiveMaxAdmission();
+            observedPeakValue = acm.getSlotManager().getObservedPeak();
+        }
+
         SessionInfo sessionInfo = SessionInfo.newBuilder()
                 .setConnHash(connHash)
                 .setClientUUID(connectionDetails.getClientUUID())
                 .setIsXA(false)
+                .setClientCount(clientCount)
+                .setMaxAdmission(maxAdmission)
+                .setObservedPeak(observedPeakValue)
                 .build();
 
         responseObserver.onNext(sessionInfo);

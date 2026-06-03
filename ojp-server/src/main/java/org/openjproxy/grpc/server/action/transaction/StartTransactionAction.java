@@ -93,7 +93,7 @@ public class StartTransactionAction implements Action<SessionInfo, SessionInfo> 
                     .setTransactionUUID(UUID.randomUUID().toString())
                     .build();
 
-            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(activeSessionInfo);
+            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(activeSessionInfo, context);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
             // Server echoes back targetServer from incoming request (preserved by
             // newBuilderFrom)

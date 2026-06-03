@@ -52,6 +52,8 @@ public class CommonConstants {
     public static final String MULTINODE_RETRY_ATTEMPTS_PROPERTY = "ojp.multinode.retryAttempts";
     public static final String MULTINODE_RETRY_DELAY_PROPERTY = "ojp.multinode.retryDelayMs";
     public static final String JDBC_CLOSE_SYNC_PROPERTY = "ojp.jdbc.connection.close.synchronous";
+    public static final String JDBC_CLIENT_THROTTLE_MODE_PROPERTY = "ojp.jdbc.clientThrottle.mode";
+    public static final String DEFAULT_JDBC_CLIENT_THROTTLE_MODE = "reactive";
 
     // Transaction isolation configuration property key
     public static final String DEFAULT_TRANSACTION_ISOLATION_PROPERTY = "ojp.connection.pool.defaultTransactionIsolation";

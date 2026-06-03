@@ -1,7 +1,7 @@
 # OJP Client Specification — Machine-Oriented Reference
 
 > **Status:** Normative — April 2026
-> **Last updated:** 2026-04-30
+> **Last updated:** 2026-05-20
 > **Scope:** Defines the complete behavioral contract for any OJP client implementation.
 > **Keywords:** MUST, MUST NOT, SHOULD, MAY as defined in RFC 2119.
 > **Protocol source:** `ojp-grpc-commons/src/main/proto/StatementService.proto`, `echo.proto`
@@ -19,12 +19,16 @@
 | **Virtual Connection** | A client-side object representing logical access to a database pool, identified by a `SessionInfo` token. Does not correspond 1:1 to a real database connection. |
 | **Real Connection** | A JDBC connection held by the Server's connection pool. The Client never holds one directly. |
 | **connHash** | A server-computed SHA-256 string keying a specific connection pool. Computed as SHA-256(`url + user + password + datasource_name`). |
-| **SessionInfo** | A proto message propagated on every RPC. Contains `connHash`, `clientUUID`, `sessionUUID`, `transactionInfo`, `sessionStatus`, `isXA`, `targetServer`, `clusterHealth`. |
+| **SessionInfo** | A proto message propagated on every RPC. Contains `connHash`, `clientUUID`, `sessionUUID`, `transactionInfo`, `sessionStatus`, `isXA`, `targetServer`, `clusterHealth`, `clientCount`, `maxAdmission`, `observedPeak`. |
 | **sessionUUID** | A server-assigned handle for a stateful session (transaction, LOB, cursor). Absent until the Server assigns it. |
 | **targetServer** | The `host:port` the Server binds a `sessionUUID` to. The Client MUST route all requests carrying that `sessionUUID` to this server. |
 | **clientUUID** | A stable UUID v4 generated once per Client process lifetime. |
 | **clusterHealth** | A semicolon-delimited string of `host:port(UP\|DOWN)` segments reflecting known endpoint health. |
 | **connHash cache** | A thread-safe client-side map: `url\|user\|password\|datasourceName → connHash`. Populated on first non-XA `connect()` RPC. |
+| **maxAdmission** | The total connection pool slots on a single OJP server node. Sent in `SessionInfo`; used by the client throttle to compute a per-client capacity budget. |
+| **observedPeak** | The peak concurrent in-flight load the server observed before its last admission timeout. `0` = no timeout yet (use `maxAdmission` as baseline). Updated downward immediately on overload; recovers slowly (+1 per `totalSlots × 2` releases, AIMD). |
+| **clientCount** | The number of distinct client processes (by `clientUUID`) connected to a specific `connHash` on one OJP node. Used to split `maxAdmission`/`observedPeak` fairly across clients. |
+| **ClientThrottleManager** | A per-`connHash` client-side component that maintains a fail-fast `AtomicInteger` in-flight counter and limits the number of concurrent requests this process sends to one OJP node. |
 
 ---
 
@@ -108,6 +112,9 @@ SessionInfo:
   isXA: bool
   targetServer: string            # "host:port"; MUST be used for routing when sessionUUID is set
   clusterHealth: string           # server's view of cluster topology
+  clientCount: int32              # number of distinct client processes connected to this connHash on this node
+  maxAdmission: int32             # total pool slots on this node (throttle baseline)
+  observedPeak: int32             # peak load before last admission timeout; 0 = uninitialised
 
 StatementRequest:
   session: SessionInfo            # MUST include current SessionInfo
@@ -355,7 +362,89 @@ If the bound server is `UNHEALTHY` when a sticky request is made, the client MUS
 
 ---
 
-## 8. Versioning and Compatibility
+## 8. Client-Side Throttling
+
+### 8.1 Why It Is Needed
+
+When the OJP server's pool is overwhelmed (admission timeouts), clients that keep sending new requests make the overload worse. Client-side throttling reads the three `SessionInfo` signals (`maxAdmission`, `clientCount`, `observedPeak`) and limits how many requests this process sends concurrently to each OJP node.
+
+### 8.2 Throttle Signals
+
+The server populates these `SessionInfo` fields on every `connect()`, `executeUpdate()`, and `startTransaction()` response:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `maxAdmission` | int32 | Total pool slots on this node. The static capacity baseline. |
+| `clientCount` | int32 | Distinct client processes (by `clientUUID`) connected to this `connHash` on this node. |
+| `observedPeak` | int32 | Peak concurrent load before the last admission timeout. `0` = no timeout observed yet. |
+
+### 8.3 Fair-Share Formula
+
+```
+rawBudget = ceil(signal / max(1, clientCount)) × numberOfUpNodes
+budget    = max(1, floor(rawBudget × 0.9))   # 10% safety headroom
+```
+
+Where `signal` is `maxAdmission` (proactive mode), `observedPeak` (reactive mode), or both (combined mode takes `min`).
+
+`numberOfUpNodes` = count of `(UP)` segments in `SessionInfo.clusterHealth`; defaults to 1 if empty.
+
+### 8.4 AIMD Limit Updates
+
+Limits MUST follow AIMD when updated from `SessionInfo`:
+
+- **Decrease:** if the new computed limit is lower than the current limit, apply immediately (`limit = newLimit`).
+- **Increase:** if the new computed limit is higher, increase by at most 1 (`limit = currentLimit + 1`).
+
+This prevents a "reconnect burst" where many clients simultaneously increase their budgets after a recovery event.
+
+### 8.5 Throttle Modes
+
+| Mode | Property value | What it computes |
+|---|---|---|
+| Off | `off` | No throttling; `tryAcquire` always returns `true` |
+| Proactive | `proactive` | Budget from `maxAdmission + clientCount` |
+| **Reactive** (default) | `reactive` | Budget from `observedPeak + clientCount`; falls back to `maxAdmission` when `observedPeak == 0` |
+| Combined | `combined` | `min(proactiveBudget, reactiveBudget)` |
+
+Configured via `ojp.jdbc.clientThrottle.mode` (default: `reactive` — most adaptive performance for typical workloads; use `combined` or `proactive` for workloads that cannot tolerate any bursts). Per-datasource override via `<name>.ojp.jdbc.clientThrottle.mode`.
+
+### 8.6 Concurrency Rules
+
+1. The client MUST maintain one `ClientThrottleManager` per `connHash` (keyed in a thread-safe map). Multiple connections with the same credentials share the same throttle instance.
+2. Before sending `executeQuery` or `executeUpdate`, the client MUST call `tryAcquire(mode, inTransaction)`.
+3. After the RPC returns (success or error), the client MUST call `release(mode, inTransaction)` in a `finally`-equivalent block.
+4. `tryAcquire` MUST use a CAS (compare-and-set) loop, not a blocking semaphore, to avoid turning a throttle check into a blocking wait.
+5. `tryAcquire` MUST return `true` immediately (bypass throttle) when `mode == OFF` or when `inTransaction == true`.
+6. When `tryAcquire` returns `false`, the client MUST raise an error to the caller immediately with a message indicating database overload. The client MUST NOT block, retry, or forward the request to the server.
+7. After each `executeUpdate` or `startTransaction` response, the client MUST call `updateFromSessionInfo(sessionInfo)` to refresh proactive and reactive limits.
+
+### 8.7 In-Transaction Bypass
+
+Requests inside an open transaction (i.e., `autoCommit == false` for the current connection) MUST bypass the throttle. Rejecting a mid-transaction request would abandon the transaction on the server, holding a real database connection open.
+
+### 8.8 Counter Implementation
+
+```
+tryAcquire(mode, inTransaction):
+    if mode == OFF or inTransaction: return true
+    limit = effectiveLimit(mode)
+    if limit == MAX_INT: return true
+    loop:
+        cur = inFlight.atomicGet()
+        if cur >= limit: return false
+        if inFlight.compareAndSet(cur, cur + 1): return true
+
+release(mode, inTransaction):
+    if mode == OFF or inTransaction: return
+    inFlight.atomicUpdate(v -> max(0, v - 1))
+```
+
+The `inFlight` counter MUST be atomically clamped to `max(0, inFlight - 1)` on release to handle edge cases where races could drive it below zero.
+
+---
+
+## 9. Versioning and Compatibility
 
 1. The client MUST be compiled against the same `.proto` files as the target server version.
 2. The client SHOULD send only fields defined in the proto version it was compiled against.
@@ -365,9 +454,9 @@ If the bound server is `UNHEALTHY` when a sticky request is made, the client MUS
 
 ---
 
-## 9. Compliance Requirements
+## 10. Compliance Requirements
 
-### 9.1 MUST Implement
+### 10.1 MUST Implement
 
 - All 21 `StatementService` RPCs and `EchoService.Echo`
 - `connHash` caching (non-XA cache-hit path with no RPC)
@@ -392,8 +481,12 @@ If the bound server is `UNHEALTHY` when a sticky request is made, the client MUS
 - TLS transport support (plaintext default; TLS when `ojp.grpc.tls.enabled=true`)
 - `clientUUID` generation (one UUID v4 per process lifetime)
 - `reinitializePoolOnRecoveredServer()` called **before** `endpoint.markHealthy()` on recovery
+- Read `clientCount`, `maxAdmission`, `observedPeak` from every `SessionInfo` response and pass to `ClientThrottleManager.updateFromSessionInfo()` (§8)
+- `tryAcquire` / `release` around every `executeQuery` and `executeUpdate` call (§8.6)
+- In-transaction bypass in `tryAcquire` (§8.7)
+- CAS-based `inFlight` counter for non-blocking throttle checks (§8.8)
 
-### 9.2 SHOULD Implement
+### 10.2 SHOULD Implement
 
 - Full XA transaction lifecycle (all 10 XA RPCs)
 - Full-validation health probe (in addition to heartbeat probe)
@@ -401,8 +494,9 @@ If the bound server is `UNHEALTHY` when a sticky request is made, the client MUS
 - Cache rule pass-through via `ConnectionDetails.properties`
 - `DataSource` wrapper / integration API matching host platform conventions
 - Per-datasource configuration namespacing
+- All four throttle modes (`off`, `proactive`, `reactive`, `combined`) selectable via `ojp.jdbc.clientThrottle.mode` (§8.5)
 
-### 9.3 MAY Implement
+### 10.3 MAY Implement
 
 - Async / non-blocking RPC API surface
 - Metrics / telemetry export (OpenTelemetry recommended)
@@ -410,7 +504,7 @@ If the bound server is `UNHEALTHY` when a sticky request is made, the client MUS
 
 ---
 
-## 10. Action → Protocol Mapping
+## 11. Action → Protocol Mapping
 
 | High-Level Action | gRPC RPC(s) | Notes |
 |---|---|---|

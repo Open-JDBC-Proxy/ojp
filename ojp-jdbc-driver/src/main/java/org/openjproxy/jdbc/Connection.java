@@ -10,7 +10,6 @@ import com.openjproxy.grpc.SessionInfo;
 import com.openjproxy.grpc.TargetCall;
 import com.openjproxy.grpc.TransactionStatus;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.constants.CommonConstants;
@@ -29,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -50,8 +50,9 @@ public class Connection implements java.sql.Connection {
                 return thread;
             });
 
+    private static final ConcurrentHashMap<String, ClientThrottleManager> THROTTLE_MANAGERS = new ConcurrentHashMap<>();
+
     @Getter
-    @Setter
     private SessionInfo session;
     private final StatementService statementService;
     @Getter
@@ -60,6 +61,7 @@ public class Connection implements java.sql.Connection {
     private boolean readOnly = false;
     private boolean closed;
     private final boolean closeSynchronously;
+    private final ClientThrottleMode throttleMode;
 
     // For server recovery and connection redistribution
     private volatile boolean forceInvalid = false;
@@ -69,11 +71,41 @@ public class Connection implements java.sql.Connection {
     }
 
     public Connection(SessionInfo session, StatementService statementService, DbName dbName, boolean closeSynchronously) {
+        this(session, statementService, dbName, closeSynchronously, ClientThrottleMode.REACTIVE);
+    }
+
+    public Connection(SessionInfo session, StatementService statementService, DbName dbName,
+                      boolean closeSynchronously, ClientThrottleMode throttleMode) {
         this.session = session;
         this.statementService = statementService;
         this.closed = false;
         this.dbName = dbName;
         this.closeSynchronously = closeSynchronously;
+        this.throttleMode = throttleMode;
+        updateThrottleLimits(session);
+    }
+
+    public void setSession(SessionInfo session) {
+        this.session = session;
+        updateThrottleLimits(session);
+    }
+
+    private void updateThrottleLimits(SessionInfo info) {
+        if (info != null && !info.getConnHash().isEmpty()) {
+            THROTTLE_MANAGERS.computeIfAbsent(info.getConnHash(), k -> new ClientThrottleManager())
+                    .updateFromSessionInfo(info);
+        }
+    }
+
+    ClientThrottleManager getThrottleManager() {
+        if (session != null && !session.getConnHash().isEmpty()) {
+            return THROTTLE_MANAGERS.computeIfAbsent(session.getConnHash(), k -> new ClientThrottleManager());
+        }
+        return null;
+    }
+
+    ClientThrottleMode getThrottleMode() {
+        return throttleMode;
     }
 
     /**

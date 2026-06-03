@@ -3,6 +3,7 @@ package org.openjproxy.jdbc;
 import com.openjproxy.grpc.LobReference;
 import com.openjproxy.grpc.LobType;
 import com.openjproxy.grpc.OpResult;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -80,7 +81,7 @@ public class ResultSet extends RemoteProxyResultSet {
                 labelsMap.put(labels.get(i).toUpperCase(), i);
             }
         } catch (StatusRuntimeException e) {
-            throw handle(e);
+            throw handle(onServerOverload(e));
         }
     }
 
@@ -102,17 +103,53 @@ public class ResultSet extends RemoteProxyResultSet {
                         this.getResultSetUUID(), 1));
                 this.setNextOpResult(result);
             } catch (StatusRuntimeException e) {
-                throw handle(e);
+                throw handle(onServerOverload(e));
             }
         }
         if (!this.inRowByRowMode && blockIdx.get() >= currentDataBlock.size() && itResults.hasNext()) {
             try {
                 this.setNextOpResult(this.nextWithSessionUpdate(itResults.next()));
             } catch (StatusRuntimeException e) {
-                throw handle(e);
+                throw handle(onServerOverload(e));
             }
         }
         return blockIdx.get() < currentDataBlock.size();
+    }
+
+    private StatusRuntimeException onServerOverload(StatusRuntimeException statusRuntimeException) {
+        if (statusRuntimeException.getStatus().getCode() != Status.Code.RESOURCE_EXHAUSTED) {
+            return statusRuntimeException;
+        }
+
+        try {
+            if (this.statement == null) {
+                return statusRuntimeException;
+            }
+            java.sql.Connection sqlConnection = this.statement.getConnection();
+            if (!(sqlConnection instanceof Connection)) {
+                return statusRuntimeException;
+            }
+            Connection connection = (Connection) sqlConnection;
+            ClientThrottleMode mode = connection.getThrottleMode();
+            if (mode == ClientThrottleMode.OFF) {
+                return statusRuntimeException;
+            }
+
+            ClientThrottleManager throttle = connection.getThrottleManager();
+            if (throttle != null) {
+                io.grpc.Metadata trailers = statusRuntimeException.getTrailers();
+                ClientThrottleManager.OverloadLane lane = ClientThrottleManager.OverloadLane.UNKNOWN;
+                if (trailers != null) {
+                    io.grpc.Metadata.Key<String> key = io.grpc.Metadata.Key.of(ClientThrottleManager.OVERLOAD_LANE_HEADER,
+                            io.grpc.Metadata.ASCII_STRING_MARSHALLER);
+                    lane = ClientThrottleManager.OverloadLane.parse(trailers.get(key));
+                }
+                throttle.notifyServerOverload(lane);
+            }
+        } catch (SQLException sqlException) {
+            log.debug("Unable to apply client overload backoff from ResultSet path", sqlException);
+        }
+        return statusRuntimeException;
     }
 
     private void setNextOpResult(OpResult result) {

@@ -327,6 +327,7 @@ These examples demonstrate recommended settings for each environment and can be 
 | Property | Type | Default | Description | Since |
 |----------|------|---------|-------------|-------|
 | `ojp.jdbc.connection.close.synchronous` | boolean | true | Controls `Connection.close()` behavior. `true` = close waits for terminate-session RPC (default), `false` = async close. | 0.4.2-beta |
+| `ojp.jdbc.clientThrottle.mode` | string | `reactive` | Client-side throttling mode. Controls how the driver limits concurrent in-flight requests per application instance. `off` = disabled, `proactive` = static fair-share only, `reactive` = adaptive `observedPeak` only (default — delivers the most adaptive performance for most workloads), `combined` = min(proactive, reactive). For workloads that cannot tolerate any bursts, use `combined` or `proactive`. See [Chapter 8a: Client-Side Throttling](../ebook/part3-chapter8a-client-throttling.md). | 0.5.0-beta |
 
 ### Programmatic Configuration via `DriverManager.getConnection()`
 
@@ -683,7 +684,7 @@ Add the OJP JDBC driver dependency to your project:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.16-beta</version>
+    <version>0.4.21-beta</version>
 </dependency>
 ```
 

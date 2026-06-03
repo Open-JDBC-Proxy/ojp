@@ -1,7 +1,7 @@
 # OJP Multi-Language Client Specification
 
 > **Status:** Draft — April 2026
-> **Last updated:** 2026-04-30
+> **Last updated:** 2026-05-20
 > **Scope:** Defines every aspect that a new OJP client library (in any language) must implement to be fully compatible with an OJP server. Written language-agnostically; Java-specific concepts are labelled as reference implementation only.
 > **Reference implementation:** `ojp-jdbc-driver` module.
 > **Protocol source of truth:** `ojp-grpc-commons/src/main/proto/StatementService.proto` and `echo.proto`.
@@ -47,6 +47,7 @@
    - 7.11 [Query Result Caching](#711-query-result-caching)
    - 7.12 [Security / Transport](#712-security--transport)
    - 7.13 [DataSource / Integration API](#713-datasource--integration-api)
+   - 7.14 [Client-Side Throttling](#714-client-side-throttling)
 8. [Testing Coverage](#8-testing-coverage)
 
 ---
@@ -114,7 +115,7 @@ If the bound server becomes unhealthy while a sticky session is open, the client
 
 **The server owns:** real JDBC connections and connection pool management (pool implementation is pluggable via SPI); transaction state; LOB storage; server-side cursor state; query result caching; slow-query slot management; pool resizing in response to cluster health changes.
 
-**The client owns:** `SessionInfo` propagation (attach current `SessionInfo` to every request; replace with response); `connHash` caching; endpoint health tracking; load balancing; failover; cluster health string building and pushing to surviving servers; session stickiness enforcement (`sessionUUID → targetServer` binding); background health-check task; connection redistribution after server recovery.
+**The client owns:** `SessionInfo` propagation (attach current `SessionInfo` to every request; replace with response); `connHash` caching; endpoint health tracking; load balancing; failover; cluster health string building and pushing to surviving servers; session stickiness enforcement (`sessionUUID → targetServer` binding); background health-check task; connection redistribution after server recovery; client-side throttling (reads `maxAdmission`, `clientCount`, and `observedPeak` from `SessionInfo` responses and limits the number of concurrent requests this process sends to each OJP node — see §7.14).
 
 ---
 
@@ -392,6 +393,9 @@ connhash_cache[cache_key] = session.connHash
 | `isXA` | bool | Whether this is an XA session |
 | `targetServer` | string | `host:port` of the server this session is pinned to |
 | `clusterHealth` | string | Current cluster health snapshot from the server's perspective |
+| `clientCount` | int32 | Number of distinct JVM/process clients connected to this `connHash` on this node |
+| `maxAdmission` | int32 | Total connection pool slots on this node (the server's full capacity) |
+| `observedPeak` | int32 | Peak concurrent load the server handled before its last admission timeout; `0` = no timeout observed yet (use `maxAdmission` instead) |
 
 **Lifecycle rules:**
 
@@ -1230,6 +1234,7 @@ analytics.ojp.health.check.interval=10000
 | `ojp.datasource.name` | `"default"` | Active datasource name (sent to the server) |
 | `ojp.grpc.tls.enabled` | `false` | Enable TLS on gRPC channels |
 | `ojp.grpc.tls.cert.path` | — | Path to client certificate for mTLS |
+| `ojp.jdbc.clientThrottle.mode` | `reactive` | Client throttle mode: `off`, `proactive`, `reactive`, or `combined` (see §7.14) |
 
 **Duration format** — values support: no suffix = milliseconds; `ms` = milliseconds; `s` = seconds; `m` = minutes.
 
@@ -1298,6 +1303,155 @@ Provide a higher-level `DataSource` (or equivalent) object that holds connection
 > - `ojp-jdbc-driver` — [`OjpDataSource`](../../ojp-jdbc-driver/src/main/java/org/openjproxy/jdbc/OjpDataSource.java): implements `javax.sql.DataSource`; `getConnection()` delegates to `DriverManager.getConnection(url, info)`.
 > - `ojp-jdbc-driver` — [`OjpXADataSource`](../../ojp-jdbc-driver/src/main/java/org/openjproxy/jdbc/xa/OjpXADataSource.java): implements `javax.sql.XADataSource`; `getXAConnection()` creates an `OjpXAConnection` for JTA integration.
 > - `spring-boot-starter-ojp` module: provides the Spring Boot auto-configuration class and the `OjpSystemPropertiesBridge` bean; excludes `DataSourceAutoConfiguration` to prevent double-pooling.
+
+---
+
+### 7.14 Client-Side Throttling
+
+#### Why it exists
+
+When the OJP server's connection pool is overwhelmed, it responds with admission timeouts. Without client-side throttling, all application threads keep retrying, making the overload worse — more requests arrive at the already-struggling server, consuming queue slots and prolonging the outage.
+
+Client-side throttling breaks the cycle. As soon as the server reports an overload signal through `SessionInfo`, each client caps its own in-flight request count. Fewer requests reach the server, giving the pool space to recover.
+
+**Example (without throttling):** 50 threads across 5 app servers hit one OJP node at once. The node's 10-slot pool is overwhelmed; 40 requests queue or time out. Those timed-out threads retry — sending even more requests. The situation gets worse.
+
+**Example (with throttling):** The server reports `maxAdmission=10`, `clientCount=5`. Each client calculates `ceil(10/5) × 0.9 ≈ 1` concurrent request. At most 5–6 requests reach the server simultaneously — within its capacity. Admission timeouts stop and throughput recovers.
+
+#### Three signals from the server
+
+Every `SessionInfo` response (on `connect()`, `executeUpdate()`, and `startTransaction()`) carries three throttle signals:
+
+| Field | Meaning |
+|---|---|
+| `maxAdmission` | The total pool slot count on this server node. The baseline capacity. |
+| `clientCount` | How many distinct client processes (by `clientUUID`) are connected to this `connHash` on this node right now. |
+| `observedPeak` | The server's observed peak concurrent load before its last admission timeout. Starts at `0` (no timeout seen yet). Updated downward immediately when a timeout occurs; recovers upward slowly (+1 per `totalSlots × 2` releases). |
+
+#### Fair-share formula
+
+Each client computes its per-node budget from these signals:
+
+```
+rawBudget = ceil(signal / clientCount) × numberOfUpNodes
+budget    = floor(rawBudget × 0.9)   # 10% safety headroom
+budget    = max(1, budget)            # always allow at least 1
+```
+
+Where `signal` is:
+- **Proactive mode:** use `maxAdmission`.
+- **Reactive mode (default):** use `observedPeak` (falls back to `maxAdmission` when `observedPeak == 0`).
+- **Combined mode:** compute both, take `min(proactiveBudget, reactiveBudget)`.
+
+The **10% headroom** exists because ceiling division can slightly over-allocate. Example: server has 20 slots, 3 clients.
+- Without headroom: `ceil(20/3) = 7` per client → 3 clients × 7 = **21** requests, exceeding the 20-slot capacity by 1.
+- With headroom: `floor(7 × 0.9) = floor(6.3) = 6` per client → 3 × 6 = **18**, safely within capacity.
+
+The extra slack also absorbs one stale `clientCount` reading (the count is updated asynchronously).
+
+**AIMD (Additive Increase, Multiplicative Decrease):** limits only change by `+1` per `SessionInfo` update when growing. They drop immediately when the signal decreases. This prevents multiple simultaneous client reconnections from all increasing their budgets at once (which would recreate the burst).
+
+#### Four throttle modes
+
+| Mode | Property value | What it uses |
+|---|---|---|
+| Off | `off` | No throttling; all requests pass through |
+| Proactive | `proactive` | Uses `maxAdmission + clientCount` to set a static fair-share limit |
+| **Reactive (default)** | `reactive` | Uses `observedPeak + clientCount` to track actual server capacity |
+| Combined | `combined` | Uses both; the effective limit is `min(proactiveBudget, reactiveBudget)` |
+
+Configure via `ojp.jdbc.clientThrottle.mode` (default: `reactive`). For most
+workloads, `reactive` delivers the most adaptive performance; use `combined` or
+`proactive` for workloads that cannot tolerate any bursts. Per-datasource override:
+
+```properties
+# Global default
+ojp.jdbc.clientThrottle.mode=reactive
+
+# Per-datasource override (datasource name: "analytics")
+analytics.ojp.jdbc.clientThrottle.mode=off
+```
+
+#### How the counter works
+
+Implement a fail-fast (non-blocking) per-`connHash` counter:
+
+```python
+class ClientThrottle:
+    def __init__(self):
+        self._in_flight = AtomicInt(0)   # thread-safe atomic integer
+        self.proactive_limit = MAX_INT
+        self.reactive_limit  = MAX_INT
+
+    def try_acquire(self, mode, in_transaction) -> bool:
+        if mode == "off" or in_transaction:
+            return True               # bypass throttle while inside a transaction
+        limit = self._effective_limit(mode)
+        if limit == MAX_INT:
+            return True               # uninitialised — let request through
+        while True:
+            cur = self._in_flight.get()
+            if cur >= limit:
+                return False          # reject: at limit
+            if self._in_flight.compare_and_set(cur, cur + 1):
+                return True           # accepted
+
+    def release(self, mode, in_transaction):
+        if mode == "off" or in_transaction:
+            return
+        self._in_flight.update(lambda v: max(0, v - 1))
+
+    def update_from_session_info(self, session_info):
+        # Called after each executeUpdate / startTransaction response
+        client_count = max(1, session_info.clientCount)
+        n_up = count_up_servers(session_info.clusterHealth)
+        if session_info.maxAdmission > 0:
+            raw = ceil(session_info.maxAdmission / client_count) * n_up
+            new_limit = max(1, int(raw * 0.9))
+            # AIMD: drop immediately, grow by at most +1
+            if new_limit < self.proactive_limit:
+                self.proactive_limit = new_limit
+            elif new_limit > self.proactive_limit:
+                self.proactive_limit = self.proactive_limit + 1
+        # similar logic for reactive_limit using observedPeak
+```
+
+**Important:** the `try_acquire` / `release` pair must bracket every `executeQuery` and `executeUpdate` call. The `release` must happen in a `finally` block so it runs even if the call throws.
+
+#### In-transaction bypass
+
+Requests that arrive **inside an open transaction** bypass the throttle (see `in_transaction` flag above). Rejecting a mid-transaction request would cause an abandoned transaction on the server, holding real database connections and blocking other work. The server's admission-control semaphore provides the safety boundary for in-transaction work.
+
+#### Cross-node note (v1 caveat)
+
+In multinode deployments, each OJP node sees only its own `clientCount`. Two clients connecting to different nodes each compute their per-node budget independently. If each node has 10 slots and 1 client each, both clients compute `ceil(10/1) × 2 × 0.9 = 18`. Total cluster capacity is 20, and the server's own semaphore remains the final safety gate.
+
+#### Pseudo-code — complete request lifecycle
+
+```python
+throttle = get_or_create_throttle(session.connHash)  # one per connHash
+
+def execute_update(sql, params):
+    in_txn = not auto_commit
+    if not throttle.try_acquire(mode, in_txn):
+        raise Exception("Client throttle limit reached; request rejected "
+                        "to avoid overloading the database")
+    try:
+        resp = stub.executeUpdate(StatementRequest(session=session, sql=sql,
+                                                   parameters=params,
+                                                   statementUUID=new_uuid()))
+        session = resp.session
+        throttle.update_from_session_info(session)
+        return resp.value.int_value  # affected row count
+    finally:
+        throttle.release(mode, in_txn)
+```
+
+> **Reference implementation:**
+> - `ojp-jdbc-driver` — [`ClientThrottleManager`](../../ojp-jdbc-driver/src/main/java/org/openjproxy/jdbc/ClientThrottleManager.java): the complete per-`connHash` throttle implementation with atomic CAS counter, AIMD update, and `countUpServers()`.
+> - `ojp-jdbc-driver` — [`ClientThrottleMode`](../../ojp-jdbc-driver/src/main/java/org/openjproxy/jdbc/ClientThrottleMode.java): `OFF | PROACTIVE | REACTIVE | COMBINED` enum; loaded from `ojp.jdbc.clientThrottle.mode`.
+> - `ojp-jdbc-driver` — [`Connection`](../../ojp-jdbc-driver/src/main/java/org/openjproxy/jdbc/Connection.java): `THROTTLE_MANAGERS` static map (keyed by `connHash`); `setSession()` calls `throttle.updateFromSessionInfo()` after each response.
+> - `ojp-jdbc-driver` — [`Statement.acquireThrottle()`](../../ojp-jdbc-driver/src/main/java/org/openjproxy/jdbc/Statement.java): the `try_acquire` / `release` guard used by `executeQuery` and `executeUpdate`.
 
 ---
 
@@ -1400,6 +1554,15 @@ A conformant client implementation must ship a test suite that exercises all the
 #### Slow query segregation
 - Send queries that take longer than the slow-query threshold; verify they use the reserved slow-query slots and do not starve fast queries.
 
+#### Client-side throttling
+- With throttle mode `proactive`: send more concurrent requests than `ceil(maxAdmission / clientCount) × 0.9`; verify the excess requests are rejected immediately (no blocking) with a throttle error — not forwarded to the server.
+- With throttle mode `reactive`: simulate an admission timeout (drive `observedPeak` down); verify the client reduces its budget and rejects excess requests.
+- With throttle mode `combined`: verify the effective limit is `min(proactiveBudget, reactiveBudget)`.
+- With throttle mode `off`: verify all requests pass through regardless of in-flight count.
+- Verify that in-transaction requests bypass the throttle (a mid-transaction request is never rejected by the client).
+- Verify AIMD recovery: after a reduced `observedPeak`, send requests at a modest rate; verify the budget increases by at most 1 per `SessionInfo` update.
+- Verify per-datasource throttle mode override via `<name>.ojp.jdbc.clientThrottle.mode`.
+
 #### Multi-datasource
 - Configure two endpoints with different datasource names; verify each endpoint uses its own datasource configuration.
 
@@ -1486,3 +1649,4 @@ H2 tests (in-process, no external dependency) must always be runnable in CI with
 | XA | `OjpXAResource`, `OjpXAConnection`, `OjpXADataSource` |
 | Driver entry point | `Driver` |
 | DataSource wrapper | `OjpDataSource` |
+| Client-side throttling | `ClientThrottleManager`, `ClientThrottleMode` |
