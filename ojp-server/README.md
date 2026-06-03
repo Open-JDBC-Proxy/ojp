@@ -26,6 +26,7 @@ docker run -p 1059:1059 rrobetti/ojp:0.4.17-SNAPSHOT
 PS: Only authorized users.
 
 ```bash
+docker login
 cd ojp-server && ./docker-build.sh push
 ```
 
