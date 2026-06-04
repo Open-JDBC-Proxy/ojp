@@ -39,13 +39,8 @@ VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl oj
 IMAGE="rrobetti/ojp:${VERSION}"
 
 # Step 3: Build Docker image
-echo -e "${GREEN}Step 2: Building Docker image ${IMAGE}...${NC}"
+echo -e "${GREEN}Step 3: Building Docker image ${IMAGE}...${NC}"
 docker build -t "$IMAGE" "$SCRIPT_DIR"
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Docker build failed!${NC}"
-    exit 1
-fi
 
 echo -e "${GREEN}✓ Docker image built: ${IMAGE}${NC}"
 echo ""

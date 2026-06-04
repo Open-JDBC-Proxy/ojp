@@ -84,7 +84,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -92,14 +92,17 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       - name: Start OJP Server container
         run: |
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -189,7 +192,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -197,7 +200,10 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       # Start first OJP server without SQL enhancer (default configuration)
       # Tests will run against this server via postgres_connection.csv (port 1059)
@@ -206,7 +212,7 @@ jobs:
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       # Start second OJP server WITH SQL enhancer enabled in OPTIMIZE mode
       # Tests will run against this server via postgres_connection.csv (port 10593)
@@ -218,7 +224,7 @@ jobs:
           docker run -d --name ojp-server-enhancer \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10593 -Dojp.prometheus.port=9163 -Dojp.server.slowQuerySegregation.enabled=true -Dojp.sql.enhancer.enabled=true -Dojp.sql.enhancer.mode=OPTIMIZE -Dojp.sql.enhancer.dialect=POSTGRESQL" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -327,7 +333,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -335,14 +341,17 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       - name: Start OJP Server container
         run: |
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -423,7 +432,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -431,14 +440,17 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       - name: Start OJP Server container
         run: |
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -510,7 +522,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -518,14 +530,17 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       - name: Start OJP Server container
         run: |
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -648,10 +663,10 @@ jobs:
           echo "DB2 initialization complete"
 
       # Download DB2 JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
-      # Similar to Oracle, we handle it via the Jib extra directories mechanism
+      # Similar to Oracle, we handle it via the ojp-libs directory copied into the Docker image
       - name: Download DB2 JDBC Driver to ojp-server/ojp-libs
         run: |
-          # Create ojp-server/ojp-libs directory for Jib to pick up during Docker image build
+          # Create ojp-server/ojp-libs directory for inclusion in the Docker image
           mkdir -p ojp-server/ojp-libs
           
           # Download DB2 JDBC driver from Maven Central
@@ -678,7 +693,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -686,14 +701,17 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       - name: Start OJP Server container with DB2 driver from ojp-server/ojp-libs
         run: |
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -779,7 +797,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -787,7 +805,10 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       # Start first OJP server instance on port 10591
       - name: Start OJP Server 1 on port 10591
@@ -795,7 +816,7 @@ jobs:
           docker run -d --name ojp-server-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9159"
 
       # Start second OJP server instance on port 10592
@@ -804,7 +825,7 @@ jobs:
           docker run -d --name ojp-server-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9160"
 
       - name: Wait for OJP servers to start
@@ -913,7 +934,7 @@ jobs:
           docker run -d --name ojp-server-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9159 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "OJP Server 1 container restarted"
           sleep 10
 
@@ -998,7 +1019,7 @@ jobs:
           docker run -d --name ojp-server-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9160 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "OJP Server 2 container restarted"
           sleep 10
 
@@ -1182,7 +1203,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -1190,7 +1211,10 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       # Start first OJP server instance on port 10591 with DEBUG logging
       - name: Start OJP Server 1 on port 10591
@@ -1199,7 +1223,7 @@ jobs:
           docker run -d --name ojp-server-xa-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "Started OJP Server 1 container on gRPC port 10591, Prometheus port 9161 with DEBUG logging"
 
       # Start second OJP server instance on port 10592 with DEBUG logging
@@ -1209,7 +1233,7 @@ jobs:
           docker run -d --name ojp-server-xa-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true -Dorg.slf4j.simpleLogger.log.org.openjproxy.xa.pool=DEBUG" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "Started OJP Server 2 container on gRPC port 10592, Prometheus port 9162 with DEBUG logging"
 
       - name: Wait for OJP servers to start
@@ -1329,7 +1353,7 @@ jobs:
           docker run -d --name ojp-server-xa-1 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10591 -Dojp.prometheus.port=9161 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "OJP Server 1 container restarted"
           
           # Wait for server to fully start
@@ -1432,7 +1456,7 @@ jobs:
           docker run -d --name ojp-server-xa-2 \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.port=10592 -Dojp.prometheus.port=9162 -Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
           echo "OJP Server 2 container restarted"
           
           # Wait for server to fully start
@@ -1654,10 +1678,10 @@ jobs:
 
       # Download Oracle JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
       # We don't include it in the repository due to Oracle licensing
-      # The driver will be loaded at runtime via the Jib extra directories mechanism
+      # The driver will be loaded at runtime via the ojp-libs directory copied into the Docker image
       - name: Download Oracle JDBC Driver to ojp-server/ojp-libs
         run: |
-          # Create ojp-server/ojp-libs directory for Jib to pick up during Docker image build
+          # Create ojp-server/ojp-libs directory for inclusion in the Docker image
           mkdir -p ojp-server/ojp-libs
           
           # Download Oracle JDBC driver from Maven Central
@@ -1684,7 +1708,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -1692,14 +1716,17 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       - name: Start OJP Server container with Oracle driver from ojp-server/ojp-libs
         run: |
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
@@ -1757,10 +1784,10 @@ jobs:
           fetch-depth: 0
 
       # Download SQL Server JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
-      # Similar to Oracle and DB2, we handle it via the Jib extra directories mechanism
+      # Similar to Oracle and DB2, we handle it via the ojp-libs directory copied into the Docker image
       - name: Download SQL Server JDBC Driver to ojp-server/ojp-libs
         run: |
-          # Create ojp-server/ojp-libs directory for Jib to pick up during Docker image build
+          # Create ojp-server/ojp-libs directory for inclusion in the Docker image
           mkdir -p ojp-server/ojp-libs
           
           # Download SQL Server JDBC driver from Maven Central
@@ -1787,7 +1814,7 @@ jobs:
       - name: Test (ojp-grpc-commons) with JDK 24
         run: mvn test -pl ojp-grpc-commons -Dgpg.skip=true
 
-      # Download open source JDBC drivers to ojp-server/ojp-libs so Jib can bake them into the Docker image
+      # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
         run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
@@ -1795,14 +1822,17 @@ jobs:
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
 
       - name: Build OJP Server Docker image
-        run: mvn jib:dockerBuild -pl ojp-server -Dgpg.skip=true
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
+          docker build -t rrobetti/ojp:${VERSION} ojp-server/
+          echo "OJP_IMAGE=rrobetti/ojp:${VERSION}" >> $GITHUB_ENV
 
       - name: Start OJP Server container with SQL Server driver from ojp-server/ojp-libs
         run: |
           docker run -d --name ojp-server \
             --network host \
             -e JAVA_TOOL_OPTIONS="-Dojp.server.slowQuerySegregation.enabled=true" \
-            rrobetti/ojp:0.4.22-SNAPSHOT
+            ${{ env.OJP_IMAGE }}
 
       - name: Wait for ojp-server to start
         run: sleep 10
