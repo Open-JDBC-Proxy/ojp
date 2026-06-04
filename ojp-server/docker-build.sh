@@ -27,25 +27,19 @@ echo -e "${BLUE}   OJP Docker Build Helper${NC}"
 echo -e "${BLUE}==========================================${NC}"
 echo ""
 
-# Step 1: Download open source JDBC drivers
-echo -e "${GREEN}Step 1: Downloading open source JDBC drivers...${NC}"
-bash "$SCRIPT_DIR/download-drivers.sh" "$SCRIPT_DIR/ojp-libs"
-echo -e "${GREEN}✓ Drivers ready${NC}"
-echo ""
-
-# Step 2: Build fat JAR
-echo -e "${GREEN}Step 2: Building fat JAR...${NC}"
+# Step 1: Build fat JAR
+echo -e "${GREEN}Step 1: Building fat JAR...${NC}"
 cd "$SCRIPT_DIR/.."
 mvn package -pl ojp-server -am -DskipTests -q
 echo -e "${GREEN}✓ JAR built${NC}"
 echo ""
 
-# Step 3: Resolve image tag from project version
+# Step 2: Resolve image tag from project version
 VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout -pl ojp-server)
 IMAGE="rrobetti/ojp:${VERSION}"
 
-# Step 4: Build Docker image
-echo -e "${GREEN}Step 3: Building Docker image ${IMAGE}...${NC}"
+# Step 3: Build Docker image
+echo -e "${GREEN}Step 2: Building Docker image ${IMAGE}...${NC}"
 docker build -t "$IMAGE" "$SCRIPT_DIR"
 
 if [ $? -ne 0 ]; then

@@ -11,9 +11,14 @@ cd ojp-server && ./docker-build.sh
 ```
 
 This will:
-1. Download open source JDBC drivers into `ojp-libs/`
-2. Build the fat JAR via Maven
-3. Run `docker build` using the multi-stage `Dockerfile`
+1. Build the fat JAR via Maven
+2. Run `docker build` using the multi-stage `Dockerfile`
+
+The image copies whatever is in `ojp-libs/` at build time. Use `download-drivers.sh` to populate it with the open source drivers you want before building:
+
+```bash
+./download-drivers.sh ./ojp-libs
+```
 
 ### Run locally
 
