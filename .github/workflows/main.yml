@@ -86,9 +86,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -196,9 +194,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -339,9 +335,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -440,9 +434,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -532,9 +524,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -705,9 +695,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -811,9 +799,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -1219,9 +1205,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -1726,9 +1710,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
@@ -1834,9 +1816,7 @@ jobs:
 
       # Download open source JDBC drivers into ojp-server/ojp-libs for inclusion in the Docker image
       - name: Download Open Source Drivers
-        run: |
-          mkdir -p ojp-server/ojp-libs
-          bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
       - name: Build (ojp-server) with JDK 24
         run: mvn clean install -pl ojp-server -am -DskipTests -Dgpg.skip=true
