@@ -11,6 +11,7 @@ OJP exposes operational metrics through a Prometheus-compatible endpoint, provid
 - Connection pool metrics (XA pools and HikariCP) including connection acquisition time histograms
 - SQL execution time histograms per statement (for both XA and non-XA connections)
 - Connection and session information
+- Circuit breaker state, trips, blocked calls, and recovery timing
 
 ### Distributed Tracing via OpenTelemetry
 OJP supports distributed tracing using the OpenTelemetry SDK. Traces are automatically emitted for all gRPC calls handled by the server and can be sent to any compatible backend.
@@ -40,6 +41,80 @@ Traces are pushed by OJP to the configured exporter endpoint:
 - **OTLP default endpoint**: `http://localhost:4317` (gRPC)
 
 Each trace includes span attributes such as gRPC method, status code, and service name.
+
+## Circuit Breaker Metrics
+
+When `ojp.telemetry.enabled=true`, OJP emits circuit breaker metrics through the same Prometheus endpoint. These metrics are labeled with `query_hash` and `datasource`; transition and trip metrics include additional labels noted below.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `ojp.circuit_breaker.state` | Gauge | `query_hash`, `datasource` | Current circuit state: `0` closed, `1` open, `2` half-open |
+| `ojp.circuit_breaker.transitions.total` | Counter | `query_hash`, `datasource`, `from_state`, `to_state` | Number of state transitions |
+| `ojp.circuit_breaker.trips.total` | Counter | `query_hash`, `datasource`, `reason` | Number of times a circuit opens due to failure conditions |
+| `ojp.circuit_breaker.open_duration.seconds` | Histogram | `query_hash`, `datasource` | Time spent in open state before recovery is attempted |
+| `ojp.circuit_breaker.blocked_calls.total` | Counter | `query_hash`, `datasource` | Requests rejected because the circuit is open |
+
+Prometheus converts OpenTelemetry metric names to Prometheus format by replacing dots with underscores. For example, `ojp.circuit_breaker.trips.total` is queried as `ojp_circuit_breaker_trips_total`.
+
+### Example Prometheus Queries
+
+Circuits currently open:
+```promql
+ojp_circuit_breaker_state == 1
+```
+
+Circuit trips by datasource over five minutes:
+```promql
+sum by (datasource) (increase(ojp_circuit_breaker_trips_total[5m]))
+```
+
+Blocked calls by query over five minutes:
+```promql
+sum by (datasource, query_hash) (increase(ojp_circuit_breaker_blocked_calls_total[5m]))
+```
+
+95th percentile open duration:
+```promql
+histogram_quantile(
+  0.95,
+  sum by (le, datasource) (rate(ojp_circuit_breaker_open_duration_seconds_bucket[5m]))
+)
+```
+
+State transitions by direction:
+```promql
+sum by (from_state, to_state) (increase(ojp_circuit_breaker_transitions_total[5m]))
+```
+
+### Grafana Panel Snippets
+
+Current open circuits:
+```json
+{
+  "title": "Open circuits",
+  "type": "stat",
+  "targets": [
+    {
+      "expr": "count(ojp_circuit_breaker_state == 1)",
+      "legendFormat": "open"
+    }
+  ]
+}
+```
+
+Circuit trips by datasource:
+```json
+{
+  "title": "Circuit trips by datasource",
+  "type": "timeseries",
+  "targets": [
+    {
+      "expr": "sum by (datasource) (increase(ojp_circuit_breaker_trips_total[5m]))",
+      "legendFormat": "{{datasource}}"
+    }
+  ]
+}
+```
 
 ## Configuration Options
 
