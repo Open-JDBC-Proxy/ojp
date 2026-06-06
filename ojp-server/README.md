@@ -46,10 +46,13 @@ docker run -d \
 
 ### Verify the image (integration test)
 
-Running `mvn verify` builds the image and runs an integration test that starts the container and confirms the server comes up without missing class errors:
+The `docker-build` Maven profile builds the image and runs `OjpDockerImageIT`, which starts the container and confirms the server comes up without missing class errors. Requires `ojp-libs/` to be populated and Docker daemon to be running.
 
 ```bash
-mvn verify -pl ojp-server -am
+# Optional: populate ojp-libs with open source drivers first
+./download-drivers.sh ./ojp-libs
+
+mvn verify -pl ojp-server -am -Pdocker-build
 ```
 
 For comprehensive Docker deployment examples and configuration options, see the **[Docker Deployment Guide](../documents/configuration/DOCKER_DEPLOYMENT.md)**.
