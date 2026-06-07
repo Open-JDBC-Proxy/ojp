@@ -192,7 +192,7 @@ Modern observability goes beyond logs. OJP integrates with OpenTelemetry to prov
 **Note**: OJP exports metrics via Prometheus and also supports distributed tracing via OpenTelemetry. Metrics are enabled by default; distributed tracing must be explicitly enabled via configuration (see Chapter 13 for full tracing configuration details). The OpenTelemetry integration provides operational metrics such as request rates, error rates, and latency through the Prometheus endpoint, as well as distributed traces to Zipkin or OTLP-compatible backends such as Jaeger and Grafana Tempo.
 
 
-OpenTelemetry support is enabled by default, making the Prometheus metrics endpoint available at the configured port (default 9159). The server provides separate control over different metric categories, allowing you to enable or disable gRPC and pool metrics independently.
+OpenTelemetry support is enabled by default, making the Prometheus metrics endpoint available at the configured port (default 9159). The server provides separate control over different metric categories, allowing you to enable or disable gRPC, pool, and circuit breaker metrics independently.
 
 **[IMAGE PROMPT: Create a metrics dashboard visualization showing Prometheus metrics from OJP Server. Display panels for: "Request Rate" (line graph), "Connection Pool Usage" (gauge showing active/idle/max), "Pool Utilization %" (multi-pool comparison), "Query Latency p95/p99" (histogram), "Error Rate" (area chart), "Pool Health" (stat panel showing exhaustion/leaks). Use modern Grafana-style UI with dark theme, multiple time series, and clear metric labels. Style: Modern observability dashboard with color-coded metrics and real-time graphs.]**
 
@@ -205,12 +205,13 @@ The configuration provides three levels of control:
 # Granular control over metric categories (both default to true when telemetry is enabled)
 -Dojp.telemetry.grpc.metrics.enabled=true      # gRPC server metrics
 -Dojp.telemetry.pool.metrics.enabled=true      # Connection pool metrics (XA, HikariCP, DBCP)
+-Dojp.telemetry.circuitbreaker.enabled=true    # Circuit breaker metrics
 
 # Disable telemetry completely for performance-critical scenarios
 -Dojp.telemetry.enabled=false
 ```
 
-This three-tier approach lets you optimize your observability setup. The master switch (`ojp.telemetry.enabled`) controls whether the OpenTelemetry SDK and Prometheus server initialize at all. When disabled, the system uses no-op telemetry with zero overhead. The granular flags (`ojp.telemetry.grpc.metrics.enabled`, `ojp.telemetry.pool.metrics.enabled`) control which metrics are collected within an already-initialized OpenTelemetry system, allowing you to focus on the metrics that matter most for your deployment.
+This three-tier approach lets you optimize your observability setup. The master switch (`ojp.telemetry.enabled`) controls whether the OpenTelemetry SDK and Prometheus server initialize at all. When disabled, the system uses no-op telemetry with zero overhead. The granular flags (`ojp.telemetry.grpc.metrics.enabled`, `ojp.telemetry.pool.metrics.enabled`, `ojp.telemetry.circuitbreaker.enabled`) control which metrics are collected within an already-initialized OpenTelemetry system, allowing you to focus on the metrics that matter most for your deployment.
 
 ### Available Metrics
 
@@ -420,7 +421,7 @@ export OJP_SERVER_VIRTUALTHREADS_ENABLED=true
 export OJP_SERVER_THREADPOOLSIZE=50
 export OJP_SERVER_CIRCUITBREAKERTHRESHOLD=5
 export OJP_SERVER_ALLOWEDIPS="0.0.0.0/0"
-export OJP_OPENTELEMETRY_ENABLED=true
+export OJP_TELEMETRY_ENABLED=true
 ```
 
 Production environments require different trade-offs. Use ERROR or INFO logging (ERROR recommended for maximum performance; INFO for operational visibility). Implement proper IP restrictions for security. Enable OpenTelemetry for distributed tracing. Configure appropriate timeouts for your SLAs. Be very careful with DEBUG and TRACE in production—they are extremely verbose and can impact performance significantly.
@@ -436,7 +437,7 @@ export OJP_SERVER_CIRCUITBREAKERTHRESHOLD=3
 export OJP_SERVER_CIRCUITBREAKERTIMEOUT=60000
 export OJP_SERVER_ALLOWEDIPS="10.0.0.0/8"
 export OJP_PROMETHEUS_ALLOWEDIPS="192.168.100.0/24"
-export OJP_OPENTELEMETRY_ENABLED=true
+export OJP_TELEMETRY_ENABLED=true
 export OJP_OPENTELEMETRY_ENDPOINT=http://jaeger:4317
 export OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED=true
 ```

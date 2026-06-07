@@ -61,7 +61,12 @@ public class GrpcServer {
                 config.isTelemetryGrpcMetricsEnabled(),
                 config.isTelemetryPoolMetricsEnabled()
             );
-            circuitBreakerMetrics = ojpServerTelemetry.createCircuitBreakerMetrics();
+            if (config.isTelemetryCircuitBreakerMetricsEnabled()) {
+                circuitBreakerMetrics = ojpServerTelemetry.createCircuitBreakerMetrics();
+            } else {
+                circuitBreakerMetrics = CircuitBreakerMetrics.noop();
+                logger.info("Circuit breaker metrics disabled");
+            }
 
             OjpHealthManager.setServiceStatus(OjpHealthManager.Services.OPENTELEMETRY_SERVICE,
                     HealthCheckResponse.ServingStatus.SERVING);

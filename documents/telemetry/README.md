@@ -127,6 +127,7 @@ The telemetry system can be configured through JVM system properties or environm
 | `ojp.telemetry.enabled` | `OJP_TELEMETRY_ENABLED` | `true` | Master switch: Enable/disable OpenTelemetry infrastructure (Prometheus server, MeterProvider, TracerProvider) |
 | `ojp.prometheus.port` | `OJP_PROMETHEUS_PORT` | `9159` | Port for Prometheus metrics HTTP server |
 | `ojp.prometheus.allowedIps` | `OJP_PROMETHEUS_ALLOWED_IPS` | `0.0.0.0/0` | Comma-separated list of allowed IP addresses/CIDR blocks for metrics endpoint |
+| `ojp.telemetry.circuitbreaker.enabled` | `OJP_TELEMETRY_CIRCUITBREAKER_ENABLED` | `true` | Enable/disable circuit breaker metrics while keeping other telemetry enabled |
 
 ### Tracing Configuration Properties
 
@@ -161,9 +162,10 @@ java -Duser.timezone=UTC \
 
 **Using Environment Variables:**
 ```bash
-export OJP_OPENTELEMETRY_ENABLED=true
+export OJP_TELEMETRY_ENABLED=true
 export OJP_PROMETHEUS_PORT=9159
 export OJP_PROMETHEUS_ALLOWED_IPS=127.0.0.1,10.0.0.0/8
+export OJP_TELEMETRY_CIRCUITBREAKER_ENABLED=false
 export OJP_TRACING_ENABLED=true
 export OJP_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
 java -Duser.timezone=UTC -jar ojp-server.jar

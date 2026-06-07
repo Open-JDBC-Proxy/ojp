@@ -116,6 +116,7 @@ public class CircuitBreaker {
             rec.reset();
             state.remove(sql, rec);
             metrics.updateState(resourceId, sql, CircuitBreakerMetrics.State.CLOSED);
+            metrics.clearState(resourceId, sql);
         }
     }
 

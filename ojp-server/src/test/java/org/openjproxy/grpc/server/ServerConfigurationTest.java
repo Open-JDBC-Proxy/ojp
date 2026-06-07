@@ -28,6 +28,7 @@ class ServerConfigurationTest {
         System.clearProperty("ojp.server.allowedIps");
         System.clearProperty("ojp.server.connectionIdleTimeout");
         System.clearProperty("ojp.prometheus.allowedIps");
+        System.clearProperty("ojp.telemetry.circuitbreaker.enabled");
         System.clearProperty("ojp.server.circuitBreakerTimeout");
         System.clearProperty("ojp.server.maxConcurrentRequests");
         System.clearProperty("ojp.server.admissionControl.maxQueueDepth");
@@ -61,6 +62,8 @@ class ServerConfigurationTest {
         assertEquals(ServerConfiguration.DEFAULT_CONNECTION_IDLE_TIMEOUT, config.getConnectionIdleTimeout());
         assertEquals(ServerConfiguration.DEFAULT_PROMETHEUS_ALLOWED_IPS, config.getPrometheusAllowedIps());
         assertEquals(ServerConfiguration.DEFAULT_CIRCUIT_BREAKER_TIMEOUT, config.getCircuitBreakerTimeout());
+        assertEquals(ServerConfiguration.DEFAULT_TELEMETRY_CIRCUIT_BREAKER_ENABLED,
+                config.isTelemetryCircuitBreakerMetricsEnabled());
         assertEquals(ServerConfiguration.DEFAULT_MAX_CONCURRENT_REQUESTS, config.getMaxConcurrentRequests());
         assertEquals(ServerConfiguration.DEFAULT_ADMISSION_CONTROL_MAX_QUEUE_DEPTH, config.getAdmissionControlMaxQueueDepth());
         assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_CLASSIFICATION_MODE, config.getSlowQueryClassificationMode());
@@ -120,6 +123,17 @@ class ServerConfigurationTest {
         assertEquals(120000, config.getCircuitBreakerTimeout());
         assertEquals(123, config.getMaxConcurrentRequests());
         assertEquals(77, config.getAdmissionControlMaxQueueDepth());
+    }
+
+    @Test
+    void testCanDisableCircuitBreakerMetricsIndependently() {
+        System.setProperty("ojp.telemetry.enabled", "true");
+        System.setProperty("ojp.telemetry.circuitbreaker.enabled", "false");
+
+        ServerConfiguration config = new ServerConfiguration();
+
+        assertTrue(config.isOpenTelemetryEnabled());
+        assertFalse(config.isTelemetryCircuitBreakerMetricsEnabled());
     }
 
     @Test

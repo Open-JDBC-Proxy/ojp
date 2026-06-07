@@ -70,6 +70,13 @@ public class CircuitBreakerMetrics {
         return NOOP;
     }
 
+    public void clearState(String datasource, String queryHash) {
+        CircuitBreakerKey key = CircuitBreakerKey.of(datasource, queryHash);
+
+        this.states.remove(key);
+        this.openTimestamps.remove(key);
+    }
+
     public void updateState(String datasource, String queryHash, State newState) {
         updateState(datasource, queryHash, newState, null);
     }

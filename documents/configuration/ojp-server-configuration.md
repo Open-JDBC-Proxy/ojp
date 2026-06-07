@@ -122,6 +122,7 @@ For detailed configuration examples for each database, see [SSL/TLS Certificate 
 |-------------------------------|-------------------------------|---------|---------|------------------------------------------------|-------|
 | `ojp.telemetry.enabled`   | `OJP_TELEMETRY_ENABLED`   | boolean | true    | Master switch: Enable/disable OpenTelemetry infrastructure (Prometheus server, MeterProvider, TracerProvider)  | 0.2.0-beta |
 | `ojp.opentelemetry.endpoint`  | `OJP_OPENTELEMETRY_ENDPOINT`  | string  | ""      | OpenTelemetry exporter endpoint (empty = default) | 0.2.0-beta |
+| `ojp.telemetry.circuitbreaker.enabled` | `OJP_TELEMETRY_CIRCUITBREAKER_ENABLED` | boolean | true | Enable/disable circuit breaker metrics while keeping other telemetry enabled | 0.4.0-beta |
 
 ### Tracing Settings
 
@@ -351,7 +352,7 @@ Set configuration using environment variables:
 ```bash
 export OJP_SERVER_PORT=8080
 export OJP_PROMETHEUS_PORT=9091
-export OJP_OPENTELEMETRY_ENABLED=false
+export OJP_TELEMETRY_ENABLED=false
 export OJP_SERVER_VIRTUALTHREADS_ENABLED=true
 export OJP_SERVER_THREADPOOLSIZE=100
 export OJP_SERVER_CIRCUITBREAKERTIMEOUT=120000
@@ -367,7 +368,7 @@ java -Duser.timezone=UTC -jar ojp-server.jar
 ```bash
 docker run -e OJP_SERVER_PORT=8080 \
            -e OJP_PROMETHEUS_PORT=9091 \
-           -e OJP_OPENTELEMETRY_ENABLED=false \
+           -e OJP_TELEMETRY_ENABLED=false \
            -e OJP_SERVER_CIRCUITBREAKERTIMEOUT=120000 \
            -e OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED=true \
            -e OJP_SERVER_ALLOWEDIPS="192.168.1.0/24,10.0.0.1" \
@@ -585,7 +586,7 @@ data:
   OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT: "60000"
   OJP_SERVER_ALLOWEDIPS: "10.244.0.0/16"
   OJP_PROMETHEUS_ALLOWEDIPS: "10.244.0.0/16"
-  OJP_OPENTELEMETRY_ENABLED: "true"
+  OJP_TELEMETRY_ENABLED: "true"
 ```
 
 ## Configuration Validation
