@@ -243,22 +243,26 @@ jobs:
 
       # -----------------------------------------------------------------------
       # 9. Build and push Docker image for ojp-server
-      #    Image tag is ${project.version} (e.g. rrobetti/ojp:0.4.1-beta)
+      #    Image tag is the release version (e.g. rrobetti/ojp:0.4.1-beta)
+      #    Also tagged as latest.
+      #    Fat JAR is already built by step 7 (mvn clean package).
       # -----------------------------------------------------------------------
-      - name: Create ojp-libs directory for Jib
+      - name: Download open source JDBC drivers
         if: ${{ inputs.dry_run == false }}
-        run: mkdir -p ojp-server/ojp-libs
+        run: bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
+
+      - name: Log in to Docker Hub
+        if: ${{ inputs.dry_run == false }}
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USER }}" --password-stdin
 
       - name: Build and push Docker image (${{ steps.versions.outputs.release }})
         if: ${{ inputs.dry_run == false }}
         run: |
-          mvn --batch-mode compile jib:build \
-              -pl ojp-server \
-              -Djib.to.auth.username="${{ secrets.DOCKERHUB_USER }}" \
-              -Djib.to.auth.password="${{ secrets.DOCKERHUB_TOKEN }}" \
-              -Djib.to.tags=latest \
-              -DskipTests \
-              --no-transfer-progress
+          IMAGE="rrobetti/ojp:${{ steps.versions.outputs.release }}"
+          docker build -t "$IMAGE" ojp-server/
+          docker push "$IMAGE"
+          docker tag "$IMAGE" rrobetti/ojp:latest
+          docker push rrobetti/ojp:latest
 
       # -----------------------------------------------------------------------
       # 10. Update version references in all documentation (*.md files)
@@ -279,13 +283,6 @@ jobs:
             -e "s|ojp-server-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta|ojp-server-${NEW}|g" \
             -e "s|/ojp-server/[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta/|/ojp-server/${NEW}/|g" \
             -e "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta</version>|<version>${NEW}</version>|g"
-
-          # Update the docker image version in the main CI workflow:
-          # replace both SNAPSHOT and previous beta references with the release version
-          sed -i \
-            -e "s|rrobetti/ojp:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-SNAPSHOT|rrobetti/ojp:${NEW}|g" \
-            -e "s|rrobetti/ojp:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta|rrobetti/ojp:${NEW}|g" \
-            .github/workflows/main.yml
 
           echo "Files updated:"
           git diff --name-only
@@ -311,19 +308,6 @@ jobs:
               -DprocessAllModules=true \
               -DgenerateBackupPoms=false \
               --no-transfer-progress
-
-      # -----------------------------------------------------------------------
-      # 12b. Update main.yml docker image to the next development version
-      # -----------------------------------------------------------------------
-      - name: Update main.yml docker image to next development version (${{ steps.versions.outputs.next }})
-        run: |
-          NEXT="${{ steps.versions.outputs.next }}"
-          echo "Updating main.yml docker image references to ${NEXT}"
-          sed -i \
-            -e "s|rrobetti/ojp:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*-beta|rrobetti/ojp:${NEXT}|g" \
-            .github/workflows/main.yml
-          echo "Files updated:"
-          git diff --name-only
 
       - name: Commit next development version
         if: ${{ inputs.dry_run == false }}

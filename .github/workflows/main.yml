@@ -662,7 +662,7 @@ jobs:
           
           echo "DB2 initialization complete"
 
-      # Download DB2 JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
+      # Download DB2 JDBC driver and place in ojp-server/ojp-libs directory for inclusion in the Docker image
       # Similar to Oracle, we handle it via the ojp-libs directory copied into the Docker image
       - name: Download DB2 JDBC Driver to ojp-server/ojp-libs
         run: |
@@ -1676,7 +1676,7 @@ jobs:
           
           echo "=== XA permissions granted successfully ==="
 
-      # Download Oracle JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
+      # Download Oracle JDBC driver and place in ojp-server/ojp-libs directory for inclusion in the Docker image
       # We don't include it in the repository due to Oracle licensing
       # The driver will be loaded at runtime via the ojp-libs directory copied into the Docker image
       - name: Download Oracle JDBC Driver to ojp-server/ojp-libs
@@ -1783,7 +1783,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Download SQL Server JDBC driver and place in ojp-server/ojp-libs directory so Jib can bake it into the Docker image
+      # Download SQL Server JDBC driver and place in ojp-server/ojp-libs directory for inclusion in the Docker image
       # Similar to Oracle and DB2, we handle it via the ojp-libs directory copied into the Docker image
       - name: Download SQL Server JDBC Driver to ojp-server/ojp-libs
         run: |
