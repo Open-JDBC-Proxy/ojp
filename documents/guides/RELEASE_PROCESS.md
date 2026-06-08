@@ -446,23 +446,7 @@ that enables all three publishing requirements:
   ```
 - **Docker image → Docker Hub** — built via a multi-stage `Dockerfile` (jlink custom JRE on Alpine, ~127MB). Open-source JDBC drivers are downloaded into `ojp-libs/` before the build and copied into the image.
 
-  **Exposed ports:** The image declares two default ports via `ENV` in the Dockerfile:
-
-  | Port | Env var | Description |
-  |------|---------|-------------|
-  | `1059` | `OJP_SERVER_PORT` | gRPC server |
-  | `9159` | `OJP_PROMETHEUS_PORT` | Prometheus metrics |
-
-  `EXPOSE` is evaluated at **build time** using those `ENV` defaults, so the image metadata always lists `1059` and `9159` regardless of runtime overrides. When running with non-default ports, the `-e` value and the `-p` mapping must match:
-
-  ```bash
-  # Default ports
-  docker run -p 1059:1059 -p 9159:9159 rrobetti/ojp:<version>
-
-  # Custom ports
-  docker run -e OJP_SERVER_PORT=8080 -e OJP_PROMETHEUS_PORT=9091 \
-             -p 8080:8080 -p 9091:9091 rrobetti/ojp:<version>
-  ```
+  The image does not declare `EXPOSE` — port mapping is the operator's responsibility via `-p`. The server defaults to port `1059` (gRPC) and `9159` (Prometheus) as defined in `ServerConfiguration`; override at runtime with `-e OJP_SERVER_PORT=<port>` and `-e OJP_PROMETHEUS_PORT=<port>`, with a matching `-p` on the `docker run` command.
 
 Both are published as part of the same release workflow run.
 

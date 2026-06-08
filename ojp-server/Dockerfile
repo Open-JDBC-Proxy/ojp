@@ -15,32 +15,17 @@ FROM alpine:3.21
 ENV JAVA_HOME=/opt/java
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
-# Default ports for the gRPC server and Prometheus metrics endpoint.
-# These ENV declarations serve two purposes:
-#   1. They are the default values the server reads at startup.
-#   2. They make the defaults visible in `docker inspect` and tooling.
-#
-# Override at runtime by passing environment variables — the server reads
-# OJP_SERVER_PORT and OJP_PROMETHEUS_PORT directly:
-#
-#   docker run -e OJP_SERVER_PORT=8080 -e OJP_PROMETHEUS_PORT=9091 \
-#              -p 8080:8080 -p 9091:9091 rrobetti/ojp:<version>
-#
-# NOTE: EXPOSE is evaluated at build time using the ENV defaults below, so
-# the image metadata will always list 1059 and 9159 regardless of what is
-# passed at runtime. When overriding ports, the -p mapping must match the
-# -e value — Docker does not update EXPOSE dynamically.
-ENV OJP_SERVER_PORT=1059
-ENV OJP_PROMETHEUS_PORT=9159
-
 COPY --from=jre-build /custom-jre $JAVA_HOME
+
+RUN addgroup -S ojp && adduser -S ojp -G ojp && \
+    mkdir -p /opt/ojp && chown ojp:ojp /opt/ojp
 
 WORKDIR /opt/ojp
 
-COPY ojp-libs/ /opt/ojp/ojp-libs/
-COPY target/ojp-server-*-shaded.jar /opt/ojp/ojp-server.jar
+COPY --chown=ojp:ojp ojp-libs/ /opt/ojp/ojp-libs/
+COPY --chown=ojp:ojp target/ojp-server-*-shaded.jar /opt/ojp/ojp-server.jar
 
-EXPOSE ${OJP_SERVER_PORT} ${OJP_PROMETHEUS_PORT}
+USER ojp
 
 ENTRYPOINT ["java", \
     "-Dojp.libs.path=/opt/ojp/ojp-libs", \

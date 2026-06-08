@@ -2,7 +2,7 @@
 
 The image is a custom Alpine JRE built with `jlink` (only the modules required by OJP), bringing the final image size to **128MB**.
 
-The build is a single multi-stage `Dockerfile`: Stage 1 runs `jlink` to produce the custom JRE, Stage 2 copies it alongside the fat JAR and JDBC drivers into a minimal Alpine image.
+The build is a single multi-stage `Dockerfile`: Stage 1 runs `jlink` to produce the custom JRE, Stage 2 copies it alongside the fat JAR and JDBC drivers into a minimal Alpine image. The server process runs as a dedicated non-root `ojp` user.
 
 ### Build the image locally
 

@@ -44,6 +44,7 @@ This starts the OJP Server with:
 - **Port 9159**: Prometheus metrics endpoint
 - **Drivers**: loaded from the mounted `ojp-libs` directory (H2, PostgreSQL, MySQL, MariaDB if downloaded via script)
 - **UTC timezone**: The image is built with `-Duser.timezone=UTC` for consistent date/time handling
+- **Non-root user**: the server process runs as a dedicated `ojp` system user — ensure the mounted `ojp-libs` directory is readable by other users (default `755`/`644` permissions are sufficient)
 
 ---
 
@@ -166,6 +167,18 @@ docker run -d \
   -e OJP_SERVER_LOGLEVEL=INFO \
   rrobetti/ojp:0.4.21-beta
 ```
+
+Ports can also be overridden via JVM system properties inside `JAVA_TOOL_OPTIONS`. The `-p` mapping must match whichever value the server actually binds to:
+
+```bash
+docker run -d \
+  --name ojp-server \
+  -p 3020:3020 \
+  -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Duser.timezone=UTC -Dojp.server.port=3020" \
+  rrobetti/ojp:0.4.21-beta
+```
+
+> **⚠️ Precedence:** JVM system properties (`-Dojp.server.port`) take precedence over environment variables (`OJP_SERVER_PORT`). If both are set, the JVM property wins and the server binds to that port — make sure the `-p` mapping reflects the effective value.
 
 ---
 
