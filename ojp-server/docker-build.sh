@@ -3,22 +3,34 @@
 ##############################################################################
 # OJP Docker Build Helper
 #
+# Builds the OJP Docker image using the multi-stage Dockerfile with a
+# jlink-trimmed JRE. Drivers are not bundled — populate ojp-libs/ first
+# with download-drivers.sh if needed.
+#
 # Usage:
 #   ./docker-build.sh [build|push]
 #
 # Commands:
 #   build  - Build Docker image locally (default)
 #   push   - Build and push Docker image to registry (requires docker login)
+#
+# Examples:
+#   ./docker-build.sh           # Build image locally
+#   ./docker-build.sh build     # Build image locally
+#   ./docker-build.sh push      # Build and push to registry
+#
 ##############################################################################
 
-set -e
+set -e  # Exit on error
 
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
+# Default command
 COMMAND="${1:-build}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
