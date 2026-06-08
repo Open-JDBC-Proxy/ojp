@@ -6,12 +6,12 @@
 
     <name>OJP JDBC Driver</name>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.22-beta</version>
+    <version>0.4.23-SNAPSHOT</version>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.4.22-beta</version>
+        <version>0.4.23-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -25,7 +25,7 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-grpc-commons</artifactId>
-            <version>0.4.22-beta</version>
+            <version>0.4.23-SNAPSHOT</version>
         </dependency>
 
 
@@ -133,7 +133,7 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-testcontainers</artifactId>
-            <version>0.4.22-beta</version>
+            <version>0.4.23-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
 
