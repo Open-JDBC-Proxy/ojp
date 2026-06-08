@@ -684,7 +684,7 @@ Add the OJP JDBC driver dependency to your project:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.21-beta</version>
+    <version>0.4.22-beta</version>
 </dependency>
 ```
 
