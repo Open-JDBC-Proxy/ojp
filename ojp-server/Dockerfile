@@ -1,5 +1,5 @@
 # Stage 1: Build custom JRE with jlink
-FROM eclipse-temurin:24-jdk-alpine AS jre-build
+FROM eclipse-temurin:25-jdk-alpine AS jre-build
 
 RUN jlink \
     --add-modules java.base,java.compiler,java.desktop,java.management,java.naming,java.rmi,java.scripting,java.security.jgss,java.sql,jdk.httpserver,jdk.unsupported \

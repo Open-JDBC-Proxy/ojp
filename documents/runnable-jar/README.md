@@ -10,7 +10,7 @@ This guide explains how to run the OJP Server as a standalone runnable JAR (exec
 
 ## Prerequisites
 
-- **Java 21 or higher** - Required for running OJP Server
+- **Java 25 or higher** - Required for running OJP Server
 
 ### Java Version Check
 
@@ -281,12 +281,12 @@ jdbc:ojp[localhost:1059]_h2:~/test
 
 **Problem**: Server fails to start with unsupported class version error
 
-**Solution**: Ensure you're using Java 21 or higher:
+**Solution**: Ensure you're using Java 25 or higher:
 ```bash
 java -version
 ```
 
-If using an older Java version, upgrade to Java 21 or higher. You can download it from [Eclipse Temurin](https://adoptium.net), [Oracle JDK](https://www.oracle.com/java/), or [Amazon Corretto](https://aws.amazon.com/corretto/).
+If using an older Java version, upgrade to Java 25 or higher. You can download it from [Eclipse Temurin](https://adoptium.net), [Oracle JDK](https://www.oracle.com/java/), or [Amazon Corretto](https://aws.amazon.com/corretto/).
 
 ### Runtime Issues
 

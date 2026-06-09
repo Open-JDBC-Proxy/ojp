@@ -137,10 +137,10 @@ jobs:
       # -----------------------------------------------------------------------
       # 4. Java + Maven settings (server credentials + GPG key import)
       # -----------------------------------------------------------------------
-      - name: Set up JDK 24
+      - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
-          java-version: 24
+          java-version: 25
           distribution: 'temurin'
           cache: maven
           # Maven settings.xml will be generated with a <server> entry whose

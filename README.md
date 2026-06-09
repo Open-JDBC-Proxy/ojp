@@ -52,7 +52,7 @@ Tested support for databases: **PostgreSQL, MySQL, MariaDB, Oracle, SQL Server, 
 ## Requirements
 
 - **OJP JDBC Driver**: Java 11 or higher
-- **OJP Server**: Java 21 or higher
+- **OJP Server**: Java 25 or higher
 
 ---
 ## Quick Start

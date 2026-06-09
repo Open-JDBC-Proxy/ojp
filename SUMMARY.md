@@ -150,7 +150,7 @@ The SQL enhancer is **working as designed**:
 
 ### Prerequisites
 ```bash
-# Java 21+ required
+# Java 25+ required
 java -version
 
 # PostgreSQL container

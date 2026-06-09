@@ -11,7 +11,7 @@ Before starting with OJP, ensure you have the following prerequisites in place.
 ### Java Version Requirements
 
 **[IMAGE PROMPT 1]**: Create a simple requirements checklist infographic:
-- OJP Server: Java 21+ (with Java logo)
+- OJP Server: Java 25+ (with Java logo)
 - OJP JDBC Driver: Java 11+ (with Java logo)
 - Maven 3.9+ or Gradle (with logos)
 - Docker (optional, with Docker logo)
@@ -20,7 +20,7 @@ Use clean, modern icon-based design with checkmarks
 Professional getting-started guide style
 
 OJP has different Java requirements for server and client:
-- **OJP Server** requires **Java 21 or higher**
+- **OJP Server** requires **Java 25 or higher**
 - **OJP JDBC Driver** requires **Java 11 or higher** (for broader client compatibility)
 
 **Verify your Java version**:
@@ -31,12 +31,12 @@ java -version
 
 Expected output:
 ```
-openjdk version "22.0.1" 2024-04-16
-OpenJDK Runtime Environment (build 22.0.1+8-16)
-OpenJDK 64-Bit Server VM (build 22.0.1+8-16, mixed mode, sharing)
+openjdk version "25.0.1" 2026-10-20
+OpenJDK Runtime Environment (build 25.0.1+8-16)
+OpenJDK 64-Bit Server VM (build 25.0.1+8-16, mixed mode, sharing)
 ```
 
-If you don't have Java 22+, you can download it from Eclipse Temurin at adoptium.net, Oracle JDK from oracle.com, or Amazon Corretto from aws.amazon.com/corretto.
+If you don't have Java 25+, you can download it from Eclipse Temurin at adoptium.net, Oracle JDK from oracle.com, or Amazon Corretto from aws.amazon.com/corretto.
 
 ### Docker/Container Options
 

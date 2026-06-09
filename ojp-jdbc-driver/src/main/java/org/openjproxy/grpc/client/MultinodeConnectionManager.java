@@ -905,7 +905,11 @@ public class MultinodeConnectionManager {
                     sessionKey,
                     sessionKey != null && sessionKey.isEmpty(),
                     sessionKey == null);
-            return selectHealthyServer();
+            ServerEndpoint selectedServer = selectHealthyServer();
+            if (selectedServer == null) {
+                throw new SQLException("No healthy servers available (checked " + serverEndpoints.size() + " servers)");
+            }
+            return selectedServer;
         }
 
         log.debug("Looking up server for session: {}", sessionKey);

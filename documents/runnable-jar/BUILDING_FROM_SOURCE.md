@@ -7,7 +7,7 @@ This guide is intended for contributors and developers who need to modify, exten
 
 ## Prerequisites
 
-- **Java 21 or higher**
+- **Java 25 or higher**
 - **Maven 3.9+**
 - **Git**
 
@@ -75,7 +75,7 @@ java -jar ojp-server/target/ojp-server-0.4.22-beta-shaded.jar
 
 **Problem**: `error: invalid target release: 21`
 
-**Solution**: Ensure you are using Java 21 or higher:
+**Solution**: Ensure you are using Java 25 or higher:
 ```bash
 java -version
 ```
