@@ -8,7 +8,7 @@ The examples in this guide use **GlassFish 7** (the reference implementation of 
 but the same principle applies to any Jakarta EE server—only the server-specific datasource
 configuration differs.
 
-> **Requirements:** Jakarta EE 10 compatible server, Java 21+ (Java 17+ for Jakarta EE 10 in general).
+> **Requirements:** Jakarta EE 10 compatible server, Java 25+ (Java 17+ for Jakarta EE 10 in general).
 > A complete working example is available at
 > [ojp-framework-integration / glassfish/shopservice](https://github.com/Open-J-Proxy/ojp-framework-integration/tree/main/glassfish/shopservice).
 
