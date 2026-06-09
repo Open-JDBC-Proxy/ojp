@@ -18,6 +18,8 @@ import javax.sql.XADataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 
+import org.openjproxy.grpc.server.profiling.ExecutionPathProfilingContext;
+
 /**
  * Utility class for managing database connections within gRPC streaming
  * sessions.
@@ -104,8 +106,12 @@ public class SessionConnectionHelper {
             if (conn == null) {
                 throw new SQLException("Connection not found for this sessionInfo");
             }
-            dtoBuilder.dbName(DatabaseUtils.resolveDbName(conn.getMetaData().getURL()));
-            if (conn.isClosed()) {
+            ExecutionPathProfilingContext.beginJdbcCall();
+            String dbUrl = conn.getMetaData().getURL();
+            boolean connClosed = conn.isClosed();
+            ExecutionPathProfilingContext.endJdbcCall();
+            dtoBuilder.dbName(DatabaseUtils.resolveDbName(dbUrl));
+            if (connClosed) {
                 throw new SQLException("Connection is closed");
             }
         } else {
@@ -121,8 +127,10 @@ public class SessionConnectionHelper {
                     // Unpooled XA mode: create XAConnection on demand
                     try {
                         log.debug("Creating unpooled XAConnection for hash: {}", connHash);
+                        ExecutionPathProfilingContext.beginJdbcCall();
                         XAConnection xaConnection = xaDataSource.getXAConnection();
                         conn = xaConnection.getConnection();
+                        ExecutionPathProfilingContext.endJdbcCall();
 
                         // Store the XAConnection in session for XA operations
                         if (startSessionIfNone) {
@@ -152,10 +160,12 @@ public class SessionConnectionHelper {
                     // Unpooled mode: create direct connection without pooling
                     try {
                         log.debug("Creating unpooled (passthrough) connection for hash: {}", connHash);
+                        ExecutionPathProfilingContext.beginJdbcCall();
                         conn = java.sql.DriverManager.getConnection(
                                 unpooledDetails.getUrl(),
                                 unpooledDetails.getUsername(),
                                 unpooledDetails.getPassword());
+                        ExecutionPathProfilingContext.endJdbcCall();
                         log.debug("Successfully created unpooled connection for hash: {}", connHash);
                     } catch (SQLException e) {
                         log.error("Failed to create unpooled connection for hash: {}. Error: {}",
@@ -184,7 +194,9 @@ public class SessionConnectionHelper {
                         }
 
                         // Use enhanced connection acquisition with timeout protection
+                        ExecutionPathProfilingContext.beginJdbcCall();
                         conn = ConnectionAcquisitionManager.acquireConnection(dataSource, connHash);
+                        ExecutionPathProfilingContext.endJdbcCall();
                         log.debug("Successfully acquired connection from pool for hash: {}", connHash);
 
                         if (startSessionIfNone) {

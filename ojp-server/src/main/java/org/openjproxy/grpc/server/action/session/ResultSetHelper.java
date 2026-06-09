@@ -13,6 +13,7 @@ import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.server.HydratedResultSetMetadata;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.lob.LobProcessor;
+import org.openjproxy.grpc.server.profiling.ExecutionPathProfilingContext;
 import org.openjproxy.grpc.server.resultset.ResultSetWrapper;
 import org.openjproxy.grpc.server.utils.DateTimeUtils;
 
@@ -80,23 +81,29 @@ public class ResultSetHelper {
         var sessionManager = context.getSessionManager();
 
         ResultSet rs = sessionManager.getResultSet(session, resultSetUUID);
+        ExecutionPathProfilingContext.beginJdbcCall();
         int columnCount = rs.getMetaData().getColumnCount();
         List<String> labels = new ArrayList<>();
         for (int i = 0; i < columnCount; i++) {
             labels.add(rs.getMetaData().getColumnName(i + 1));
         }
+        ExecutionPathProfilingContext.endJdbcCall();
 
         List<ResultRow> results = new ArrayList<>();
         int row = 0;
         boolean justSent = false;
-        DbName dbName = DatabaseUtils.resolveDbName(rs.getStatement().getConnection().getMetaData().getURL());
         // Only used if result set contains LOBs in SQL Server and DB2 (if LOB's
         // present), so cursor is not read in advance,
         // every row has to be requested by the jdbc client.
         String resultSetMode = "";
         boolean resultSetMetadataCollected = false;
 
-        while (rs.next()) {
+        ExecutionPathProfilingContext.beginJdbcCall();
+        DbName dbName = DatabaseUtils.resolveDbName(rs.getStatement().getConnection().getMetaData().getURL());
+        ExecutionPathProfilingContext.endJdbcCall();
+
+        boolean rowAvailable = profiledNext(rs);
+        while (rowAvailable) {
             if (DbName.DB2.equals(dbName) && !resultSetMetadataCollected) {
                 collectResultSetMetadata(context, session, resultSetUUID, rs);
             }
@@ -215,6 +222,8 @@ public class ResultSetHelper {
                 labels = null; // Labels only included in the first block
                 results = new ArrayList<>();
             }
+
+            rowAvailable = profiledNext(rs);
         }
 
         if (!justSent) {
@@ -267,5 +276,24 @@ public class ResultSetHelper {
             ResultSet rs) {
         context.getSessionManager().registerAttr(session, RESULT_SET_METADATA_ATTR_PREFIX +
                 resultSetUUID, new HydratedResultSetMetadata(rs.getMetaData()));
+    }
+
+    /**
+     * Advances the result set cursor and excludes the JDBC call time from the
+     * current profiling step. This is a no-op in production (when no profiler is
+     * active).
+     *
+     * @param rs the result set to advance
+     * @return {@code true} if the new current row is valid, {@code false} if there
+     *         are no more rows
+     * @throws SQLException if a database access error occurs
+     */
+    private static boolean profiledNext(ResultSet rs) throws SQLException {
+        ExecutionPathProfilingContext.beginJdbcCall();
+        try {
+            return rs.next();
+        } finally {
+            ExecutionPathProfilingContext.endJdbcCall();
+        }
     }
 }

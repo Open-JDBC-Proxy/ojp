@@ -31,6 +31,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import org.openjproxy.grpc.server.profiling.ExecutionPathProfilingContext;
+
 import static org.openjproxy.grpc.server.action.streaming.SessionConnectionHelper.sessionConnection;
 import static org.openjproxy.grpc.server.action.transaction.CommandExecutionHelper.executeWithResilience;
 
@@ -112,41 +114,57 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             // etc.)
             boolean requiresSessionAffinity = SqlSessionAffinityDetector.requiresSessionAffinity(request.getSql());
             boolean requiresGeneratedKeys = StatementRequestValidator.requiresGeneratedKeysTracking(request);
+            ExecutionPathProfilingContext.mark("affinityCheck");
 
             dto = sessionConnection(actionContext, request.getSession(),
                     StatementRequestValidator.isAddBatchOperation(request)
                             || requiresGeneratedKeys
                             || requiresSessionAffinity);
+            ExecutionPathProfilingContext.mark("sessionConnection");
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
             PreparedStatement ps = dto.getSession() != null && StringUtils.isNotBlank(dto.getSession().getSessionUUID())
                     && StringUtils.isNoneBlank(request.getStatementUUID())
                     ? sessionManager.getPreparedStatement(dto.getSession(), request.getStatementUUID())
                     : null;
+            ExecutionPathProfilingContext.mark("paramConversion");
 
             if (CollectionUtils.isNotEmpty(params) || ps != null || requiresGeneratedKeys) {
                 if (StringUtils.isNotEmpty(request.getStatementUUID()) && ps != null) {
                     bindLobsAndParameters(sessionManager, dto, ps, params);
                 } else {
+                    ExecutionPathProfilingContext.beginJdbcCall();
                     ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
                             request);
+                    ExecutionPathProfilingContext.endJdbcCall();
                     generatedKeysUuid = registerForGeneratedKeys(sessionManager, dto, request, ps);
                 }
+                ExecutionPathProfilingContext.mark("statementCreation");
                 if (StatementRequestValidator.isAddBatchOperation(request)) {
                     psUUID = addBatchAndGetStatementUUID(sessionManager, dto, ps, request);
                 } else {
+                    ExecutionPathProfilingContext.beginJdbcCall();
                     updated = ps.executeUpdate();
+                    ExecutionPathProfilingContext.endJdbcCall();
                 }
+                ExecutionPathProfilingContext.mark("sqlExecution");
                 stmt = ps;
             } else {
+                ExecutionPathProfilingContext.beginJdbcCall();
                 stmt = StatementFactory.createStatement(sessionManager, dto.getConnection(), request);
+                ExecutionPathProfilingContext.endJdbcCall();
+                ExecutionPathProfilingContext.mark("statementCreation");
+                ExecutionPathProfilingContext.beginJdbcCall();
                 updated = stmt.executeUpdate(request.getSql());
+                ExecutionPathProfilingContext.endJdbcCall();
+                ExecutionPathProfilingContext.mark("sqlExecution");
             }
 
             OpResult result = buildOpResult(request, dto.getSession(), psUUID, updated, generatedKeysUuid, actionContext);
 
             // Phase 9: Cache Invalidation (after successful update)
             org.openjproxy.grpc.server.cache.QueryCacheHelper.invalidateCacheIfEnabled(actionContext, dto.getSession(), request.getSql());
+            ExecutionPathProfilingContext.mark("buildResult");
 
             return result;
         } finally {
