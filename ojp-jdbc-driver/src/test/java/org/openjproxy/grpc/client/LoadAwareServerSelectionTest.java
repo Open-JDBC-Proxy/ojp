@@ -177,7 +177,7 @@ class LoadAwareServerSelectionTest {
     }
 
     @Test
-    void testAffinityServerThrowsWhenNoHealthyServersAvailable() {
+    void shouldThrowSQLExceptionWhenAffinityServerFindsNoHealthyServers() {
         MultinodeConnectionManager manager = new MultinodeConnectionManager(
                 endpoints, 3, 1000, loadAwareConfig, null
         );
@@ -190,6 +190,7 @@ class LoadAwareServerSelectionTest {
 
         SQLException exception = assertThrows(SQLException.class, () -> manager.affinityServer(null));
         assertTrue(exception.getMessage().contains("No healthy servers available"));
+        assertTrue(exception.getMessage().contains("checked " + endpoints.size() + " servers"));
     }
 
     @Test
