@@ -907,7 +907,7 @@ public class MultinodeConnectionManager {
                     sessionKey == null);
             ServerEndpoint selectedServer = selectHealthyServer();
             if (selectedServer == null) {
-                throw new SQLException("No healthy servers available");
+                throw new SQLException("No healthy servers available (checked " + serverEndpoints.size() + " servers)");
             }
             return selectedServer;
         }
