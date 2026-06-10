@@ -21,6 +21,7 @@ public class ServerConfiguration {
     private static final String OPENTELEMETRY_ENABLED_KEY = "ojp.telemetry.enabled";
     private static final String OPENTELEMETRY_ENDPOINT_KEY = "ojp.opentelemetry.endpoint";
     private static final String THREAD_POOL_SIZE_KEY = "ojp.server.threadPoolSize";
+    private static final String VIRTUAL_THREADS_ENABLED_KEY = "ojp.server.virtualThreads.enabled";
     private static final String MAX_REQUEST_SIZE_KEY = "ojp.server.maxRequestSize";
     private static final String LOG_LEVEL_KEY = "ojp.server.logLevel";
     private static final String ALLOWED_IPS_KEY = "ojp.server.allowedIps";
@@ -34,6 +35,17 @@ public class ServerConfiguration {
     private static final String SLOW_QUERY_SLOW_SLOT_TIMEOUT_KEY = "ojp.server.slowQuerySegregation.slowSlotTimeout";
     private static final String SLOW_QUERY_FAST_SLOT_TIMEOUT_KEY = "ojp.server.slowQuerySegregation.fastSlotTimeout";
     private static final String SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL_KEY = "ojp.server.slowQuerySegregation.updateGlobalAvgInterval";
+    private static final String SLOW_QUERY_CLASSIFICATION_MODE_KEY = "ojp.server.slowQuerySegregation.classificationMode";
+    private static final String SLOW_QUERY_THRESHOLD_MS_KEY = "ojp.server.slowQuerySegregation.slowQueryThresholdMs";
+    private static final String SLOW_QUERY_MINIMUM_SLOW_QUERY_MS_KEY = "ojp.server.slowQuerySegregation.minimumSlowQueryMs";
+    private static final String SLOW_QUERY_SLOW_MULTIPLIER_KEY = "ojp.server.slowQuerySegregation.slowMultiplier";
+    private static final String SLOW_QUERY_RECOVERY_MULTIPLIER_KEY = "ojp.server.slowQuerySegregation.recoveryMultiplier";
+    private static final String SLOW_QUERY_MIN_SAMPLES_KEY = "ojp.server.slowQuerySegregation.minSamples";
+    private static final String SLOW_QUERY_BASELINE_PERCENTILE_KEY = "ojp.server.slowQuerySegregation.baselinePercentile";
+    private static final String SLOW_QUERY_BASELINE_REFRESH_INTERVAL_SECONDS_KEY = "ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds";
+    private static final String ADMISSION_CONTROL_MAX_QUEUE_DEPTH_KEY = "ojp.server.admissionControl.maxQueueDepth";
+    private static final String LEGACY_SLOW_QUERY_MAX_QUEUE_DEPTH_KEY = "ojp.server.slowQuerySegregation.maxQueueDepth";
+    private static final String MAX_CONCURRENT_REQUESTS_KEY = "ojp.server.maxConcurrentRequests";
     private static final String DRIVERS_PATH_KEY = "ojp.libs.path";
     private static final String SQL_ENHANCER_ENABLED_KEY = "ojp.sql.enhancer.enabled";
     private static final String SQL_ENHANCER_MODE_KEY = "ojp.sql.enhancer.mode";
@@ -45,6 +57,17 @@ public class ServerConfiguration {
     private static final String SQL_ENHANCER_CACHE_ENABLED_KEY = "ojp.sql.enhancer.cacheEnabled";
     private static final String SQL_ENHANCER_CACHE_SIZE_KEY = "ojp.sql.enhancer.cacheSize";
     private static final String SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR_KEY = "ojp.sql.enhancer.failOnValidationError";
+    private static final String STATEMENT_CACHE_ENABLED_KEY = CommonConstants.STATEMENT_CACHE_ENABLED_PROPERTY;
+    private static final String STATEMENT_CACHE_MAX_SIZE_KEY = CommonConstants.STATEMENT_CACHE_MAX_SIZE_PROPERTY;
+    private static final String STATEMENT_CACHE_SQL_LIMIT_KEY = CommonConstants.STATEMENT_CACHE_SQL_LIMIT_PROPERTY;
+    private static final String STATEMENT_CACHE_SERVER_PREPARE_KEY = CommonConstants.STATEMENT_CACHE_SERVER_PREPARE_PROPERTY;
+    private static final String STATEMENT_CACHE_PREPARE_THRESHOLD_KEY = CommonConstants.STATEMENT_CACHE_PREPARE_THRESHOLD_PROPERTY;
+    private static final String XA_STATEMENT_CACHE_ENABLED_KEY = CommonConstants.XA_STATEMENT_CACHE_ENABLED_PROPERTY;
+    private static final String XA_STATEMENT_CACHE_MAX_SIZE_KEY = CommonConstants.XA_STATEMENT_CACHE_MAX_SIZE_PROPERTY;
+    private static final String XA_STATEMENT_CACHE_SQL_LIMIT_KEY = CommonConstants.XA_STATEMENT_CACHE_SQL_LIMIT_PROPERTY;
+    private static final String XA_STATEMENT_CACHE_SERVER_PREPARE_KEY = CommonConstants.XA_STATEMENT_CACHE_SERVER_PREPARE_PROPERTY;
+    private static final String XA_STATEMENT_CACHE_PREPARE_THRESHOLD_KEY = CommonConstants.XA_STATEMENT_CACHE_PREPARE_THRESHOLD_PROPERTY;
+    private static final String RESULTSET_ROWS_PER_BLOCK_KEY = CommonConstants.RESULTSET_ROWS_PER_BLOCK_PROPERTY;
 
     // Schema loader configuration keys
     private static final String SCHEMA_REFRESH_ENABLED_KEY = "ojp.sql.enhancer.schema.refresh.enabled";
@@ -86,6 +109,7 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_OPENTELEMETRY_ENABLED = true;
     public static final String DEFAULT_OPENTELEMETRY_ENDPOINT = "";
     public static final int DEFAULT_THREAD_POOL_SIZE = 200;
+    public static final boolean DEFAULT_VIRTUAL_THREADS_ENABLED = false;
     public static final int DEFAULT_MAX_REQUEST_SIZE = 4 * 1024 * 1024; // 4MB
     public static final String DEFAULT_LOG_LEVEL = "INFO";
     public static final boolean DEFAULT_ACCESS_LOGGING = false;
@@ -100,6 +124,17 @@ public class ServerConfiguration {
     public static final long DEFAULT_SLOW_QUERY_SLOW_SLOT_TIMEOUT = 120000; // 120 seconds slow slot timeout
     public static final long DEFAULT_SLOW_QUERY_FAST_SLOT_TIMEOUT = 60000; // 60 seconds fast slot timeout
     public static final long DEFAULT_SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL = 300; // 300 seconds (5 minutes) global average update interval
+    public static final SlowQueryClassificationMode DEFAULT_SLOW_QUERY_CLASSIFICATION_MODE = SlowQueryClassificationMode.RELATIVE_FAST_BASELINE;
+    public static final long DEFAULT_SLOW_QUERY_THRESHOLD_MS = QueryPerformanceMonitor.DEFAULT_SLOW_QUERY_THRESHOLD_MS;
+    public static final long DEFAULT_SLOW_QUERY_MINIMUM_SLOW_QUERY_MS = QueryPerformanceMonitor.DEFAULT_MINIMUM_SLOW_QUERY_MS;
+    public static final double DEFAULT_SLOW_QUERY_SLOW_MULTIPLIER = QueryPerformanceMonitor.DEFAULT_SLOW_MULTIPLIER;
+    public static final double DEFAULT_SLOW_QUERY_RECOVERY_MULTIPLIER = QueryPerformanceMonitor.DEFAULT_RECOVERY_MULTIPLIER;
+    public static final int DEFAULT_SLOW_QUERY_MIN_SAMPLES = QueryPerformanceMonitor.DEFAULT_MIN_SAMPLES;
+    public static final int DEFAULT_SLOW_QUERY_BASELINE_PERCENTILE = QueryPerformanceMonitor.DEFAULT_BASELINE_PERCENTILE;
+    public static final long DEFAULT_SLOW_QUERY_BASELINE_REFRESH_INTERVAL_SECONDS =
+            QueryPerformanceMonitor.DEFAULT_BASELINE_REFRESH_INTERVAL_SECONDS;
+    public static final int DEFAULT_ADMISSION_CONTROL_MAX_QUEUE_DEPTH = 0; // 0 means auto-calculate from total slots
+    public static final int DEFAULT_MAX_CONCURRENT_REQUESTS = 200;
     public static final String DEFAULT_DRIVERS_PATH = "./ojp-libs"; // Default external libraries directory path
 
     // SQL Enhancer default values
@@ -113,6 +148,11 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_SQL_ENHANCER_CACHE_ENABLED = true;
     public static final int DEFAULT_SQL_ENHANCER_CACHE_SIZE = 1000;
     public static final boolean DEFAULT_SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR = true;
+    public static final boolean DEFAULT_STATEMENT_CACHE_ENABLED = CommonConstants.DEFAULT_STATEMENT_CACHE_ENABLED;
+    public static final int DEFAULT_STATEMENT_CACHE_MAX_SIZE = CommonConstants.DEFAULT_STATEMENT_CACHE_MAX_SIZE;
+    public static final int DEFAULT_STATEMENT_CACHE_SQL_LIMIT = CommonConstants.DEFAULT_STATEMENT_CACHE_SQL_LIMIT;
+    public static final boolean DEFAULT_STATEMENT_CACHE_SERVER_PREPARE = CommonConstants.DEFAULT_STATEMENT_CACHE_SERVER_PREPARE;
+    public static final int DEFAULT_STATEMENT_CACHE_PREPARE_THRESHOLD = CommonConstants.DEFAULT_STATEMENT_CACHE_PREPARE_THRESHOLD;
 
     // Schema loader default values
     public static final boolean DEFAULT_SCHEMA_REFRESH_ENABLED = true;
@@ -149,12 +189,18 @@ public class ServerConfiguration {
     public static final long DEFAULT_XA_IDLE_TIMEOUT_MINUTES = 10;
     public static final long DEFAULT_XA_MAX_LIFETIME_MINUTES = 30;
 
+    // ResultSet streaming default values
+    public static final int DEFAULT_RESULTSET_ROWS_PER_BLOCK = CommonConstants.DEFAULT_RESULTSET_ROWS_PER_BLOCK; // 100 rows per streaming block
+    public static final int MIN_RESULTSET_ROWS_PER_BLOCK = 1;
+    public static final int MAX_RESULTSET_ROWS_PER_BLOCK = 10000;
+
     // Configuration values
     private final int serverPort;
     private final int prometheusPort;
     private final boolean openTelemetryEnabled;
     private final String openTelemetryEndpoint;
     private final int threadPoolSize;
+    private final boolean virtualThreadsEnabled;
     private final int maxRequestSize;
     private final String logLevel;
     private final List<String> allowedIps;
@@ -168,6 +214,16 @@ public class ServerConfiguration {
     private final long slowQuerySlowSlotTimeout;
     private final long slowQueryFastSlotTimeout;
     private final long slowQueryUpdateGlobalAvgInterval;
+    private final SlowQueryClassificationMode slowQueryClassificationMode;
+    private final long slowQueryThresholdMs;
+    private final long slowQueryMinimumSlowQueryMs;
+    private final double slowQuerySlowMultiplier;
+    private final double slowQueryRecoveryMultiplier;
+    private final int slowQueryMinSamples;
+    private final int slowQueryBaselinePercentile;
+    private final long slowQueryBaselineRefreshIntervalSeconds;
+    private final int admissionControlMaxQueueDepth;
+    private final int maxConcurrentRequests;
     private final String driversPath;
     private final boolean sqlEnhancerEnabled;
     private final String sqlEnhancerMode;
@@ -179,6 +235,16 @@ public class ServerConfiguration {
     private final boolean sqlEnhancerCacheEnabled;
     private final int sqlEnhancerCacheSize;
     private final boolean sqlEnhancerFailOnValidationError;
+    private final boolean statementCacheEnabled;
+    private final int statementCacheMaxSize;
+    private final int statementCacheSqlLimit;
+    private final boolean statementCacheServerPrepare;
+    private final int statementCachePrepareThreshold;
+    private final boolean xaStatementCacheEnabled;
+    private final int xaStatementCacheMaxSize;
+    private final int xaStatementCacheSqlLimit;
+    private final boolean xaStatementCacheServerPrepare;
+    private final int xaStatementCachePrepareThreshold;
 
     // Schema loader configuration
     private final boolean schemaRefreshEnabled;
@@ -213,6 +279,9 @@ public class ServerConfiguration {
     private final String tlsTruststoreType;
     private final boolean tlsClientAuthRequired;
 
+    // ResultSet streaming configuration
+    private final int resultsetRowsPerBlock;
+
 
     public ServerConfiguration() {
         this.serverPort = getIntProperty(SERVER_PORT_KEY, DEFAULT_SERVER_PORT);
@@ -220,6 +289,7 @@ public class ServerConfiguration {
         this.openTelemetryEnabled = getBooleanProperty(OPENTELEMETRY_ENABLED_KEY, DEFAULT_OPENTELEMETRY_ENABLED);
         this.openTelemetryEndpoint = getStringProperty(OPENTELEMETRY_ENDPOINT_KEY, DEFAULT_OPENTELEMETRY_ENDPOINT);
         this.threadPoolSize = getIntProperty(THREAD_POOL_SIZE_KEY, DEFAULT_THREAD_POOL_SIZE);
+        this.virtualThreadsEnabled = getBooleanProperty(VIRTUAL_THREADS_ENABLED_KEY, DEFAULT_VIRTUAL_THREADS_ENABLED);
         this.maxRequestSize = getIntProperty(MAX_REQUEST_SIZE_KEY, DEFAULT_MAX_REQUEST_SIZE);
         this.logLevel = getStringProperty(LOG_LEVEL_KEY, DEFAULT_LOG_LEVEL);
         this.allowedIps = getListProperty(ALLOWED_IPS_KEY, DEFAULT_ALLOWED_IPS);
@@ -233,6 +303,23 @@ public class ServerConfiguration {
         this.slowQuerySlowSlotTimeout = getLongProperty(SLOW_QUERY_SLOW_SLOT_TIMEOUT_KEY, DEFAULT_SLOW_QUERY_SLOW_SLOT_TIMEOUT);
         this.slowQueryFastSlotTimeout = getLongProperty(SLOW_QUERY_FAST_SLOT_TIMEOUT_KEY, DEFAULT_SLOW_QUERY_FAST_SLOT_TIMEOUT);
         this.slowQueryUpdateGlobalAvgInterval = getLongProperty(SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL_KEY, DEFAULT_SLOW_QUERY_UPDATE_GLOBAL_AVG_INTERVAL);
+        this.slowQueryClassificationMode = getSlowQueryClassificationModeProperty(SLOW_QUERY_CLASSIFICATION_MODE_KEY,
+                DEFAULT_SLOW_QUERY_CLASSIFICATION_MODE);
+        this.slowQueryThresholdMs = getNonNegativeLongProperty(SLOW_QUERY_THRESHOLD_MS_KEY, DEFAULT_SLOW_QUERY_THRESHOLD_MS);
+        this.slowQueryMinimumSlowQueryMs = getNonNegativeLongProperty(SLOW_QUERY_MINIMUM_SLOW_QUERY_MS_KEY,
+                DEFAULT_SLOW_QUERY_MINIMUM_SLOW_QUERY_MS);
+        this.slowQuerySlowMultiplier = getGreaterThanDoubleProperty(SLOW_QUERY_SLOW_MULTIPLIER_KEY,
+                DEFAULT_SLOW_QUERY_SLOW_MULTIPLIER, 1.0);
+        this.slowQueryRecoveryMultiplier = getRecoveryMultiplierProperty(SLOW_QUERY_RECOVERY_MULTIPLIER_KEY,
+                DEFAULT_SLOW_QUERY_RECOVERY_MULTIPLIER, slowQuerySlowMultiplier);
+        this.slowQueryMinSamples = getMinimumIntProperty(SLOW_QUERY_MIN_SAMPLES_KEY, DEFAULT_SLOW_QUERY_MIN_SAMPLES, 1);
+        this.slowQueryBaselinePercentile = getBoundedIntProperty(SLOW_QUERY_BASELINE_PERCENTILE_KEY,
+                DEFAULT_SLOW_QUERY_BASELINE_PERCENTILE, 1, 99);
+        this.slowQueryBaselineRefreshIntervalSeconds = getNonNegativeLongProperty(
+                SLOW_QUERY_BASELINE_REFRESH_INTERVAL_SECONDS_KEY, DEFAULT_SLOW_QUERY_BASELINE_REFRESH_INTERVAL_SECONDS);
+        this.admissionControlMaxQueueDepth = getNonNegativeIntProperty(ADMISSION_CONTROL_MAX_QUEUE_DEPTH_KEY,
+                getNonNegativeIntProperty(LEGACY_SLOW_QUERY_MAX_QUEUE_DEPTH_KEY, DEFAULT_ADMISSION_CONTROL_MAX_QUEUE_DEPTH));
+        this.maxConcurrentRequests = getNonNegativeIntProperty(MAX_CONCURRENT_REQUESTS_KEY, DEFAULT_MAX_CONCURRENT_REQUESTS);
         this.driversPath = getStringProperty(DRIVERS_PATH_KEY, DEFAULT_DRIVERS_PATH);
         this.sqlEnhancerEnabled = getBooleanProperty(SQL_ENHANCER_ENABLED_KEY, DEFAULT_SQL_ENHANCER_ENABLED);
         this.sqlEnhancerMode = getStringProperty(SQL_ENHANCER_MODE_KEY, DEFAULT_SQL_ENHANCER_MODE);
@@ -244,6 +331,18 @@ public class ServerConfiguration {
         this.sqlEnhancerCacheEnabled = getBooleanProperty(SQL_ENHANCER_CACHE_ENABLED_KEY, DEFAULT_SQL_ENHANCER_CACHE_ENABLED);
         this.sqlEnhancerCacheSize = getIntProperty(SQL_ENHANCER_CACHE_SIZE_KEY, DEFAULT_SQL_ENHANCER_CACHE_SIZE);
         this.sqlEnhancerFailOnValidationError = getBooleanProperty(SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR_KEY, DEFAULT_SQL_ENHANCER_FAIL_ON_VALIDATION_ERROR);
+        this.statementCacheEnabled = getBooleanProperty(STATEMENT_CACHE_ENABLED_KEY, DEFAULT_STATEMENT_CACHE_ENABLED);
+        this.statementCacheMaxSize = getNonNegativeIntProperty(STATEMENT_CACHE_MAX_SIZE_KEY, DEFAULT_STATEMENT_CACHE_MAX_SIZE);
+        this.statementCacheSqlLimit = getNonNegativeIntProperty(STATEMENT_CACHE_SQL_LIMIT_KEY, DEFAULT_STATEMENT_CACHE_SQL_LIMIT);
+        this.statementCacheServerPrepare = getBooleanProperty(STATEMENT_CACHE_SERVER_PREPARE_KEY, DEFAULT_STATEMENT_CACHE_SERVER_PREPARE);
+        this.statementCachePrepareThreshold = getNonNegativeIntProperty(STATEMENT_CACHE_PREPARE_THRESHOLD_KEY,
+                DEFAULT_STATEMENT_CACHE_PREPARE_THRESHOLD);
+        this.xaStatementCacheEnabled = getBooleanProperty(XA_STATEMENT_CACHE_ENABLED_KEY, DEFAULT_STATEMENT_CACHE_ENABLED);
+        this.xaStatementCacheMaxSize = getNonNegativeIntProperty(XA_STATEMENT_CACHE_MAX_SIZE_KEY, DEFAULT_STATEMENT_CACHE_MAX_SIZE);
+        this.xaStatementCacheSqlLimit = getNonNegativeIntProperty(XA_STATEMENT_CACHE_SQL_LIMIT_KEY, DEFAULT_STATEMENT_CACHE_SQL_LIMIT);
+        this.xaStatementCacheServerPrepare = getBooleanProperty(XA_STATEMENT_CACHE_SERVER_PREPARE_KEY, DEFAULT_STATEMENT_CACHE_SERVER_PREPARE);
+        this.xaStatementCachePrepareThreshold = getNonNegativeIntProperty(XA_STATEMENT_CACHE_PREPARE_THRESHOLD_KEY,
+                DEFAULT_STATEMENT_CACHE_PREPARE_THRESHOLD);
 
         // Schema loader configuration
         this.schemaRefreshEnabled = getBooleanProperty(SCHEMA_REFRESH_ENABLED_KEY, DEFAULT_SCHEMA_REFRESH_ENABLED);
@@ -277,6 +376,10 @@ public class ServerConfiguration {
         this.telemetryGrpcMetricsEnabled = getBooleanProperty(TELEMETRY_GRPC_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED);
         this.telemetryPoolMetricsEnabled = getBooleanProperty(TELEMETRY_POOL_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_POOL_METRICS_ENABLED);
         this.telemetryCacheMetricsEnabled = getBooleanProperty(TELEMETRY_CACHE_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED);
+
+        // ResultSet streaming configuration
+        this.resultsetRowsPerBlock = getBoundedIntProperty(RESULTSET_ROWS_PER_BLOCK_KEY, DEFAULT_RESULTSET_ROWS_PER_BLOCK,
+                MIN_RESULTSET_ROWS_PER_BLOCK, MAX_RESULTSET_ROWS_PER_BLOCK);
 
         logConfigurationSummary();
     }
@@ -317,6 +420,34 @@ public class ServerConfiguration {
         }
     }
 
+    private int getNonNegativeIntProperty(String key, int defaultValue) {
+        int value = getIntProperty(key, defaultValue);
+        if (value < 0) {
+            logger.warn("Invalid negative value for property '{}': {}, using default: {}", key, value, defaultValue);
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private int getBoundedIntProperty(String key, int defaultValue, int minValue, int maxValue) {
+        int value = getIntProperty(key, defaultValue);
+        if (value < minValue || value > maxValue) {
+            logger.warn("Value {} for property '{}' is outside the allowed range [{}, {}], using default: {}",
+                    value, key, minValue, maxValue, defaultValue);
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private long getNonNegativeLongProperty(String key, long defaultValue) {
+        long value = getLongProperty(key, defaultValue);
+        if (value < 0) {
+            logger.warn("Invalid negative value for property '{}': {}, using default: {}", key, value, defaultValue);
+            return defaultValue;
+        }
+        return value;
+    }
+
     /**
      * Gets a long property value with validation.
      */
@@ -351,6 +482,52 @@ public class ServerConfiguration {
         }
     }
 
+    private double getGreaterThanDoubleProperty(String key, double defaultValue, double minExclusive) {
+        double value = getDoubleProperty(key, defaultValue);
+        if (value <= minExclusive) {
+            logger.warn("Invalid value for property '{}': {}, must be > {}, using default: {}",
+                    key, value, minExclusive, defaultValue);
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private int getMinimumIntProperty(String key, int defaultValue, int minInclusive) {
+        int value = getIntProperty(key, defaultValue);
+        if (value < minInclusive) {
+            logger.warn("Invalid value for property '{}': {}, must be >= {}, using default: {}",
+                    key, value, minInclusive, defaultValue);
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private double getRecoveryMultiplierProperty(String key, double defaultValue, double slowMultiplier) {
+        double value = getDoubleProperty(key, defaultValue);
+        if (value <= 1.0 || value >= slowMultiplier) {
+            double fallback = defaultValue;
+            if (fallback <= 1.0 || fallback >= slowMultiplier) {
+                fallback = (slowMultiplier + 1.0) / 2.0;
+            }
+            logger.warn("Invalid value for property '{}': {}, must be > 1.0 and < slowMultiplier={}, using fallback: {}",
+                    key, value, slowMultiplier, fallback);
+            return fallback;
+        }
+        return value;
+    }
+
+    private SlowQueryClassificationMode getSlowQueryClassificationModeProperty(String key,
+                                                                               SlowQueryClassificationMode defaultValue) {
+        String rawValue = getStringProperty(key, defaultValue.name());
+        try {
+            return SlowQueryClassificationMode.valueOf(rawValue.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            logger.warn("Invalid slow query classification mode for property '{}': {}, using default: {}",
+                    key, rawValue, defaultValue);
+            return defaultValue;
+        }
+    }
+
     /**
      * Gets a list property value (comma-separated).
      */
@@ -374,7 +551,12 @@ public class ServerConfiguration {
         logger.info("  Prometheus Port: {}", prometheusPort);
         logger.info("  OpenTelemetry Enabled: {}", openTelemetryEnabled);
         logger.info("  OpenTelemetry Endpoint: {}", openTelemetryEndpoint.isEmpty() ? "default" : openTelemetryEndpoint);
-        logger.info("  Thread Pool Size: {}", threadPoolSize);
+        logger.info("  Virtual Threads Enabled: {}", virtualThreadsEnabled);
+        if (virtualThreadsEnabled) {
+            logger.info("  Thread Pool Size: {} (used only when virtual threads are disabled)", threadPoolSize);
+        } else {
+            logger.info("  Thread Pool Size: {}", threadPoolSize);
+        }
         logger.info("  Max Request Size: {} bytes", maxRequestSize);
         logger.info("  Log Level: {}", logLevel);
         logger.info("  Allowed IPs: {}", allowedIps);
@@ -388,6 +570,18 @@ public class ServerConfiguration {
         logger.info("  Slow Query Slow Slot Timeout: {} ms", slowQuerySlowSlotTimeout);
         logger.info("  Slow Query Fast Slot Timeout: {} ms", slowQueryFastSlotTimeout);
         logger.info("  Slow Query Update Global Avg Interval: {} seconds", slowQueryUpdateGlobalAvgInterval);
+        if (slowQuerySegregationEnabled) {
+            logger.info("  SQS Classification Mode: {}", slowQueryClassificationMode);
+            logger.info("  SQS Minimum Slow Query: {} ms", slowQueryMinimumSlowQueryMs);
+            logger.info("  SQS Slow Multiplier: {}", slowQuerySlowMultiplier);
+            logger.info("  SQS Recovery Multiplier: {}", slowQueryRecoveryMultiplier);
+            logger.info("  SQS Min Samples: {}", slowQueryMinSamples);
+            logger.info("  SQS Baseline Percentile: {}", slowQueryBaselinePercentile);
+            logger.info("  SQS Baseline Refresh Interval: {} seconds", slowQueryBaselineRefreshIntervalSeconds);
+            logger.info("  SQS Slow Query Threshold: {} ms", slowQueryThresholdMs);
+        }
+        logger.info("  Admission Control Max Queue Depth: {} (0 means auto)", admissionControlMaxQueueDepth);
+        logger.info("  Max Concurrent Requests: {} (0 means unlimited)", maxConcurrentRequests);
         logger.info("  External Libraries Path: {}", driversPath);
         logger.info("  SQL Enhancer Enabled: {}", sqlEnhancerEnabled);
         logger.info("  SQL Enhancer Mode: {}", sqlEnhancerMode);
@@ -399,6 +593,13 @@ public class ServerConfiguration {
         logger.info("  SQL Enhancer Cache Enabled: {}", sqlEnhancerCacheEnabled);
         logger.info("  SQL Enhancer Cache Size: {}", sqlEnhancerCacheSize);
         logger.info("  SQL Enhancer Fail On Validation Error: {}", sqlEnhancerFailOnValidationError);
+        logger.info("Statement Cache Configuration:");
+        logger.info("  Statement Cache (non-XA): enabled={}, maxSize={}, sqlLimit={}, serverPrepare={}, prepareThreshold={}",
+                statementCacheEnabled, statementCacheMaxSize, statementCacheSqlLimit,
+                statementCacheServerPrepare, statementCachePrepareThreshold);
+        logger.info("  Statement Cache (XA): enabled={}, maxSize={}, sqlLimit={}, serverPrepare={}, prepareThreshold={}",
+                xaStatementCacheEnabled, xaStatementCacheMaxSize, xaStatementCacheSqlLimit,
+                xaStatementCacheServerPrepare, xaStatementCachePrepareThreshold);
         logger.info("Session Cleanup Configuration:");
         logger.info("  Session Cleanup Enabled: {}", sessionCleanupEnabled);
         logger.info("  Session Timeout: {} minutes", sessionTimeoutMinutes);
@@ -420,6 +621,8 @@ public class ServerConfiguration {
             logger.info("  Tracing Service Name: {}", tracingServiceName);
             logger.info("  Tracing Sample Rate: {}", tracingSampleRate);
         }
+        logger.info("ResultSet Streaming Configuration:");
+        logger.info("  ResultSet Rows Per Block: {}", resultsetRowsPerBlock);
     }
 
     /**
@@ -460,6 +663,10 @@ public class ServerConfiguration {
 
     public int getThreadPoolSize() {
         return threadPoolSize;
+    }
+
+    public boolean isVirtualThreadsEnabled() {
+        return virtualThreadsEnabled;
     }
 
     public int getMaxRequestSize() {
@@ -514,6 +721,54 @@ public class ServerConfiguration {
         return slowQueryUpdateGlobalAvgInterval;
     }
 
+    public SlowQueryClassificationMode getSlowQueryClassificationMode() {
+        return slowQueryClassificationMode;
+    }
+
+    public long getSlowQueryThresholdMs() {
+        return slowQueryThresholdMs;
+    }
+
+    public long getSlowQueryMinimumSlowQueryMs() {
+        return slowQueryMinimumSlowQueryMs;
+    }
+
+    public double getSlowQuerySlowMultiplier() {
+        return slowQuerySlowMultiplier;
+    }
+
+    public double getSlowQueryRecoveryMultiplier() {
+        return slowQueryRecoveryMultiplier;
+    }
+
+    public int getSlowQueryMinSamples() {
+        return slowQueryMinSamples;
+    }
+
+    public int getSlowQueryBaselinePercentile() {
+        return slowQueryBaselinePercentile;
+    }
+
+    public long getSlowQueryBaselineRefreshIntervalSeconds() {
+        return slowQueryBaselineRefreshIntervalSeconds;
+    }
+
+    public int getAdmissionControlMaxQueueDepth() {
+        return admissionControlMaxQueueDepth;
+    }
+
+    /**
+     * @deprecated Use {@link #getAdmissionControlMaxQueueDepth()} instead.
+     */
+    @Deprecated(since = "0.4.16", forRemoval = false)
+    public int getSlowQueryMaxQueueDepth() {
+        return getAdmissionControlMaxQueueDepth();
+    }
+
+    public int getMaxConcurrentRequests() {
+        return maxConcurrentRequests;
+    }
+
     public String getDriversPath() {
         return driversPath;
     }
@@ -556,6 +811,46 @@ public class ServerConfiguration {
 
     public boolean isSqlEnhancerFailOnValidationError() {
         return sqlEnhancerFailOnValidationError;
+    }
+
+    public boolean isStatementCacheEnabled() {
+        return statementCacheEnabled;
+    }
+
+    public int getStatementCacheMaxSize() {
+        return statementCacheMaxSize;
+    }
+
+    public int getStatementCacheSqlLimit() {
+        return statementCacheSqlLimit;
+    }
+
+    public boolean isStatementCacheServerPrepare() {
+        return statementCacheServerPrepare;
+    }
+
+    public int getStatementCachePrepareThreshold() {
+        return statementCachePrepareThreshold;
+    }
+
+    public boolean isXaStatementCacheEnabled() {
+        return xaStatementCacheEnabled;
+    }
+
+    public int getXaStatementCacheMaxSize() {
+        return xaStatementCacheMaxSize;
+    }
+
+    public int getXaStatementCacheSqlLimit() {
+        return xaStatementCacheSqlLimit;
+    }
+
+    public boolean isXaStatementCacheServerPrepare() {
+        return xaStatementCacheServerPrepare;
+    }
+
+    public int getXaStatementCachePrepareThreshold() {
+        return xaStatementCachePrepareThreshold;
     }
 
     public boolean isSchemaRefreshEnabled() {
@@ -648,6 +943,10 @@ public class ServerConfiguration {
 
     public boolean isTelemetryCacheMetricsEnabled() {
         return telemetryCacheMetricsEnabled;
+    }
+
+    public int getResultsetRowsPerBlock() {
+        return resultsetRowsPerBlock;
     }
 
 }

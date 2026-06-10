@@ -65,6 +65,7 @@ public class Session {
     private Map<String, CallableStatement> callableStatementMap;
     private Map<String, Object> lobMap;
     private Map<String, Object> attrMap;
+    private Runnable connectionPermitReleaseHook;
     private boolean closed;
     private int transactionTimeout = 0;
     @Getter
@@ -447,6 +448,33 @@ public class Session {
         this.xaResource = null;
         this.backendSession = null;
         this.attrMap = null;
+        releaseConnectionPermitIfPresent();
+    }
+
+    public synchronized void setConnectionPermitReleaseHook(Runnable connectionPermitReleaseHook) {
+        this.connectionPermitReleaseHook = connectionPermitReleaseHook;
+    }
+
+    /**
+     * Returns true if this session currently owns an admission-control permit
+     * (acquired at session creation and released on session termination).
+     * Used by request handlers to avoid acquiring a second per-statement slot
+     * for a session that already holds one.
+     */
+    public synchronized boolean hasConnectionPermit() {
+        return this.connectionPermitReleaseHook != null;
+    }
+
+    private synchronized void releaseConnectionPermitIfPresent() {
+        if (this.connectionPermitReleaseHook != null) {
+            try {
+                this.connectionPermitReleaseHook.run();
+            } catch (Exception e) {
+                log.warn("Failed to release connection admission permit for session {}", sessionUUID, e);
+            } finally {
+                this.connectionPermitReleaseHook = null;
+            }
+        }
     }
 
     public void setTransactionTimeout(int seconds) {

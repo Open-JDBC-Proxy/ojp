@@ -1,4 +1,5 @@
 package org.openjproxy.grpc.server;
+import lombok.experimental.UtilityClass;
 import net.jpountz.xxhash.XXHashFactory;
 import net.jpountz.xxhash.XXHash64;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +27,7 @@ import java.nio.charset.StandardCharsets;
  * xxHash is chosen here because it is extremely fast, has excellent distribution for typical database workloads,
  * and provides more than enough uniqueness for non-cryptographic use cases—making it ideal for lightweight query identification.
  */
+@UtilityClass
 public class SqlStatementXXHash {
     private static final XXHashFactory FACTORY = XXHashFactory.fastestInstance();
     private static final long SEED = 0x9747b28c; // Arbitrary seed, can be any long
@@ -36,7 +38,7 @@ public class SqlStatementXXHash {
      * - Trim
      * - Collapse multiple whitespace
      */
-    public static String normalizeSql(String sql) {
+    public String normalizeSql(String sql) {
         if (sql == null) {
             return "";
         }
@@ -46,7 +48,7 @@ public class SqlStatementXXHash {
     /**
      * Returns the 64-bit xxHash of the normalized SQL query as a hex string.
      */
-    public static String hashSqlQuery(String sql) {
+    public String hashSqlQuery(String sql) {
         String normalized = normalizeSql(sql);
         byte[] data = normalized.getBytes(StandardCharsets.UTF_8);
         XXHash64 hash64 = FACTORY.hash64();

@@ -15,8 +15,8 @@ public class SlowQuerySegregationManualTest {
         // Test 2: SlotManager
         testSlotManager();
         
-        // Test 3: SlowQuerySegregationManager
-        testSlowQuerySegregationManager();
+        // Test 3: AdmissionControlManager
+        testAdmissionControlManager();
         
         System.out.println("All tests passed!");
     }
@@ -83,10 +83,10 @@ public class SlowQuerySegregationManualTest {
         System.out.println("SlotManager tests passed!");
     }
     
-    private static void testSlowQuerySegregationManager() throws Exception {
-        System.out.println("\n--- Testing SlowQuerySegregationManager ---");
+    private static void testAdmissionControlManager() throws Exception {
+        System.out.println("\n--- Testing AdmissionControlManager ---");
         
-        SlowQuerySegregationManager manager = new SlowQuerySegregationManager(10, 20, 100, 5000, 1000, true);
+        AdmissionControlManager manager = new AdmissionControlManager(10, 20, 100, 5000, 1000, true);
         
         assert manager.isEnabled() : "Manager should be enabled";
         
@@ -106,12 +106,12 @@ public class SlowQuerySegregationManualTest {
         assert avgTime > 40 : "Average time should be greater than 40ms";
         
         // Test disabled manager
-        SlowQuerySegregationManager disabledManager = new SlowQuerySegregationManager(10, 20, 100, 5000, 1000, false);
+        AdmissionControlManager disabledManager = new AdmissionControlManager(10, 20, 100, 5000, 1000, false);
         assert !disabledManager.isEnabled() : "Manager should be disabled";
         
         result = disabledManager.executeWithSegregation(operationHash, () -> "disabled-success");
         assert "disabled-success".equals(result) : "Disabled manager should still execute operations";
         
-        System.out.println("SlowQuerySegregationManager tests passed!");
+        System.out.println("AdmissionControlManager tests passed!");
     }
 }

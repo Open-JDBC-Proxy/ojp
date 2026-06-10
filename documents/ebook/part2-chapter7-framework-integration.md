@@ -47,7 +47,7 @@ The `spring-boot-starter-ojp` artifact provides zero-configuration Spring Boot i
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>spring-boot-starter-ojp</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 ```
 
@@ -68,15 +68,28 @@ Setting the datasource type to `SimpleDriverDataSource` is crucial. This tells S
 
 **[IMAGE PROMPT: Create a side-by-side code comparison showing application.properties transformation. Left side labeled "Before OJP (manual)": Shows three explicit settings for url, driver-class-name, and type. Right side labeled "With OJP Starter": Shows only the url property, with annotations showing the two settings automatically injected by the starter. Style: Clean code comparison with syntax highlighting and arrows pointing to the automatic values.]**
 
-You can also tune the OJP server-side connection pool directly from `application.properties`:
+You can also tune the OJP server-side connection pool directly from `application.yml`:
+
+```yaml
+ojp:
+  connection:
+    pool:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 10000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  grpc:
+    max-inbound-message-size: 16777216   # bytes; increase for large LOB columns
+```
+
+Or in `application.properties`:
 
 ```properties
-# OJP server-side connection pool settings (forwarded to the OJP server).
-# Always use ojp.connection.pool.* in application.properties; the starter
-# auto-prefixes these with the datasource name when ojp.datasource.name is set.
+# OJP server-side connection pool settings (forwarded to the OJP server via gRPC)
 ojp.connection.pool.maximum-pool-size=20
 ojp.connection.pool.minimum-idle=5
-ojp.connection.pool.connection-timeout=30000
+ojp.connection.pool.connection-timeout=10000
 ojp.connection.pool.idle-timeout=600000
 ojp.connection.pool.max-lifetime=1800000
 
@@ -84,11 +97,66 @@ ojp.connection.pool.max-lifetime=1800000
 ojp.grpc.max-inbound-message-size=16777216
 ```
 
+### Per-Datasource vs. Global Settings
+
+Not all OJP settings accept a datasource name prefix. Pool settings are scoped per datasource; operational settings (health checks, redistribution, load-aware routing, retry) are cluster-wide.
+
+| Setting group | Supports `dsName.` prefix? |
+|---|---|
+| `ojp.connection.pool.*` | ✅ Yes |
+| `ojp.xa.connection.pool.*` | ✅ Yes |
+| `ojp.grpc.*` | ✅ Yes |
+| `ojp.health.check.*` | ❌ Global only |
+| `ojp.redistribution.*` | ❌ Global only |
+| `ojp.loadaware.selection.enabled` | ❌ Global only |
+| `ojp.multinode.*` | ❌ Global only |
+
+The datasource name is always specified inside the JDBC URL using parentheses. The matching pool settings are then prefixed with that name in `application.yml`:
+
+```yaml
+spring:
+  datasource:
+    # ── Named datasource "webapp" ──────────────────────────────────────────
+    url: jdbc:ojp[localhost:1059(webapp)]_postgresql://localhost:5432/mydb
+    username: myuser
+    password: mypassword
+
+# ✅ Per-datasource pool settings — prefixed with the datasource name
+webapp:
+  ojp:
+    connection:
+      pool:
+        maximum-pool-size: 60
+        minimum-idle: 15
+        connection-timeout: 5000
+    xa:
+      connection:
+        pool:
+          max-total: 50
+          min-idle: 10
+
+# ❌ Global settings — no prefix; apply to the entire cluster
+ojp:
+  multinode:
+    retry-attempts: -1
+    retry-delay-ms: 5000
+  health:
+    check:
+      interval: 5s
+      threshold: 5s
+      timeout: 5s
+  redistribution:
+    enabled: true
+    idle-rebalance-fraction: 1.0
+    max-close-per-recovery: 100
+  loadaware:
+    selection:
+      enabled: true
+```
+
 > **Tip — Named datasource:** To target a named pool configuration on the OJP server, embed the
 > datasource name in the JDBC URL:
 > `spring.datasource.url=jdbc:ojp[localhost:1059(myApp)]_postgresql://...`
-
-The starter's `OjpSystemPropertiesBridge` bean propagates these `ojp.*` properties to JVM system properties before any DataSource bean is created, so the OJP driver's `DatasourcePropertiesLoader` picks them up with the highest precedence—overriding any `ojp.properties` file on the classpath.
 
 ### Manual Configuration (Spring Boot 3.x / Java 11)
 
@@ -99,7 +167,7 @@ If you cannot use the starter (for example, in Java 11 projects where the starte
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 
 <!-- Spring JDBC Starter WITHOUT HikariCP -->
@@ -192,7 +260,7 @@ Start with the Maven dependency for OJP's JDBC driver:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 ```
 
@@ -285,7 +353,7 @@ The first step remains familiar—add the OJP JDBC driver dependency:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 ```
 
@@ -299,94 +367,40 @@ Next, remove Micronaut's default HikariCP dependency from your project:
 </dependency>
 ```
 
-Now comes the Micronaut-specific part: creating a DataSource factory. Micronaut's dependency injection system expects to find a DataSource bean, so you'll create one that returns simple connections without pooling:
+Now comes the Micronaut-specific part: creating a DataSource factory. Micronaut's dependency injection system expects to find a DataSource bean, so you'll create one using `OjpDataSource`—OJP's built-in `DataSource` implementation:
 
 ```java
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Value;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
+import org.openjproxy.jdbc.OjpDataSource;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 
 @Factory
 public class DataSourceFactory {
-    
+
     @Singleton
     @Named("default")
     public DataSource dataSource(
         @Value("${datasources.default.url}") String url,
         @Value("${datasources.default.username}") String user,
-        @Value("${datasources.default.password}") String password,
-        @Value("${datasources.default.driver-class-name}") String driver
-    ) throws ClassNotFoundException {
-        // Register the OJP driver
-        Class.forName(driver);
-        
-        // Return a simple DataSource that gets connections from DriverManager
-        return new DataSource() {
-            @Override
-            public Connection getConnection() throws SQLException {
-                return DriverManager.getConnection(url, user, password);
-            }
-            
-            @Override
-            public Connection getConnection(String username, String password) throws SQLException {
-                return DriverManager.getConnection(url, username, password);
-            }
-            
-            // Required wrapper methods (can throw UnsupportedOperationException)
-            @Override
-            public <T> T unwrap(Class<T> iface) { 
-                throw new UnsupportedOperationException(); 
-            }
-            
-            @Override
-            public boolean isWrapperFor(Class<?> iface) { 
-                return false; 
-            }
-            
-            @Override
-            public java.io.PrintWriter getLogWriter() { 
-                throw new UnsupportedOperationException(); 
-            }
-            
-            @Override
-            public void setLogWriter(java.io.PrintWriter out) { 
-                throw new UnsupportedOperationException(); 
-            }
-            
-            @Override
-            public void setLoginTimeout(int seconds) { 
-                throw new UnsupportedOperationException(); 
-            }
-            
-            @Override
-            public int getLoginTimeout() { 
-                throw new UnsupportedOperationException(); 
-            }
-            
-            @Override
-            public java.util.logging.Logger getParentLogger() { 
-                throw new UnsupportedOperationException(); 
-            }
-        };
+        @Value("${datasources.default.password}") String password
+    ) {
+        return new OjpDataSource(url, user, password);
     }
 }
 ```
 
-**[IMAGE PROMPT: Create a code visualization showing the Micronaut DataSource factory pattern. Show a class diagram-style representation with DataSourceFactory at the top, connecting to a simple DataSource implementation below, which connects to DriverManager. Highlight that this pattern bypasses HikariCP pooling. Use arrows labeled "Creates", "Returns", and "Uses" to show relationships. Include code snippets for key methods. Style: Clean UML-style class diagram with code integration.]**
+**[IMAGE PROMPT: Create a code visualization showing the Micronaut DataSource factory pattern. Show a class diagram-style representation with DataSourceFactory at the top, connecting to OjpDataSource below. Highlight that this pattern bypasses HikariCP pooling. Use arrows labeled "Creates" and "Returns" to show relationships. Include a code snippet for the factory method. Style: Clean UML-style class diagram with code integration.]**
 
-This factory creates a DataSource that obtains connections directly from DriverManager rather than maintaining a pool. Since DriverManager is registered with the OJP JDBC driver, it returns OJP virtual connections automatically.
+`OjpDataSource` is a fully compliant `javax.sql.DataSource` implementation that manages virtual connections through the OJP server. You no longer need to implement the `DataSource` interface manually or register the driver with `DriverManager`—`OjpDataSource` handles all of that automatically.
 
 Your `application.properties` file provides the configuration values:
 
 ```properties
 datasources.default.url=jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb
-datasources.default.driver-class-name=org.openjproxy.jdbc.Driver
 datasources.default.username=myuser
 datasources.default.password=mypassword
 
@@ -424,15 +438,14 @@ The key insight is that your data access code doesn't change. Whether you're usi
 ```mermaid
 graph TD
     A[Micronaut App] --> B[DataSourceFactory]
-    B --> C[Custom DataSource Bean]
-    C --> D[DriverManager]
-    D --> E[OJP JDBC Driver]
+    B --> C[OjpDataSource]
+    C --> E[OJP JDBC Driver]
     E --> F[OJP Server]
     F --> G[Database]
-    
+
     H[Micronaut Data] --> C
     I[Micronaut Transactions] --> C
-    
+
     style B fill:#e1f5ff
     style C fill:#e1f5ff
     style E fill:#fff9e1
@@ -452,7 +465,7 @@ Jakarta EE applications typically run inside an **application server** (such as 
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 ```
 
@@ -567,7 +580,7 @@ Each framework brings its own philosophy and trade-offs to OJP integration. Spri
 
 Quarkus provides the most explicit configuration through its `unpooled=true` setting. There's no ambiguity about whether pooling is enabled—the configuration clearly states the intent. Quarkus's focus on native compilation means you get excellent startup times and memory efficiency, though you must verify GraalVM compatibility for your specific deployment.
 
-Micronaut requires the most custom code with its DataSource factory pattern, but this approach gives you complete control over connection acquisition. If you need custom logic around connection creation—perhaps for multi-tenancy or dynamic datasource routing—Micronaut's factory pattern provides natural extension points.
+Micronaut uses a DataSource factory bean backed by `OjpDataSource`, OJP's built-in `DataSource` implementation. This approach is concise—just three lines in the factory method—and gives you a fully compliant `DataSource` without implementing any interfaces manually. If you need custom logic around connection creation—perhaps for multi-tenancy or dynamic datasource routing—Micronaut's factory pattern still provides natural extension points.
 
 **[IMAGE PROMPT: Create a comparison matrix showing the four frameworks. Four columns (Spring Boot, Quarkus, Micronaut, GlassFish/Jakarta EE), rows for: "Configuration Complexity" (Low/Low/Medium/Medium), "Custom Code Required" (None/None/Factory Class/None), "Native Compilation" (Limited/Excellent/Good/No), "Ecosystem Maturity" (Highest/Growing/Moderate/Mature/Standard), "Integration Smoothness" (Smoothest/Smooth/Moderate/Standard). Use color coding: green for best, yellow for good, orange for moderate. Style: Professional comparison matrix with visual indicators.]**
 
@@ -661,10 +674,10 @@ graph TD
 
 Integrating OJP with modern Java frameworks is straightforward once you understand the core principle: disable local connection pooling and configure the OJP JDBC driver. Spring Boot, Quarkus, Micronaut, and Jakarta EE application servers all support this integration, though each uses different configuration mechanisms.
 
-Spring Boot users have the easiest path: add the `spring-boot-starter-ojp` dependency and set a single connection URL. The starter's auto-configuration automatically selects the correct driver and datasource type, and its `OjpSystemPropertiesBridge` forwards any `ojp.*` properties from `application.properties` to the driver without a separate `ojp.properties` file. For Java 11 projects that cannot use the starter, the manual path—exclude HikariCP, add the driver, set `SimpleDriverDataSource`—achieves the same result. Quarkus users enable unpooled JDBC mode. Micronaut users create a custom DataSource factory. Jakarta EE users configure the application server datasource with client-side pooling disabled, which achieves the same unpooled effect using the server's own connection pool tuning knobs. All approaches achieve the same goal: creating single connections that connect to OJP rather than maintaining local connection pools.
+Spring Boot users have the easiest path: add the `spring-boot-starter-ojp` dependency and set a single connection URL. The starter's auto-configuration automatically selects the correct driver and datasource type, and its `OjpSystemPropertiesBridge` forwards any `ojp.*` properties from `application.properties` to the driver without a separate `ojp.properties` file. For Java 11 projects that cannot use the starter, the manual path—exclude HikariCP, add the driver, set `SimpleDriverDataSource`—achieves the same result. Quarkus users enable unpooled JDBC mode. Micronaut users create a `DataSourceFactory` that returns an `OjpDataSource`—OJP's built-in `DataSource` implementation—making the factory trivially small. Jakarta EE users configure the application server datasource with client-side pooling disabled, which achieves the same unpooled effect using the server's own connection pool tuning knobs. All approaches achieve the same goal: creating single connections that connect to OJP rather than maintaining local connection pools.
 
 The beauty of this integration is that your application code doesn't change. Repositories, services, transactions, and ORM mappings all work exactly as before. OJP integration happens entirely at the configuration layer, making it low-risk and reversible if needed.
 
 Choose your framework based on your application requirements, not OJP compatibility—all four work excellently with OJP. Focus on properly disabling local pooling, configuring appropriate timeouts, and monitoring connection behavior to ensure your integration works correctly.
 
-**[IMAGE PROMPT: Create a summary diagram showing the four frameworks (Spring Boot, Quarkus, Micronaut, Jakarta EE logos) all connecting to a central OJP Server icon, which then connects to a database. Above Spring Boot show "spring-boot-starter-ojp (zero config)" with a green star. Above Quarkus show "Unpooled=true". Above Micronaut show "Custom DataSource Factory". Above Jakarta EE show "Server datasource (JNDI)". Below the database, show benefits: "Centralized Pooling", "Coordinated Management", "Transparent to App Code". Style: Clean architectural summary with icons and clear relationships.]**
+**[IMAGE PROMPT: Create a summary diagram showing the four frameworks (Spring Boot, Quarkus, Micronaut, Jakarta EE logos) all connecting to a central OJP Server icon, which then connects to a database. Above Spring Boot show "spring-boot-starter-ojp (zero config)" with a green star. Above Quarkus show "Unpooled=true". Above Micronaut show "OjpDataSource". Above Jakarta EE show "Server datasource (JNDI)". Below the database, show benefits: "Centralized Pooling", "Coordinated Management", "Transparent to App Code". Style: Clean architectural summary with icons and clear relationships.]**

@@ -41,7 +41,7 @@ public class Savepoint implements java.sql.Savepoint {
         return this.retrieveAttribute(CallType.CALL_GET, "SavepointName", String.class);
     }
 
-    private <T> T retrieveAttribute(CallType callType, String attrName, Class returnType) throws SQLException {
+    private <T> T retrieveAttribute(CallType callType, String attrName, Class<T> returnType) throws SQLException {
         log.debug("retrieveAttribute: {}, {}", callType, attrName);
         CallResourceRequest.Builder reqBuilder = CallResourceRequest.newBuilder()
                 .setSession(this.connection.getSession())
@@ -62,6 +62,6 @@ public class Savepoint implements java.sql.Savepoint {
         }
 
         Object result = ProtoConverter.fromParameterValue(values.get(0));
-        return (T) result;
+        return returnType.cast(result);
     }
 }

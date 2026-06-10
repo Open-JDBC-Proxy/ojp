@@ -49,6 +49,6 @@
     <!-- OpenTelemetry logging -->
     <logger name="io.opentelemetry" level="INFO"/>
     
-    <!-- OJP specific logging - can be adjusted as needed -->
-    <logger name="org.openjproxy" level="INFO"/>
+    <!-- OJP specific logging follows the configured server log level -->
+    <logger name="org.openjproxy" level="${ojp.server.logLevel:-INFO}"/>
 </configuration>

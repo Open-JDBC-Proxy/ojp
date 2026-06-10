@@ -175,6 +175,37 @@ String orOpts = "jdbc:ojp[localhost:1059]_oracle:thin:@localhost:1521/XEPDB1?" +
 
 **Key Point**: OJP passes all database-specific parameters directly to the underlying driver. Configure SSL, timeouts, and other database settings as you normally would.
 
+### Connection Close Semantics
+
+When your application calls `Connection.close()`, the OJP JDBC driver terminates the server-side session **synchronously by default**. In practical terms, `close()` blocks until the server-side session has been terminated.
+
+This default behavior is correctness-oriented because it guarantees that the session is fully released before the application proceeds.
+
+If you need non-blocking behavior, set:
+
+```properties
+ojp.jdbc.connection.close.synchronous=false
+```
+
+#### Retry Behavior During Close
+
+If the termination call fails because of a **connection-level** problem, the driver retries it up to **3 times** before giving up. This retry applies to failures such as:
+
+- gRPC `UNAVAILABLE`
+- gRPC `DEADLINE_EXCEEDED`
+- comparable transport/connectivity failures
+
+The driver does **not** retry when the failure indicates that retrying will not help, such as:
+
+- `NOT_FOUND` / pool or session not found
+- server-side `SQLException`
+- other non-connectivity failures
+
+So the operational rule is simple:
+
+- default (`ojp.jdbc.connection.close.synchronous=true`): synchronous close, failures are surfaced to the caller
+- configured asynchronous (`false`): async close, failures are logged
+
 ---
 
 ## 5.2 Connection Pool Settings
@@ -283,16 +314,14 @@ graph TB
 
 | Property | Type | Default | Description | Since |
 |----------|------|---------|-------------|-------|
-| `maximumPoolSize` | int | 10 | Maximum number of connections in pool | 0.2.0-beta |
-| `minimumIdle` | int | same as max | Minimum number of idle connections | 0.2.0-beta |
-| `connectionTimeout` | long | 30000 | Max wait for connection (ms) | 0.2.0-beta |
-| `idleTimeout` | long | 600000 | Max idle time before close (ms) | 0.2.0-beta |
-| `maxLifetime` | long | 1800000 | Max connection lifetime (ms) | 0.2.0-beta |
-| `connectionTestQuery` | String | null | Query to test connection validity | 0.2.0-beta |
-| `initializationFailTimeout` | long | 1 | Timeout for pool initialization (ms) | 0.2.0-beta |
-| `leakDetectionThreshold` | long | 0 | Connection leak detection (ms, 0=off) | 0.2.0-beta |
-| `validationTimeout` | long | 5000 | Max time for connection validation (ms) | 0.2.0-beta |
-| `keepaliveTime` | long | 0 | Keepalive interval (ms, 0=off) | 0.2.0-beta |
+| `ojp.connection.pool.enabled` | boolean | true | Enable/disable connection pooling | 0.2.0-beta |
+| `ojp.connection.pool.maximumPoolSize` | int | 20 | Maximum number of connections in pool | 0.2.0-beta |
+| `ojp.connection.pool.minimumIdle` | int | 5 | Minimum number of idle connections | 0.2.0-beta |
+| `ojp.connection.pool.connectionTimeout` | long | 10000 | Max wait for connection (ms) | 0.2.0-beta |
+| `ojp.connection.pool.idleTimeout` | long | 600000 | Max idle time before close (ms) | 0.2.0-beta |
+| `ojp.connection.pool.maxLifetime` | long | 1800000 | Max connection lifetime (ms) | 0.2.0-beta |
+| `ojp.connection.pool.leakDetectionThreshold` | long | 0 | Connection leak detection (ms, 0=off) | 0.2.0-beta |
+| `ojp.connection.pool.defaultTransactionIsolation` | string/int | READ_COMMITTED | Default transaction isolation level | 0.2.0-beta |
 
 ### Pool Sizing Guidelines
 
@@ -389,7 +418,11 @@ Setting properties before getting connection
 Use IDE/code style with syntax highlighting
 Professional Java configuration guide
 
-For applications that need dynamic configuration:
+For applications that need dynamic configuration (for example, where pool size is computed at
+runtime), you can pass `ojp.connection.pool.*` and `ojp.xa.*` properties directly in the
+`Properties` object supplied to `DriverManager.getConnection()`. These programmatic values have
+the **highest precedence** and override any matching setting in `ojp.properties`, system
+properties, or environment variables.
 
 ```java
 import java.sql.*;
@@ -397,7 +430,7 @@ import java.util.Properties;
 
 public class OjpProgrammaticConfig {
     
-    public static Connection getConfiguredConnection() throws SQLException {
+    public static Connection getConfiguredConnection(int allocatedMaxConnections) throws SQLException {
         String url = "jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb";
         
         // Create properties
@@ -405,12 +438,12 @@ public class OjpProgrammaticConfig {
         props.setProperty("user", "myuser");
         props.setProperty("password", "mypassword");
         
-        // OJP-specific properties (optional)
-        props.setProperty("ojp.connection.pool.maximumPoolSize", "30");
-        props.setProperty("ojp.connection.pool.minimumIdle", "10");
+        // OJP pool properties - override ojp.properties / env vars / system properties
+        props.setProperty("ojp.connection.pool.maximumPoolSize", String.valueOf(allocatedMaxConnections));
+        props.setProperty("ojp.connection.pool.minimumIdle", "5");
         props.setProperty("ojp.connection.pool.connectionTimeout", "25000");
         
-        // Database-specific properties
+        // Database-specific properties are passed through to the underlying driver
         props.setProperty("ssl", "true");
         props.setProperty("sslfactory", "org.postgresql.ssl.NonValidatingFactory");
         
@@ -418,13 +451,26 @@ public class OjpProgrammaticConfig {
     }
     
     public static void main(String[] args) throws SQLException {
-        try (Connection conn = getConfiguredConnection()) {
+        try (Connection conn = getConfiguredConnection(20)) {
             DatabaseMetaData meta = conn.getMetaData();
             System.out.println("Connected to: " + meta.getDatabaseProductName());
         }
     }
 }
 ```
+
+**Property precedence** (highest to lowest):
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 | `Properties` argument to `getConnection()` | `props.setProperty("ojp.connection.pool.maximumPoolSize", "50")` |
+| 2 | Environment variables | `OJP_CONNECTION_POOL_MAXIMUMPOOLSIZE=50` |
+| 3 | System properties | `-Dojp.connection.pool.maximumPoolSize=50` |
+| 4 | Properties file (`ojp.properties`) | `ojp.connection.pool.maximumPoolSize=50` |
+
+> **Note**: Only `ojp.connection.pool.*` and `ojp.xa.*` keys are read from the `Properties`
+> argument. JDBC-standard keys (`user`, `password`) and database-specific keys (`ssl`, etc.) are
+> handled separately and are never treated as pool configuration.
 
 ### Environment-Specific Configuration
 
@@ -788,6 +834,61 @@ connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
 
 ---
 
+## 5.5 Client-Side Throttling
+
+When multiple application instances share the same OJP server, each instance should limit
+its own concurrent request count to its fair share of the server's connection pool. Without
+this, a burst of requests from one instance can overwhelm the server's admission queue and
+cause timeouts for all instances.
+
+OJP's **Client-Side Throttling** handles this automatically. The server sends three numbers
+to every connecting client (via `SessionInfo`):
+
+- **`maxAdmission`** — the configured pool size on this node.
+- **`clientCount`** — how many distinct application instances are currently connected for
+  this database and credential pair.
+- **`observedPeak`** — the real in-flight count just before the last admission timeout
+  (0 if no timeout has occurred).
+
+The driver uses these to compute a per-instance limit and enforces it with a fail-fast
+counter (no blocking). Requests that exceed the limit receive an immediate `SQLException`
+rather than queuing and making the server's situation worse.
+
+### Configuration
+
+The throttle mode is controlled by a single driver property:
+
+```properties
+# Default: reactive (most adaptive performance for most workloads)
+ojp.jdbc.clientThrottle.mode=reactive
+```
+
+| Value | Description |
+|---|---|
+| `reactive` | Adaptive limit only, based on `observedPeak`. **Default.** Delivers the most adaptive performance for most workloads; no fairness guarantee between clients. |
+| `combined` | Uses both `maxAdmission` (static fairness) and `observedPeak` (adaptive capacity). Takes the stricter of the two limits. Use for workloads that cannot tolerate any bursts. |
+| `proactive` | Static fair-share limit only, based on `maxAdmission` and `clientCount`. Use for workloads that cannot tolerate any bursts and where `observedPeak` cannot be trusted. |
+| `off` | Disable throttling entirely (legacy compatibility only). |
+
+For most workloads, `reactive` is correct and no change is needed. Switch to
+`combined` or `proactive` only when bursts must be strictly avoided.
+
+### Disabling per datasource
+
+```properties
+# Default datasource: reactive throttling (no change needed)
+ojp.jdbc.clientThrottle.mode=reactive
+
+# Disable for a specific datasource (e.g., batch analytics)
+analytics.ojp.jdbc.clientThrottle.mode=off
+```
+
+> **For a full explanation** of how client throttling works, the formula used, AIMD
+> adaptation, in-transaction bypass, and multinode behaviour, see
+> **[Chapter 8a: Client-Side Throttling](../ebook/part3-chapter8a-client-throttling.md)**.
+
+---
+
 ## Summary
 
 You now have comprehensive knowledge of OJP JDBC driver configuration:
@@ -796,6 +897,7 @@ You now have comprehensive knowledge of OJP JDBC driver configuration:
 ✅ **Pool Settings**: Configure HikariCP properties via `ojp.properties`  
 ✅ **Client Configuration**: Set up environment-specific and programmatic configs  
 ✅ **Framework Integration**: Properly integrate with Spring Boot, Quarkus, Micronaut  
+✅ **Client Throttling**: Limit per-instance concurrent requests with `ojp.jdbc.clientThrottle.mode`  
 
 **Key Takeaways**:
 - OJP URL wraps your existing database JDBC URL
@@ -803,6 +905,7 @@ You now have comprehensive knowledge of OJP JDBC driver configuration:
 - **Always disable application-level connection pooling**
 - Standard JDBC transactions work seamlessly with OJP
 - Framework-specific configuration differs but principle remains: no double pooling
+- Client throttling is on by default — each instance self-limits to its fair share of the server's pool
 
 In the next chapter, we'll explore OJP Server configuration, covering advanced settings for security, performance, and resilience.
 

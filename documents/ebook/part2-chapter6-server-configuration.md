@@ -28,13 +28,17 @@ Let's start with the foundational settings that control how your OJP server oper
 
 The server also exposes a separate Prometheus metrics endpoint on port 9159 by default. This separation is intentional—it allows you to apply different network policies and access controls to your operational metrics versus your database traffic. In production, you might expose the gRPC port only to your application network while making the Prometheus endpoint available to your monitoring infrastructure on a separate network segment.
 
-Performance tuning starts with the thread pool size, which defaults to 200 threads. This setting controls how many concurrent client requests the server can handle. The right value depends on your workload characteristics and server resources. A CPU-intensive workload might benefit from fewer threads (closer to the number of CPU cores), while I/O-bound workloads can often handle more threads. Start with the default and adjust based on your monitoring data.
+By default, OJP uses a fixed platform thread pool for gRPC request handling, with `ojp.server.threadPoolSize` (default 200) controlling concurrency. If you want to use Java virtual threads instead — which can give high concurrency without tuning a large platform thread pool — set `ojp.server.virtualThreads.enabled=true`.
+
+> **Why virtual threads are off by default:** During heavy-concurrency testing with the current OJP code, virtual threads proved less efficient than platform threads, so they are disabled by default. This may change as the OJP code evolves — further investigation is needed to determine whether future upgrades could make virtual threads beneficial.
 
 **[IMAGE PROMPT: Create a technical server architecture diagram showing OJP Server as a central component with two network interfaces: one labeled "gRPC Port :1059" (shown with database connection icons) and another labeled "Prometheus Port :9159" (shown with metrics/monitoring icons). Include a thread pool visualization showing multiple worker threads (default: 200) handling concurrent requests. Use professional blue and gray color scheme with clear labels and connection lines. Style: Modern technical architecture diagram.]**
 
 The maximum request size setting provides protection against oversized requests that could impact server stability. The default of 4MB is generous for typical JDBC operations, but you might increase it if you're working with very large result sets or binary data. Just remember that larger request sizes consume more memory, so balance this against your available resources.
 
 Connection idle timeout controls how long the server waits before closing inactive **gRPC connections** from clients. The default of 30 seconds strikes a balance between resource conservation and connection overhead. When a gRPC connection times out due to inactivity, the client automatically reconnects on demand when the next JDBC operation is requested, so there's no need for manual reconnection handling.
+
+OJP also enforces a global hard cap on concurrent in-flight gRPC calls via `ojp.server.maxConcurrentRequests` (default `200`, `0` disables). When tripped, over-limit calls are rejected with `RESOURCE_EXHAUSTED`. This cap is **shared across all datasources and all clients on the JVM**, so it is intended as JVM self-protection (gRPC threads, heap, file descriptors), not as a workload-shaping tool. Per-datasource backpressure should come from HikariCP pool sizing, `ojp.server.admissionControl.maxQueueDepth`, and SQS fast/slow lanes. As a rule of thumb, size the global cap to roughly the sum of per-datasource `(poolSize + maxQueueDepth)` × 1.5 so that the per-datasource limits reject first under expected load.
 
 **Important**: These are gRPC connection timeouts, not database connection timeouts. Each gRPC connection uses HTTP/2 multiplexing, allowing many virtual JDBC connections to share a single gRPC connection. This multiplexed architecture means one gRPC connection can handle hundreds of `getConnection()` calls from the client side.
 
@@ -47,9 +51,11 @@ Here's how you configure these core settings:
 java -Duser.timezone=UTC \
      -Dojp.server.port=9059 \
      -Dojp.prometheus.port=9091 \
+     -Dojp.server.virtualThreads.enabled=true \
      -Dojp.server.threadPoolSize=100 \
      -Dojp.server.maxRequestSize=8388608 \
      -Dojp.server.connectionIdleTimeout=60000 \
+     -Dojp.server.maxConcurrentRequests=200 \
      -jar ojp-server.jar
 ```
 
@@ -58,6 +64,7 @@ Or using environment variables for container deployments:
 ```bash
 export OJP_SERVER_PORT=9059
 export OJP_PROMETHEUS_PORT=9091
+export OJP_SERVER_VIRTUALTHREADS_ENABLED=true
 export OJP_SERVER_THREADPOOLSIZE=100
 export OJP_SERVER_MAXREQUESTSIZE=8388608
 export OJP_SERVER_CONNECTIONIDLETIMEOUT=60000
@@ -295,13 +302,15 @@ stateDiagram-v2
 
 ## 6.7 Slow Query Segregation
 
-One of OJP's useful features is slow query segregation, which can help prevent long-running queries from starving fast operations in certain workload scenarios. The server dynamically classifies operations as fast or slow based on historical patterns, then manages separate connection slots for each category. This can be beneficial when you have a mixed workload where a heavy analytical query running for minutes might otherwise prevent your quick transaction processing from getting database connections.
+One of OJP's useful features is slow query segregation. **Use it strongly when one server handles mixed workloads** (fast OLTP-style queries plus slower analytics/reporting queries). The server classifies operations as fast or slow based on historical patterns and manages separate slots for each category, so long-running queries do not starve fast requests.
 
 The feature works by monitoring operation execution times and building a statistical model of each operation's performance characteristics. When an operation consistently takes longer than average, the server classifies it as slow and routes it to the slow slot pool. Fast operations continue using the fast slot pool, maintaining their responsiveness even under mixed workload pressure.
 
 **[IMAGE PROMPT: Create a side-by-side comparison showing connection pool behavior. Left side labeled "Without Segregation": single queue with fast queries (lightning bolt icons) blocked behind slow queries (turtle icons), showing red warning indicators. Right side labeled "With Segregation": two separate queues, top queue "Fast Slots (80%)" with lightning bolts flowing freely, bottom queue "Slow Slots (20%)" with turtle icons, showing green success indicators. Style: Before/after comparison with color-coded performance indicators.]**
 
-Slow query segregation can be beneficial because it provides advantages with minimal configuration when you have a mixed workload of fast and slow queries. The percentage of slots reserved for slow operations defaults to 20%, which accommodates most workload patterns. You might increase this if you have many legitimate long-running queries, or decrease it if your workload is predominantly fast transactional operations.
+For mixed workloads, this feature usually gives clear value with minimal configuration. The default of 20% slow slots is a good starting point. You might increase this if you have many legitimate long-running queries.
+
+For **pure OLTP** (mostly short queries) or **pure OLAP** (mostly long-running queries), this feature is often not useful. In those cases, keep it disabled unless monitoring shows real slow-vs-fast contention.
 
 ```bash
 # Enable with default 20% slow slots
@@ -320,7 +329,20 @@ Slow query segregation can be beneficial because it provides advantages with min
 
 The idle timeout setting controls when slots can borrow from the other pool. If the fast pool is empty but slow slots sit idle, fast operations can temporarily borrow those slots. This prevents resource waste while maintaining the segregation benefits when both pools are active. The default 10-second timeout means slots must be idle briefly before lending—preventing constant oscillation.
 
-Timeout settings for acquiring slots provide backpressure when pools are exhausted. Fast operations wait up to 60 seconds by default, while slow operations get more generous 120-second timeouts. These asymmetric timeouts reflect the different expectations: fast operations should complete quickly or fail, while slow operations naturally take longer and deserve more patience.
+Timeout settings for acquiring slots provide backpressure when pools are exhausted. With slow query segregation enabled, fast/slow lane timeout settings control admission waits per lane. Backend pool borrow remains fail-fast after admission.
+
+For pooled lazy session allocation, OJP uses admission semaphores as the timeout owner and backend pool borrow is forced to fail fast. This avoids additive waits (admission wait + pool borrow wait) under saturation and keeps behavior consistent across XA and non-XA paths.
+When slow query segregation is enabled, `ojp.server.slowQuerySegregation.fastSlotTimeout` and `ojp.server.slowQuerySegregation.slowSlotTimeout` take precedence for fast/slow lane admission waits.
+
+Admission queue depth is also bounded to prevent unbounded waiter buildup under heavy surge traffic. Configure this with `ojp.server.admissionControl.maxQueueDepth` (default `0`, which auto-calculates as `totalSlots × 2` per semaphore, where `totalSlots` is the pool slot count used by admission control). This limit applies to **all** admission-control modes.
+
+```bash
+# Keep auto queue depth (recommended starting point)
+-Dojp.server.admissionControl.maxQueueDepth=0
+
+# Or set an explicit queue cap
+-Dojp.server.admissionControl.maxQueueDepth=128
+```
 
 **[IMAGE PROMPT: Create a dynamic allocation diagram showing how idle slots can be borrowed between pools. Show two pools: "Fast Slots" (4 boxes, 3 active, 1 idle) and "Slow Slots" (2 boxes, 1 active, 1 idle). Draw a curved arrow labeled "Temporary Borrow (if idle >10s)" from the idle slow slot to fast pool. Include a timer icon and "Returns when fast demand drops" annotation. Use green for active, gray for idle, and dotted lines for temporary borrowing. Style: Technical system diagram with clear state visualization.]**
 
@@ -350,7 +372,40 @@ graph TD
     Q --> R[Adjust Classification]
 ```
 
-## 6.8 Configuration Best Practices
+## 6.8 Client Throttling Signals
+
+While client-side throttling is configured on the **driver side** (see
+[Chapter 8a: Client-Side Throttling](../ebook/part3-chapter8a-client-throttling.md)),
+the server plays an important role: it provides the signals that clients use to compute
+their per-instance limit.
+
+On every `connect()` response, the server populates three fields in `SessionInfo`:
+
+| Field | What it carries | Source |
+|---|---|---|
+| `maxAdmission` | The configured pool size on this node | `SlotManager.totalSlots` |
+| `clientCount` | Number of distinct application instances (JVMs) connected for this datasource/credential pair | `SessionManagerImpl` ref-count map |
+| `observedPeak` | Real peak in-flight count before the last admission timeout; `0` = no timeout yet | `SlotManager` AIMD tracking |
+
+The server updates `observedPeak` automatically whenever an admission timeout occurs —
+no configuration needed. By default, `observedPeak` recovers toward `maxAdmission` at a
+rate of +1 every `totalSlots × 2` successful releases. If you need to tune recovery speed,
+set `ojp.server.admissionControl.observedPeakRecoveryFactor` to a different multiplier:
+
+```bash
+# Default: recover observedPeak by +1 every (totalSlots × 2) successful releases
+-Dojp.server.admissionControl.observedPeakRecoveryFactor=2
+
+# Faster recovery (useful for bursty workloads that return to normal quickly)
+-Dojp.server.admissionControl.observedPeakRecoveryFactor=1
+
+# Slower recovery (more conservative — useful for systems that stay degraded)
+-Dojp.server.admissionControl.observedPeakRecoveryFactor=4
+```
+
+No other server-side configuration is needed to support client throttling.
+
+## 6.9 Configuration Best Practices
 
 With all these configuration options available, how do you choose the right settings? Start with the defaults—they're designed for typical workloads and provide good performance out of the box. Then adjust based on monitoring data and observed behavior. Don't preemptively tune settings based on assumptions; let your actual workload guide your configuration.
 
@@ -361,6 +416,7 @@ For development environments, prioritize visibility and fast feedback. Use INFO 
 export OJP_SERVER_PORT=1059
 export OJP_SERVER_LOGLEVEL=DEBUG
 export OJP_PROMETHEUS_PORT=9159
+export OJP_SERVER_VIRTUALTHREADS_ENABLED=true
 export OJP_SERVER_THREADPOOLSIZE=50
 export OJP_SERVER_CIRCUITBREAKERTHRESHOLD=5
 export OJP_SERVER_ALLOWEDIPS="0.0.0.0/0"
@@ -374,7 +430,8 @@ Production environments require different trade-offs. Use ERROR or INFO logging 
 export OJP_SERVER_PORT=1059
 export OJP_SERVER_LOGLEVEL=ERROR  # Recommended for production performance
 export OJP_PROMETHEUS_PORT=9159
-export OJP_SERVER_THREADPOOLSIZE=200
+export OJP_SERVER_VIRTUALTHREADS_ENABLED=true
+# OJP_SERVER_THREADPOOLSIZE applies only when virtual threads are disabled
 export OJP_SERVER_CIRCUITBREAKERTHRESHOLD=3
 export OJP_SERVER_CIRCUITBREAKERTIMEOUT=60000
 export OJP_SERVER_ALLOWEDIPS="10.0.0.0/8"
@@ -402,7 +459,7 @@ graph LR
     E --> C
 ```
 
-## 6.9 Configuration Validation and Troubleshooting
+## 6.10 Configuration Validation and Troubleshooting
 
 When things don't work as expected, configuration issues are often the culprit. OJP provides clear error messages when configuration values are invalid or inconsistent. The server validates configuration at startup and fails fast if critical settings are problematic.
 

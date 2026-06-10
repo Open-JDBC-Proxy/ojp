@@ -177,8 +177,9 @@ class Db2SavepointTests {
         // Release the savepoint
         connection.releaseSavepoint(sp);
 
-        // Try to rollback to released savepoint (DB2 allows this)
-        connection.rollback(sp);
+        // Try to rollback to released savepoint - DB2 does not allow this (SQLCODE=-880/SQLSTATE=3B001):
+        // once a savepoint is released it no longer exists.
+        assertThrows(SQLException.class, () -> connection.rollback(sp));
 
         // Verify data is still there (since savepoint was released, not rolled back)
         ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM DB2INST1.savepoint_test_table");
@@ -238,8 +239,9 @@ class Db2SavepointTests {
         // Commit the transaction
         connection.commit();
 
-        // After commit, savepoint is invalid (DB2 allows this)
-        connection.rollback(sp);
+        // After commit, the savepoint no longer exists; DB2 throws SQLCODE=-880/SQLSTATE=3B001
+        // when ROLLBACK TO SAVEPOINT references a savepoint cleared by the commit.
+        assertThrows(SQLException.class, () -> connection.rollback(sp));
 
         // Verify data is committed
         ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM DB2INST1.savepoint_test_table");

@@ -2,13 +2,14 @@ package org.openjproxy.grpc.server.action.session;
 
 import com.openjproxy.grpc.DbName;
 import com.openjproxy.grpc.OpResult;
+import com.openjproxy.grpc.ResultRow;
 import com.openjproxy.grpc.SessionInfo;
 import io.grpc.stub.StreamObserver;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.database.DatabaseUtils;
-import org.openjproxy.grpc.dto.OpQueryResult;
+import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.server.HydratedResultSetMetadata;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.lob.LobProcessor;
@@ -57,9 +58,10 @@ public class ResultSetHelper {
      * <p>
      * Iterates over all rows in the result set, converting column values according
      * to their SQL types.
-     * Results are sent in blocks of
-     * {@link org.openjproxy.constants.CommonConstants#ROWS_PER_RESULT_SET_DATA_BLOCK}
-     * rows. For SQL Server and DB2, when LOB columns are present, only one row is
+     * Results are sent in blocks whose size is controlled by the
+     * {@code ojp.resultset.rowsPerBlock} server configuration property
+     * (default: {@value org.openjproxy.constants.CommonConstants#ROWS_PER_RESULT_SET_DATA_BLOCK}).
+     * For SQL Server and DB2, when LOB columns are present, only one row is
      * sent per call to support
      * row-by-row fetching.
      * </p>
@@ -78,15 +80,13 @@ public class ResultSetHelper {
         var sessionManager = context.getSessionManager();
 
         ResultSet rs = sessionManager.getResultSet(session, resultSetUUID);
-        OpQueryResult.OpQueryResultBuilder queryResultBuilder = OpQueryResult.builder();
         int columnCount = rs.getMetaData().getColumnCount();
         List<String> labels = new ArrayList<>();
         for (int i = 0; i < columnCount; i++) {
             labels.add(rs.getMetaData().getColumnName(i + 1));
         }
-        queryResultBuilder.labels(labels);
 
-        List<Object[]> results = new ArrayList<>();
+        List<ResultRow> results = new ArrayList<>();
         int row = 0;
         boolean justSent = false;
         DbName dbName = DatabaseUtils.resolveDbName(rs.getStatement().getConnection().getMetaData().getURL());
@@ -102,7 +102,7 @@ public class ResultSetHelper {
             }
             justSent = false;
             row++;
-            Object[] rowValues = new Object[columnCount];
+            ResultRow.Builder rowBuilder = ResultRow.newBuilder();
             for (int i = 0; i < columnCount; i++) {
                 int colType = rs.getMetaData().getColumnType(i + 1);
                 String colTypeName = rs.getMetaData().getColumnTypeName(i + 1);
@@ -194,30 +194,35 @@ public class ResultSetHelper {
                         break;
                     }
                 }
-                rowValues[i] = currentValue;
-
+                rowBuilder.addColumns(ProtoConverter.toParameterValue(currentValue));
             }
-            results.add(rowValues);
+            results.add(rowBuilder.build());
 
             if ((DbName.DB2.equals(dbName) || DbName.SQL_SERVER.equals(dbName))
                     && CommonConstants.RESULT_SET_ROW_BY_ROW_MODE.equalsIgnoreCase(resultSetMode)) {
                 break;
             }
 
-            if (row % CommonConstants.ROWS_PER_RESULT_SET_DATA_BLOCK == 0) {
+            if (row % context.getServerConfiguration().getResultsetRowsPerBlock() == 0) {
                 justSent = true;
+                // Enrich session with throttle data so the driver-side ClientThrottleManager
+                // can update its reactive limit from each block, not just the connect response.
+                SessionInfo enrichedSession = org.openjproxy.grpc.server.utils.SessionInfoUtils
+                        .enrichWithThrottle(session, context);
                 // Send a block of records
-                responseObserver.onNext(ResultSetWrapper.wrapResults(session, results, queryResultBuilder,
+                responseObserver.onNext(ResultSetWrapper.wrapResults(enrichedSession, results, labels,
                         resultSetUUID, resultSetMode));
-                queryResultBuilder = OpQueryResult.builder();// Recreate the builder to not send labels in every block.
+                labels = null; // Labels only included in the first block
                 results = new ArrayList<>();
             }
         }
 
         if (!justSent) {
             // Send a block of remaining records
+            SessionInfo enrichedSession = org.openjproxy.grpc.server.utils.SessionInfoUtils
+                    .enrichWithThrottle(session, context);
             responseObserver.onNext(
-                    ResultSetWrapper.wrapResults(session, results, queryResultBuilder, resultSetUUID, resultSetMode));
+                    ResultSetWrapper.wrapResults(enrichedSession, results, labels, resultSetUUID, resultSetMode));
         }
 
         responseObserver.onCompleted();

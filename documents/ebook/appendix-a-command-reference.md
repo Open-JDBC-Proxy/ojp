@@ -16,8 +16,8 @@ The most common way to start the OJP server is using the standalone JAR download
 **Download the JAR from Maven Central** (recommended):
 
 ```bash
-wget https://repo1.maven.org/maven2/org/openjproxy/ojp-server/0.4.7-beta/ojp-server-0.4.7-beta-shaded.jar
-chmod +x ojp-server-0.4.7-beta-shaded.jar
+wget https://repo1.maven.org/maven2/org/openjproxy/ojp-server/0.4.23-beta/ojp-server-0.4.23-beta-shaded.jar
+chmod +x ojp-server-0.4.23-beta-shaded.jar
 java -Duser.timezone=UTC -jar ojp-server-0.3.0.jar
 ```
 
@@ -27,7 +27,7 @@ For development with custom configuration, you can specify properties:
 java -Dojp.server.port=9059 \
      -Dojp.telemetry.enabled=true \
      -Dojp.telemetry.prometheus.enabled=true \
-     -jar ojp-server-0.4.7-beta-shaded.jar
+     -jar ojp-server-0.4.23-beta-shaded.jar
 ```
 
 When running from source during development (see [Building from Source](../runnable-jar/BUILDING_FROM_SOURCE.md)):
@@ -244,7 +244,7 @@ Maven dependency:
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>spring-boot-starter-ojp</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 ```
 
@@ -282,7 +282,7 @@ Maven dependency (no starter):
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 <dependency>
     <groupId>org.springframework.boot</groupId>
@@ -316,25 +316,32 @@ quarkus.datasource.jdbc.min-size=1
 ```yaml
 datasources:
   default:
-    url: jdbc:ojp://localhost:9059/mydb
+    url: jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb
     username: dbuser
     password: dbpass
-    driverClassName: io.openjproxy.jdbc.Driver
 ```
 
-**Custom DataSource Factory:**
+**DataSource Factory:**
 ```java
+import io.micronaut.context.annotation.Factory;
+import io.micronaut.context.annotation.Value;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
+import org.openjproxy.jdbc.OjpDataSource;
+
+import javax.sql.DataSource;
+
 @Factory
 public class DataSourceFactory {
-    @Bean
-    @Primary
-    public DataSource dataSource(@Named("default") DatasourceConfiguration config) {
-        SimpleDriverDataSource ds = new SimpleDriverDataSource();
-        ds.setDriverClass(io.openjproxy.jdbc.Driver.class);
-        ds.setUrl(config.getUrl());
-        ds.setUsername(config.getUsername());
-        ds.setPassword(config.getPassword());
-        return ds;
+
+    @Singleton
+    @Named("default")
+    public DataSource dataSource(
+        @Value("${datasources.default.url}") String url,
+        @Value("${datasources.default.username}") String user,
+        @Value("${datasources.default.password}") String password
+    ) {
+        return new OjpDataSource(url, user, password);
     }
 }
 ```

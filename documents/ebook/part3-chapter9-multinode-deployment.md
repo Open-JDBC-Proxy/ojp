@@ -403,6 +403,7 @@ Each server's configuration file (ojp-server.properties) should specify identica
 ```properties
 # Server settings  
 ojp.server.port=1059
+ojp.server.virtualThreads.enabled=true
 ojp.server.threadPoolSize=200
 ojp.server.logLevel=ERROR
 
@@ -420,6 +421,8 @@ ojp.telemetry.endpoint=http://otel-collector:4317
 ```
 
 The key is consistency. All servers should be functionally identical, running the same version of OJP, with the same configuration. This makes the cluster behave predictably and simplifies troubleshooting.
+
+If you disable virtual threads (`ojp.server.virtualThreads.enabled=false`), use the same `ojp.server.threadPoolSize` on every node for consistent behavior.
 
 ### Tuning for Different Scenarios
 

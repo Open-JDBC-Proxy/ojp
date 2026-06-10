@@ -11,12 +11,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class GrpcServer {
     private static final Logger logger = LoggerFactory.getLogger(GrpcServer.class);
+    private static final long EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
 
     public static void main(String[] args) throws IOException, InterruptedException {
         // Initialize health status manager
@@ -88,14 +90,17 @@ public class GrpcServer {
                 cacheConfigurationMap
         );
 
+        ExecutorService grpcExecutor = createGrpcExecutor(config);
+
         NettyServerBuilder serverBuilder = NettyServerBuilder
                 .forPort(config.getServerPort())
-                .executor(Executors.newFixedThreadPool(config.getThreadPoolSize()))
+                .executor(grpcExecutor)
                 .maxInboundMessageSize(config.getMaxRequestSize())
                 .keepAliveTime(config.getConnectionIdleTimeout(), TimeUnit.MILLISECONDS)
                 .addService(statementService)
                 .addService(OjpHealthManager.getHealthStatusManager().getHealthService())
                 .intercept(new IpWhitelistingInterceptor(config.getAllowedIps()))
+                .intercept(new ConcurrencyThrottleInterceptor(config.getMaxConcurrentRequests()))
                 .intercept(grpcTelemetry.newServerInterceptor());
 
         // Configure TLS if enabled
@@ -151,6 +156,7 @@ public class GrpcServer {
 
         // Add shutdown hook
         ScheduledExecutorService finalSessionCleanupExecutor = sessionCleanupExecutor;
+        ExecutorService finalGrpcExecutor = grpcExecutor;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutting down OJP gRPC Server...");
 
@@ -187,11 +193,40 @@ public class GrpcServer {
                 Thread.currentThread().interrupt();
             }
 
+            shutdownExecutor(finalGrpcExecutor, "gRPC server executor");
             logger.info("OJP gRPC Server shutdown complete");
         }));
 
         logger.info("OJP gRPC Server started successfully and awaiting termination");
         server.awaitTermination();
+    }
+
+    private static ExecutorService createGrpcExecutor(ServerConfiguration config) {
+        if (config.isVirtualThreadsEnabled()) {
+            logger.info("Using virtual threads for gRPC request handling");
+            return Executors.newVirtualThreadPerTaskExecutor();
+        }
+
+        logger.info("Using platform threads with fixed thread pool for gRPC request handling");
+        return Executors.newFixedThreadPool(config.getThreadPoolSize());
+    }
+
+    private static void shutdownExecutor(ExecutorService executor, String executorName) {
+        if (executor == null) {
+            return;
+        }
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                logger.warn("{} did not terminate gracefully, forcing shutdown", executorName);
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            logger.warn("Interrupted while shutting down {}", executorName);
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**

@@ -437,7 +437,7 @@ classDiagram
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 ```
 
@@ -1051,7 +1051,7 @@ graph LR
 #### Prompt 1
 
 **[IMAGE PROMPT 1]**: Create a simple requirements checklist infographic:
-- OJP Server: Java 21+ (with Java logo)
+- OJP Server: Java 25+ (with Java logo)
 - OJP JDBC Driver: Java 11+ (with Java logo)
 - Maven 3.9+ or Gradle (with logos)
 - Docker (optional, with Docker logo)
@@ -1060,7 +1060,7 @@ Use clean, modern icon-based design with checkmarks
 Professional getting-started guide style
 
 OJP has different Java requirements for server and client:
-- **OJP Server** requires **Java 21 or higher**
+- **OJP Server** requires **Java 25 or higher**
 - **OJP JDBC Driver** requires **Java 11 or higher** (for broader client compatibility)
 
 **Verify your Java version**:
@@ -1071,12 +1071,12 @@ java -version
 
 Expected output:
 ```
-openjdk version "22.0.1" 2024-04-16
-OpenJDK Runtime Environment (build 22.0.1+8-16)
-OpenJDK 64-Bit Server VM (build 22.0.1+8-16, mixed mode, sharing)
+openjdk version "25.0.1" 2026-10-20
+OpenJDK Runtime Environment (build 25.0.1+8-16)
+OpenJDK 64-Bit Server VM (build 25.0.1+8-16, mixed mode, sharing)
 ```
 
-If you don't have Java 22+, you can download it from Eclipse Temurin at adoptium.net, Oracle JDK from oracle.com, or Amazon Corretto from aws.amazon.com/corretto.
+If you don't have Java 25+, you can download it from Eclipse Temurin at adoptium.net, Oracle JDK from oracle.com, or Amazon Corretto from aws.amazon.com/corretto.
 
 #### Prompt 2
 
@@ -1107,7 +1107,7 @@ docker run --rm -d \
   --name ojp-server \
   --network host \
   -v "$(pwd)/ojp-libs":/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 This downloads the OJP Server image (approximately 50MB) and starts it with your downloaded drivers mounted. The server starts on port 1059 for gRPC communication and exposes metrics on port 9159 for Prometheus. The `-d` flag runs the container in detached mode, while `--rm` ensures the container is automatically removed when stopped.
@@ -1160,7 +1160,7 @@ Professional code documentation style
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.4.7-beta</version>
+    <version>0.4.23-beta</version>
 </dependency>
 ```
 
@@ -1957,7 +1957,7 @@ version: '3.8'
 
 services:
   ojp-server:
-    image: rrobetti/ojp:0.4.7-beta
+    image: rrobetti/ojp:0.4.23-beta
     ports:
       - "1059:1059"
       - "9159:9159"
@@ -2744,15 +2744,14 @@ Here's a complete configuration example:
 
 #### Prompt 4
 
-**[IMAGE PROMPT: Create a code visualization showing the Micronaut DataSource factory pattern. Show a class diagram-style representation with DataSourceFactory at the top, connecting to a simple DataSource implementation below, which connects to DriverManager. Highlight that this pattern bypasses HikariCP pooling. Use arrows labeled "Creates", "Returns", and "Uses" to show relationships. Include code snippets for key methods. Style: Clean UML-style class diagram with code integration.]**
+**[IMAGE PROMPT: Create a code visualization showing the Micronaut DataSource factory pattern. Show a class diagram-style representation with DataSourceFactory at the top, connecting to OjpDataSource below. Highlight that this pattern bypasses HikariCP pooling. Use arrows labeled "Creates" and "Returns" to show relationships. Include a code snippet for the factory method. Style: Clean UML-style class diagram with code integration.]**
 
-This factory creates a DataSource that obtains connections directly from DriverManager rather than maintaining a pool. Since DriverManager is registered with the OJP JDBC driver, it returns OJP virtual connections automatically.
+`OjpDataSource` is a fully compliant `javax.sql.DataSource` implementation that manages virtual connections through the OJP server. You no longer need to implement the `DataSource` interface manually or register the driver with `DriverManager`—`OjpDataSource` handles all of that automatically.
 
 Your `application.properties` file provides the configuration values:
 
 ```properties
 datasources.default.url=jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb
-datasources.default.driver-class-name=org.openjproxy.jdbc.Driver
 datasources.default.username=myuser
 datasources.default.password=mypassword
 
@@ -2798,7 +2797,7 @@ graph TD
 
 #### Prompt 8
 
-**[IMAGE PROMPT: Create a summary diagram showing the three frameworks (Spring Boot, Quarkus, Micronaut logos) all connecting to a central OJP Server icon, which then connects to a database. Above each framework, show the key integration requirements in small text: "Exclude HikariCP + SimpleDriverDataSource", "Unpooled=true", "Custom DataSource Factory". Below the database, show benefits: "Centralized Pooling", "Coordinated Management", "Transparent to App Code". Style: Clean architectural summary with icons and clear relationships.]**
+**[IMAGE PROMPT: Create a summary diagram showing the three frameworks (Spring Boot, Quarkus, Micronaut logos) all connecting to a central OJP Server icon, which then connects to a database. Above each framework, show the key integration requirements in small text: "Exclude HikariCP + SimpleDriverDataSource", "Unpooled=true", "OjpDataSource". Below the database, show benefits: "Centralized Pooling", "Coordinated Management", "Transparent to App Code". Style: Clean architectural summary with icons and clear relationships.]**
 
 
 ### Chapter 10: XA Distributed Transactions

@@ -37,8 +37,8 @@ All SQL Server test classes have been updated:
 
 #### Local Execution
 ```bash
-# Start OJP server first (requires Java 21+)
-java -Duser.timezone=UTC -jar ojp-server/target/ojp-server-0.4.7-beta-shaded.jar &
+# Start OJP server first (requires Java 25+)
+java -Duser.timezone=UTC -jar ojp-server/target/ojp-server-0.4.23-beta-shaded.jar &
 
 # Run SQL Server tests
 mvn test -pl ojp-jdbc-driver -DenableSqlServerTests=true -Dtest="SQLServer*"
@@ -50,7 +50,7 @@ The `.github/workflows/sqlserver-testing.yml` workflow:
 - Starts the server in background
 - Runs all SQL Server integration tests
 - Uses TestContainers for SQL Server instance
-- Matrix tests against Java 11, 17, 21, 22
+- Matrix tests against Java 11, 17, 21, 25
 
 ### Dependencies
 

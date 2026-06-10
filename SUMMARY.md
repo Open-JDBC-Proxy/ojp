@@ -150,7 +150,7 @@ The SQL enhancer is **working as designed**:
 
 ### Prerequisites
 ```bash
-# Java 21+ required
+# Java 25+ required
 java -version
 
 # PostgreSQL container
@@ -171,7 +171,7 @@ bash ojp-server/download-drivers.sh ./ojp-libs
 
 # Start baseline server (port 1059)
 java -Dojp.libs.path=./ojp-libs \
-  -jar ojp-server/target/ojp-server-0.4.7-beta-shaded.jar &
+  -jar ojp-server/target/ojp-server-0.4.23-beta-shaded.jar &
 
 # Start enhanced server (port 10593) with DEBUG logging
 java -Dojp.libs.path=./ojp-libs \
@@ -181,7 +181,7 @@ java -Dojp.libs.path=./ojp-libs \
   -Dojp.sql.enhancer.mode=OPTIMIZE \
   -Dojp.sql.enhancer.dialect=POSTGRESQL \
   -Dojp.server.logLevel=DEBUG \
-  -jar ojp-server/target/ojp-server-0.4.7-beta-shaded.jar &
+  -jar ojp-server/target/ojp-server-0.4.23-beta-shaded.jar &
 ```
 
 ### Run Test

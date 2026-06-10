@@ -40,7 +40,7 @@ public class CommitTransactionAction implements Action<SessionInfo, SessionInfo>
      */
     @Override
     public void execute(ActionContext context, SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
-        log.info("Commiting transaction");
+        log.debug("Committing transaction");
 
         // Process cluster health from the request
         ProcessClusterHealthAction.getInstance().execute(context, sessionInfo);
@@ -54,7 +54,7 @@ public class CommitTransactionAction implements Action<SessionInfo, SessionInfo>
                     .setTransactionUUID(sessionInfo.getTransactionInfo().getTransactionUUID())
                     .build();
 
-            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
+            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo, context);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
 
             responseObserver.onNext(sessionInfoBuilder.build());

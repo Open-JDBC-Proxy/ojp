@@ -15,9 +15,24 @@ The server supports configuration through both JVM system properties and environ
 |--------------------------------------|--------------------------------------|---------|-----------|--------------------------------------------------------|---------|
 | `ojp.server.port`                    | `OJP_SERVER_PORT`                    | int     | 1059      | gRPC server port                                       | 0.2.0-beta |
 | `ojp.prometheus.port`                | `OJP_PROMETHEUS_PORT`                | int     | 9159      | Prometheus metrics HTTP server port                    | 0.2.0-beta |
-| `ojp.server.threadPoolSize`          | `OJP_SERVER_THREADPOOLSIZE`          | int     | 200       | gRPC server thread pool size                           | 0.2.0-beta |
+| `ojp.server.virtualThreads.enabled`  | `OJP_SERVER_VIRTUALTHREADS_ENABLED`  | boolean | false     | Use Java virtual threads for gRPC request handling     | 0.4.11-beta |
+| `ojp.server.threadPoolSize`          | `OJP_SERVER_THREADPOOLSIZE`          | int     | 200       | Fixed thread pool size when virtual threads are disabled | 0.2.0-beta |
 | `ojp.server.maxRequestSize`          | `OJP_SERVER_MAXREQUESTSIZE`          | int     | 4194304   | Maximum request size in bytes (4MB)                    | 0.2.0-beta |
 | `ojp.server.connectionIdleTimeout`   | `OJP_SERVER_CONNECTIONIDLETIMEOUT`   | long    | 30000     | Connection idle timeout in milliseconds                | 0.2.0-beta |
+| `ojp.server.maxConcurrentRequests`   | `OJP_SERVER_MAXCONCURRENTREQUESTS`   | int     | 200       | Global hard cap on concurrent in-flight gRPC calls across **all** datasources and clients. Over-limit calls are rejected with `RESOURCE_EXHAUSTED`. `0` disables the cap. Intended as **JVM self-protection, not workload shaping** — see [Global Concurrency Cap](#global-concurrency-cap-jvm-self-protection). | 0.4.0-beta |
+
+#### Global Concurrency Cap (JVM self-protection)
+
+OJP uses a layered concurrency model:
+
+- **Soft cap, per-datasource (primary backpressure).** Per-datasource admission semaphores (HikariCP slots + `ojp.server.admissionControl.maxQueueDepth` waiters, plus SQS fast/slow lanes when enabled) shape workload and isolate noisy neighbours. Almost all `RESOURCE_EXHAUSTED` rejections under normal load should come from this layer.
+- **Hard cap, global (safety net).** `ojp.server.maxConcurrentRequests` is a single process-wide gRPC in-flight counter ([`ConcurrencyThrottleInterceptor`](../../ojp-server/src/main/java/org/openjproxy/grpc/server/ConcurrencyThrottleInterceptor.java)). It protects the server JVM (gRPC threads, heap, file descriptors) from total collapse when per-datasource limits are misconfigured or when many datasources surge at once.
+
+Because the global cap is shared across all datasources and clients, tripping it rejects requests indiscriminately and can cause unrelated clients to throttle. Size it generously — a rule of thumb is **sum of per-datasource `(poolSize + maxQueueDepth)` × 1.5** — so the per-datasource caps reject first under expected load. Treat the global cap as JVM self-protection, not workload shaping; if you find yourself tuning it to shape traffic, tune the per-datasource limits instead.
+
+
+
+> **Note on `ojp.server.virtualThreads.enabled`:** Virtual threads are disabled by default because, during heavy-concurrency testing with the current OJP code, they proved less efficient than platform threads. This may change as the OJP code evolves — further investigation is needed to determine whether future improvements could make virtual threads beneficial. You can still opt in by setting this property to `true`.
 
 ### Logging Settings
 
@@ -150,15 +165,38 @@ For full integration examples including Docker Compose setups, see the **[Teleme
 | `ojp.server.circuitBreakerTimeout`   | `OJP_SERVER_CIRCUITBREAKERTIMEOUT`   | long | 60000   | Circuit breaker timeout once open in milliseconds | 0.2.0-beta |
 | `ojp.server.circuitBreakerThreshold` | `OJP_SERVER_CIRCUITBREAKERTHRESHOLD` | int  | 3       | Circuit breaker failure threshold                 | 0.2.0-beta |
 
+### ResultSet Streaming Settings
+
+Controls how the server batches rows into gRPC streaming messages when returning `executeQuery` results.
+
+| Property                        | Environment Variable            | Type | Default | Description                                                                                    | Since |
+|---------------------------------|---------------------------------|------|---------|------------------------------------------------------------------------------------------------|-------|
+| `ojp.resultset.rowsPerBlock`    | `OJP_RESULTSET_ROWSPERBLOCK`    | int  | 100     | Number of rows packed into each streaming block. Range: 1–10000. Out-of-range values fall back to the default. | 0.4.15-SNAPSHOT |
+
+**Tuning guidance:**
+- Smaller values (e.g. 10–50) reduce per-message memory pressure and improve first-row latency for large result sets.
+- Larger values (e.g. 200–1000) reduce gRPC framing overhead and improve bulk-query throughput.
+- The default of 100 matches the historical behaviour and is a safe starting point for most workloads.
+- Values below 1 or above 10000 are rejected and the default is used instead.
+
 ### Slow Query Segregation Settings
 
 | Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |
 |----------------------------------------------------|----------------------------------------------------|---------|----------|--------------------------------------------------|-------|
-| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | false    | Enable/disable slow query segregation feature   | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.enabled`         | `OJP_SERVER_SLOWQUERYSEGREGATION_ENABLED`         | boolean | false    | Enable for mixed fast+slow workloads; usually keep off for pure OLTP/OLAP | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.slowSlotPercentage` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTPERCENTAGE` | int     | 20       | Percentage of slots for slow operations (0-100) | 0.2.0-beta |
 | `ojp.server.slowQuerySegregation.idleTimeout`     | `OJP_SERVER_SLOWQUERYSEGREGATION_IDLETIMEOUT`     | long    | 10000    | Idle timeout for slot borrowing (milliseconds)  | 0.2.0-beta |
-| `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Timeout for acquiring slow operation slots (ms) | 0.2.0-beta |
-| `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Timeout for acquiring fast operation slots (ms) | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.slowSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWSLOTTIMEOUT` | long    | 120000   | Slow-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.fastSlotTimeout` | `OJP_SERVER_SLOWQUERYSEGREGATION_FASTSLOTTIMEOUT` | long    | 60000    | Fast-lane slot wait timeout (ms). When slow query segregation is enabled, this setting takes precedence. | 0.2.0-beta |
+| `ojp.server.slowQuerySegregation.classificationMode` | `OJP_SERVER_SLOWQUERYSEGREGATION_CLASSIFICATIONMODE` | enum (`RELATIVE_FAST_BASELINE` / `ABSOLUTE_THRESHOLD`) | `RELATIVE_FAST_BASELINE` | Slow-query classification strategy. `RELATIVE_FAST_BASELINE` is the default adaptive mode. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.slowQueryThresholdMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWQUERYTHRESHOLDMS` | long | 1000 | Deterministic slow-query threshold in milliseconds used by `ABSOLUTE_THRESHOLD` mode. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.minimumSlowQueryMs` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINIMUMSLOWQUERYMS` | long | 100 | Minimum operation average in milliseconds required before entering slow classification in relative mode. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.slowMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_SLOWMULTIPLIER` | double | 5.0 | Relative-mode multiplier against fast baseline required to enter slow classification. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.recoveryMultiplier` | `OJP_SERVER_SLOWQUERYSEGREGATION_RECOVERYMULTIPLIER` | double | 3.0 | Relative-mode multiplier against fast baseline for recovering from slow to fast. Must be less than `slowMultiplier`. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.minSamples` | `OJP_SERVER_SLOWQUERYSEGREGATION_MINSAMPLES` | int | 20 | Minimum per-query-shape sample count required before classification. | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.baselinePercentile` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEPERCENTILE` | int | 50 | Percentile used to compute fast baseline from currently-fast query-shape averages (1-99). | 0.4.19-SNAPSHOT |
+| `ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds` | `OJP_SERVER_SLOWQUERYSEGREGATION_BASELINEREFRESHINTERVALSECONDS` | long | 10 | Interval for refreshing cached fast baseline (seconds). `0` recomputes baseline on each classification check. | 0.4.19-SNAPSHOT |
+| `ojp.server.admissionControl.maxQueueDepth`       | `OJP_SERVER_ADMISSIONCONTROL_MAXQUEUEDEPTH`       | int     | 0        | Max admission waiters before fail-fast overload (0 = auto as `totalSlots × 2` per semaphore; `totalSlots` is the pool slot count used by admission control) | 0.4.16-SNAPSHOT |
 
 ### SQL Enhancer and Schema Loader Settings
 
@@ -307,6 +345,7 @@ java -Duser.timezone=UTC \
      -Dojp.server.port=8080 \
      -Dojp.prometheus.port=9091 \
      -Dojp.telemetry.enabled=false \
+     -Dojp.server.virtualThreads.enabled=true \
      -Dojp.server.threadPoolSize=100 \
      -Dojp.server.circuitBreakerTimeout=120000 \
      -Dojp.server.circuitBreakerThreshold=3 \
@@ -324,6 +363,7 @@ Set configuration using environment variables:
 export OJP_SERVER_PORT=8080
 export OJP_PROMETHEUS_PORT=9091
 export OJP_OPENTELEMETRY_ENABLED=false
+export OJP_SERVER_VIRTUALTHREADS_ENABLED=true
 export OJP_SERVER_THREADPOOLSIZE=100
 export OJP_SERVER_CIRCUITBREAKERTIMEOUT=120000
 export OJP_SERVER_CIRCUITBREAKERTHRESHOLD=3
@@ -409,11 +449,20 @@ You can configure different IP restrictions for the Prometheus metrics endpoint:
 
 The Slow Query Segregation feature monitors all database operations and classifies them as "slow" or "fast" based on their execution time, then manages the number of concurrently executing operations to prevent slow operations from blocking the system.
 
+**Strong recommendation:** Enable this when one OJP server handles both fast transactional queries and slower analytical/reporting queries.
+
+**Discouraged usage:** For pure OLTP (mostly fast queries) or pure OLAP (mostly long queries), this usually brings limited value. Keep it disabled unless monitoring shows clear starvation of one query class by another.
+
 ### How It Works
 
 1. **Operation Monitoring**: Every SQL operation is tracked using a hash of the SQL statement
 2. **Execution Time Tracking**: Execution times are recorded and averaged using a weighted formula: `new_average = ((stored_average * 4) + new_measurement) / 5`
-3. **Classification**: An operation is classified as "slow" if its average execution time is **2x or greater** than the overall average execution time
+3. **Classification**:
+   - `RELATIVE_FAST_BASELINE` (default): compares each query-shape average against a fast baseline (default median of currently-fast query-shape averages), with hysteresis for stable enter/recover behavior.
+   - `ABSOLUTE_THRESHOLD`: operation average is **greater than or equal to** `ojp.server.slowQuerySegregation.slowQueryThresholdMs` (deterministic mode).
+   - In relative mode, already-classified slow query-shapes are excluded from the baseline to prevent baseline pollution.
+   - `minimumSlowQueryMs` prevents tiny-latency operations from being marked slow when baseline is very low.
+   - `slowMultiplier` controls slow-lane entry and `recoveryMultiplier` controls return to fast lane.
 4. **Slot Management**: The total number of concurrent operations is limited by the HikariCP connection pool maximum size
 5. **Slot Borrowing**: If one pool (slow/fast) is idle for a configurable time, the other pool can borrow its slots
 
@@ -434,15 +483,41 @@ ojp.server.slowQuerySegregation.slowSlotTimeout=120000
 
 # Timeout for acquiring fast operation slots (milliseconds)
 ojp.server.slowQuerySegregation.fastSlotTimeout=60000
+
+# Classification mode (`RELATIVE_FAST_BASELINE` or `ABSOLUTE_THRESHOLD`)
+ojp.server.slowQuerySegregation.classificationMode=RELATIVE_FAST_BASELINE
+
+# Relative-fast-baseline controls (defaults shown)
+ojp.server.slowQuerySegregation.minimumSlowQueryMs=100
+ojp.server.slowQuerySegregation.slowMultiplier=5.0
+ojp.server.slowQuerySegregation.recoveryMultiplier=3.0
+ojp.server.slowQuerySegregation.minSamples=20
+ojp.server.slowQuerySegregation.baselinePercentile=50
+ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds=10
+
+# Deterministic slow-query threshold in milliseconds (used by ABSOLUTE_THRESHOLD mode)
+ojp.server.slowQuerySegregation.slowQueryThresholdMs=1000
+
+# Admission queue depth cap across all admission-control modes (0 = auto)
+ojp.server.admissionControl.maxQueueDepth=0
 ```
 
 ### Benefits
 
 - **Per-datasource isolation**: Each datasource maintains independent slow/fast lanes based on actual pool sizes
 - **Enhanced resource protection**: Smart borrowing preserves at least one slot per pool and requires prior activity
-- **Prevents resource starvation**: Fast operations aren't blocked by slow ones within each datasource
+- **Prevents resource starvation in mixed workloads**: Fast operations aren't blocked by slow ones within each datasource
 - **Adaptive learning**: Automatically discovers and adapts to slow operations per datasource
 - **Efficient resource utilization**: Smart slot borrowing maximizes connection pool usage while maintaining safety
+
+### Admission Timeout Model (Pooled Lazy Sessions)
+
+OJP uses a single timeout owner for pooled lazy session allocation: the admission semaphore.
+
+- `ojp.connection.pool.connectionTimeout` (non-XA) and `ojp.xa.connection.pool.connectionTimeout` (XA) define the admission wait budget.
+- Backend pool borrow is configured fail-fast after admission.
+- This prevents additive latency under contention (admission wait + pool borrow wait), and keeps timeout semantics consistent across XA and non-XA paths.
+- With slow query segregation enabled, operations are routed to fast/slow slot lanes for isolation, and `ojp.server.slowQuerySegregation.fastSlotTimeout` / `ojp.server.slowQuerySegregation.slowSlotTimeout` take precedence for lane admission waits.
 
 ## Configuration Examples
 
@@ -469,6 +544,7 @@ java -Duser.timezone=UTC \
      -Dojp.server.log.file=/var/log/ojp/server.log \
      -Dojp.server.log.maxHistory=90 \
      -Dojp.server.log.totalSizeCap=10GB \
+     -Dojp.server.virtualThreads.enabled=true \
      -Dojp.server.threadPoolSize=300 \
      -Dojp.server.circuitBreakerTimeout=60000 \
      -Dojp.server.slowQuerySegregation.enabled=true \
@@ -484,6 +560,7 @@ java -Duser.timezone=UTC \
 ```bash
 java -Duser.timezone=UTC \
      -Dojp.server.port=1059 \
+     -Dojp.server.virtualThreads.enabled=true \
      -Dojp.server.threadPoolSize=500 \
      -Dojp.server.maxRequestSize=16777216 \
      -Dojp.server.connectionIdleTimeout=60000 \
@@ -504,6 +581,7 @@ metadata:
 data:
   OJP_SERVER_PORT: "1059"
   OJP_PROMETHEUS_PORT: "9159"
+  OJP_SERVER_VIRTUALTHREADS_ENABLED: "true"
   OJP_SERVER_THREADPOOLSIZE: "200"
   OJP_SERVER_LOGLEVEL: "INFO"
   OJP_SERVER_LOG_FILE: "/var/log/ojp/server.log"
@@ -535,8 +613,8 @@ data:
 1. **Server won't start**: Check IP whitelist configuration and port availability
 2. **Can't connect**: Verify client IP is in the allowed list
 3. **Metrics unavailable**: Check Prometheus port and IP whitelist
-4. **Performance issues**: Adjust thread pool size, connection timeouts, and slow query segregation settings
-5. **Slow queries blocking fast ones**: Enable slow query segregation and tune slot percentages
+4. **Performance issues**: Tune virtual thread mode, thread pool size (if virtual threads are disabled), connection timeouts, and slow query segregation settings
+5. **Slow queries blocking fast ones in mixed workloads**: Enable slow query segregation and tune slot percentages (for pure OLTP/OLAP, keep it disabled unless metrics prove a benefit)
 
 ### Debugging Configuration
 

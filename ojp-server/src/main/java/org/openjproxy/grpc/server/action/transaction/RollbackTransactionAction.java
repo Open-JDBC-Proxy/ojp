@@ -54,7 +54,7 @@ public class RollbackTransactionAction implements Action<SessionInfo, SessionInf
      */
     @Override
     public void execute(ActionContext context, SessionInfo sessionInfo, StreamObserver<SessionInfo> responseObserver) {
-        log.info("Rollback transaction");
+        log.debug("Rollback transaction");
 
         // Process cluster health from the request
         ProcessClusterHealthAction.getInstance().execute(context, sessionInfo);
@@ -71,7 +71,7 @@ public class RollbackTransactionAction implements Action<SessionInfo, SessionInf
                     .setTransactionUUID(sessionInfo.getTransactionInfo().getTransactionUUID())
                     .build();
 
-            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo);
+            SessionInfo.Builder sessionInfoBuilder = SessionInfoUtils.newBuilderFrom(sessionInfo, context);
             sessionInfoBuilder.setTransactionInfo(transactionInfo);
             // Server echoes back targetServer from incoming request (preserved by newBuilderFrom)
 

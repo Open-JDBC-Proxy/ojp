@@ -36,7 +36,7 @@ docker run -d \
   -p 1059:1059 \
   -p 9159:9159 \
   -v "$(pwd)/ojp-libs":/opt/ojp/ojp-libs \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 This starts the OJP Server with:
@@ -44,6 +44,7 @@ This starts the OJP Server with:
 - **Port 9159**: Prometheus metrics endpoint
 - **Drivers**: loaded from the mounted `ojp-libs` directory (H2, PostgreSQL, MySQL, MariaDB if downloaded via script)
 - **UTC timezone**: The image is built with `-Duser.timezone=UTC` for consistent date/time handling
+- **Non-root user**: the server process runs as a dedicated `ojp` system user — ensure the mounted `ojp-libs` directory is readable by other users (default `755`/`644` permissions are sufficient)
 
 ---
 
@@ -62,7 +63,7 @@ docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 #### Memory Configuration
@@ -74,7 +75,7 @@ docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx2g -Xms1g -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 #### Combined JVM Parameters
@@ -86,7 +87,7 @@ docker run -d \
   --name ojp-server \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC -XX:+UseG1GC" \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 ### Common JVM Parameters
@@ -146,8 +147,9 @@ docker run -d \
   -e OJP_SERVER_PORT=8080 \
   -e OJP_PROMETHEUS_PORT=9091 \
   -e OJP_SERVER_LOGLEVEL=DEBUG \
+  -e OJP_SERVER_VIRTUALTHREADS_ENABLED=true \
   -e OJP_SERVER_THREADPOOLSIZE=300 \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 See [ojp-server-configuration.md](ojp-server-configuration.md) for a complete list of available configuration options.
@@ -163,8 +165,20 @@ docker run -d \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
   -e OJP_SERVER_PORT=1059 \
   -e OJP_SERVER_LOGLEVEL=INFO \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
+
+Ports can also be overridden via JVM system properties inside `JAVA_TOOL_OPTIONS`. The `-p` mapping must match whichever value the server actually binds to:
+
+```bash
+docker run -d \
+  --name ojp-server \
+  -p 3020:3020 \
+  -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Duser.timezone=UTC -Dojp.server.port=3020" \
+  rrobetti/ojp:0.4.23-beta
+```
+
+> **⚠️ Precedence:** JVM system properties (`-Dojp.server.port`) take precedence over environment variables (`OJP_SERVER_PORT`). If both are set, the JVM property wins and the server binds to that port — make sure the `-p` mapping reflects the effective value.
 
 ---
 
@@ -192,12 +206,13 @@ docker run -d \
     -Duser.timezone=UTC" \
   -e OJP_SERVER_PORT=1059 \
   -e OJP_PROMETHEUS_PORT=9159 \
+  -e OJP_SERVER_VIRTUALTHREADS_ENABLED=true \
   -e OJP_SERVER_THREADPOOLSIZE=300 \
   -e OJP_SERVER_LOGLEVEL=INFO \
   -e OJP_SERVER_LOG_FILE=/var/log/ojp/server.log \
   -e OJP_SERVER_LOG_MAXHISTORY=90 \
   -e OJP_SERVER_ALLOWEDIPS="10.0.0.0/8" \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 ### Docker Compose
@@ -209,7 +224,7 @@ version: '3.8'
 
 services:
   ojp-server:
-    image: rrobetti/ojp:0.4.7-beta
+    image: rrobetti/ojp:0.4.23-beta
     container_name: ojp-server
     restart: unless-stopped
     ports:
@@ -227,6 +242,7 @@ services:
         -Duser.timezone=UTC
       OJP_SERVER_PORT: 1059
       OJP_PROMETHEUS_PORT: 9159
+      OJP_SERVER_VIRTUALTHREADS_ENABLED: "true"
       OJP_SERVER_THREADPOOLSIZE: 300
       OJP_SERVER_LOGLEVEL: INFO
       OJP_SERVER_LOG_FILE: /var/log/ojp/server.log
@@ -281,7 +297,7 @@ docker run -d \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx1g -Xms512m -Duser.timezone=UTC" \
   -e OJP_SERVER_LOGLEVEL=DEBUG \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 ### Example 2: High-Memory Production Server
@@ -293,10 +309,11 @@ docker run -d \
   -p 1059:1059 \
   -p 9159:9159 \
   -e JAVA_TOOL_OPTIONS="-Xmx16g -Xms8g -XX:+UseG1GC -Dfile.encoding=UTF-8 -Duser.timezone=America/New_York" \
+  -e OJP_SERVER_VIRTUALTHREADS_ENABLED=true \
   -e OJP_SERVER_THREADPOOLSIZE=500 \
   -e OJP_SERVER_LOGLEVEL=INFO \
   -e OJP_SERVER_ALLOWEDIPS="10.0.0.0/8,172.16.0.0/12" \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 ### Example 3: Remote Debugging
@@ -308,7 +325,7 @@ docker run -d \
   -p 5005:5005 \
   -e JAVA_TOOL_OPTIONS="-Duser.timezone=UTC -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" \
   -e OJP_SERVER_LOGLEVEL=DEBUG \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 Connect your IDE debugger to `localhost:5005`.
@@ -322,8 +339,9 @@ docker run -d \
   --name ojp-lowlatency \
   -p 1059:1059 \
   -e JAVA_TOOL_OPTIONS="-Xmx8g -Xms8g -XX:+UseZGC -XX:+UnlockExperimentalVMOptions -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
+  -e OJP_SERVER_VIRTUALTHREADS_ENABLED=true \
   -e OJP_SERVER_THREADPOOLSIZE=400 \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 ### Example 5: Adding Proprietary Drivers
@@ -347,7 +365,7 @@ docker run -d \
   -p 1059:1059 \
   -v $(pwd)/ojp-libs:/opt/ojp/ojp-libs \
   -e JAVA_TOOL_OPTIONS="-Xmx4g -Xms2g -Dfile.encoding=UTF-8 -Duser.timezone=UTC" \
-  rrobetti/ojp:0.4.7-beta
+  rrobetti/ojp:0.4.23-beta
 ```
 
 ---
@@ -391,7 +409,7 @@ netstat -tuln | grep -E '1059|9159'
 
 3. Test with minimal configuration:
 ```bash
-docker run --rm rrobetti/ojp:0.4.7-beta
+docker run --rm rrobetti/ojp:0.4.23-beta
 ```
 
 ### Out of Memory Errors
@@ -420,8 +438,9 @@ If you see `OutOfMemoryError`:
 -e JAVA_TOOL_OPTIONS="-Xmx4g -verbose:gc -Xlog:gc*:file=/var/log/ojp/gc.log"
 ```
 
-2. Increase thread pool:
+2. If needed, disable virtual threads and increase platform thread pool:
 ```bash
+-e OJP_SERVER_VIRTUALTHREADS_ENABLED=false
 -e OJP_SERVER_THREADPOOLSIZE=500
 ```
 

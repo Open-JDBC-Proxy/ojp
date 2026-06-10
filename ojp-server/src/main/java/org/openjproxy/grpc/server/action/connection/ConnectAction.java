@@ -9,17 +9,19 @@ import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.datasource.ConnectionPoolProviderRegistry;
 import org.openjproxy.datasource.PoolConfig;
+import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.server.MultinodePoolCoordinator;
 import org.openjproxy.grpc.server.MultinodeXaCoordinator;
+import org.openjproxy.grpc.server.AdmissionControlManager;
 import org.openjproxy.grpc.server.UnpooledConnectionDetails;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
 import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
+import org.openjproxy.grpc.server.pool.PreparedStatementCachePropertyTranslator;
 import org.openjproxy.grpc.server.readwrite.ReadWriteConfiguration;
 import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceManager;
-
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 
@@ -203,19 +205,28 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                                     connHash, configuredTransactionIsolation);
                         }
 
+                        String parsedUrl = UrlParser.parseUrl(connectionDetails.getUrl());
+                        Map<String, String> statementCacheProperties =
+                                PreparedStatementCachePropertyTranslator.buildNonXaProperties(
+                                        context.getServerConfiguration(), parsedUrl);
+
                         // Build PoolConfig with transaction isolation (configured or default)
                         PoolConfig poolConfig = PoolConfig.builder()
-                                .url(UrlParser.parseUrl(connectionDetails.getUrl()))
+                                .url(parsedUrl)
                                 .username(connectionDetails.getUser())
                                 .password(connectionDetails.getPassword())
                                 .maxPoolSize(maxPoolSize)
                                 .minIdle(minIdle)
-                                .connectionTimeoutMs(dsConfig.getConnectionTimeout())
+                                .connectionTimeoutMs(CommonConstants.FAIL_FAST_POOL_CONNECTION_TIMEOUT_MS)
                                 .idleTimeoutMs(dsConfig.getIdleTimeout())
                                 .maxLifetimeMs(dsConfig.getMaxLifetime())
                                 .defaultTransactionIsolation(defaultTransactionIsolation)
+                                .properties(statementCacheProperties)
                                 .metricsPrefix("OJP-Pool-" + dsConfig.getDataSourceName())
                                 .build();
+
+                        log.info("Connection timeout model for {}: admissionTimeout={}ms, backendPoolTimeout={}ms (fail-fast, provider clamped if needed)",
+                                connHash, dsConfig.getConnectionTimeout(), CommonConstants.FAIL_FAST_POOL_CONNECTION_TIMEOUT_MS);
 
                         // Create DataSource with properly configured transaction isolation
                         ds = ConnectionPoolProviderRegistry.createDataSource(poolConfig);
@@ -224,7 +235,8 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                         context.getDatasourceMap().put(connHash, ds);
 
                         // Create a slow query segregation manager for this datasource
-                        CreateSlowQuerySegregationManagerAction.getInstance().execute(context, connHash, maxPoolSize);
+                        CreateSlowQuerySegregationManagerAction.getInstance()
+                                .execute(context, connHash, maxPoolSize, dsConfig.getConnectionTimeout());
 
                         log.info("Created new DataSource for dataSource '{}' with connHash: {} using provider: {}, maxPoolSize={}, minIdle={}",
                                 dsConfig.getDataSourceName(), connHash,
@@ -336,10 +348,22 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
 
         // For regular connections, just return session info without creating a session yet (lazy allocation)
         // Server does not populate targetServer - client will set it on future requests
+        int clientCount = context.getSessionManager().getClientCount(connHash);
+        int maxAdmission = 0;
+        int observedPeakValue = 0;
+        AdmissionControlManager acm = context.getAdmissionControlManagers().get(connHash);
+        if (acm != null && acm.isEnabled() && acm.getSlotManager() != null) {
+            maxAdmission = acm.getSlotManager().getEffectiveMaxAdmission();
+            observedPeakValue = acm.getSlotManager().getObservedPeak();
+        }
+
         SessionInfo sessionInfo = SessionInfo.newBuilder()
                 .setConnHash(connHash)
                 .setClientUUID(connectionDetails.getClientUUID())
                 .setIsXA(false)
+                .setClientCount(clientCount)
+                .setMaxAdmission(maxAdmission)
+                .setObservedPeak(observedPeakValue)
                 .build();
 
         responseObserver.onNext(sessionInfo);

@@ -10,7 +10,36 @@ import java.io.Reader;
 import java.io.Writer;
 import java.sql.SQLException;
 
-//TODO to be implemented
+/**
+ * Stub implementation of {@link java.sql.SQLXML} for the OJP JDBC driver.
+ *
+ * <p><strong>Status: not yet implemented.</strong> All methods return empty/null values and
+ * log a debug message at the moment they are called.
+ *
+ * <p><strong>JDBC specification reference:</strong> JDBC 4.2 specification, Chapter 16
+ * "Advanced Data Types", section 16.3 — {@code java.sql.SQLXML} is the Java mapping for the
+ * SQL standard {@code XML} type, introduced in JDBC 4.0 (Java SE 6).
+ *
+ * <p><strong>Known use-cases that require a full implementation:</strong>
+ * <ul>
+ *   <li>Reading SQL {@code XML} / {@code XMLTYPE} columns from PostgreSQL, Oracle
+ *       ({@code XMLType}), and SQL Server ({@code xml}) via
+ *       {@link java.sql.ResultSet#getSQLXML(int)}.</li>
+ *   <li>Writing XML values to a {@link java.sql.PreparedStatement} through
+ *       {@link java.sql.PreparedStatement#setSQLXML(int, java.sql.SQLXML)}.</li>
+ *   <li>Applications that exchange XML documents with the database — for example,
+ *       configuration stores, document-centric schemas, or stored procedures that
+ *       accept or return XML.</li>
+ *   <li>XSLT / XQuery pipelines that retrieve an XML source via
+ *       {@link java.sql.SQLXML#getSource(Class)} and transform it with
+ *       {@code javax.xml.transform}.</li>
+ * </ul>
+ *
+ * <p>When implementing this class, the XML payload will need to be transported over the
+ * OJP gRPC protocol. The {@code .proto} contract in {@code ojp-grpc-commons} will likely
+ * need a new field or message type (e.g., a {@code bytes} or {@code string} field) to carry
+ * the serialised XML document.
+ */
 @Slf4j
 public class SQLXML implements java.sql.SQLXML {
 

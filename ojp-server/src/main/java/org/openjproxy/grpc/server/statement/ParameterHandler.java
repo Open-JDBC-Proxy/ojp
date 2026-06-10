@@ -3,6 +3,7 @@ package org.openjproxy.grpc.server.statement;
 import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.openjproxy.grpc.dto.Parameter;
+import org.openjproxy.grpc.dto.ParameterType;
 import org.openjproxy.grpc.server.SessionManager;
 
 import java.io.ByteArrayInputStream;
@@ -31,14 +32,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * Handles parameter setting for prepared statements.
  * Extracted from StatementServiceImpl to improve modularity.
  *
- * Note: TIMEOUT_EXECUTOR is intentionally not shut down as it's a shared resource
- * for the lifetime of the application. Daemon threads will be terminated on JVM shutdown.
+ * <p>Normal primitive and string parameters are bound directly on the calling thread
+ * to avoid per-parameter thread-scheduling overhead on the hot path.</p>
+ *
+ * <p>Risky I/O types (BLOB, CLOB, streams, readers, SQLXML, OBJECT, ARRAY) still use a
+ * timeout-protected Future to guard against JDBC driver hangs during large-object transfers.
+ * The timeout executor is intentionally not shut down as it is a shared, application-lifetime
+ * resource; its daemon threads will be terminated on JVM shutdown.</p>
  */
 @Slf4j
 @SuppressWarnings("java:S2142") // InterruptedException handling is appropriate for timeout scenarios
 public class ParameterHandler {
 
-    // Timeout for parameter setting operations (5 seconds)
+    // Timeout for risky parameter setting operations (5 seconds)
     private static final int PARAMETER_TIMEOUT_SECONDS = 5;
 
     // SQL error code for timeout errors
@@ -47,7 +53,7 @@ public class ParameterHandler {
     // Thread counter for unique thread names
     private static final AtomicLong THREAD_COUNTER = new AtomicLong(0);
 
-    // Executor for timeout operations (intentionally not shut down - application-lifetime resource)
+    // Executor used only for risky I/O parameter types (BLOB, CLOB, streams, etc.)
     private static final ExecutorService TIMEOUT_EXECUTOR = Executors.newCachedThreadPool(r -> {
         Thread thread = new Thread(r);
         thread.setDaemon(true);
@@ -75,6 +81,11 @@ public class ParameterHandler {
     /**
      * Adds a single parameter to a prepared statement.
      *
+     * <p>Safe scalar types (primitives, strings, dates, NULL, etc.) are bound directly on the
+     * calling thread to avoid per-parameter thread-scheduling overhead on the hot path.
+     * Risky I/O types (BLOB, CLOB, streams, readers, SQLXML, OBJECT, ARRAY) are still wrapped
+     * in a timeout-protected {@link Future} to guard against JDBC driver hangs.</p>
+     *
      * @param sessionManager The session manager
      * @param session        The current session
      * @param idx            The parameter index
@@ -86,7 +97,46 @@ public class ParameterHandler {
                                PreparedStatement ps, Parameter param) throws SQLException {
         log.info("Adding parameter idx {} type {}", idx, param.getType().toString());
 
-        // Execute parameter setting with timeout to prevent JDBC driver hangs
+        if (isRiskyParameterType(param.getType())) {
+            setParameterWithTimeout(sessionManager, session, idx, ps, param);
+        } else {
+            setParameterInternal(sessionManager, session, idx, ps, param);
+        }
+    }
+
+    /**
+     * Returns {@code true} for parameter types that may perform blocking I/O or involve
+     * complex JDBC driver internals (BLOB, CLOB, streams, readers, SQLXML, OBJECT, ARRAY).
+     * These types still run inside a timeout-protected {@link Future}.
+     *
+     * <p>Package-private to allow direct testing without exposing as public API.</p>
+     */
+    static boolean isRiskyParameterType(ParameterType type) {
+        switch (type) {
+            case BLOB:
+            case CLOB:
+            case BINARY_STREAM:
+            case ASCII_STREAM:
+            case UNICODE_STREAM:
+            case CHARACTER_READER:
+            case N_CHARACTER_STREAM:
+            case N_CLOB:
+            case SQL_XML:
+            case OBJECT:
+            case ARRAY:
+            case REF:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Wraps {@link #setParameterInternal} in a timeout-protected {@link Future}.
+     * Used only for risky I/O parameter types.
+     */
+    private static void setParameterWithTimeout(SessionManager sessionManager, SessionInfo session, int idx,
+                                                PreparedStatement ps, Parameter param) throws SQLException {
         Future<Void> future = TIMEOUT_EXECUTOR.submit(() -> {
             setParameterInternal(sessionManager, session, idx, ps, param);
             return null;

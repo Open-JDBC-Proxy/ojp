@@ -297,11 +297,13 @@ Publish each staged bundle on <https://central.sonatype.com/publishing/deploymen
 bash ojp-server/download-drivers.sh ./ojp-server/ojp-libs
 
 # Build locally first to verify
-mvn compile jib:dockerBuild -pl ojp-server
+docker build -t rrobetti/ojp:<version> ojp-server/
 
 # Push to Docker Hub
 docker login
-mvn compile jib:build -pl ojp-server
+docker push rrobetti/ojp:<version>
+docker tag rrobetti/ojp:<version> rrobetti/ojp:latest
+docker push rrobetti/ojp:latest
 ```
 
 Verify at <https://hub.docker.com/r/rrobetti/ojp>.
@@ -442,8 +444,9 @@ that enables all three publishing requirements:
   ```bash
   java -jar ojp-server-<version>-shaded.jar
   ```
-- **Docker image → Docker Hub** — produced by Jib (`jib:build`). The image bundles the
-  server together with open-source JDBC drivers pre-loaded in `/opt/ojp/ojp-libs`.
+- **Docker image → Docker Hub** — built via a multi-stage `Dockerfile` (jlink custom JRE on Alpine, ~127MB). Open-source JDBC drivers are downloaded into `ojp-libs/` before the build and copied into the image.
+
+  The image does not declare `EXPOSE` — port mapping is the operator's responsibility via `-p`. The server defaults to port `1059` (gRPC) and `9159` (Prometheus) as defined in `ServerConfiguration`; override at runtime with `-e OJP_SERVER_PORT=<port>` and `-e OJP_PROMETHEUS_PORT=<port>`, with a matching `-p` on the `docker run` command.
 
 Both are published as part of the same release workflow run.
 

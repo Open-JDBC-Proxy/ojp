@@ -68,7 +68,7 @@ public class CreateLobAction implements StreamingAction<LobDataBlock, LobReferen
 
     @Override
     public StreamObserver<LobDataBlock> execute(ActionContext context, StreamObserver<LobReference> responseObserver) {
-        log.info("Creating LOB");
+        log.debug("Creating LOB");
         return new LobStreamObserver(context, responseObserver);
     }
 
@@ -98,7 +98,7 @@ public class CreateLobAction implements StreamingAction<LobDataBlock, LobReferen
         public void onNext(LobDataBlock lobDataBlock) {
             try {
                 this.lobType = lobDataBlock.getLobType();
-                log.info("lob data block received, lob type {}", this.lobType);
+                log.debug("lob data block received, lob type {}", this.lobType);
 
                 ConnectionSessionDTO dto = sessionConnection(context, lobDataBlock.getSession(), true);
 
@@ -255,7 +255,7 @@ public class CreateLobAction implements StreamingAction<LobDataBlock, LobReferen
          * Sends a LOB reference to the client.
          */
         private void sendLobRef(ConnectionSessionDTO dto, int bytesWritten) {
-            log.info("Returning lob ref {}", this.lobUUID);
+            log.debug("Returning lob ref {}", this.lobUUID);
             LobReference.Builder lobRefBuilder = LobReference.newBuilder()
                     .setSession(dto.getSession())
                     .setUuid(this.lobUUID)
@@ -279,7 +279,7 @@ public class CreateLobAction implements StreamingAction<LobDataBlock, LobReferen
         public void onCompleted() {
             if (lobDataBlocksInputStream != null) {
                 CompletableFuture.runAsync(() -> {
-                    log.info("Finishing lob stream for lob ref {}", this.lobUUID);
+                    log.debug("Finishing lob stream for lob ref {}", this.lobUUID);
                     lobDataBlocksInputStream.finish(true);
                 });
             }

@@ -6,13 +6,13 @@
 
     <name>OJP Spring Boot Starter</name>
     <artifactId>spring-boot-starter-ojp</artifactId>
-    <version>0.4.8-SNAPSHOT</version>
+    <version>0.4.24-SNAPSHOT</version>
     <description>Spring Boot Auto-configuration for OJP (Open J Proxy)</description>
 
     <parent>
         <groupId>org.openjproxy</groupId>
         <artifactId>ojp-parent</artifactId>
-        <version>0.4.8-SNAPSHOT</version>
+        <version>0.4.24-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -20,7 +20,7 @@
         <!-- Spring Boot 4.x requires Java 17+ -->
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
-        <spring-boot.version>4.0.5</spring-boot.version>
+        <spring-boot.version>4.0.6</spring-boot.version>
     </properties>
 
     <dependencies>
@@ -28,7 +28,7 @@
         <dependency>
             <groupId>org.openjproxy</groupId>
             <artifactId>ojp-jdbc-driver</artifactId>
-            <version>0.4.8-SNAPSHOT</version>
+            <version>0.4.24-SNAPSHOT</version>
         </dependency>
 
         <!-- Spring Boot JDBC Starter (pool excluded — OJP handles pooling server-side).

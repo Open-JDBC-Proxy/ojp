@@ -72,7 +72,7 @@ jdbc:ojp[localhost:1059(mainApp)]_postgresql://db:5432/mydb
 |----------|-------------|---------|
 | `ojp.connection.pool.maximumPoolSize` | Maximum pool size | 20 |
 | `ojp.connection.pool.minimumIdle` | Minimum idle connections | 5 |
-| `ojp.connection.pool.connectionTimeout` | Connection timeout (ms) | 10000 |
+| `ojp.connection.pool.connectionTimeout` | Semaphore admission timeout budget (ms); pool acquisition is fail-fast | 10000 |
 | `ojp.connection.pool.idleTimeout` | Idle timeout (ms) | 600000 |
 | `ojp.connection.pool.maxLifetime` | Max connection lifetime (ms) | 1800000 |
 | `ojp.connection.pool.defaultTransactionIsolation` | Default transaction isolation level | READ_COMMITTED |
@@ -128,7 +128,7 @@ The DBCP provider (`ojp-datasource-dbcp`) maps `PoolConfig` to DBCP `BasicDataSo
 | `driverClassName` | `driverClassName` |
 | `maxPoolSize` | `maxTotal` |
 | `minIdle` | `minIdle` |
-| `connectionTimeoutMs` | `maxWait` |
+| `connectionTimeoutMs` | internal fail-fast timeout (`maxWait` in DBCP / `connectionTimeout` in Hikari) |
 | `idleTimeoutMs` | `minEvictableIdleTimeMillis` |
 | `maxLifetimeMs` | `maxConnLifetimeMillis` |
 | `validationQuery` | `validationQuery` |

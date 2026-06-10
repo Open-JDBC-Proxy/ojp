@@ -3,11 +3,13 @@ package org.openjproxy.grpc.server.utils;
 import com.openjproxy.grpc.TargetCall;
 
 import java.sql.SQLException;
+import lombok.experimental.UtilityClass;
 
 /**
  * Utility class for generating method names from TargetCall objects.
  * Extracted from StatementServiceImpl to improve modularity.
  */
+@UtilityClass
 public class MethodNameGenerator {
 
     /**
@@ -17,7 +19,7 @@ public class MethodNameGenerator {
      * @return The method name
      * @throws SQLException if call type is not supported
      */
-    public static String methodName(TargetCall target) throws SQLException {
+    public String methodName(TargetCall target) throws SQLException {
         String prefix;
         switch (target.getCallType()) {
             case CALL_IS:

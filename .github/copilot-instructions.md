@@ -4,17 +4,28 @@ This file provides guidance for GitHub Copilot working inside this repository. R
 
 ---
 
+## Agent Behavior Guidelines
+
+- Use simple language and simple examples to explain things.
+- Be honest, even when the honest answer is "I don't know" or "this approach has problems."
+- Look for the best technical solution, not just the most convenient one.
+- Don't default to agreement — push back when something seems wrong or suboptimal.
+- Proactively offer questions, opinions, suggestions, and concerns rather than waiting to be asked.
+- When root-causing an issue or suggesting a solution, always report an honest confidence level — either as a percentage (0–100%) or as a label (Low / Medium / High) — and briefly explain what is driving that confidence or uncertainty.
+
+---
+
 ## Java Runtime Requirement
 
-**This project uses Java 21. Use the Java 21 runtime for all build and test tasks.**
+**This project uses Java 25. Use the Java 25 runtime for all build and test tasks.**
 
 | Context | Minimum Java |
 |---|---|
 | ojp-jdbc-driver (runtime) | Java 11 |
-| ojp-server (runtime) | Java 21 |
-| Development / CI build | Java 21 (required) |
+| ojp-server (runtime) | Java 25 |
+| Development / CI build | Java 25 (required) |
 
-The root `pom.xml` compiles with `source/target = 11` but the server module overrides this to 21. **Do not lower these targets.** Never suggest Java 8 or Java 17 as the build/test runtime; always use Java 21.
+The root `pom.xml` compiles with `source/target = 11` but the server module overrides this to 25. **Do not lower these targets.** Never suggest Java 8 or Java 17 as the build/test runtime; always use Java 25.
 
 ---
 
@@ -53,7 +64,7 @@ This is a **multi-module Maven project**. All modules share the parent `pom.xml`
 
 ## Build Commands
 
-Always use Java 21 when running these commands.
+Always use Java 25 when running these commands.
 
 ```bash
 # Run lint only (fast, no compilation needed)
@@ -76,7 +87,7 @@ mvn clean compile
 - All code must compile successfully before committing.
 - All Checkstyle (SonarLint) rules must pass — **never commit code that fails `mvn checkstyle:check`**.
 - Run `mvn clean compile` to verify both lint and compilation — **never commit code that fails**.
-- Ensure you are using Java 21 as the active runtime before building or testing.
+- Ensure you are using Java 25 as the active runtime before building or testing.
 
 ---
 

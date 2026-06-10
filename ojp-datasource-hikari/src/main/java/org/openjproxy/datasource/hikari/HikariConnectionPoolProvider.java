@@ -52,6 +52,7 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
     public static final String PROVIDER_ID = "hikari";
     private static final int PRIORITY = 100; // Highest priority - default provider
     private static final String METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
+    private static final long HIKARI_MIN_CONNECTION_TIMEOUT_MS = 250L;
 
     @Override
     public String id() {
@@ -86,9 +87,16 @@ public class HikariConnectionPoolProvider implements ConnectionPoolProvider {
         hikariConfig.setMinimumIdle(config.getMinIdle());
 
         // Timeouts
-        hikariConfig.setConnectionTimeout(config.getConnectionTimeoutMs());
+        long configuredConnectionTimeoutMs = config.getConnectionTimeoutMs();
+        long hikariConnectionTimeoutMs = Math.max(configuredConnectionTimeoutMs, HIKARI_MIN_CONNECTION_TIMEOUT_MS);
+        hikariConfig.setConnectionTimeout(hikariConnectionTimeoutMs);
         hikariConfig.setIdleTimeout(config.getIdleTimeoutMs());
         hikariConfig.setMaxLifetime(config.getMaxLifetimeMs());
+
+        if (configuredConnectionTimeoutMs < HIKARI_MIN_CONNECTION_TIMEOUT_MS) {
+            log.debug("Clamped HikariCP connection timeout from {}ms to minimum {}ms",
+                    configuredConnectionTimeoutMs, HIKARI_MIN_CONNECTION_TIMEOUT_MS);
+        }
 
         // Validation
         if (config.getValidationQuery() != null && !config.getValidationQuery().isEmpty()) {

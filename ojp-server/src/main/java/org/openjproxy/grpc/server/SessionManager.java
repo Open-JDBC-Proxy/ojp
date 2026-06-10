@@ -17,6 +17,8 @@ import java.util.Collection;
  */
 public interface SessionManager {
     void registerClientUUID(String connectionHash, String clientUUID);
+    void deregisterClientUUID(String connectionHash, String clientUUID);
+    int getClientCount(String connectionHash);
     SessionInfo createSession(String clientUUID, Connection connection);
     SessionInfo createSession(String clientUUID, String connHash, Connection connection);
     /**

@@ -1,0 +1,232 @@
+# ============================================================================
+# OJP Spring Boot — Complete application.yml Reference
+# ============================================================================
+#
+# This file is the canonical YAML reference for all OJP settings that can be
+# declared in application.yml when using the spring-boot-starter-ojp.
+#
+# IMPORTANT SCOPE RULES
+# ─────────────────────
+# ✅ PER-DATASOURCE (accept a "dsName." prefix):
+#    ojp.connection.pool.*            — non-XA pool settings
+#    ojp.xa.connection.pool.*         — XA / distributed-transaction pool settings
+#    ojp.grpc.*                       — gRPC transport settings
+#
+# ❌ GLOBAL ONLY (no "dsName." prefix — apply to the whole cluster):
+#    ojp.health.check.*               — health probe timing
+#    ojp.redistribution.*             — connection rebalancing on server recovery
+#    ojp.loadaware.selection.enabled  — load-aware vs. round-robin server selection
+#    ojp.multinode.*                  — retry configuration
+#
+# Datasource scoping is done via the JDBC URL, not via a prefix in application.yml:
+#   spring.datasource.url: jdbc:ojp[localhost:1059(myApp)]_postgresql://...
+#
+# The starter automatically sets:
+#   spring.datasource.driver-class-name = org.openjproxy.jdbc.Driver
+#   spring.datasource.type              = org.springframework.jdbc.datasource.SimpleDriverDataSource
+#
+# Property name style: kebab-case and camelCase are both accepted and equivalent.
+# Kebab-case is the Spring Boot convention and is used throughout this file.
+# ============================================================================
+
+spring:
+  datasource:
+    # Required: OJP JDBC URL pointing at the OJP proxy server.
+    # Format:  jdbc:ojp[<host>:<port>]_<actual-jdbc-url>
+    # With named datasource pool: jdbc:ojp[<host>:<port>(<dsName>)]_<actual-jdbc-url>
+    url: jdbc:ojp[localhost:1059]_postgresql://localhost:5432/mydb
+    username: myuser
+    password: mypassword
+    # driver-class-name and type are set automatically by the starter.
+    # Only override them if you have a very specific need.
+    # driver-class-name: org.openjproxy.jdbc.Driver
+    # type: org.springframework.jdbc.datasource.SimpleDriverDataSource
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        # Recommended: halt immediately when a DDL operation fails instead of
+        # swallowing the error silently until the affected table is first accessed.
+        hbm2ddl:
+          halt_on_error: true
+
+# ============================================================================
+# OJP connection pool settings (✅ PER-DATASOURCE — can be prefixed)
+# ============================================================================
+# These settings tune the NON-XA connection pool managed by the OJP proxy server
+# (HikariCP by default; a different pool implementation can be supplied via the SPI).
+# They are sent to the server on the first connection and stored per datasource.
+#
+# To target a named datasource, embed its name in the JDBC URL:
+#   spring.datasource.url: jdbc:ojp[localhost:1059(webapp)]_postgresql://...
+# and prefix the pool settings with that name:
+#   webapp.ojp.connection.pool.maximum-pool-size: 60
+#
+ojp:
+  connection:
+    pool:
+      # Maximum number of connections the server-side pool will open (default: 20).
+      maximum-pool-size: 20
+      # Minimum idle connections kept alive in the pool (default: 5).
+      minimum-idle: 5
+      # Maximum milliseconds the client will wait for a connection (default: 10 000).
+      connection-timeout: 10000
+      # Maximum milliseconds a connection can stay idle before eviction (default: 600 000).
+      idle-timeout: 600000
+      # Maximum lifetime of a connection in the pool in milliseconds (default: 1 800 000).
+      max-lifetime: 1800000
+      # Default transaction isolation level for all pool connections.
+      # Accepted values: READ_UNCOMMITTED, READ_COMMITTED, REPEATABLE_READ, SERIALIZABLE
+      default-transaction-isolation: READ_COMMITTED
+      # Set to false to disable pooling entirely (e.g. for debugging). Default: true.
+      # enabled: true
+
+  # ============================================================================
+  # OJP XA / distributed-transaction pool settings (✅ PER-DATASOURCE)
+  # ============================================================================
+  # These settings tune the Commons Pool 2 backend-session pool used for XA
+  # connections (OjpXADataSource). Each setting can also be prefixed with a
+  # datasource name (e.g. webapp.ojp.xa.connection.pool.max-total: 100).
+  xa:
+    connection:
+      pool:
+        # Maximum concurrent XA backend sessions per OJP server (default: 20).
+        max-total: 20
+        # Minimum idle XA sessions pre-warmed in the pool (default: 5).
+        min-idle: 5
+        # Max wait in milliseconds to borrow a session (default: 20 000).
+        connection-timeout: 20000
+        # Max idle time in milliseconds before a session is evicted (default: 600 000).
+        idle-timeout: 600000
+        # Maximum lifetime of an XA session in milliseconds (default: 1 800 000).
+        max-lifetime: 1800000
+        # How often the evictor thread runs in milliseconds (default: 30 000).
+        time-between-eviction-runs: 30000
+        # Number of idle sessions checked per evictor run (default: 10).
+        num-tests-per-eviction-run: 10
+        # Min idle time before soft eviction respecting min-idle (default: 60 000).
+        soft-min-evictable-idle-time: 60000
+        # Set to false to disable XA pooling (e.g. for debugging). Default: true.
+        # enabled: true
+
+  # ============================================================================
+  # gRPC transport settings (✅ PER-DATASOURCE)
+  # ============================================================================
+  grpc:
+    # Maximum size in bytes of a single gRPC response message (default: 4 194 304 = 4 MB).
+    # Increase when queries return large result sets or LOB columns.
+    max-inbound-message-size: 16777216
+
+  # ============================================================================
+  # Multinode retry settings (❌ GLOBAL — no datasource prefix)
+  # ============================================================================
+  # How many times the driver retries a failed non-session request on other
+  # healthy servers before throwing an exception.
+  multinode:
+    # Number of retry attempts (-1 = infinite, 0 = no retry, positive = fixed count).
+    retry-attempts: -1
+    # Milliseconds to wait between retry attempts (default: 5 000).
+    retry-delay-ms: 5000
+
+  # ============================================================================
+  # Health check settings (❌ GLOBAL — no datasource prefix)
+  # ============================================================================
+  # Controls the background thread that periodically probes unhealthy servers so
+  # they can automatically rejoin the cluster.
+  #
+  # Duration values accept plain integers (treated as milliseconds), or a
+  # suffixed string: 500ms, 10s, 2m
+  health:
+    check:
+      # How often the background thread probes a failed server (default: 5s).
+      interval: 5s
+      # How long a server must pass consecutive probes before being marked
+      # recovered (default: 5s).
+      threshold: 5s
+      # gRPC deadline for each individual probe call (default: 5s).
+      timeout: 5s
+
+  # ============================================================================
+  # Redistribution settings (❌ GLOBAL — no datasource prefix)
+  # ============================================================================
+  redistribution:
+    # Set to false to disable the periodic health checker entirely.
+    # When false, failed servers are never automatically recovered.
+    # Default: true
+    enabled: true
+    # Fraction of idle connections that can be closed per rebalancing cycle
+    # when a server recovers (0.0–1.0, default: 1.0).
+    idle-rebalance-fraction: 1.0
+    # Maximum number of connections to close per recovery cycle (default: 100).
+    max-close-per-recovery: 100
+
+  # ============================================================================
+  # Load-aware server selection (❌ GLOBAL — no datasource prefix)
+  # ============================================================================
+  loadaware:
+    selection:
+      # true  = route new connections to the least-loaded server (default).
+      # false = use round-robin distribution instead.
+      enabled: true
+
+# ============================================================================
+# Logging (standard Spring Boot — not OJP-specific)
+# ============================================================================
+logging:
+  level:
+    # Set to DEBUG to see individual health-probe results and pool events.
+    org.openjproxy.grpc.client: INFO
+
+# ============================================================================
+# Named datasource example
+# ============================================================================
+#
+# Use a named datasource pool by embedding the name in the JDBC URL:
+#
+#   spring:
+#     datasource:
+#       url: jdbc:ojp[localhost:1059(webapp)]_postgresql://localhost:5432/mydb
+#       username: myuser
+#       password: mypassword
+#
+# Then prefix the pool settings with the same name:
+#
+#   webapp:
+#     ojp:
+#       connection:
+#         pool:
+#           maximum-pool-size: 60
+#           minimum-idle: 15
+#           connection-timeout: 5000
+#
+# Multiple Spring datasources (each using a different OJP pool):
+#
+#   spring:
+#     datasource:
+#       catalog:
+#         url: jdbc:ojp[localhost:1059(catalog)]_postgresql://localhost:5432/catalog
+#         username: myuser
+#         password: mypassword
+#       checkout:
+#         url: jdbc:ojp[localhost:1059(checkout)]_postgresql://localhost:5432/checkout
+#         username: myuser
+#         password: mypassword
+#
+#   catalog:
+#     ojp:
+#       connection:
+#         pool:
+#           maximum-pool-size: 30
+#           minimum-idle: 5
+#
+#   checkout:
+#     ojp:
+#       connection:
+#         pool:
+#           maximum-pool-size: 50
+#           minimum-idle: 10

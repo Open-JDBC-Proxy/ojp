@@ -52,4 +52,34 @@ public class GrpcExceptionHandler {
         }
         streamObserver.onError(Status.INTERNAL.asRuntimeException(metadata));
     }
+
+    /**
+     * Trailer metadata key for the JDBC driver to identify which admission lane
+     * triggered the overload. Values: {@code fast}, {@code slow}, {@code queue},
+     * {@code unknown}. The driver applies different back-off policies per lane —
+     * notably, slow-lane overloads should not depress the (predominantly fast)
+     * client-side reactive throttle.
+     */
+    public static final Metadata.Key<String> OVERLOAD_LANE_KEY =
+            Metadata.Key.of("ojp-overload-lane", Metadata.ASCII_STRING_MARSHALLER);
+
+    /**
+     * Sends an overload signal to clients so they can retry with backoff.
+     *
+     * <p>The {@code ojp-overload-lane} trailer carries the saturated lane so the JDBC
+     * driver can apply lane-aware back-off (see {@link ServerOverloadException.Lane}).</p>
+     *
+     * @param e overload exception
+     * @param streamObserver target stream observer
+     * @param <T> Stream observer generic type.
+     */
+    public static <T> void sendServerOverload(ServerOverloadException e, StreamObserver<T> streamObserver) {
+        String description = e.getMessage() != null ? e.getMessage() : "Server overloaded";
+        Metadata trailers = new Metadata();
+        ServerOverloadException.Lane lane = e.getLane();
+        trailers.put(OVERLOAD_LANE_KEY, lane == null ? "unknown" : lane.name().toLowerCase());
+        streamObserver.onError(Status.RESOURCE_EXHAUSTED
+                .withDescription(description)
+                .asRuntimeException(trailers));
+    }
 }

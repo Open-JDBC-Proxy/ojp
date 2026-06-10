@@ -7,6 +7,8 @@ import com.openjproxy.grpc.OpResult;
 import com.openjproxy.grpc.ParameterValue;
 import com.openjproxy.grpc.ResourceType;
 import com.openjproxy.grpc.TargetCall;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -63,23 +65,104 @@ public class Statement implements java.sql.Statement {
         }
     }
 
+    /**
+     * Attempts to acquire a throttle slot before executing a statement.
+     * Returns true if a slot was acquired (caller must call releaseThrottle after the work),
+     * or false if throttling is disabled.
+     * Throws SQLTransientException immediately if the limit is reached.
+     */
+    protected boolean acquireThrottle(ClientThrottleManager throttle, ClientThrottleMode mode,
+                                    boolean inTransaction) throws SQLException {
+        if (throttle == null) {
+            return false;
+        }
+        if (!throttle.tryAcquire(mode, inTransaction)) {
+            throw new java.sql.SQLTransientException(
+                    "Client throttle limit reached; request rejected to avoid overloading the database");
+        }
+        return true;
+    }
+
+    /**
+     * Extracts the overload lane from a gRPC RESOURCE_EXHAUSTED trailer
+     * ({@code ojp-overload-lane}). Returns {@link ClientThrottleManager.OverloadLane#UNKNOWN}
+     * when no trailer is present (server pre-Phase-D or non-overload error).
+     */
+    private static ClientThrottleManager.OverloadLane extractLane(StatusRuntimeException sre) {
+        io.grpc.Metadata trailers = sre.getTrailers();
+        if (trailers == null) {
+            return ClientThrottleManager.OverloadLane.UNKNOWN;
+        }
+        io.grpc.Metadata.Key<String> key = io.grpc.Metadata.Key.of(ClientThrottleManager.OVERLOAD_LANE_HEADER,
+                io.grpc.Metadata.ASCII_STRING_MARSHALLER);
+        return ClientThrottleManager.OverloadLane.parse(trailers.get(key));
+    }
+
+    /**
+     * If the exception is a RESOURCE_EXHAUSTED status from the server, notifies the throttle
+     * manager to halve its reactive limit (AIMD multiplicative decrease) so that the next
+     * request is rejected client-side instead of hitting the still-overloaded server.
+     * The original exception is always returned to the caller for rethrowing.
+     *
+     * <p>Reads the {@code ojp-overload-lane} trailer (when present) and routes through
+     * {@link ClientThrottleManager#notifyServerOverload(ClientThrottleManager.OverloadLane)},
+     * which suppresses halving for slow-lane and queue-depth signals (cross-lane
+     * contamination fix).</p>
+     */
+    protected StatusRuntimeException onServerOverload(ClientThrottleManager throttle, ClientThrottleMode mode,
+                                                      StatusRuntimeException sre) {
+        if (throttle != null && mode != ClientThrottleMode.OFF
+                && sre.getStatus().getCode() == Status.Code.RESOURCE_EXHAUSTED) {
+            throttle.notifyServerOverload(extractLane(sre));
+        }
+        return sre;
+    }
+
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         log.debug("executeQuery: {}", sql);
         checkClosed();
-        Iterator<OpResult> itResults = this.statementService.executeQuery(this.connection.getSession(), sql,
-                EMPTY_PARAMETERS_LIST, this.statementUUID, this.properties);
-        return new ResultSet(itResults, this.statementService, this);
+        ClientThrottleManager throttle = this.connection.getThrottleManager();
+        ClientThrottleMode mode = this.connection.getThrottleMode();
+        // getAutoCommit() may throw SQLException; evaluate before acquiring a slot
+        // so that release() is never called without a matching acquire.
+        boolean inTransaction = !this.connection.getAutoCommit();
+        boolean acquired = acquireThrottle(throttle, mode, inTransaction);
+        try {
+            Iterator<OpResult> itResults = this.statementService.executeQuery(this.connection.getSession(), sql,
+                    EMPTY_PARAMETERS_LIST, this.statementUUID, this.properties);
+            return new ResultSet(itResults, this.statementService, this);
+        } catch (StatusRuntimeException sre) {
+            throw onServerOverload(throttle, mode, sre);
+        } finally {
+            if (acquired) {
+                throttle.release(mode, inTransaction);
+            }
+        }
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
         log.debug("executeUpdate: {}", sql);
         checkClosed();
-        OpResult result = this.statementService.executeUpdate(this.connection.getSession(), sql, EMPTY_PARAMETERS_LIST,
-                this.statementUUID, this.properties);
-        this.connection.setSession(result.getSession());//TODO see if can do this in one place instead of updating session everywhere
-        return result.getIntValue();
+        ClientThrottleManager throttle = this.connection.getThrottleManager();
+        ClientThrottleMode mode = this.connection.getThrottleMode();
+        // getAutoCommit() may throw SQLException; evaluate before acquiring a slot
+        // so that release() is never called without a matching acquire.
+        boolean inTransaction = !this.connection.getAutoCommit();
+        boolean acquired = acquireThrottle(throttle, mode, inTransaction);
+        try {
+            OpResult result = this.statementService.executeUpdate(this.connection.getSession(), sql, EMPTY_PARAMETERS_LIST,
+                    this.statementUUID, this.properties);
+            this.connection.setSession(result.getSession());
+            return result.getIntValue();
+        } catch (StatusRuntimeException sre) {
+            throw onServerOverload(throttle, mode, sre);
+        } finally {
+            if (acquired) {
+                throttle.release(mode, inTransaction);
+            }
+        }
     }
 
     @Override
@@ -465,7 +548,7 @@ public class Statement implements java.sql.Statement {
                 Arrays.asList(sql, columnNames));
     }
 
-    private CallResourceRequest.Builder newCallBuilder() {
+    protected CallResourceRequest.Builder newCallBuilder() {
         log.debug("newCallBuilder called");
         CallResourceRequest.Builder builder = CallResourceRequest.newBuilder()
                 .setSession(this.connection.getSession())
@@ -479,12 +562,12 @@ public class Statement implements java.sql.Statement {
         return builder;
     }
 
-    private <T> T callProxy(CallType callType, String targetName, Class<?> returnType) throws SQLException {
+    protected <T> T callProxy(CallType callType, String targetName, Class<?> returnType) throws SQLException {
         log.debug("callProxy: {}, {}, {}", callType, targetName, returnType);
         return this.callProxy(callType, targetName, returnType, Constants.EMPTY_OBJECT_LIST);
     }
 
-    private <T> T callProxy(CallType callType, String targetName, Class<?> returnType, List<Object> params) throws SQLException {
+    protected <T> T callProxy(CallType callType, String targetName, Class<?> returnType, List<Object> params) throws SQLException {
         log.debug("callProxy: {}, {}, {}, params.size={}", callType, targetName, returnType, params != null ? params.size() : 0);
         CallResourceRequest.Builder reqBuilder = this.newCallBuilder();
         reqBuilder.setTarget(

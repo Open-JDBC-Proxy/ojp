@@ -62,30 +62,64 @@ public class ConnectionAcquisitionManager {
             throw new SQLException("DataSource is null for connection hash: " + connectionHash);
         }
 
-        // Capture pool state and queue depth before attempting acquisition (HikariCP-specific)
+        // Capture pool state and queue depth before attempting acquisition (HikariCP-specific).
+        // JMX bean calls acquire a brief lock on the pool; only invoke them when debug logging
+        // is enabled or a real metrics collector is configured to avoid contention on every
+        // connection acquisition under load.
+        if (dataSource instanceof HikariDataSource) {
+            HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
+            if (log.isDebugEnabled() || !(poolMetrics instanceof NoOpPoolMetrics)) {
+                try {
+                    int activeConnections = hikariDataSource.getHikariPoolMXBean().getActiveConnections();
+                    int idleConnections = hikariDataSource.getHikariPoolMXBean().getIdleConnections();
+                    int totalConnections = hikariDataSource.getHikariPoolMXBean().getTotalConnections();
+                    int threadsWaiting = hikariDataSource.getHikariPoolMXBean().getThreadsAwaitingConnection();
+                    int maxPoolSize = hikariDataSource.getMaximumPoolSize();
+                    int minIdle = hikariDataSource.getMinimumIdle();
+
+                    log.debug("Connection acquisition attempt for hash: {} - Active: {}, Idle: {}, Total: {}, Waiting: {}",
+                        connectionHash, activeConnections, idleConnections, totalConnections, threadsWaiting);
+
+                    // Emit current pool state metrics (includes queue depth via numWaiters)
+                    poolMetrics.recordPoolState(poolName,
+                            activeConnections, idleConnections, threadsWaiting,
+                            maxPoolSize, minIdle, 0L, 0L, 0L, 0L);
+                } catch (Exception e) {
+                    log.debug("Could not retrieve pool statistics for hash: {}", connectionHash);
+                }
+            }
+        } else {
+            log.debug("Connection acquisition attempt for hash: {} using {}",
+                connectionHash, dataSource.getClass().getSimpleName());
+        }
+
         if (dataSource instanceof HikariDataSource) {
             HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
             try {
                 int activeConnections = hikariDataSource.getHikariPoolMXBean().getActiveConnections();
                 int idleConnections = hikariDataSource.getHikariPoolMXBean().getIdleConnections();
                 int totalConnections = hikariDataSource.getHikariPoolMXBean().getTotalConnections();
-                int threadsWaiting = hikariDataSource.getHikariPoolMXBean().getThreadsAwaitingConnection();
                 int maxPoolSize = hikariDataSource.getMaximumPoolSize();
-                int minIdle = hikariDataSource.getMinimumIdle();
+                int waitingThreads = hikariDataSource.getHikariPoolMXBean().getThreadsAwaitingConnection();
+                long configuredTimeoutMs = hikariDataSource.getConnectionTimeout();
 
-                log.debug("Connection acquisition attempt for hash: {} - Active: {}, Idle: {}, Total: {}, Waiting: {}",
-                    connectionHash, activeConnections, idleConnections, totalConnections, threadsWaiting);
-
-                // Emit current pool state metrics (includes queue depth via numWaiters)
-                poolMetrics.recordPoolState(poolName,
-                        activeConnections, idleConnections, threadsWaiting,
-                        maxPoolSize, minIdle, 0L, 0L, 0L, 0L);
+                if (idleConnections == 0 && totalConnections >= maxPoolSize && activeConnections > 0) {
+                    String message = String.format(
+                            "Connection acquisition pre-check failed for hash: %s. Pool exhausted (idle=0, total=%d, max=%d, active=%d, waiting=%d, poolTimeoutMs=%d). Request will not wait at pool level.",
+                            connectionHash, totalConnections, maxPoolSize, activeConnections, waitingThreads, configuredTimeoutMs);
+                    poolMetrics.recordPoolExhaustion(poolName + "|phase=admission_gate");
+                    log.error(message);
+                    throw new SQLException(message);
+                }
+            } catch (SQLException e) {
+                throw e;
             } catch (Exception e) {
-                log.debug("Could not retrieve pool statistics for hash: {}", connectionHash);
+                String message = String.format(
+                        "Cannot evaluate pool state for hash: %s (phase=pool_precheck). Refusing borrow attempt due to pre-check failure to avoid hidden blocking path.",
+                        connectionHash);
+                log.error(message, e);
+                throw new SQLException(message, e);
             }
-        } else {
-            log.debug("Connection acquisition attempt for hash: {} using {}",
-                connectionHash, dataSource.getClass().getSimpleName());
         }
 
         long acquisitionStart = System.nanoTime();
@@ -109,8 +143,9 @@ public class ConnectionAcquisitionManager {
                 HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
                 try {
                     enhancedMessage = String.format(
-                        "Connection acquisition failed for hash: %s. Pool state - Active: %d, Max: %d, Waiting threads: %d. Original error: %s",
+                        "Connection acquisition failed for hash: %s (phase=pool_borrow, poolTimeoutMs=%d). Pool state - Active: %d, Max: %d, Waiting threads: %d. Original error: %s",
                         connectionHash,
+                        hikariDataSource.getConnectionTimeout(),
                         hikariDataSource.getHikariPoolMXBean().getActiveConnections(),
                         hikariDataSource.getMaximumPoolSize(),
                         hikariDataSource.getHikariPoolMXBean().getThreadsAwaitingConnection(),
@@ -130,7 +165,7 @@ public class ConnectionAcquisitionManager {
             }
 
             // Record exhaustion event when acquisition fails
-            poolMetrics.recordPoolExhaustion(poolName);
+            poolMetrics.recordPoolExhaustion(poolName + "|phase=pool_borrow");
 
             log.error(enhancedMessage);
             throw new SQLException(enhancedMessage, e.getSQLState(), e);

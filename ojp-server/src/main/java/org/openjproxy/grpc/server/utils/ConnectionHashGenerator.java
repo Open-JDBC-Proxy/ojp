@@ -1,6 +1,7 @@
 package org.openjproxy.grpc.server.utils;
 
 import com.openjproxy.grpc.ConnectionDetails;
+import lombok.experimental.UtilityClass;
 import org.openjproxy.grpc.ProtoConverter;
 
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ import static org.openjproxy.grpc.server.Constants.SHA_256;
  * Extracted from StatementServiceImpl to improve modularity.
  * Updated to include dataSource name in hash for multi-datasource support.
  */
+@UtilityClass
 public class ConnectionHashGenerator {
 
     /**
@@ -26,7 +28,7 @@ public class ConnectionHashGenerator {
      * @return Hash string for the connection details
      * @throws RuntimeException if hashing fails
      */
-    public static String hashConnectionDetails(ConnectionDetails connectionDetails) {
+    public String hashConnectionDetails(ConnectionDetails connectionDetails) {
         try {
             MessageDigest messageDigest = MessageDigest.getInstance(SHA_256);
 
@@ -46,7 +48,7 @@ public class ConnectionHashGenerator {
      * Extracts the dataSource name from connection details properties.
      * Returns "default" if no dataSource name is specified.
      */
-    private static String extractDataSourceName(ConnectionDetails connectionDetails) {
+    private String extractDataSourceName(ConnectionDetails connectionDetails) {
         if (connectionDetails.getPropertiesList().isEmpty()) {
             return "default";
         }
