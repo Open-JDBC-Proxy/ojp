@@ -39,8 +39,8 @@ public class QueryPerformanceMonitor {
         }
 
         /**
-         * Updates the average execution time using weighted EWMA style formula.
-         * new_average = ((stored_average * 4) + new_measurement) / 5
+         * Updates the average execution time using EWMA (α = 0.2).
+         * new_average = α × new_measurement + (1 - α) × stored_average
          */
         public void updateAverage(double newMeasurement, long nowMillis) {
             lock.lock();
