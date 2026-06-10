@@ -88,9 +88,9 @@ The feature is designed to be non-intrusive:
 ### Scenario 1: Mixed Workload
 - Fast queries: `SELECT * FROM users WHERE id = ?` (avg: 10ms) and `SELECT * FROM orders WHERE id = ?` (avg: 20ms)
 - Slow queries: `SELECT * FROM large_table ORDER BY date` (avg: 500ms)
-- Overall average: ~177ms
-- Slow threshold: 353ms
-- Result: Only the complex query is classified as slow
+- Fast baseline (median of currently-fast shapes): 15ms
+- Slow entry threshold: max(minimumSlowQueryMs=100ms, 5 × 15ms=75ms) → 100ms
+- Result: Only the complex query (500ms ≥ 100ms) is classified as slow
 
 ### Scenario 1b: Pure Workloads (When to Keep Disabled)
 - **Pure OLTP**: Almost all queries are already fast and similar in latency
