@@ -62,7 +62,7 @@ sequenceDiagram
 
 ### Classification: Slow vs Fast
 
-Once the system has collected enough data about each operation (by default, 20 samples), it classifies each query shape as fast or slow using the default `RELATIVE_FAST_BASELINE` mode. Rather than comparing against an overall average across all queries, this mode compares each query shape's EWMA average against a *fast-query baseline*—the median (50th percentile, configurable) of the EWMA averages of currently-fast query shapes—refreshed every 10 seconds. Crucially, already-classified slow operations are excluded from that baseline computation, so one very slow query shape cannot inflate the baseline and hide itself from classification.
+Once the system has collected enough data about each operation (by default, 20 samples), it classifies each query shape as fast or slow using the default `RELATIVE_FAST_BASELINE` mode. Rather than comparing against a global average across all queries, this mode computes a *fast-query baseline*: the median (50th percentile, configurable) of the EWMA averages of currently-fast query shapes, refreshed every 10 seconds. Each query shape's average is then compared against that baseline. Crucially, already-classified slow operations are excluded from the baseline computation, so one very slow query shape cannot inflate the baseline and hide itself from classification.
 
 An operation is classified as **slow** when **both** of the following hold:
 - Its average execution time is at least `minimumSlowQueryMs` (default: 100ms), **and**
@@ -99,8 +99,8 @@ graph TD
     F -->|Yes| FA{Avg >= slowQueryThresholdMs?}
     FA -->|Yes| G[Classify as SLOW]
     FA -->|No| H[Classify as FAST]
-    F -->|No - RELATIVE_FAST_BASELINE| FB{"Avg >= minimumSlowQueryMs AND Avg >= fastBaseline × slowMultiplier?"}
-    FB -->|Yes| G
+    F -->|No - RELATIVE_FAST_BASELINE| FB{Both slow conditions met?}
+    FB -->|Yes - Avg >= minSlowMs AND Avg >= baseline × slowMultiplier| G
     FB -->|No| H
     C --> I
 ```
