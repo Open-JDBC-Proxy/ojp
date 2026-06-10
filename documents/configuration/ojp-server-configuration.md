@@ -321,7 +321,18 @@ INFO  SchemaCache - Schema cache updated with 42 tables
 
 For JDBC driver and client-side connection pool configuration, see:
 
-- **[OJP JDBC Configuration](ojp-jdbc-configuration.md)** - JDBC driver setup and client connection pool settings
+- **[OJP JDBC Configuration](ojp-jdbc-configuration.md)** — JDBC driver setup, client connection pool settings, and read/write splitting configuration
+
+### Read/Write Splitting
+
+OJP supports automatic read/write traffic splitting configured entirely through `ojp.properties` on the client side. No server-side settings are required. The server reads the `*.ojp.readwrite.*` properties forwarded by the driver and creates isolated replica connection pools automatically.
+
+Key points:
+- Stateless auto-commit SELECTs are routed to a replica; all other operations go to the primary
+- Operations inside an explicit transaction always use the primary
+- **Sticky sessions are opt-in** — `stickySessionSeconds` defaults to `0` (disabled). Enable only when the application must read its own writes outside a transaction. A non-zero value keeps reads on the primary for that many seconds after every write.
+
+See **[OJP JDBC Configuration — Read/Write Splitting](ojp-jdbc-configuration.md#readwrite-splitting-configuration)** for the full property reference and examples.
 
 ## Configuration Methods
 
@@ -635,8 +646,10 @@ INFO org.openjproxy.grpc.server.ServerConfiguration -   Slow Query Slot Percenta
    - Increase timeouts in environments with occasional very slow queries
 4. **Connection Pools**: Configure client-side pool sizes based on application requirements
 5. **Request Size**: Increase for applications that handle large result sets
+6. **Read/Write Splitting**: Size replica pools (`{replica}.ojp.pool.maxPoolSize`) to handle peak read traffic; leave `stickySessionSeconds` at `0` unless read-your-writes outside transactions is required
 
 ## Related Documentation
 
 - **[Slow Query Segregation Documentation](../designs/SLOW_QUERY_SEGREGATION.md)** - Detailed guide to the slow query segregation feature
+- **[OJP JDBC Configuration](ojp-jdbc-configuration.md)** - Client-side pool settings and read/write splitting configuration
 - **[Example Configuration Properties](ojp-server-example.properties)** - Complete example configuration file with all settings

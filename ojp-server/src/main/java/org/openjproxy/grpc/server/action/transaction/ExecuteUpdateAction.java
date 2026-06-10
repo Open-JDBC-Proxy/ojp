@@ -148,6 +148,10 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             // Phase 9: Cache Invalidation (after successful update)
             org.openjproxy.grpc.server.cache.QueryCacheHelper.invalidateCacheIfEnabled(actionContext, dto.getSession(), request.getSql());
 
+            // Read/write splitting: mark write for sticky session (routes subsequent reads to primary)
+            markStickySessionAfterWrite(actionContext, dto);
+
+
             return result;
         } finally {
             closeStatementAndConnectionIfNoSession(dto, stmt);
@@ -274,6 +278,27 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
             } catch (SQLException e) {
                 log.error("Failure closing connection: {}", e.getMessage(), e);
             }
+        }
+    }
+
+    /**
+     * Marks a write on the sticky-session tracker so that subsequent reads within the
+     * configured window are routed to the primary (read-your-writes guarantee).
+     * This is a no-op when read/write splitting is not configured.
+     *
+     * @param actionContext the action context
+     * @param dto           the connection and session DTO used for the write
+     */
+    private void markStickySessionAfterWrite(ActionContext actionContext, ConnectionSessionDTO dto) {
+        var registry = actionContext.getReadWriteDataSourceRegistry();
+        if (registry == null || dto.getSession() == null) {
+            return;
+        }
+        String connHash = dto.getSession().getConnHash();
+        String primaryName = registry.getPrimaryName(connHash);
+        if (primaryName != null) {
+            registry.markWrite(primaryName);
+            log.debug("Read/write splitting: sticky session marked for primary '{}' after write", primaryName);
         }
     }
 }

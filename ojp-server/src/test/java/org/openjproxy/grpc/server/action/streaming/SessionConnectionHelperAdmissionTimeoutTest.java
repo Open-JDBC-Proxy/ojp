@@ -68,6 +68,7 @@ class SessionConnectionHelperAdmissionTimeoutTest {
                 dbNameMap,
                 admissionControlManagers,
                 new ConcurrentHashMap<>(),
+                null,
                 mock(XAConnectionPoolProvider.class),
                 new MultinodeXaCoordinator(),
                 new ClusterHealthTracker(),

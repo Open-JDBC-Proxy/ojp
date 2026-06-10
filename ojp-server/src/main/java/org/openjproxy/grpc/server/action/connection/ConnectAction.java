@@ -20,6 +20,8 @@ import org.openjproxy.grpc.server.action.util.ProcessClusterHealthAction;
 import org.openjproxy.grpc.server.pool.ConnectionPoolConfigurer;
 import org.openjproxy.grpc.server.pool.DataSourceConfigurationManager;
 import org.openjproxy.grpc.server.pool.PreparedStatementCachePropertyTranslator;
+import org.openjproxy.grpc.server.readwrite.ReadWriteConfiguration;
+import org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceManager;
 import org.openjproxy.grpc.server.utils.ConnectionHashGenerator;
 import org.openjproxy.grpc.server.utils.UrlParser;
 
@@ -240,6 +242,9 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                                 dsConfig.getDataSourceName(), connHash,
                                 ConnectionPoolProviderRegistry.getDefaultProvider().map(p -> p.id()).orElse("unknown"),
                                 maxPoolSize, minIdle);
+
+                        // Setup read/write splitting if configured
+                        setupReadWriteSplitting(context, connectionDetails, connHash, ds, dsConfig.getDataSourceName());
                     }
 
                 } catch (Exception e) {
@@ -251,6 +256,30 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
             }
         } finally {
             lock.unlock();
+        }
+
+        // If the pool already existed and read/write splitting was not yet registered for this
+        // connHash, attempt setup now. The setupReadWriteSplitting implementation is idempotent:
+        // it skips silently when the primary is already mapped and replicas are registered.
+        org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry readWriteRegistry =
+                context.getReadWriteDataSourceRegistry();
+        if (readWriteRegistry != null
+                && readWriteRegistry.getPrimaryName(connHash) == null
+                && connectionDetails.getPropertiesCount() > 0) {
+            DataSource existingDs = context.getDatasourceMap().get(connHash);
+            if (existingDs != null) {
+                try {
+                    Properties clientProps = ConnectionPoolConfigurer.extractClientProperties(connectionDetails);
+                    DataSourceConfigurationManager.DataSourceConfiguration dsConf =
+                            DataSourceConfigurationManager.getConfiguration(clientProps);
+                    setupReadWriteSplitting(context, connectionDetails, connHash, existingDs,
+                            dsConf.getDataSourceName());
+                } catch (Exception e) {
+                    log.error("Failed to setup read/write splitting for connHash {} (pool already existed): {}",
+                            connHash, e.getMessage(), e);
+                    // Non-fatal: continue without read/write splitting
+                }
+            }
         }
 
         // Process cluster health from ConnectionDetails if provided.
@@ -342,5 +371,39 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
         context.getDbNameMap().put(connHash, DatabaseUtils.resolveDbName(connectionDetails.getUrl()));
 
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Sets up read/write splitting for the given datasource if configured.
+     * Creates and registers replica datasources in the ReadWriteDataSourceRegistry.
+     *
+     * @param context           action context
+     * @param connectionDetails connection details with properties
+     * @param connHash          connection hash for the primary
+     * @param ds                primary datasource (already created)
+     * @param datasourceName    name of the datasource
+     */
+    private void setupReadWriteSplitting(ActionContext context, ConnectionDetails connectionDetails,
+                                         String connHash, DataSource ds, String datasourceName) {
+        if (context.getReadWriteDataSourceRegistry() == null) {
+            log.debug("ReadWriteDataSourceRegistry not available, skipping read/write splitting setup");
+            return;
+        }
+
+        try {
+            ReadWriteDataSourceManager rwManager = new ReadWriteDataSourceManager(
+                    context.getReadWriteDataSourceRegistry());
+
+            ReadWriteConfiguration config = rwManager.setupReadWriteSplitting(
+                    connectionDetails, connHash, ds, datasourceName);
+
+            if (config != null) {
+                log.info("Read/write splitting successfully configured for datasource '{}'", datasourceName);
+            }
+        } catch (Exception e) {
+            log.error("Failed to setup read/write splitting for datasource '{}': {}",
+                    datasourceName, e.getMessage(), e);
+            // Non-fatal: continue without read/write splitting
+        }
     }
 }
