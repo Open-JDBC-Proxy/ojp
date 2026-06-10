@@ -29,13 +29,13 @@ OJP's Slow Query Segregation feature solves this problem through intelligent mon
 
 Every SQL operation that flows through OJP Server is monitored automatically. When a query executes, the system tracks two key pieces of information: the SQL statement itself (as a hash to save memory) and how long it took to complete. This isn't just a one-time measurement—OJP builds a historical profile of each unique SQL statement over time.
 
-The tracking uses a weighted average formula that balances historical data with recent measurements. Each time an operation executes, the new measurement gets 20% weight while the historical average retains 80% weight. This approach smooths out outliers (like a query that happens to run slow once due to a temporary lock) while still adapting to changes in query patterns. The formula looks like this:
+The tracking uses an Exponentially Weighted Moving Average (EWMA) to balance historical data with recent measurements. Each new measurement contributes a small fraction (the smoothing factor α) while the stored average retains most of its weight. This smooths out outliers (like a query that happens to run slow once due to a temporary lock) while still adapting to changes in query patterns. The formula is:
 
 ```
-new_average = ((stored_average × 4) + new_measurement) / 5
+new_average = α × new_measurement + (1 - α) × stored_average
 ```
 
-This weighted approach means that if a query normally takes 10ms but occasionally takes 50ms due to contention, it won't suddenly be misclassified as slow. The system learns the typical behavior of each query and uses that knowledge for classification.
+OJP uses α = 0.2, meaning each new measurement contributes 20% and the historical average retains 80% of its weight. If a query normally takes 10ms but occasionally takes 50ms due to contention, it won't suddenly be misclassified as slow. The system learns the typical behavior of each query and uses that knowledge for classification.
 
 > **AI Image Prompt**: Create a flowchart diagram showing the query monitoring lifecycle. Show a SQL query entering the system, passing through a "Hash Generator" box, then into a "Performance Tracker" that records timing. Below, show a graph with multiple data points illustrating the weighted average calculation, with older points fading and newer points brighter. Use database and stopwatch icons.
 
