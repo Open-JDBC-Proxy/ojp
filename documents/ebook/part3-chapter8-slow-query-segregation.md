@@ -62,7 +62,7 @@ sequenceDiagram
 
 ### Classification: Slow vs Fast
 
-Once the system has collected enough data about each operation (by default, 20 samples), it classifies each query shape as fast or slow using the default `RELATIVE_FAST_BASELINE` mode. Rather than comparing against a global average across all queries, this mode computes a *fast-query baseline*: the median (50th percentile, configurable) of the EWMA averages of currently-fast query shapes, refreshed every 10 seconds. Each query shape's average is then compared against that baseline. Crucially, already-classified slow operations are excluded from the baseline computation, so one very slow query shape cannot inflate the baseline and hide itself from classification.
+Once the system has collected enough data about each operation (by default, 20 samples), it classifies each query shape as fast or slow. The default mode is `RELATIVE_FAST_BASELINE`: a *fast-query baseline* is computed as the median (50th percentile, configurable) of the EWMA averages of currently-fast query shapes, refreshed every 10 seconds. Each query shape's average is compared against that baseline. Already-classified slow operations are excluded from the baseline computation, so one very slow query shape cannot inflate the baseline and hide itself from classification.
 
 An operation is classified as **slow** when **both** of the following hold:
 - Its average execution time is at least `minimumSlowQueryMs` (default: 100ms), **and**
