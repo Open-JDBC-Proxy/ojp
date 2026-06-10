@@ -62,30 +62,47 @@ sequenceDiagram
 
 ### Classification: Slow vs Fast
 
-Once the system has enough data about each operation, it performs classification. The classification logic is beautifully simple yet effective: any operation whose average execution time is double (2x) or more than the overall average is classified as "slow." Everything else is "fast."
+Once the system has collected enough data about each operation (by default, 20 samples), it classifies each query shape as fast or slow. The default mode is `RELATIVE_FAST_BASELINE`: a *fast-query baseline* is computed as the median (50th percentile, configurable) of the EWMA averages of currently-fast query shapes, refreshed every 10 seconds. Each query shape's average is compared against that baseline. Already-classified slow operations are excluded from the baseline computation, so one very slow query shape cannot inflate the baseline and hide itself from classification.
 
-Let's walk through a concrete example to see how this works. Imagine your application has three types of queries:
+An operation is classified as **slow** when **both** of the following hold:
+- Its average execution time is at least `minimumSlowQueryMs` (default: 100ms), **and**
+- Its average execution time is at least `slowMultiplier × fastBaselineMs` (default: 5×).
+
+An operation recovers to **fast** when **either** of the following holds:
+- Its average drops below `minimumSlowQueryMs`, **or**
+- Its average drops to or below `recoveryMultiplier × fastBaselineMs` (default: 3×).
+
+The intentional gap between `slowMultiplier` (5×) and `recoveryMultiplier` (3×) provides hysteresis: it prevents operations from rapidly flipping between fast and slow classification due to transient latency spikes.
+
+Let's walk through a concrete example. Imagine your application has three query shapes:
 
 - User lookup queries average 10ms
 - Order queries average 20ms  
 - Report queries average 500ms
 
-The system calculates the overall average across all operation types: (10 + 20 + 500) / 3 = 177ms. The slow threshold becomes 2 × 177 = 354ms. In this scenario, only the report queries exceed this threshold and get classified as slow. The user and order queries remain classified as fast, even though there's some variation between them.
+The fast-query baseline is the median of the currently-fast shapes: median(10ms, 20ms) = 15ms. The slow entry threshold is the higher of `minimumSlowQueryMs` (100ms) and `5 × 15ms = 75ms`, so the effective threshold is 100ms. Since 500ms ≥ 100ms, only the report queries are classified as slow. User and order queries stay fast.
 
-This dynamic thresholding means the system adapts to your workload automatically. If you add more complex queries or if your data grows and slows down operations, the threshold adjusts accordingly. You don't need to manually configure query timeouts or maintain lists of which queries are slow.
+If the report query later improves to 40ms, the recovery condition checks 40ms ≤ 3 × 15ms = 45ms, which is satisfied, so the operation recovers to fast.
 
-> **AI Image Prompt**: Create a bar chart visualization showing query classification. Display multiple SQL queries as vertical bars with their average execution times. Draw a horizontal line representing the "overall average" and another dashed line at 2x that level labeled "Slow Threshold". Color bars below the threshold green (fast) and above it red (slow). Add labels with actual times like "10ms", "20ms", "500ms".
+An alternative `ABSOLUTE_THRESHOLD` mode applies a simple fixed boundary: any operation averaging at or above `slowQueryThresholdMs` (default: 1000ms) is slow. This suits controlled benchmarks where you already know what "slow" means for your workload. See the Configuration section for how to switch modes.
+
+> **AI Image Prompt**: Create a bar chart visualization showing query classification. Display multiple SQL queries as vertical bars with their average execution times. Draw a horizontal line representing the "fast baseline" and a dashed line at 5× that level labeled "Slow Threshold (5× baseline)". Color bars below the slow threshold green (fast) and above it red (slow). Add a second dashed line at 3× baseline labeled "Recovery Threshold". Add labels with actual times like "10ms", "20ms", "500ms".
 
 ```mermaid
 graph TD
     A[New Query Execution] --> B{Tracked Before?}
     B -->|No| C[Record as new operation]
-    B -->|Yes| D[Calculate weighted average]
-    D --> E[Update overall average]
-    E --> F{Avg time >= 2x overall?}
-    F -->|Yes| G[Classify as SLOW]
-    F -->|No| H[Classify as FAST]
-    C --> I[Use default classification]
+    B -->|Yes| D[Update EWMA per-operation average]
+    D --> E{Enough samples?}
+    E -->|No| I[Keep current classification]
+    E -->|Yes| F{ABSOLUTE_THRESHOLD mode?}
+    F -->|Yes| FA{Avg >= slowQueryThresholdMs?}
+    FA -->|Yes| G[Classify as SLOW]
+    FA -->|No| H[Classify as FAST]
+    F -->|No - RELATIVE_FAST_BASELINE| FB{Both slow conditions met?}
+    FB -->|Yes - Avg >= minSlowMs AND Avg >= baseline × slowMultiplier| G
+    FB -->|No| H
+    C --> I
 ```
 
 ### Execution Slot Management
