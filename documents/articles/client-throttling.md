@@ -52,12 +52,14 @@ Client throttling has three operating modes, configured via the `ojp.jdbc.client
 
 ### REACTIVE (default)
 
-The reactive limit is derived from `observedPeak` rather than `maxAdmission`. `observedPeak` starts at the full pool size and is adjusted by the server using AIMD (Additive Increase, Multiplicative Decrease):
+The reactive limit is derived from `observedPeak` rather than `maxAdmission`. Before any admission timeout has occurred, `observedPeak` is zero on the server. The driver treats `observedPeak = 0` as "no overload observed yet" and applies no cap — REACTIVE mode is effectively unlimited from startup. The throttle only engages once the server has genuinely seen pressure.
 
-- **Multiplicative decrease**: when an admission timeout occurs, the server snaps `observedPeak` down to the actual active count at that moment (with a 10% floor to prevent collapse). This reflects how much concurrent load the database was actually handling when it started struggling.
+When the system does experience an admission timeout, the server begins tracking `observedPeak` using AIMD:
+
+- **Multiplicative decrease**: when an admission timeout occurs, the server snaps `observedPeak` down to the actual active count at that moment (with a small floor to prevent collapse). This reflects how much concurrent load the database was actually handling when it started struggling.
 - **Additive increase**: every `totalSlots × 2` successful slot releases, `observedPeak` increments by one, up to the full pool size. Recovery is deliberately slow — bursting back to full capacity too quickly defeats the purpose.
 
-The driver uses `observedPeak` in place of `maxAdmission` in the fair-share formula. When no timeout has occurred, `observedPeak` equals `maxAdmission` and the behaviour is identical to proactive mode. When the server has been under pressure, the limit tightens automatically.
+The driver uses `observedPeak` in place of `maxAdmission` in the fair-share formula. When `observedPeak` is zero (no pressure seen yet), the reactive limit is unlimited. When the server has been under pressure, the limit tightens automatically and recovers gradually.
 
 REACTIVE mode requires no configuration and adapts to changing database conditions without any manual intervention. It is the right choice for the majority of deployments.
 
@@ -87,7 +89,7 @@ Four changes addressed this:
 
 **Configurable decrease factor.** The multiplicative decrease defaults to 0.5 (halving) but can be tuned to a gentler value. Setting `reactiveDecreaseFactor=0.75` means each overload event reduces the limit to 75% of its current value rather than 50%. This is useful when your database degrades gradually rather than suddenly.
 
-**Autonomous additive recovery.** Rather than waiting for a new connect response to receive updated `observedPeak` data, the driver now counts successful `release()` calls independently. After enough consecutive successes without an overload signal (default: `max(8, reactiveLimit)` successes per +1 step), the reactive limit increases by one, up to the proactive cap. This recovery path is active even under sustained execute traffic with no new connections — which is the exact scenario where the old approach got stuck.
+**Autonomous additive recovery.** Once the reactive limit has been reduced after an overload, the driver needs a path back up that does not depend on receiving a new connection response with fresh `observedPeak` data. It now counts successful `release()` calls: after enough consecutive successes with no new overload signal (default: `max(8, reactiveLimit)` successes per +1 step), the reactive limit goes up by one. This keeps recovery working even under sustained execute traffic with no new connections being opened.
 
 ---
 
