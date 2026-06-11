@@ -1,8 +1,8 @@
-# Query Result Caching in OJP
+# Query Result Caching in Open J Proxy
 
 There is a category of database query that every production system has in abundance: the question you already know the answer to. "What are the available product categories?" "What currency code does this country use?" "What are the feature flags for this tenant?" The data behind these queries barely changes. The queries themselves run constantly. And every single one burns a connection pool slot, a network round trip, and database CPU to produce a result that was exactly the same five seconds ago.
 
-OJP 0.5.0-beta introduces server-side query result caching to address exactly this class of problem. The cache sits inside the OJP server and intercepts SELECT results before they are sent back to the driver. On a cache hit, no query ever reaches the database — the result is served directly from memory. On a cache miss, the query executes normally and the result is stored for future requests.
+Open J Proxy 0.5.0-beta introduces server-side query result caching to address exactly this class of problem. The cache sits inside the Open J Proxy server and intercepts SELECT results before they are sent back to the driver. On a cache hit, no query ever reaches the database — the result is served directly from memory. On a cache miss, the query executes normally and the result is stored for future requests.
 
 This article explains how that works, how to configure it, and what to watch out for.
 
@@ -16,7 +16,7 @@ The first is consistency: each application instance only knows about writes that
 
 The second is memory efficiency: with ten application nodes each running their own cache, your effective cache memory is multiplied across all of them. Query A's result cached on node 3 provides no benefit when node 7 receives the same query — node 7 still goes to the database and stores its own copy. Ten nodes with a 100 MB cache budget each are not one 100 MB cache; they are ten isolated 100 MB caches, all potentially storing the same rows.
 
-The OJP server does not have either problem. Because all SQL traffic from every application instance flows through the server, it has global visibility over every write. When any application instance executes an UPDATE against the products table, the OJP server can immediately invalidate the cached results for all queries that depend on that table — regardless of which instance originally cached them. The write is seen exactly once, and the invalidation fires exactly once. And the cache is a single shared instance, so all application nodes benefit from the same warmed-up entries.
+The Open J Proxy server does not have either problem. Because all SQL traffic from every application instance flows through the server, it has global visibility over every write. When any application instance executes an UPDATE against the products table, the Open J Proxy server can immediately invalidate the cached results for all queries that depend on that table — regardless of which instance originally cached them. The write is seen exactly once, and the invalidation fires exactly once. And the cache is a single shared instance, so all application nodes benefit from the same warmed-up entries.
 
 This is the architectural advantage of control-plane-level caching. You get the latency savings of in-memory results without trading away consistency across your application cluster, and without multiplying your memory budget by the number of application nodes.
 
@@ -115,23 +115,23 @@ Good candidates: country and currency lookups; navigation category trees; produc
 
 Poor candidates: queries that include a timestamp or sequence number in the predicate; real-time inventory or pricing queries where staleness is immediately visible; queries against tables with continuous write activity, where invalidation fires so frequently that the cache hit rate stays near zero; result sets that run into tens of megabytes.
 
-The right TTL depends on how quickly the underlying data changes and how much staleness your application can tolerate. For most business reference data in a single-server OJP deployment, a TTL between five and thirty minutes is a reasonable starting point. For data that changes hourly but where minute-level staleness is fine, an hour is appropriate. For truly static data — ISO country codes, currency symbols — a TTL of several hours is safe.
+The right TTL depends on how quickly the underlying data changes and how much staleness your application can tolerate. For most business reference data in a single-server Open J Proxy deployment, a TTL between five and thirty minutes is a reasonable starting point. For data that changes hourly but where minute-level staleness is fine, an hour is appropriate. For truly static data — ISO country codes, currency symbols — a TTL of several hours is safe.
 
-There is one important caveat for teams running OJP in a multi-server configuration.
+There is one important caveat for teams running Open J Proxy in a multi-server configuration.
 
 ---
 
 ## Multi-Server Deployments: Use Shorter TTLs
 
-In OJP 0.5.0-beta, each server node maintains its own independent local cache. When instance A executes an UPDATE and invalidates its own cache, instances B and C do not learn about it. Their entries remain valid until TTL expiry.
+In Open J Proxy 0.5.0-beta, each server node maintains its own independent local cache. When instance A executes an UPDATE and invalidates its own cache, instances B and C do not learn about it. Their entries remain valid until TTL expiry.
 
-This matters in a multi-node OJP deployment. OJP implements client-side load balancing in the JDBC driver — the driver distributes requests across server nodes using the multinode URL format, with no external load balancer involved. After a write lands on server A and invalidates A's cache, requests that the driver routes to servers B or C will continue to see the old cached data until their TTLs expire.
+This matters in a multi-node Open J Proxy deployment. OJP implements client-side load balancing in the JDBC driver — the driver distributes requests across server nodes using the multinode URL format, with no external load balancer involved. After a write lands on server A and invalidates A's cache, requests that the driver routes to servers B or C will continue to see the old cached data until their TTLs expire.
 
 The practical mitigation is to use shorter TTLs — 30 to 60 seconds — in multi-node deployments. This limits the staleness window to a narrow, tolerable interval for most applications while still providing meaningful cache benefit for high-traffic queries.
 
 Apply caching only to data where that level of eventual consistency is acceptable: reference data, configuration settings, and slowly changing lookups. Avoid caching data where different application instances returning different values simultaneously would cause visible inconsistencies or correctness problems.
 
-Distributed cache invalidation across OJP server nodes is under discussion for a future release. When it ships, it will remove this constraint.
+Distributed cache invalidation across Open J Proxy server nodes is under discussion for a future release. When it ships, it will remove this constraint.
 
 ---
 
@@ -159,7 +159,7 @@ A healthy cache should maintain a hit rate above 60% for the queries it covers. 
 
 ## Enabling Caching — No Server Restart Required
 
-Cache configuration lives entirely on the client side in `ojp.properties`. Adding or changing cache rules requires restarting the application that reads the properties file, not the OJP server. The server creates the cache and loads the rules the first time a client connects with caching enabled, and the cache is per-datasource, so enabling it for one datasource has no effect on others.
+Cache configuration lives entirely on the client side in `ojp.properties`. Adding or changing cache rules requires restarting the application that reads the properties file, not the Open J Proxy server. The server creates the cache and loads the rules the first time a client connects with caching enabled, and the cache is per-datasource, so enabling it for one datasource has no effect on others.
 
 The complete configuration reference, including size budget properties and advanced pattern examples for ORMs like Hibernate and Spring Data JPA, is in [documents/guides/CACHE_USER_GUIDE.md](../guides/CACHE_USER_GUIDE.md).
 

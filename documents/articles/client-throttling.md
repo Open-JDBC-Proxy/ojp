@@ -1,10 +1,10 @@
-# Client Throttling in OJP
+# Client Throttling in Open J Proxy
 
-OJP is a database control plane: your application can scale horizontally without overwhelming your database, because the server — not the application — owns and controls the real connection pools. Ten application instances, a hundred, a thousand — the database sees only the connections that the control plane permits.
+Open J Proxy is a database control plane: your application can scale horizontally without overwhelming your database, because the server — not the application — owns and controls the real connection pools. Ten application instances, a hundred, a thousand — the database sees only the connections that the control plane permits.
 
-But there is a subtler problem that emerges at scale, and controlling connections alone does not solve it: the **thundering herd**. When a cluster of application instances all fire requests simultaneously — a common pattern on startup, on cache expiry, or after a brief service interruption — the OJP server's connection pool may be fully saturated before any individual client has sent more than a few requests. The server starts rejecting requests with `RESOURCE_EXHAUSTED`. The clients retry. The retries make the situation worse. Latency climbs, timeouts cascade, and the database is buffered from the blast only by the slim guarantee that new connections won't be opened.
+But there is a subtler problem that emerges at scale, and controlling connections alone does not solve it: the **thundering herd**. When a cluster of application instances all fire requests simultaneously — a common pattern on startup, on cache expiry, or after a brief service interruption — the Open J Proxy server's connection pool may be fully saturated before any individual client has sent more than a few requests. The server starts rejecting requests with `RESOURCE_EXHAUSTED`. The clients retry. The retries make the situation worse. Latency climbs, timeouts cascade, and the database is buffered from the blast only by the slim guarantee that new connections won't be opened.
 
-Client throttling addresses this at the source. Instead of letting every client thread fire requests until the server pushes back, each OJP driver instance limits its own concurrent in-flight count to its fair share of the server's real capacity. The queue never forms. The server never becomes saturated. Throughput stays high under pressure.
+Client throttling addresses this at the source. Instead of letting every client thread fire requests until the server pushes back, each Open J Proxy driver instance limits its own concurrent in-flight count to its fair share of the server's real capacity. The queue never forms. The server never becomes saturated. Throughput stays high under pressure.
 
 Early benchmark tests show the benefit clearly: under sustained peak load, client throttling increases the rate of successful requests while simultaneously reducing tail latency. Rather than competing for the last available slot, clients self-regulate — and the whole system finds its steady state faster.
 
@@ -14,7 +14,7 @@ This article explains how client throttling works, how to configure it, and how 
 
 ## The Two Layers of Throttling
 
-OJP applies pressure management at two independent layers. Understanding both is useful context before diving into client throttling specifically.
+Open J Proxy applies pressure management at two independent layers. Understanding both is useful context before diving into client throttling specifically.
 
 The **server-side global gate** is a `ConcurrencyThrottleInterceptor` that caps the total number of concurrent in-flight gRPC requests the server will accept. Any request that arrives when the server is already at that limit is rejected immediately with `RESOURCE_EXHAUSTED`. This is a blunt backstop: it protects the JVM itself from being overrun, but it applies equally to every client and every datasource. It does not distinguish between fair-share requests and a burst from one misbehaving client.
 
@@ -26,7 +26,7 @@ The two layers are complementary. The client throttle is the primary mechanism u
 
 ## How the Client Throttle Works
 
-When your application opens a JDBC connection, the OJP server includes three fields in the `SessionInfo` response that the driver uses to compute its concurrency limit:
+When your application opens a JDBC connection, the Open J Proxy server includes three fields in the `SessionInfo` response that the driver uses to compute its concurrency limit:
 
 - **`maxAdmission`** — the total number of connection slots the server has configured for this datasource pool.
 - **`clientCount`** — the number of distinct JVM instances currently connected to this datasource on this server node.
@@ -103,7 +103,7 @@ The server now stamps these fields on every response: transaction start/commit/r
 
 ## Lane-Aware Overload
 
-When Slow Query Segregation (SQS) is active, the OJP server partitions the connection pool into fast and slow lanes. A saturation event in the slow lane does not mean fast queries are being starved — but prior to 0.5.0-beta, a slow-lane `RESOURCE_EXHAUSTED` would trigger the same reactive limit halving that a fast-lane timeout would. In a workload dominated by short OLTP queries, this caused steady-state OLTP throughput to be unnecessarily penalised by occasional slow-lane saturation events.
+When Slow Query Segregation (SQS) is active, the Open J Proxy server partitions the connection pool into fast and slow lanes. A saturation event in the slow lane does not mean fast queries are being starved — but prior to 0.5.0-beta, a slow-lane `RESOURCE_EXHAUSTED` would trigger the same reactive limit halving that a fast-lane timeout would. In a workload dominated by short OLTP queries, this caused steady-state OLTP throughput to be unnecessarily penalised by occasional slow-lane saturation events.
 
 The fix is lane-aware overload notification. When the server rejects a request, it attaches the overloaded lane to the gRPC response trailer (`ojp-overload-lane`). The driver parses this and applies a lane-specific policy:
 
@@ -158,6 +158,6 @@ The full analysis of all interaction scenarios — including startup warm-up beh
 
 ## Client Throttling Requires No Server Restart
 
-Client throttling configuration is read from `ojp.properties` when the JDBC driver initialises. You can change `ojp.jdbc.clientThrottle.mode` and the hardening parameters without restarting the OJP server. The driver picks up the new values on next JVM startup or when the connection pool is recreated.
+Client throttling configuration is read from `ojp.properties` when the JDBC driver initialises. You can change `ojp.jdbc.clientThrottle.mode` and the hardening parameters without restarting the Open J Proxy server. The driver picks up the new values on next JVM startup or when the connection pool is recreated.
 
 The complete JDBC driver configuration reference is in [documents/configuration/ojp-jdbc-configuration.md](../configuration/ojp-jdbc-configuration.md).

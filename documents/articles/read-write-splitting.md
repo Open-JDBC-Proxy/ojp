@@ -1,8 +1,8 @@
-# Read/Write Splitting in OJP
+# Read/Write Splitting in Open J Proxy
 
 Every database write has a cost. It touches the write-ahead log, acquires row-level locks, waits for replication acknowledgement, and eventually releases those locks so other operations can proceed. Reads, even demanding ones, are structurally cheaper — they can be satisfied by any replica without touching the primary at all. Yet without an explicit mechanism to exploit this asymmetry, every query from every application instance lands on the same primary database, whether it needs to or not.
 
-OJP 0.5.0-beta introduces server-side read/write splitting. The OJP server inspects every SQL statement that passes through it and routes reads to one of your configured replicas while reserving the primary for writes and transactions. No application code changes are required. The JDBC driver, the connection string, and the application's SQL all stay exactly as they are.
+Open J Proxy 0.5.0-beta introduces server-side read/write splitting. The Open J Proxy server inspects every SQL statement that passes through it and routes reads to one of your configured replicas while reserving the primary for writes and transactions. No application code changes are required. The JDBC driver, the connection string, and the application's SQL all stay exactly as they are.
 
 This article explains how that routing works, how to configure it, and what the edge cases are.
 
@@ -14,7 +14,7 @@ The traditional approach to read/write splitting is to configure it in the appli
 
 Routing at the control plane decouples that concern from the application completely. One configuration change in `ojp.properties` activates read/write splitting for all clients connected to that datasource, regardless of the framework they use, the language they are written in, or whether they are aware the feature exists. The server handles the routing transparently.
 
-There is a second advantage: because the OJP server is the single point through which all SQL traffic flows, it knows the exact state of every active transaction. It does not have to infer transaction state from annotations or method signatures — it simply tracks whether a `BEGIN` has been issued and not yet committed or rolled back. This makes the transaction-safety guarantee exact rather than approximate.
+There is a second advantage: because the Open J Proxy server is the single point through which all SQL traffic flows, it knows the exact state of every active transaction. It does not have to infer transaction state from annotations or method signatures — it simply tracks whether a `BEGIN` has been issued and not yet committed or rolled back. This makes the transaction-safety guarantee exact rather than approximate.
 
 ---
 
@@ -40,7 +40,7 @@ The classifier matches on the leading keyword of the statement, not on a substri
 
 SQL classification alone is not sufficient. A `SELECT` inside an explicit transaction is a perfectly valid read, but routing it to a replica would break read-your-writes consistency: if the session just inserted a row on the primary and now queries for it, the replica may not have replicated the write yet.
 
-The OJP server solves this by tracking explicit transaction boundaries. Any statement executed inside an active transaction — meaning after `BEGIN` or after `setAutoCommit(false)`, and before `COMMIT` or `ROLLBACK` — is always routed to the primary, regardless of its type. The routing rule is simple: if a transaction is open, the primary handles it.
+The Open J Proxy server solves this by tracking explicit transaction boundaries. Any statement executed inside an active transaction — meaning after `BEGIN` or after `setAutoCommit(false)`, and before `COMMIT` or `ROLLBACK` — is always routed to the primary, regardless of its type. The routing rule is simple: if a transaction is open, the primary handles it.
 
 Auto-commit reads — `SELECT` statements executed outside any explicit transaction — are routed to replicas normally.
 
@@ -79,7 +79,7 @@ When all configured replicas are unavailable, the server falls back to the prima
 
 ## Configuration
 
-Read/write splitting is configured entirely on the client side, in the same `ojp.properties` file you use to configure connection pools. No changes are needed on the OJP server itself — the server reads the routing configuration from the connection details it receives from the driver on the first connection.
+Read/write splitting is configured entirely on the client side, in the same `ojp.properties` file you use to configure connection pools. No changes are needed on the Open J Proxy server itself — the server reads the routing configuration from the connection details it receives from the driver on the first connection.
 
 Each datasource has a role: `primary` or `replica`. Replicas declare which primary they belong to using the `primary` property. The primary declares the selection strategy and sticky-session settings.
 
@@ -119,7 +119,7 @@ replica2.ojp.pool.maxPoolSize=15
 replica2.ojp.pool.minIdle=2
 ```
 
-Each replica maintains its own independent connection pool in the OJP server. The pool size, idle connection count, and timeout settings are configured per replica using the same `pool.*` properties you use for the primary. Replicas typically need smaller pools than the primary because they only handle reads; a `maxPoolSize` of 10–15 is a reasonable starting point for most workloads.
+Each replica maintains its own independent connection pool in the Open J Proxy server. The pool size, idle connection count, and timeout settings are configured per replica using the same `pool.*` properties you use for the primary. Replicas typically need smaller pools than the primary because they only handle reads; a `maxPoolSize` of 10–15 is a reasonable starting point for most workloads.
 
 No server restart is required. The server creates the replica pools the first time a client connects with read/write splitting enabled. Subsequent clients that connect with the same primary datasource name reuse the already-configured setup.
 
@@ -131,7 +131,7 @@ There is a common pattern in applications that causes read/write splitting to pr
 
 This is the read-after-write problem, and it is one of the fundamental tradeoffs of any system with asynchronous replication. The correct solution, when the ordering matters, is to wrap the write and the subsequent read in a single transaction. Inside a transaction, both operations go to the primary, and consistency is guaranteed.
 
-For cases where wrapping in a transaction is not practical — background jobs that issue writes and then poll for state without explicit transaction management, for instance — OJP provides sticky sessions as an opt-in fallback. When `stickySessionSeconds` is set to a positive value, every write operation starts a sticky window. For the duration of that window, all reads from the same client are routed to the primary rather than to replicas.
+For cases where wrapping in a transaction is not practical — background jobs that issue writes and then poll for state without explicit transaction management, for instance — Open J Proxy provides sticky sessions as an opt-in fallback. When `stickySessionSeconds` is set to a positive value, every write operation starts a sticky window. For the duration of that window, all reads from the same client are routed to the primary rather than to replicas.
 
 The default value is `0`, which disables sticky sessions. Do not enable it unless you have a concrete need. Sticky sessions reduce the effectiveness of read distribution — every write causes a burst of primary reads during the window — and they hide the underlying problem rather than fixing it. If you find yourself enabling sticky sessions with a long window for a busy write path, the better fix is usually to identify the read-after-write patterns and wrap them in explicit transactions.
 
@@ -169,7 +169,7 @@ The cache invalidation mechanism is also routing-aware. When a write executes ag
 
 ## Enabling Read/Write Splitting — No Server Restart Required
 
-Configuration changes live entirely in `ojp.properties` on the client side. Adding read/write splitting to an existing deployment means adding the `readwrite.*` keys for the primary and the connection settings for each replica, then restarting the application (not the OJP server). The server picks up the new configuration on the next client connection.
+Configuration changes live entirely in `ojp.properties` on the client side. Adding read/write splitting to an existing deployment means adding the `readwrite.*` keys for the primary and the connection settings for each replica, then restarting the application (not the Open J Proxy server). The server picks up the new configuration on the next client connection.
 
 The full configuration reference, including pool tuning properties for replicas and the complete list of `readwrite.*` keys, is in [documents/configuration/ojp-jdbc-configuration.md](../configuration/ojp-jdbc-configuration.md).
 

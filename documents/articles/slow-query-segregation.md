@@ -1,10 +1,10 @@
-# Slow Query Segregation in OJP
+# Slow Query Segregation in Open J Proxy
 
 Database queries are not all the same. A user-facing lookup by primary key completes in a few milliseconds. A reporting query that aggregates a year of transactions might run for thirty seconds. When both kinds of queries share the same connection pool and the same thread budget, the reporting queries win by default — not because they are more important, but because they hold slots longer and are simply harder to displace.
 
 The result is familiar to anyone who has run a mixed workload: the monitoring dashboard shows user-facing response times climbing steadily during the morning reporting run, and the on-call engineer ends up throttling batch jobs to get the site back to normal.
 
-OJP's Slow Query Segregation feature addresses this at the control plane level, before any query touches the connection pool. It learns which query shapes are slow, assigns them to a dedicated connection lane, and ensures that no matter how many slow queries are in flight, a configurable reserve of slots is always available for fast queries. Slow queries cannot starve fast ones.
+Open J Proxy's Slow Query Segregation feature addresses this at the control plane level, before any query touches the connection pool. It learns which query shapes are slow, assigns them to a dedicated connection lane, and ensures that no matter how many slow queries are in flight, a configurable reserve of slots is always available for fast queries. Slow queries cannot starve fast ones.
 
 This article explains how that works, how to tune it, and when to enable it.
 
@@ -12,7 +12,7 @@ This article explains how that works, how to tune it, and when to enable it.
 
 ## The Core Idea: Two Lanes, One Pool
 
-When slow query segregation (SQS) is enabled, the OJP server partitions the connection pool's capacity into two semaphore-guarded lanes: a **fast lane** and a **slow lane**. By default, 20% of slots go to the slow lane and 80% go to the fast lane. A pool with 20 connections becomes 4 slow slots and 16 fast slots.
+When slow query segregation (SQS) is enabled, the Open J Proxy server partitions the connection pool's capacity into two semaphore-guarded lanes: a **fast lane** and a **slow lane**. By default, 20% of slots go to the slow lane and 80% go to the fast lane. A pool with 20 connections becomes 4 slow slots and 16 fast slots.
 
 Before executing any SQL statement, the server checks the query's classification. A query whose shape has been learned to be slow must acquire a slot from the slow lane. A fast (or unclassified) query acquires from the fast lane. The semaphores enforce this: a slow query cannot consume a fast slot and vice versa, so a flood of long-running analytics queries cannot squeeze out the user-facing lookups.
 
@@ -70,7 +70,7 @@ One optimisation worth knowing about: if a session has already acquired a fast o
 
 ## Configuration
 
-SQS is disabled by default. Enable it in the OJP server configuration file (or via environment variables) once you confirm your workload has the mixed fast+slow pattern it is designed for.
+SQS is disabled by default. Enable it in the Open J Proxy server configuration file (or via environment variables) once you confirm your workload has the mixed fast+slow pattern it is designed for.
 
 ```properties
 # Enable slow query segregation
@@ -154,6 +154,6 @@ The full analysis of how the two features interact — including startup warm-up
 
 ## Enabling SQS — Server Restart Required
 
-Unlike query result caching and read/write splitting, SQS is configured on the **server side** in the OJP server properties file. Enabling or changing SQS settings requires restarting the OJP server.
+Unlike query result caching and read/write splitting, SQS is configured on the **server side** in the Open J Proxy server properties file. Enabling or changing SQS settings requires restarting the Open J Proxy server.
 
 The complete configuration reference is in [documents/configuration/ojp-server-configuration.md](../configuration/ojp-server-configuration.md). The design document with the original problem statement and design decisions is in [documents/designs/SLOW_QUERY_SEGREGATION.md](../designs/SLOW_QUERY_SEGREGATION.md).
