@@ -4,7 +4,7 @@ Database queries are not all the same. A user-facing lookup by primary key compl
 
 The result is familiar to anyone who has run a mixed workload: the monitoring dashboard shows user-facing response times climbing steadily during the morning reporting run, and the on-call engineer ends up throttling batch jobs to get the site back to normal.
 
-OJP's Slow Query Segregation feature addresses this at the proxy level, before any query touches the connection pool. It learns which query shapes are slow, assigns them to a dedicated connection lane, and ensures that no matter how many slow queries are in flight, a configurable reserve of slots is always available for fast queries. Slow queries cannot starve fast ones.
+OJP's Slow Query Segregation feature addresses this at the control plane level, before any query touches the connection pool. It learns which query shapes are slow, assigns them to a dedicated connection lane, and ensures that no matter how many slow queries are in flight, a configurable reserve of slots is always available for fast queries. Slow queries cannot starve fast ones.
 
 This article explains how that works, how to tune it, and when to enable it.
 

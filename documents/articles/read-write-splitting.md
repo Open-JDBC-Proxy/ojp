@@ -8,11 +8,11 @@ This article explains how that routing works, how to configure it, and what the 
 
 ---
 
-## Why Route at the Proxy
+## Why Route at the Control Plane
 
 The traditional approach to read/write splitting is to configure it in the application — either explicitly, through two distinct `DataSource` beans, or implicitly, through a framework that inspects `@Transactional(readOnly=true)` annotations. Both approaches work, but they couple the routing decision to application code, which means every service team has to wire it up independently, and any framework that does not support it falls back to the primary for everything.
 
-Routing at the proxy decouples that concern from the application completely. One configuration change in `ojp.properties` activates read/write splitting for all clients connected to that datasource, regardless of the framework they use, the language they are written in, or whether they are aware the feature exists. The server handles the routing transparently.
+Routing at the control plane decouples that concern from the application completely. One configuration change in `ojp.properties` activates read/write splitting for all clients connected to that datasource, regardless of the framework they use, the language they are written in, or whether they are aware the feature exists. The server handles the routing transparently.
 
 There is a second advantage: because the OJP server is the single point through which all SQL traffic flows, it knows the exact state of every active transaction. It does not have to infer transaction state from annotations or method signatures — it simply tracks whether a `BEGIN` has been issued and not yet committed or rolled back. This makes the transaction-safety guarantee exact rather than approximate.
 

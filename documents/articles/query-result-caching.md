@@ -8,13 +8,17 @@ This article explains how that works, how to configure it, and what to watch out
 
 ---
 
-## Why Put the Cache in the Proxy
+## Why Put the Cache in the Control Plane
 
-The natural instinct when adding caching to an application is to put it in the application itself — an in-memory map, a framework annotation, a local Caffeine instance. That approach works, but it has a fundamental problem: each application instance only knows about writes that it made. When instance A updates a product and instance B reads it, instance B's local cache still has the old data, and will until the TTL expires.
+The natural instinct when adding caching to an application is to put it in the application itself — an in-memory map, a framework annotation, a local Caffeine instance. That approach has two problems.
 
-The OJP server does not have this problem. Because all SQL traffic from every application instance flows through the server, it has global visibility over every write. When any application instance executes an UPDATE against the products table, the OJP server can immediately invalidate the cached results for all queries that depend on that table — regardless of which instance originally cached them. The write is seen exactly once, and the invalidation fires exactly once.
+The first is consistency: each application instance only knows about writes that it made. When instance A updates a product and instance B reads it, instance B's local cache still has the old data, and will until the TTL expires.
 
-This is the architectural advantage of proxy-level caching. You get the latency savings of in-memory results without trading away consistency across your application cluster.
+The second is memory efficiency: with ten application nodes each running their own cache, your effective cache memory is multiplied across all of them. Query A's result cached on node 3 provides no benefit when node 7 receives the same query — node 7 still goes to the database and stores its own copy. Ten nodes with a 100 MB cache budget each are not one 100 MB cache; they are ten isolated 100 MB caches, all potentially storing the same rows.
+
+The OJP server does not have either problem. Because all SQL traffic from every application instance flows through the server, it has global visibility over every write. When any application instance executes an UPDATE against the products table, the OJP server can immediately invalidate the cached results for all queries that depend on that table — regardless of which instance originally cached them. The write is seen exactly once, and the invalidation fires exactly once. And the cache is a single shared instance, so all application nodes benefit from the same warmed-up entries.
+
+This is the architectural advantage of control-plane-level caching. You get the latency savings of in-memory results without trading away consistency across your application cluster, and without multiplying your memory budget by the number of application nodes.
 
 The server-side cache is backed by [Caffeine](https://github.com/ben-manes/caffeine), a high-performance Java caching library that uses the Window TinyLFU eviction algorithm to maintain near-optimal hit rates within a bounded memory budget. The choice is deliberate: Caffeine offers sub-millisecond lookups, built-in OpenTelemetry metrics integration, and proven production stability in projects like Spring Boot and Hibernate.
 
@@ -121,7 +125,7 @@ There is one important caveat for teams running OJP in a multi-server configurat
 
 In OJP 0.5.0-beta, each server node maintains its own independent local cache. When instance A executes an UPDATE and invalidates its own cache, instances B and C do not learn about it. Their entries remain valid until TTL expiry.
 
-This matters in a multi-node OJP deployment behind a load balancer. After a write lands on server A, reads that are routed to servers B or C will continue to see the old cached data until their TTLs expire.
+This matters in a multi-node OJP deployment. OJP implements client-side load balancing in the JDBC driver — the driver distributes requests across server nodes using the multinode URL format, with no external load balancer involved. After a write lands on server A and invalidates A's cache, requests that the driver routes to servers B or C will continue to see the old cached data until their TTLs expire.
 
 The practical mitigation is to use shorter TTLs — 30 to 60 seconds — in multi-node deployments. This limits the staleness window to a narrow, tolerable interval for most applications while still providing meaningful cache benefit for high-traffic queries.
 
