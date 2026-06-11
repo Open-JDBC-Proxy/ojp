@@ -121,7 +121,9 @@ replica2.ojp.pool.minIdle=2
 
 Each replica maintains its own independent connection pool in the Open J Proxy server. The pool size, idle connection count, and timeout settings are configured per replica using the same `pool.*` properties you use for the primary. Replicas typically need smaller pools than the primary because they only handle reads; a `maxPoolSize` of 10–15 is a reasonable starting point for most workloads.
 
-No server restart is required. The server creates the replica pools the first time a client connects with read/write splitting enabled. Subsequent clients that connect with the same primary datasource name reuse the already-configured setup.
+No server restart is required when enabling read/write splitting for the first time. The server creates the replica pools the first time a client connects with read/write splitting enabled. Subsequent clients that connect with the same primary datasource name reuse the already-configured setup.
+
+However, if you need to **change** an existing replica configuration — for example, updating a replica connection URL or adding a new replica to a primary that already has replicas registered — a server restart is required. Open J Proxy caches the first-connection replica setup per datasource and does not re-read replica properties on subsequent client reconnections.
 
 ---
 
@@ -167,9 +169,11 @@ The cache invalidation mechanism is also routing-aware. When a write executes ag
 
 ---
 
-## Enabling Read/Write Splitting — No Server Restart Required
+## Enabling Read/Write Splitting
 
-Configuration changes live entirely in `ojp.properties` on the client side. Adding read/write splitting to an existing deployment means adding the `readwrite.*` keys for the primary and the connection settings for each replica, then restarting the application (not the Open J Proxy server). The server picks up the new configuration on the next client connection.
+Adding read/write splitting to an existing deployment — one that did not have it configured before — means adding the `readwrite.*` keys for the primary and the connection settings for each replica, then restarting the application (not the Open J Proxy server). The server creates the replica pools on the first client connection that includes the new configuration.
+
+Changing an existing replica setup (updating URLs, pool sizes, adding or removing replicas) requires a server restart, because the server caches the first-connection setup per datasource and does not re-read replica properties on subsequent reconnections.
 
 The full configuration reference, including pool tuning properties for replicas and the complete list of `readwrite.*` keys, is in [documents/configuration/ojp-jdbc-configuration.md](../configuration/ojp-jdbc-configuration.md).
 
