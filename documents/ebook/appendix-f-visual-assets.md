@@ -957,7 +957,7 @@ sequenceDiagram
     Server->>HikariCP: getConnection()
     HikariCP->>DB: Use real connection
     DB-->>HikariCP: ResultSet
-    Note over HikariCP,Server: Connection held for ResultSet
+    Note over HikariCP,Server: Connection remains associated with the OJP session after acquisition
     Server->>Commons: Serialize ResultSetResponse
     Server-->>Driver: Stream results
     Driver->>Driver: Deserialize to JDBC ResultSet
