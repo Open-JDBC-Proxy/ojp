@@ -1011,7 +1011,7 @@ sequenceDiagram
     Server->>HikariCP: getConnection()
     HikariCP->>DB: Use real connection
     DB-->>HikariCP: ResultSet
-    Note over HikariCP,Server: Connection held for ResultSet
+    Note over HikariCP,Server: Connection remains associated with the OJP session after acquisition
     Server->>Commons: Serialize ResultSetResponse
     Server-->>Driver: Stream results
     Driver->>Driver: Deserialize to JDBC ResultSet
@@ -1024,9 +1024,10 @@ sequenceDiagram
     Note over App: Close resources
     App->>Driver: rs.close()
     Driver->>Server: CloseResultSet RPC
-    Server->>HikariCP: Release connection NOW
+    Server->>Server: Close ResultSet and free cursor state
     App->>Driver: conn.close()
     Driver->>Server: CloseSession RPC
+    Server->>HikariCP: Release connection to pool
     Server->>Server: Cleanup session
     Server-->>Driver: Acknowledged
 ```

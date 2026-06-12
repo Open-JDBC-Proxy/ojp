@@ -166,7 +166,7 @@ try (Connection conn = dataSource.getConnection();
 } // Connection automatically returned to pool
 ```
 
-Forgotten ResultSets are particularly problematic. Even if you close the Connection, an unclosed ResultSet keeps the actual database connection busy until garbage collection runs.
+Forgotten ResultSets are particularly problematic while the OJP `Connection` remains open. They keep server-side cursor and result-set resources busy until the `ResultSet`, `Statement`, or `Connection` is closed, or leak cleanup runs.
 
 Increase pool size if your application legitimately needs more concurrent connections. Edit `ojp.properties`:
 
