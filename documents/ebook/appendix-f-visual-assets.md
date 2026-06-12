@@ -142,12 +142,10 @@ sequenceDiagram
 2. **Virtual Connection Returned**: OJP JDBC Driver returns a connection object immediately (no database connection yet)
 3. **Lazy Connection Allocation**: When you execute a query, OJP Server allocates a real database connection from its pool
 4. **Query Execution**: The query runs on the real connection
-5. **Smart Release**: The real connection returns to the pool after the operation completes (but remains held for active transactions or open ResultSets)
+5. **Smart Release**: Once OJP has acquired a real database connection for a session, that connection remains associated with the OJP session until `Connection.close()` terminates the session. Closing a `ResultSet` releases cursor and server-side result-set resources, but does not by itself return the pooled database connection.
 6. **Virtual Connection Remains**: Your application still holds the "connection," but minimal database resources are consumed
 
-**Important**: Real connections are retained for the duration of:
-- Active transactions (until `commit()` or `rollback()` is called)
-- Open ResultSets (until `ResultSet.close()` or the ResultSet is fully consumed)
+**Important**: After a real connection is acquired, it remains associated with the OJP session until `Connection.close()` is called. Active transactions and open ResultSets still matter because they keep server-side work and resources alive, but closing a `ResultSet` alone does not return the database connection to the pool.
 
 #### Prompt 5
 
@@ -972,9 +970,10 @@ sequenceDiagram
     Note over App: Close resources
     App->>Driver: rs.close()
     Driver->>Server: CloseResultSet RPC
-    Server->>HikariCP: Release connection NOW
+    Server->>Server: Close ResultSet and free cursor state
     App->>Driver: conn.close()
     Driver->>Server: CloseSession RPC
+    Server->>HikariCP: Release connection to pool
     Server->>Server: Cleanup session
     Server-->>Driver: Acknowledged
 ```
