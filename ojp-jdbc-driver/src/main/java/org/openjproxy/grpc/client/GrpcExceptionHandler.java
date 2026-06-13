@@ -9,8 +9,11 @@ import io.grpc.protobuf.ProtoUtils;
 
 import java.sql.SQLDataException;
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 
 public class GrpcExceptionHandler {
+    private static final String SQLSTATE_CONNECTION_FAILURE = "08001";
+
     /**
      * Handler for StatusRuntimeException, converting it to a SQLException when SQL metadata returned.
      *
@@ -20,13 +23,27 @@ public class GrpcExceptionHandler {
      */
     public static StatusRuntimeException handle(StatusRuntimeException sre) throws SQLException {
         Metadata metadata = Status.trailersFromThrowable(sre);
-        SqlErrorResponse errorResponse = metadata.get(ProtoUtils.keyForProto(SqlErrorResponse.getDefaultInstance()));
+        SqlErrorResponse errorResponse = null;
+        if (metadata != null) {
+            errorResponse = metadata.get(ProtoUtils.keyForProto(SqlErrorResponse.getDefaultInstance()));
+        }
         if (errorResponse == null) {
+            if (sre.getStatus().getCode() == Status.Code.RESOURCE_EXHAUSTED) {
+                String message = sre.getStatus().getDescription() != null
+                        ? sre.getStatus().getDescription()
+                        : sre.getMessage();
+                throw new SQLTransientConnectionException(
+                        message,
+                        SQLSTATE_CONNECTION_FAILURE, 0, sre);
+            }
             return sre;
         }
         if (SqlErrorType.SQL_DATA_EXCEPTION.equals(errorResponse.getSqlErrorType())) {
             throw new SQLDataException(errorResponse.getReason(), errorResponse.getSqlState(),
                     errorResponse.getVendorCode());
+        } else if (SqlErrorType.SQL_TRANSIENT_CONNECTION_EXCEPTION.equals(errorResponse.getSqlErrorType())) {
+            throw new SQLTransientConnectionException(errorResponse.getReason(), errorResponse.getSqlState(),
+                    errorResponse.getVendorCode(), sre);
         } else {
             throw new SQLException(errorResponse.getReason(), errorResponse.getSqlState(),
                     errorResponse.getVendorCode());

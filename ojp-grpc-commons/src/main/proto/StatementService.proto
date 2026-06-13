@@ -228,6 +228,7 @@ message StatementRequest {
 enum SqlErrorType {
     SQL_EXCEPTION = 0;
     SQL_DATA_EXCEPTION = 1;
+    SQL_TRANSIENT_CONNECTION_EXCEPTION = 2;
 }
 
 message SqlErrorResponse {

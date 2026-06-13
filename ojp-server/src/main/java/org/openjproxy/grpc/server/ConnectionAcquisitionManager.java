@@ -8,6 +8,7 @@ import org.openjproxy.xa.pool.commons.metrics.NoOpPoolMetrics;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 
 /**
  * Manages connection acquisition with enhanced monitoring capabilities.
@@ -26,6 +27,8 @@ import java.sql.SQLException;
  */
 @Slf4j
 public class ConnectionAcquisitionManager {
+    private static final String SQLSTATE_CONNECTION_CLASS = "08";
+    private static final String SQLSTATE_CONNECTION_FAILURE = "08001";
 
     /**
      * Acquires a connection from the given datasource with enhanced error reporting.
@@ -109,7 +112,7 @@ public class ConnectionAcquisitionManager {
                             connectionHash, totalConnections, maxPoolSize, activeConnections, waitingThreads, configuredTimeoutMs);
                     poolMetrics.recordPoolExhaustion(poolName + "|phase=admission_gate");
                     log.error(message);
-                    throw new SQLException(message);
+                    throw new SQLTransientConnectionException(message, SQLSTATE_CONNECTION_FAILURE);
                 }
             } catch (SQLException e) {
                 throw e;
@@ -168,7 +171,11 @@ public class ConnectionAcquisitionManager {
             poolMetrics.recordPoolExhaustion(poolName + "|phase=pool_borrow");
 
             log.error(enhancedMessage);
-            throw new SQLException(enhancedMessage, e.getSQLState(), e);
+            String sqlState = e.getSQLState();
+            if (sqlState == null || sqlState.length() != 5 || !sqlState.startsWith(SQLSTATE_CONNECTION_CLASS)) {
+                sqlState = SQLSTATE_CONNECTION_FAILURE;
+            }
+            throw new SQLTransientConnectionException(enhancedMessage, sqlState, 0, e);
         }
     }
 }
