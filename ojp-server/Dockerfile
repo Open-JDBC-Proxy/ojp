@@ -28,6 +28,7 @@ COPY --chown=ojp:ojp target/ojp-server-*-shaded.jar /opt/ojp/ojp-server.jar
 USER ojp
 
 ENTRYPOINT ["java", \
+    "-XX:+UseG1GC", \
     "-Dojp.libs.path=/opt/ojp/ojp-libs", \
     "-Duser.timezone=UTC", \
     "-jar", "/opt/ojp/ojp-server.jar"]
