@@ -1,10 +1,16 @@
 package org.openjproxy.grpc.server;
 
+import com.openjproxy.grpc.SqlErrorResponse;
+import com.openjproxy.grpc.SqlErrorType;
 import io.grpc.Metadata;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.grpc.protobuf.ProtoUtils;
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.Test;
+
+import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -61,6 +67,38 @@ class GrpcExceptionHandlerTest {
 
         StatusRuntimeException sre = assertInstanceOf(StatusRuntimeException.class, observer.error);
         assertEquals("unknown", sre.getTrailers().get(GrpcExceptionHandler.OVERLOAD_LANE_KEY));
+    }
+
+    @Test
+    void shouldEncodeTransientConnectionErrorTypeForSqlState08001() {
+        CapturingObserver<Object> observer = new CapturingObserver<>();
+
+        GrpcExceptionHandler.sendSQLExceptionMetadata(
+                new SQLTransientConnectionException("pool exhausted", "08001"),
+                observer);
+
+        StatusRuntimeException sre = assertInstanceOf(StatusRuntimeException.class, observer.error);
+        Metadata trailers = sre.getTrailers();
+        assertNotNull(trailers);
+        SqlErrorResponse errorResponse =
+                trailers.get(ProtoUtils.keyForProto(SqlErrorResponse.getDefaultInstance()));
+        assertNotNull(errorResponse);
+        assertEquals(SqlErrorType.SQL_TRANSIENT_CONNECTION_EXCEPTION, errorResponse.getSqlErrorType());
+    }
+
+    @Test
+    void shouldEncodeTransientConnectionErrorTypeForSqlState08003() {
+        CapturingObserver<Object> observer = new CapturingObserver<>();
+
+        GrpcExceptionHandler.sendSQLExceptionMetadata(new SQLException("connection closed", "08003"), observer);
+
+        StatusRuntimeException sre = assertInstanceOf(StatusRuntimeException.class, observer.error);
+        Metadata trailers = sre.getTrailers();
+        assertNotNull(trailers);
+        SqlErrorResponse errorResponse =
+                trailers.get(ProtoUtils.keyForProto(SqlErrorResponse.getDefaultInstance()));
+        assertNotNull(errorResponse);
+        assertEquals(SqlErrorType.SQL_TRANSIENT_CONNECTION_EXCEPTION, errorResponse.getSqlErrorType());
     }
 
     private static class CapturingObserver<T> implements StreamObserver<T> {

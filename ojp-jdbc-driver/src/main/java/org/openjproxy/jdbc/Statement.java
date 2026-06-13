@@ -17,6 +17,7 @@ import org.openjproxy.grpc.client.StatementService;
 
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLTransientConnectionException;
 import java.sql.SQLWarning;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -77,7 +78,7 @@ public class Statement implements java.sql.Statement {
             return false;
         }
         if (!throttle.tryAcquire(mode, inTransaction)) {
-            throw new java.sql.SQLTransientException(
+            throw new SQLTransientConnectionException(
                     "Client throttle limit reached; request rejected to avoid overloading the database");
         }
         return true;

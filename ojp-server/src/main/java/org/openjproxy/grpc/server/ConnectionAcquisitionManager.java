@@ -8,6 +8,7 @@ import org.openjproxy.xa.pool.commons.metrics.NoOpPoolMetrics;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 
 /**
  * Manages connection acquisition with enhanced monitoring capabilities.
@@ -109,7 +110,7 @@ public class ConnectionAcquisitionManager {
                             connectionHash, totalConnections, maxPoolSize, activeConnections, waitingThreads, configuredTimeoutMs);
                     poolMetrics.recordPoolExhaustion(poolName + "|phase=admission_gate");
                     log.error(message);
-                    throw new SQLException(message);
+                    throw new SQLTransientConnectionException(message, "08001");
                 }
             } catch (SQLException e) {
                 throw e;
@@ -168,7 +169,11 @@ public class ConnectionAcquisitionManager {
             poolMetrics.recordPoolExhaustion(poolName + "|phase=pool_borrow");
 
             log.error(enhancedMessage);
-            throw new SQLException(enhancedMessage, e.getSQLState(), e);
+            String sqlState = e.getSQLState();
+            if (sqlState == null || !sqlState.startsWith("08")) {
+                sqlState = "08001";
+            }
+            throw new SQLTransientConnectionException(enhancedMessage, sqlState, 0, e);
         }
     }
 }

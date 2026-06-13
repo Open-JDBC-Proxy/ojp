@@ -9,6 +9,7 @@ import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 
 /**
  * Handles exceptions that need to be reported via GRPC.
@@ -23,7 +24,19 @@ public class GrpcExceptionHandler {
      * @param <T> Stream observer generic type.
      */
     public static <T> void sendSQLExceptionMetadata(SQLException e, StreamObserver<T> streamObserver) {
-        sendSQLExceptionMetadata(e, streamObserver, SqlErrorType.SQL_EXCEPTION);
+        SqlErrorType sqlErrorType = resolveSqlErrorType(e);
+        sendSQLExceptionMetadata(e, streamObserver, sqlErrorType);
+    }
+
+    private static SqlErrorType resolveSqlErrorType(SQLException exception) {
+        if (exception instanceof SQLTransientConnectionException) {
+            return SqlErrorType.SQL_TRANSIENT_CONNECTION_EXCEPTION;
+        }
+        String sqlState = exception.getSQLState();
+        if ("08001".equals(sqlState) || "08003".equals(sqlState)) {
+            return SqlErrorType.SQL_TRANSIENT_CONNECTION_EXCEPTION;
+        }
+        return SqlErrorType.SQL_EXCEPTION;
     }
 
     /**
