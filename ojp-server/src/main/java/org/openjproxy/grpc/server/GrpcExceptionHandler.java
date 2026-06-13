@@ -16,6 +16,8 @@ import java.sql.SQLTransientConnectionException;
  */
 @Slf4j
 public class GrpcExceptionHandler {
+    private static final String SQLSTATE_CONNECTION_FAILURE = "08001";
+    private static final String SQLSTATE_CONNECTION_DOES_NOT_EXIST = "08003";
 
     /**
      * Handles the reporting or SQLExceptions.
@@ -33,7 +35,8 @@ public class GrpcExceptionHandler {
             return SqlErrorType.SQL_TRANSIENT_CONNECTION_EXCEPTION;
         }
         String sqlState = exception.getSQLState();
-        if ("08001".equals(sqlState) || "08003".equals(sqlState)) {
+        if (SQLSTATE_CONNECTION_FAILURE.equals(sqlState)
+                || SQLSTATE_CONNECTION_DOES_NOT_EXIST.equals(sqlState)) {
             return SqlErrorType.SQL_TRANSIENT_CONNECTION_EXCEPTION;
         }
         return SqlErrorType.SQL_EXCEPTION;

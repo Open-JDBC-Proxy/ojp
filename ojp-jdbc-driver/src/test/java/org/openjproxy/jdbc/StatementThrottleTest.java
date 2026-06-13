@@ -19,10 +19,10 @@ class StatementThrottleTest {
                 .build());
 
         // Fill the single available slot so the next acquire is rejected.
-        throttleManager.tryAcquire(ClientThrottleMode.REACTIVE, false);
+        throttleManager.tryAcquire(ClientThrottleMode.PROACTIVE, false);
 
         assertThrows(SQLTransientConnectionException.class,
-                () -> statement.callAcquireThrottle(throttleManager, ClientThrottleMode.REACTIVE, false));
+                () -> statement.callAcquireThrottle(throttleManager, ClientThrottleMode.PROACTIVE, false));
     }
 
     private static class TestStatement extends Statement {

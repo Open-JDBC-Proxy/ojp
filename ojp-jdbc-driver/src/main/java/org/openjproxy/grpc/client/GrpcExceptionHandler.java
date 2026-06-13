@@ -12,6 +12,8 @@ import java.sql.SQLException;
 import java.sql.SQLTransientConnectionException;
 
 public class GrpcExceptionHandler {
+    private static final String SQLSTATE_CONNECTION_FAILURE = "08001";
+
     /**
      * Handler for StatusRuntimeException, converting it to a SQLException when SQL metadata returned.
      *
@@ -27,9 +29,12 @@ public class GrpcExceptionHandler {
         }
         if (errorResponse == null) {
             if (sre.getStatus().getCode() == Status.Code.RESOURCE_EXHAUSTED) {
+                String message = sre.getStatus().getDescription() != null
+                        ? sre.getStatus().getDescription()
+                        : sre.getMessage();
                 throw new SQLTransientConnectionException(
-                        sre.getStatus().getDescription() != null ? sre.getStatus().getDescription() : sre.getMessage(),
-                        "08001", 0, sre);
+                        message,
+                        SQLSTATE_CONNECTION_FAILURE, 0, sre);
             }
             return sre;
         }

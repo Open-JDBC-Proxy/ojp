@@ -27,6 +27,8 @@ import java.sql.SQLTransientConnectionException;
  */
 @Slf4j
 public class ConnectionAcquisitionManager {
+    private static final String SQLSTATE_CONNECTION_CLASS = "08";
+    private static final String SQLSTATE_CONNECTION_FAILURE = "08001";
 
     /**
      * Acquires a connection from the given datasource with enhanced error reporting.
@@ -110,7 +112,7 @@ public class ConnectionAcquisitionManager {
                             connectionHash, totalConnections, maxPoolSize, activeConnections, waitingThreads, configuredTimeoutMs);
                     poolMetrics.recordPoolExhaustion(poolName + "|phase=admission_gate");
                     log.error(message);
-                    throw new SQLTransientConnectionException(message, "08001");
+                    throw new SQLTransientConnectionException(message, SQLSTATE_CONNECTION_FAILURE);
                 }
             } catch (SQLException e) {
                 throw e;
@@ -170,8 +172,8 @@ public class ConnectionAcquisitionManager {
 
             log.error(enhancedMessage);
             String sqlState = e.getSQLState();
-            if (sqlState == null || !sqlState.startsWith("08")) {
-                sqlState = "08001";
+            if (sqlState == null || sqlState.length() != 5 || !sqlState.startsWith(SQLSTATE_CONNECTION_CLASS)) {
+                sqlState = SQLSTATE_CONNECTION_FAILURE;
             }
             throw new SQLTransientConnectionException(enhancedMessage, sqlState, 0, e);
         }
