@@ -178,6 +178,64 @@ Driver uses it in the proactive formula in place of `maxAdmission`.
 
 ---
 
+### Reactive throttle — per-client concurrency budget over time
+
+The table below traces how the per-client effective concurrency limit evolves through an
+overload episode and subsequent recovery. Assumptions: **6 clients (C1–C6)**, pool of
+**60 total slots** on one OJP server, **COMBINED mode** (effective limit =
+`min(proactiveLimit, reactiveLimit)`).
+
+Derived constants:
+- `proactiveLimit` = `ceil(60 / 6) × 0.9` = **9** per client (fixed from first `connect()`)
+- `reactiveLimit` starts at **∞** (uninitialised, `Integer.MAX_VALUE`) — no failure seen yet
+- Soft floor = `proactiveLimit / reactiveFloorDivisor` = `9 / 4` = **2** (minimum reactive can reach)
+- Decrease factor = **0.5** (halving, default)
+- Overload cooldown = **200 ms** (only one halving per burst window per client)
+- Recovery threshold = `max(8, reactiveLimit)` successes per **+1** step (autonomous, grows with the limit)
+
+> **Reading the numbers:** each cell shows the **effective limit** for that client at that
+> moment, i.e. `min(proactiveLimit=9, reactiveLimit)`. When reactive is ∞ the effective
+> limit equals the proactive limit (9). When reactive has been set by an overload event it
+> can be below 9, and that is the binding constraint.
+
+| Moment | C1 reactive | C2 reactive | C3 reactive | C4 reactive | C5 reactive | C6 reactive | Effective cap per client | Total cap | What happened |
+|---|---|---|---|---|---|---|---|---|---|
+| **Healthy** | ∞ | ∞ | ∞ | ∞ | ∞ | ∞ | 9 (proactive governs) | **54** | No failure observed yet. `reactiveLimit = MAX_VALUE`. Effective limit = `min(9, ∞)` = **9** for every client. |
+| **First overload wave** *(C1, C2 hit server rejection)* | 4 | 4 | ∞ | ∞ | ∞ | ∞ | C1/C2: **4**, C3–C6: 9 | **44** | C1 & C2 call `notifyServerOverload()`. `reactiveLimit` was unset → seeded at `max(floor, floor(9×0.5))` = `max(2, 4)` = **4**. Cooldown (200 ms) prevents a burst of simultaneous rejections from causing multiple halvings. C3–C6 not yet affected. |
+| **Overload continues** *(C3–C6 also hit; C1/C2 halve again)* | 2 | 2 | 4 | 4 | 4 | 4 | C1/C2: **2**, C3–C6: **4** | **20** | C1 & C2: `max(floor, floor(4×0.5))` = `max(2, 2)` = **2** — soft floor reached. C3–C6: first overload, seeded at **4**. |
+| **Still overloaded** *(all clients halve again)* | 2 | 2 | 2 | 2 | 2 | 2 | **2** | **12** | C3–C6: `max(2, floor(4×0.5))` = **2** — all hit the soft floor. C1 & C2 are already there. **No further decrease is possible** regardless of additional rejections. |
+| **Overload clears — recovery begins** | 3 | 3 | 3 | 3 | 3 | 3 | **3** | **18** | Server resumes accepting requests. Each successful `release()` feeds the autonomous recovery counter. After `max(8, 2)` = **8** successes the reactive limit grows by +1. All clients reach **3**. |
+| **Recovery mid-point** | 5 | 5 | 5 | 5 | 5 | 5 | **5** | **30** | Additive +1 per `max(8, reactiveLimit)` successes continues. The threshold grows with the limit, deliberately slowing recovery to prevent a new burst. |
+| **Full recovery** | 9 | 9 | 9 | 9 | 9 | 9 | **9** | **54** | `reactiveLimit` has climbed back to **9** = `proactiveLimit`. The driver caps it there (code: `if (rl < cap) { next = rl + 1; }`). Effective limit = `min(9, 9)` = 9 — same number as Healthy but now reactive is the explicit value, not ∞. |
+
+> **Why does it recover all the way to 9 and not get stuck?**
+> Two independent additive-increase channels operate simultaneously:
+> 1. **Driver autonomous recovery** — every successful `release()` increments a counter;
+>    after `max(8, reactiveLimit)` successes the reactive limit grows by +1, bounded by
+>    `proactiveLimit`. No new `connect()` needed.
+> 2. **SessionInfo updates** — the server's own `observedPeak` also recovers via AIMD
+>    (+1 per `totalSlots×2` releases). Each fresh `SessionInfo` triggers
+>    `updateFromSessionInfo()`, which applies the same AIMD +1 rule to `reactiveLimit`.
+>
+> Both channels are capped at `proactiveLimit` (9), so 9 is both the ceiling and the
+> eventual steady state — but it is reached by additive steps, not by a reset.
+
+**Key observations from the table:**
+
+- **"Healthy" ≠ "Full recovery" internally**: both show an effective cap of 9, but the
+  source is different. Healthy = `reactiveLimit` is ∞, proactive governs. Full recovery =
+  `reactiveLimit` is explicitly 9, matching proactive.
+- **Asymmetric speed**: descent is fast (one RESOURCE_EXHAUSTED per client → immediate halving);
+  recovery is deliberately slow (one +1 per ≈ 8–9 successful completions, threshold grows).
+- **Soft floor prevents collapse**: no client ever drops below `proactiveLimit / 4` (= 2).
+  Total cluster capacity never falls below 12 / 54 ≈ 22 %.
+- **Cooldown prevents pile-on**: a burst of N simultaneous rejections on one client counts
+  as one halving event, not N.
+- **Independent per-client limits**: each JVM adjusts independently. Clients that were
+  luckier in timing (C3–C6) preserve higher limits longer, giving the server breathing room.
+
+
+
 ### Combined Mode (Recommended)
 
 ```java
