@@ -2,6 +2,15 @@
 
 This document outlines the planned releases and key milestones for the Open J Proxy project.
 
+## Timeline at a Glance
+
+| Version | Target Date | Theme | Key Highlights |
+|---------|-------------|-------|----------------|
+| 0.4.0-beta ✅ | Mid-March 2026 | SPIs & Query Enhancement | Custom pool SPIs, Spring Boot starter, Testcontainers module, mTLS, expanded OpenTelemetry |
+| 0.5.0-beta | June/July 2026 | Read/Write Segregation & Caching | Replica routing, query result cache, TTL-based invalidation |
+| 1.0.0 | Sep/Oct 2026 | Production Ready | Stable public APIs, benchmarks, LTS commitment begins |
+| Post 1.0.0 | TBD | Future | Reactive driver, gRPC streaming, Kubernetes operator |
+
 ---
 
 ## 🚀 Version 0.4.0-beta — Mid-March 2026
