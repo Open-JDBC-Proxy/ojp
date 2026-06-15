@@ -178,6 +178,46 @@ Driver uses it in the proactive formula in place of `maxAdmission`.
 
 ---
 
+### Reactive throttle — per-client concurrency budget over time
+
+The table below traces how the per-client `reactiveLimit` evolves through an overload
+episode and subsequent recovery. Assumptions: **6 clients (C1–C6)**, pool of
+**60 total slots** on one OJP server, **COMBINED mode** (effective limit =
+`min(proactiveLimit, reactiveLimit)`).
+
+Derived constants:
+- `proactiveLimit` = `ceil(60 / 6) × 0.9` = **9** per client
+- Soft floor = `proactiveLimit / reactiveFloorDivisor` = `9 / 4` = **2**
+- Decrease factor = **0.5** (halving, default)
+- Overload cooldown = **200 ms** (only one halving per burst window)
+- Recovery threshold = `max(8, reactiveLimit)` successes per **+1** step (autonomous)
+
+| Moment | C1 | C2 | C3 | C4 | C5 | C6 | Total cap | What happened |
+|---|---|---|---|---|---|---|---|---|
+| **Healthy** | 9 | 9 | 9 | 9 | 9 | 9 | **54** | No failure observed. Reactive limit is unconstrained; proactive limit (9) governs. |
+| **First overload wave** *(C1, C2 hit server rejection)* | 4 | 4 | 9 | 9 | 9 | 9 | **44** | C1 & C2 call `notifyServerOverload()`. Reactive limit was unset → seeded at `max(floor, floor(9×0.5))` = `max(2, 4)` = **4**. Cooldown (200 ms) prevents a burst of simultaneous rejections from causing multiple halvings on the same client. C3–C6 not yet affected. |
+| **Overload continues** *(C3–C6 also hit; C1/C2 halve again)* | 2 | 2 | 4 | 4 | 4 | 4 | **20** | C1 & C2: `max(floor, floor(4×0.5))` = `max(2, 2)` = **2** — soft floor reached. C3–C6: first overload signal, seeded at **4** (same logic as above). |
+| **Still overloaded** *(all clients halve again)* | 2 | 2 | 2 | 2 | 2 | 2 | **12** | C3–C6: `max(2, floor(4×0.5))` = `max(2, 2)` = **2** — all hit the soft floor. C1 & C2 are already there. **No further decrease is possible** regardless of additional rejections. |
+| **Overload clears — recovery begins** | 3 | 3 | 3 | 3 | 3 | 3 | **18** | Server resumes accepting requests. Each successful `release()` feeds the autonomous recovery counter. After ≈ `max(8, 2)` = **8** successes the limit grows by +1. All clients reach **3**. |
+| **Recovery mid-point** | 5 | 5 | 5 | 5 | 5 | 5 | **30** | Additive +1 per ≈ `max(8, reactiveLimit)` successes continues — threshold grows with the limit, deliberately slowing recovery to prevent a new burst. |
+| **Full recovery** | 9 | 9 | 9 | 9 | 9 | 9 | **54** | `reactiveLimit` reaches `proactiveLimit` (9). The driver caps it there. System returns to the healthy steady state. |
+
+**Key observations from the table:**
+
+- **Asymmetric speed**: descent is fast (one RESOURCE_EXHAUSTED per client → immediate halving);
+  recovery is deliberately slow (one +1 per ≈ 8–9 successful completions).
+- **Soft floor prevents collapse**: even after repeated halvings, no client ever drops below
+  `proactiveLimit / 4` (= 2 here). Total cluster capacity never falls below 12 / 54 ≈ 22 %.
+- **Cooldown prevents pile-on**: a single overload burst (e.g., 20 simultaneous rejections)
+  counts as one halving event, not 20.
+- **Independent per-client limits**: each JVM's `ClientThrottleManager` adjusts independently.
+  Clients that were slower to connect or luckier in timing (C3–C6) preserve higher limits
+  longer, giving the server breathing room to serve at least some traffic at full rate.
+- **Recovery does not need new connections**: the autonomous counter is fed by every successful
+  `release()` in execute traffic, so recovery happens even when no new `connect()` calls are made.
+
+
+
 ### Combined Mode (Recommended)
 
 ```java
