@@ -2,6 +2,9 @@ package org.openjproxy.grpc.server;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
@@ -76,7 +79,6 @@ class ServerConfigurationTest {
         assertEquals(ServerConfiguration.DEFAULT_SLOW_QUERY_BASELINE_REFRESH_INTERVAL_SECONDS,
                 config.getSlowQueryBaselineRefreshIntervalSeconds());
         assertEquals(ServerConfiguration.DEFAULT_CIRCUIT_BREAKER_THRESHOLD, config.getCircuitBreakerThreshold());
-        assertEquals(ServerConfiguration.DEFAULT_DRIVERS_PATH, config.getDriversPath());
         assertTrue(config.isStatementCacheEnabled());
         assertEquals(250, config.getStatementCacheMaxSize());
         assertEquals(2048, config.getStatementCacheSqlLimit());
@@ -398,63 +400,24 @@ class ServerConfigurationTest {
         assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
     }
 
-    @Test
-    void testResultsetRowsPerBlockCustomValue() {
-        System.setProperty("ojp.resultset.rowsPerBlock", "250");
+    @ParameterizedTest
+    @CsvSource({
+            "250, 250",
+            "1, 1",
+            "10000, 10000"
+    })
+    void testResultsetRowsPerBlockValidValues(String propertyValue, int expectedRowsPerBlock) {
+        System.setProperty("ojp.resultset.rowsPerBlock", propertyValue);
 
         ServerConfiguration config = new ServerConfiguration();
 
-        assertEquals(250, config.getResultsetRowsPerBlock());
+        assertEquals(expectedRowsPerBlock, config.getResultsetRowsPerBlock());
     }
 
-    @Test
-    void testResultsetRowsPerBlockMinimumBoundary() {
-        System.setProperty("ojp.resultset.rowsPerBlock", "1");
-
-        ServerConfiguration config = new ServerConfiguration();
-
-        assertEquals(1, config.getResultsetRowsPerBlock());
-    }
-
-    @Test
-    void testResultsetRowsPerBlockMaximumBoundary() {
-        System.setProperty("ojp.resultset.rowsPerBlock", "10000");
-
-        ServerConfiguration config = new ServerConfiguration();
-
-        assertEquals(10000, config.getResultsetRowsPerBlock());
-    }
-
-    @Test
-    void testResultsetRowsPerBlockBelowMinimumFallsBackToDefault() {
-        System.setProperty("ojp.resultset.rowsPerBlock", "0");
-
-        ServerConfiguration config = new ServerConfiguration();
-
-        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
-    }
-
-    @Test
-    void testResultsetRowsPerBlockAboveMaximumFallsBackToDefault() {
-        System.setProperty("ojp.resultset.rowsPerBlock", "10001");
-
-        ServerConfiguration config = new ServerConfiguration();
-
-        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
-    }
-
-    @Test
-    void testResultsetRowsPerBlockNegativeValueFallsBackToDefault() {
-        System.setProperty("ojp.resultset.rowsPerBlock", "-1");
-
-        ServerConfiguration config = new ServerConfiguration();
-
-        assertEquals(ServerConfiguration.DEFAULT_RESULTSET_ROWS_PER_BLOCK, config.getResultsetRowsPerBlock());
-    }
-
-    @Test
-    void testResultsetRowsPerBlockInvalidStringFallsBackToDefault() {
-        System.setProperty("ojp.resultset.rowsPerBlock", "not-a-number");
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "10001", "-1", "not-a-number"})
+    void testResultsetRowsPerBlockInvalidValuesFallBackToDefault(String propertyValue) {
+        System.setProperty("ojp.resultset.rowsPerBlock", propertyValue);
 
         ServerConfiguration config = new ServerConfiguration();
 

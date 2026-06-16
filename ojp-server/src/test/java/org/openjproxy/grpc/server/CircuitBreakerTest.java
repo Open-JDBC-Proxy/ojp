@@ -43,7 +43,7 @@ class CircuitBreakerTest {
     }
 
     @Test
-    void testAllowsAgainAfterOpenTimeoutAndSuccessResets() throws SQLException {
+    void testAllowsAgainAfterOpenTimeoutAndSuccessResets() {
         TestTicker ticker = new TestTicker();
         CircuitBreaker breaker = new CircuitBreaker(
                 THREE_HUNDRED,
@@ -70,7 +70,7 @@ class CircuitBreakerTest {
     }
 
     @Test
-    void testResetsOnSuccess() throws SQLException {
+    void testResetsOnSuccess() {
         CircuitBreaker breaker = new CircuitBreaker(THOUSAND, FAILURE_THRESHOLD, DATA_SOURCE);
         String sql = "INSERT X";
         SQLException ex = new SQLException("fail2");

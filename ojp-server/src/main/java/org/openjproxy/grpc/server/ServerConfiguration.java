@@ -611,8 +611,10 @@ public class ServerConfiguration {
         logger.info("TLS Configuration:");
         logger.info("  TLS Enabled: {}", tlsEnabled);
         if (tlsEnabled) {
-            logger.info("  TLS Keystore Path: {}", maskPath(tlsKeystorePath));
-            logger.info("  TLS Truststore Path: {}", maskPath(tlsTruststorePath));
+            if (logger.isInfoEnabled()) {
+                logger.info("  TLS Keystore Path: {}", maskPath(tlsKeystorePath));
+                logger.info("  TLS Truststore Path: {}", maskPath(tlsTruststorePath));
+            }
             logger.info("  TLS Client Auth Required (mTLS): {}", tlsClientAuthRequired);
             logger.info("  TLS Keystore Type: {}", tlsKeystoreType);
             logger.info("  TLS Truststore Type: {}", tlsTruststoreType);
