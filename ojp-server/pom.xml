@@ -202,7 +202,7 @@
         <dependency>
             <groupId>org.apache.calcite</groupId>
             <artifactId>calcite-core</artifactId>
-            <version>1.41.0</version>
+            <version>1.42.0</version>
         </dependency>
 
         <!-- Caffeine Cache - High-performance caching library (ADR-008) -->
