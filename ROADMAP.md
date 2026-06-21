@@ -20,14 +20,14 @@ This document outlines the planned releases and key milestones for the Open J Pr
 
 ---
 
-## 🔄 Version 0.5.0-beta — June/July 2026
+## 🔄 Version 0.5.0-beta — June 2026
 
 **Theme: Read/Write Segregation & Caching**
 
 - Read/write segregation support: route read queries to replicas and write queries to primary nodes automatically
 - Query result caching layer to reduce database load for repeated read operations
 - Configuration-driven cache invalidation and TTL policies
-- Expanded multinode support leveraging read/write topology awareness
+- Client-side throttling for failing fast when the system is overloaded.
 
 ---
 
