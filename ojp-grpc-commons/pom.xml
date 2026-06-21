@@ -17,14 +17,14 @@
 
     <properties>
         <grpc.version>1.82.0</grpc.version>
-        <netty.version>4.1.133.Final</netty.version>
+        <netty.version>4.1.135.Final</netty.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <slf4j.version>2.0.17</slf4j.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Force Netty version to fix CVE-2025-67735, CVE-2025-58057, CVE-2025-58056, CVE-2025-55163, CVE-2025-25193, CVE-2024-47535, CVE-2025-24970 -->
+            <!-- Force Netty version to fix CVE-2025-67735, CVE-2025-58057, CVE-2025-58056, CVE-2025-55163, CVE-2025-25193, CVE-2024-47535, CVE-2025-24970, CVE-2026-50020, CVE-2026-50560, CVE-2026-48043, CVE-2026-47244, CVE-2026-44249, CVE-2026-50010, CVE-2026-45416 -->
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-bom</artifactId>
