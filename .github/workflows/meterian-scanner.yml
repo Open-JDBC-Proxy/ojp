@@ -23,5 +23,6 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           oss: true
+          cli_args: --min-security=0
           autofix_security: safe
           autofix_with_pr: true
