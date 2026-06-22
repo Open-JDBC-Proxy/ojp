@@ -1,76 +1,68 @@
-# Slow Query Segregation in Open J Proxy
+# Slow Query Segregation in Open J Proxy — What's Changed
 
-Database queries are not all the same. A user-facing lookup by primary key completes in a few milliseconds. A reporting query that aggregates a year of transactions might run for thirty seconds. When both kinds of queries share the same connection pool and the same thread budget, the reporting queries win by default — not because they are more important, but because they hold slots longer and are simply harder to displace.
+## What Is Slow Query Segregation?
 
-The result is familiar to anyone who has run a mixed workload: the monitoring dashboard shows user-facing response times climbing steadily during the morning reporting run, and the on-call engineer ends up throttling batch jobs to get the site back to normal.
+Database queries are not all the same. A user-facing lookup by primary key completes in a few milliseconds. A reporting query that aggregates a year of transactions might run for thirty seconds. When both kinds of queries share the same connection pool, the reporting queries win by default — not because they are more important, but because they hold slots longer and are simply harder to displace.
 
-Open J Proxy's Slow Query Segregation feature addresses this at the control plane level, before any query touches the connection pool. It learns which query shapes are slow, assigns them to a dedicated connection lane, and ensures that no matter how many slow queries are in flight, a configurable reserve of slots is always available for fast queries. Slow queries cannot starve fast ones.
+Open J Proxy's Slow Query Segregation (SQS) feature addresses this at the control plane level, before any query touches the connection pool. It partitions the pool's capacity into two semaphore-guarded lanes — a **fast lane** and a **slow lane** — and learns which query shapes belong in each. A flood of long-running analytics queries cannot squeeze out the user-facing lookups, because the semaphores prevent it.
 
-This article explains how that works, how to tune it, and when to enable it.
+The full introduction to the concept, including the highway-traffic analogy, the EWMA averaging approach, and the original design rationale, was published in the Open J Proxy article [**"The Slow Query Segregation Strategy: Keep Your Fast Operations Fast (and Your Slow Ones Under Control)"**](https://www.linkedin.com/pulse/slow-query-segregation-strategy-keep-your-fast-operations-wfkte/) on LinkedIn. If you are new to SQS, start there. This article picks up where that one left off and covers everything that has evolved since the first release.
 
 ---
 
-## The Core Idea: Two Lanes, One Pool
+## What Evolved Since the First Version
 
-When slow query segregation (SQS) is enabled, the Open J Proxy server partitions the connection pool's capacity into two semaphore-guarded lanes: a **fast lane** and a **slow lane**. By default, 20% of slots go to the slow lane and 80% go to the fast lane. A pool with 20 connections becomes 4 slow slots and 16 fast slots.
+### Classification Mode: From RELATIVE_AVERAGE to RELATIVE_FAST_BASELINE
 
-Before executing any SQL statement, the server checks the query's classification. A query whose shape has been learned to be slow must acquire a slot from the slow lane. A fast (or unclassified) query acquires from the fast lane. The semaphores enforce this: a slow query cannot consume a fast slot and vice versa, so a flood of long-running analytics queries cannot squeeze out the user-facing lookups.
+The original SQS implementation classified queries as slow by comparing their average execution time to the **average of all queries** — fast and slow combined. This caused a subtle problem: when a burst of slow queries arrived, their execution times dragged the overall average up, which would push some of those slow queries back below the threshold, which would lower the average again, causing query classifications to flip back and forth. The technical term for this is **mode-flapping**, and it defeated the purpose of the feature during exactly the moments when clear segregation was most needed.
+
+Open J Proxy 0.5.0-beta replaces this mode with a new default: `RELATIVE_FAST_BASELINE`. Instead of averaging all queries, the server computes the threshold using only the queries that are currently in the **fast lane**. Slow-classified queries are excluded from the baseline calculation entirely. This makes the baseline stable during overload: a surge of slow queries cannot move the goalposts that determine whether further queries are considered slow.
+
+The baseline is recomputed at configurable intervals (default: every 10 seconds) by taking all currently-fast query shapes and finding the value at a configurable percentile (default: the 50th percentile — the median). That percentile value becomes the **fast baseline**, and a query is considered slow when its average reaches `slowMultiplier × fastBaseline` (default: 5×).
+
+### Hysteresis Band: Preventing Mode-Flapping
+
+Even with a stable baseline, a query hovering right around the classification threshold could flip between lanes on consecutive executions. To prevent this, `RELATIVE_FAST_BASELINE` uses a **hysteresis band**: entry and recovery use different multipliers.
+
+A query **enters** the slow lane when its average is at least `slowMultiplier × fastBaseline` (default: 5×). It **recovers** to the fast lane only when its average falls to or below `recoveryMultiplier × fastBaseline` (default: 3×). Additionally, a `minimumSlowQueryMs` floor (default: 100ms) ensures that no query is classified as slow regardless of the multiplier unless it genuinely takes meaningful time.
+
+The gap between 5× and 3× means a query must clearly overshoot the threshold to enter the slow lane, and must clearly fall back to recover. A query with an average that drifts between 4× and 4.5× of the baseline stays classified as fast until it definitively crosses 5×, and once classified slow it stays there until it definitively drops below 3×.
+
+### Warm-Up Period: Minimum Sample Requirement
+
+To prevent a single slow execution of a brand-new query shape from immediately routing it to the slow lane, the classifier now requires a minimum number of samples before any classification decision is made. The default is 20 samples (`minSamples=20`). Until a query shape accumulates that many executions, it is treated as fast regardless of its individual execution times. This makes the early warm-up period predictable: new queries run in the fast lane until the server has enough data to classify them confidently.
+
+### New Mode: ABSOLUTE_THRESHOLD
+
+For teams that prefer a deterministic boundary over an adaptive one, 0.5.0-beta adds `ABSOLUTE_THRESHOLD`. In this mode, a query is classified as slow when its average execution time reaches or exceeds `slowQueryThresholdMs` (default: 1000ms). There is no baseline computation, no percentile, no hysteresis — the threshold is fixed.
+
+`ABSOLUTE_THRESHOLD` is the right choice when you have a stable, well-understood workload and you know exactly where the latency boundary between fast and slow queries lies. It requires less configuration and is easier to reason about. `RELATIVE_FAST_BASELINE` is better when your workload varies by deployment environment, time of day, or data volume, and you want the server to adapt without manual tuning.
+
+### Session Permit Short-Circuit
+
+One operational optimisation was added for applications that issue multiple statements per connection — which is most applications. If a session has already acquired a fast or slow slot for a previous statement within the same session, subsequent statements in that session skip the slot acquisition step entirely. The session is already "in".
+
+This reduces semaphore contention on the hot path. In the original implementation, every statement competed for a slot, even within a long-running session that had already been granted access. The short-circuit eliminates that overhead for sequential multi-statement workloads.
+
+---
+
+## The Core Mechanics (Briefly)
+
+For readers who want a reminder of the fundamentals before getting into configuration:
+
+When SQS is enabled, the Open J Proxy server partitions the connection pool into two lanes. By default, 20% of slots go to the slow lane and 80% go to the fast lane. A pool with 20 connections becomes 4 slow slots and 16 fast slots.
+
+The server tracks every distinct query shape — a normalised hash of the SQL text — and maintains a rolling average execution time for each one using an EWMA formula where each new measurement contributes 20% weight and the stored average carries 80%. Classifications are updated continuously as queries execute.
+
+If one lane is idle for a configurable period (default: 10 seconds), the other lane can **borrow** its slots. A fast query can borrow slow slots when no slow queries are running; a slow query can borrow fast slots when the fast lane is idle. Borrowed slots are returned to their original lane when released. The 80/20 split is a guaranteed minimum for each lane, not a hard cap — the full pool capacity is available to whichever lane needs it during periods of imbalanced load.
 
 The segregation is transparent to the application. The JDBC driver and the SQL remain exactly as they are. The server handles everything.
 
 ---
 
-## How Queries Get Classified
-
-The server tracks every distinct query shape — where a "shape" is a normalised hash of the SQL text — and maintains a rolling average execution time for each one using an EWMA (exponentially weighted moving average) formula. Each new measurement has 20% weight; the stored average carries 80%. This smooths over occasional outliers without losing responsiveness to genuine performance changes.
-
-Classification does not begin immediately. A query shape must accumulate at least 20 samples before it is eligible for slow classification. This prevents a single slow execution of a brand-new query from immediately routing it to the slow lane.
-
-### Classification Mode: RELATIVE_FAST_BASELINE
-
-The default classification mode computes the slow threshold dynamically from the behaviour of the fast queries themselves.
-
-At configurable intervals (default: every 10 seconds), the server takes all query shapes that are currently classified as fast, collects their average execution times, and computes the percentile value at the configured percentile position (default: the 50th percentile — the median). This becomes the **fast baseline**.
-
-A query enters the slow lane when both conditions hold:
-- its average execution time is at least `minimumSlowQueryMs` (default: 100ms), AND
-- its average is at least `slowMultiplier × fastBaseline` (default: 5×)
-
-A query recovers to the fast lane when:
-- its average falls below `minimumSlowQueryMs`, OR
-- its average falls to or below `recoveryMultiplier × fastBaseline` (default: 3×)
-
-The gap between `slowMultiplier` (5×) and `recoveryMultiplier` (3×) is the **hysteresis band**. A query must clearly overshoot the threshold to enter the slow lane, and must clearly fall back to recover. This prevents mode-flapping: a query that hovers right around the threshold will not flip between lanes on consecutive requests.
-
-The baseline is computed only from queries that are currently fast, which means a burst of slow queries does not raise the threshold for classifying further queries as slow. The baseline is stable during overload, which is precisely when you need SQS to work.
-
-### Classification Mode: ABSOLUTE_THRESHOLD
-
-For teams that prefer predictability over adaptivity, `ABSOLUTE_THRESHOLD` uses a fixed millisecond cutoff. Any query whose average execution time reaches or exceeds `slowQueryThresholdMs` (default: 1000ms) is classified as slow. There is no baseline computation and no hysteresis — the threshold is the threshold.
-
-Use `ABSOLUTE_THRESHOLD` when you have a good understanding of your workload's latency distribution and want a deterministic boundary that does not shift under load. Use `RELATIVE_FAST_BASELINE` (the default) when your workloads have varying latency profiles across deployments or time-of-day patterns, or when you want the system to adapt without manual tuning.
-
----
-
-## Slot Borrowing
-
-Strict lane separation would waste capacity when one workload type is idle. If no slow queries are running at all, 20% of the connection pool sits unused while fast queries queue up.
-
-SQS handles this with **slot borrowing**. If one lane has been idle for a configurable period (default: 10 seconds), the other lane can borrow its slots. A slow query can borrow from the fast lane when the fast lane is idle; a fast query can borrow from the slow lane when no slow queries are running. Borrowed slots are tracked and returned to their original lane when released.
-
-This means the 80/20 split is a guaranteed minimum for each lane, not a hard cap. During periods of imbalanced load, the full pool capacity is available to whichever lane needs it, and the safety guarantee still holds: as soon as slow queries reappear, they are confined to their own lane again.
-
----
-
-## Session Permit Short-Circuit
-
-One optimisation worth knowing about: if a session has already acquired a fast or slow slot for a previous statement in the same session, subsequent statements within that session skip the slot acquisition step. The session is already "in". This avoids unnecessary semaphore contention on the hot path for applications that issue multiple statements per connection — which is most applications.
-
----
-
 ## Configuration
 
-SQS is disabled by default. Enable it in the Open J Proxy server configuration file (or via environment variables) once you confirm your workload has the mixed fast+slow pattern it is designed for.
+SQS is disabled by default. Enable it in the Open J Proxy server configuration file once you confirm your workload has the mixed fast+slow pattern it is designed for.
 
 ```properties
 # Enable slow query segregation
@@ -101,18 +93,18 @@ ojp.server.slowQuerySegregation.baselineRefreshIntervalSeconds=10
 ojp.server.slowQuerySegregation.slowQueryThresholdMs=1000
 ```
 
-The defaults are conservative and work well for most mixed workloads. The properties most worth reviewing for your specific situation are:
+The properties most worth reviewing for your specific situation:
 
 - **`slowSlotPercentage`** — increase if your slow queries are important and must not be starved; decrease if slow queries are background jobs that should have minimal impact on fast traffic.
-- **`minimumSlowQueryMs`** — the floor below which no query is considered slow, regardless of the fast baseline. Leave at 100ms unless your fast queries regularly exceed that.
-- **`slowMultiplier` and `recoveryMultiplier`** — widen the gap if you observe flapping; narrow it if slow queries take a long time to enter the slow lane after they degrade.
+- **`minimumSlowQueryMs`** — the absolute floor for slow classification. Leave at 100ms unless your fast queries regularly run close to that.
+- **`slowMultiplier` and `recoveryMultiplier`** — widen the gap to reduce flapping; narrow it if slow queries take too long to enter the slow lane after they degrade.
 - **`minSamples`** — lower if you want new queries classified quickly; raise if you want more statistical confidence before routing decisions are made.
 
 ---
 
 ## When to Enable SQS
 
-SQS is most valuable when there is a clear latency bimodality in your workload: queries that consistently complete in under 50ms running alongside queries that regularly take seconds. The most common examples are transactional applications that also run embedded reporting or data export jobs, background aggregation workers sharing a pool with user-facing APIs, and analytics queries issuing over the same OJP datasource as point lookups.
+SQS is most valuable when there is a clear latency bimodality in your workload: queries that consistently complete in under 50ms running alongside queries that regularly take seconds. The most common examples are transactional applications that also run embedded reporting or data export jobs, background aggregation workers sharing a pool with user-facing APIs, and analytics queries issuing over the same Open J Proxy datasource as point lookups.
 
 For **pure OLTP** deployments — where almost every query completes in single-digit milliseconds — SQS provides little benefit. There is nothing to segregate. The overhead of classification and semaphore management is small but nonzero, and the complexity is not worthwhile when all queries are in the same latency class.
 
@@ -133,12 +125,14 @@ Suppose you have a 20-connection pool and the following query mix:
 With defaults (20% slow slots = 4 slots, fast baseline at the median of fast queries = ~11ms):
 
 - Fast baseline: 11ms
-- Slow entry threshold: max(100ms, 5 × 11ms = 55ms) → **100ms** (minimum wins)
+- Slow entry threshold: max(100ms, 5 × 11ms = 55ms) → **100ms** (minimum floor wins)
 - Slow recovery threshold: 3 × 11ms = **33ms**
 
 After the reporting query accumulates 20 samples, its 900ms average far exceeds the 100ms threshold. It enters the slow lane and is confined to at most 4 of the 20 slots. The remaining 16 slots are reserved for the user-facing queries, which continue to execute without interference even when 4 reporting queries are running simultaneously.
 
 If the reporting query is later optimised and its average drops below 33ms, it recovers to the fast lane automatically.
+
+Notice what did **not** happen: the 900ms reporting query's presence did not move the baseline. The baseline was computed from the 8ms and 15ms queries only, so the slow entry threshold stayed at 100ms throughout the surge, rather than drifting upward and accidentally reclassifying the reporting query as fast.
 
 ---
 
