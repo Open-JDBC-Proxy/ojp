@@ -6,7 +6,7 @@ Database queries are not all the same. A user-facing lookup by primary key compl
 
 Open J Proxy's Slow Query Segregation (SQS) feature addresses this at the control plane level, before any query touches the connection pool. It partitions the pool's capacity into two semaphore-guarded lanes — a **fast lane** and a **slow lane** — and learns which query shapes belong in each. A flood of long-running analytics queries cannot squeeze out the user-facing lookups, because the semaphores prevent it.
 
-The full introduction to the concept, including the highway-traffic analogy, the EWMA averaging approach, and the original design rationale, was published in the Open J Proxy article [**"The Slow Query Segregation Strategy: Keep Your Fast Operations Fast (and Your Slow Ones Under Control)"**](https://www.linkedin.com/pulse/slow-query-segregation-strategy-keep-your-fast-operations-wfkte/) on LinkedIn. If you are new to SQS, start there. This article picks up where that one left off and covers everything that has evolved since the first release.
+The full introduction to the concept, including the highway-traffic analogy and the original design rationale, was published in the Open J Proxy article [**"The Slow Query Segregation Strategy: Keep Your Fast Operations Fast (and Your Slow Ones Under Control)"**](https://www.linkedin.com/pulse/slow-query-segregation-strategy-keep-your-fast-operations-wfkte/) on LinkedIn. If you are new to SQS, start there. This article picks up where that one left off and covers everything that has evolved since the first release.
 
 ---
 
@@ -46,9 +46,9 @@ This reduces semaphore contention on the hot path. In the original implementatio
 
 ---
 
-## The Core Mechanics (Briefly)
+## The Core Mechanics
 
-For readers who want a reminder of the fundamentals before getting into configuration:
+Here is how Open J Proxy's slow query segregation works under the hood. Some of these details — in particular the EWMA averaging — were not covered in the original article and are documented here for the first time.
 
 When SQS is enabled, the Open J Proxy server partitions the connection pool into two lanes. By default, 20% of slots go to the slow lane and 80% go to the fast lane. A pool with 20 connections becomes 4 slow slots and 16 fast slots.
 
