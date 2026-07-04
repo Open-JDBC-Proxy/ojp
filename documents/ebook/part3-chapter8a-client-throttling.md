@@ -270,6 +270,19 @@ Environment variable equivalent:
 export OJP_JDBC_CLIENTTHROTTLE_MODE=reactive
 ```
 
+### Reactive back-off factor
+
+Reactive throttling also supports tuning the multiplicative decrease factor:
+
+```properties
+# Default: gentler back-off on overload
+ojp.jdbc.clientThrottle.reactiveDecreaseFactor=0.75
+```
+
+- `0.75` (default) is less aggressive and preserves more throughput during short overload bursts.
+- Set `0.5` (half) or lower when you want more aggressive back-off.
+- Valid range: `0 < factor < 1`.
+
 ### Disabling for a specific datasource
 
 You can disable throttling for one datasource while keeping it for others:

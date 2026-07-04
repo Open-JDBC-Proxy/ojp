@@ -130,6 +130,24 @@ class ClientThrottleManagerTest {
     }
 
     @Test
+    void defaultDecreaseFactorIsPointSeventyFive() {
+        String previous = System.getProperty(ClientThrottleManager.PROP_REACTIVE_DECREASE_FACTOR);
+        try {
+            System.clearProperty(ClientThrottleManager.PROP_REACTIVE_DECREASE_FACTOR);
+            ClientThrottleManager mgr = new ClientThrottleManager();
+            mgr.updateFromSessionInfo(session(40, 40, 1)); // proactive/reactive = floor(40 * 0.9) = 36
+            mgr.notifyServerOverload();
+            assertEquals(27, mgr.getReactiveLimit(), "default factor 0.75 should reduce 36 -> 27");
+        } finally {
+            if (previous == null) {
+                System.clearProperty(ClientThrottleManager.PROP_REACTIVE_DECREASE_FACTOR);
+            } else {
+                System.setProperty(ClientThrottleManager.PROP_REACTIVE_DECREASE_FACTOR, previous);
+            }
+        }
+    }
+
+    @Test
     void offModeAlwaysAdmits() {
         ClientThrottleManager mgr = new ClientThrottleManager(0L, 4, 0.5d, 0);
         mgr.updateFromSessionInfo(session(1, 1, 1));
