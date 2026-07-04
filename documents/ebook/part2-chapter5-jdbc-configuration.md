@@ -873,6 +873,19 @@ ojp.jdbc.clientThrottle.mode=reactive
 For most workloads, `reactive` is correct and no change is needed. Switch to
 `combined` or `proactive` only when bursts must be strictly avoided.
 
+### Reactive back-off tuning
+
+Reactive mode uses an AIMD multiplicative decrease factor:
+
+```properties
+# Default: gentler back-off
+ojp.jdbc.clientThrottle.reactiveDecreaseFactor=0.75
+```
+
+- `0.75` (default) reduces concurrency more gradually after overload.
+- Use `0.5` (half) or lower when you need more aggressive back-off.
+- Valid range is `0 < factor < 1`.
+
 ### Disabling per datasource
 
 ```properties

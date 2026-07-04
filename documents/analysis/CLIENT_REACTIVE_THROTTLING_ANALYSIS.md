@@ -437,7 +437,7 @@ Following stress testing that revealed the reactive limit collapsing to 1 at nea
 
 - **Cooldown:** `notifyServerOverload()` now coalesces signals received within `overloadCooldownMs` (default 200 ms) of the last effective halving. A burst of N simultaneous rejections produces one halving event, not N.
 - **Soft floor:** `reactiveLimit` is bounded below by `max(1, proactiveLimit / reactiveFloorDivisor)` (default divisor 4 → floor ≈ 25 % of proactive). It cannot be driven to 1 except in degenerate single-slot configurations.
-- **Configurable decrease factor:** the AIMD multiplicative decrease defaults to `0.5` (halving) but can be tuned, e.g. `0.75` for a gentler curve.
+- **Configurable decrease factor:** the AIMD multiplicative decrease defaults to `0.75` (gentler than halving), and can be reduced to `0.5` or lower for more aggressive back-off.
 - **Autonomous additive recovery:** on every successful `release()`, the manager increments a counter; after `recoverySuccessThreshold` successes (default `max(8, reactiveLimit)`) the reactive limit grows by +1, bounded by the proactive cap. This removes the prior dependency on connect responses for recovery — execute traffic alone is now enough.
 - `updateFromSessionInfo()` also respects the floor and caps `reactiveLimit` at `proactiveLimit`.
 
@@ -446,7 +446,7 @@ Configuration keys (all optional, sane defaults):
 ```properties
 ojp.jdbc.clientThrottle.overloadCooldownMs=200
 ojp.jdbc.clientThrottle.reactiveFloorDivisor=4
-ojp.jdbc.clientThrottle.reactiveDecreaseFactor=0.5
+ojp.jdbc.clientThrottle.reactiveDecreaseFactor=0.75
 # 0 = auto: max(8, reactiveLimit) successes per +1 recovery step
 ojp.jdbc.clientThrottle.recoverySuccessThreshold=0
 ```
@@ -501,5 +501,4 @@ This is backwards-compatible: drivers connecting to older servers see no trailer
 #### Why not split the reactive limit per lane?
 
 A full per-lane reactive limit on the driver would require classifying each outgoing query as fast or slow client-side, which the driver doesn't reliably know (classification is server-side). The lane-aware suppression above achieves the same practical result for fast-dominated workloads without the complexity. A future iteration may introduce per-lane reactive limits with server-driven classification hints; until then, the suppression policy is the right default.
-
 

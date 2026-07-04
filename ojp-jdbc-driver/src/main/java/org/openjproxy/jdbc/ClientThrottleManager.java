@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <ul>
  *   <li>{@code ojp.jdbc.clientThrottle.overloadCooldownMs} (default 200)</li>
  *   <li>{@code ojp.jdbc.clientThrottle.reactiveFloorDivisor} (default 4 → floor = proactive/4)</li>
- *   <li>{@code ojp.jdbc.clientThrottle.reactiveDecreaseFactor} (default 0.5)</li>
+ *   <li>{@code ojp.jdbc.clientThrottle.reactiveDecreaseFactor} (default 0.75)</li>
  *   <li>{@code ojp.jdbc.clientThrottle.recoverySuccessThreshold} (default 0 → auto: max(8, reactiveLimit))</li>
  * </ul>
  */
@@ -55,7 +55,7 @@ public class ClientThrottleManager {
     // Hardening defaults
     private static final long DEFAULT_OVERLOAD_COOLDOWN_MS = 200L;
     private static final int DEFAULT_REACTIVE_FLOOR_DIVISOR = 4;
-    private static final double DEFAULT_REACTIVE_DECREASE_FACTOR = 0.5d;
+    private static final double DEFAULT_REACTIVE_DECREASE_FACTOR = 0.75d;
     private static final int DEFAULT_RECOVERY_SUCCESS_THRESHOLD = 0; // 0 ⇒ auto: max(8, reactiveLimit)
 
     private final long overloadCooldownMs;
@@ -386,8 +386,9 @@ public class ClientThrottleManager {
      * {@code max(1, proactiveLimit / reactiveFloorDivisor)}. Without a known proactive
      * limit the floor is 1.</p>
      *
-     * <p><b>Decrease factor:</b> defaults to halving ({@code 0.5}) but can be set to a
-     * gentler value (e.g. {@code 0.75}) via the {@code reactiveDecreaseFactor} property.</p>
+     * <p><b>Decrease factor:</b> defaults to {@code 0.75} (gentler than halving) but can
+     * be reduced (e.g. {@code 0.5} or lower) for more aggressive back-off via the
+     * {@code reactiveDecreaseFactor} property.</p>
      *
      * <p>If the reactive limit was uninitialised (MAX_VALUE), it is seeded from
      * {@code proactiveLimit * factor} so the client immediately backs off to a sensible
@@ -419,7 +420,7 @@ public class ClientThrottleManager {
         int newLimit;
         if (current == Integer.MAX_VALUE) {
             // Reactive limit was uninitialised — seed from proactive limit using the
-            // configured decrease factor (default 0.5 → half).
+            // configured decrease factor (default 0.75).
             if (pl == Integer.MAX_VALUE) {
                 newLimit = 1;
             } else {
