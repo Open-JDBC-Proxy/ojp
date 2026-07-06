@@ -91,6 +91,7 @@ public class ServerConfiguration {
     private static final String TELEMETRY_GRPC_METRICS_ENABLED_KEY = "ojp.telemetry.grpc.metrics.enabled";
     private static final String TELEMETRY_POOL_METRICS_ENABLED_KEY = "ojp.telemetry.pool.metrics.enabled";
     private static final String TELEMETRY_CACHE_METRICS_ENABLED_KEY = "ojp.telemetry.cache.metrics.enabled";
+    private static final String TELEMETRY_CIRCUIT_BREAKER_ENABLED_KEY = "ojp.telemetry.circuitbreaker.enabled";
 
     // TLS configuration keys
     private static final String TLS_ENABLED_KEY = "ojp.server.tls.enabled";
@@ -176,6 +177,7 @@ public class ServerConfiguration {
     public static final boolean DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
     public static final boolean DEFAULT_TELEMETRY_POOL_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
     public static final boolean DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
+    public static final boolean DEFAULT_TELEMETRY_CIRCUIT_BREAKER_ENABLED = true; // Enabled by default when OpenTelemetry is enabled
 
     // TLS default values
     public static final boolean DEFAULT_TLS_ENABLED = false; // Disabled by default for backwards compatibility
@@ -268,6 +270,7 @@ public class ServerConfiguration {
     private final boolean telemetryGrpcMetricsEnabled;
     private final boolean telemetryPoolMetricsEnabled;
     private final boolean telemetryCacheMetricsEnabled;
+    private final boolean telemetryCircuitBreakerMetricsEnabled;
 
     // TLS configuration
     private final boolean tlsEnabled;
@@ -376,6 +379,7 @@ public class ServerConfiguration {
         this.telemetryGrpcMetricsEnabled = getBooleanProperty(TELEMETRY_GRPC_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_GRPC_METRICS_ENABLED);
         this.telemetryPoolMetricsEnabled = getBooleanProperty(TELEMETRY_POOL_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_POOL_METRICS_ENABLED);
         this.telemetryCacheMetricsEnabled = getBooleanProperty(TELEMETRY_CACHE_METRICS_ENABLED_KEY, DEFAULT_TELEMETRY_CACHE_METRICS_ENABLED);
+        this.telemetryCircuitBreakerMetricsEnabled = getBooleanProperty(TELEMETRY_CIRCUIT_BREAKER_ENABLED_KEY, DEFAULT_TELEMETRY_CIRCUIT_BREAKER_ENABLED);
 
         // ResultSet streaming configuration
         this.resultsetRowsPerBlock = getBoundedIntProperty(RESULTSET_ROWS_PER_BLOCK_KEY, DEFAULT_RESULTSET_ROWS_PER_BLOCK,
@@ -607,8 +611,10 @@ public class ServerConfiguration {
         logger.info("TLS Configuration:");
         logger.info("  TLS Enabled: {}", tlsEnabled);
         if (tlsEnabled) {
-            logger.info("  TLS Keystore Path: {}", maskPath(tlsKeystorePath));
-            logger.info("  TLS Truststore Path: {}", maskPath(tlsTruststorePath));
+            if (logger.isInfoEnabled()) {
+                logger.info("  TLS Keystore Path: {}", maskPath(tlsKeystorePath));
+                logger.info("  TLS Truststore Path: {}", maskPath(tlsTruststorePath));
+            }
             logger.info("  TLS Client Auth Required (mTLS): {}", tlsClientAuthRequired);
             logger.info("  TLS Keystore Type: {}", tlsKeystoreType);
             logger.info("  TLS Truststore Type: {}", tlsTruststoreType);
@@ -939,6 +945,10 @@ public class ServerConfiguration {
 
     public boolean isTelemetryPoolMetricsEnabled() {
         return telemetryPoolMetricsEnabled;
+    }
+
+    public boolean isTelemetryCircuitBreakerMetricsEnabled() {
+        return telemetryCircuitBreakerMetricsEnabled;
     }
 
     public boolean isTelemetryCacheMetricsEnabled() {
