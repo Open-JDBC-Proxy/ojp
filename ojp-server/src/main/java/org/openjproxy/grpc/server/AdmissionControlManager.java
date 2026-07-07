@@ -245,7 +245,7 @@ public class AdmissionControlManager {
         try {
             boolean acquired = slotManager.acquireFastSlot(fastSlotTimeoutMs);
             if (!acquired) {
-                throw new java.sql.SQLException(String.format(
+                throw new java.sql.SQLTransientConnectionException(String.format(
                         "Connection admission timeout for hash: %s after %dms (phase=admission)",
                         connHash, fastSlotTimeoutMs));
             }
