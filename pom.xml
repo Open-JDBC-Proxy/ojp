@@ -30,11 +30,11 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <slf4j.version>2.0.17</slf4j.version>
-        <logback.version>1.5.32</logback.version>
+        <logback.version>1.5.37</logback.version>
         <protobuf.version>4.34.1</protobuf.version>
         <netty.version>4.1.135.Final</netty.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
-        <jackson-core.version>2.18.8</jackson-core.version>
+        <jackson-core.version>2.22.1</jackson-core.version>
         <plexus-utils.version>4.0.3</plexus-utils.version>
     </properties>
 
@@ -63,14 +63,14 @@
                 <version>${commons-lang3.version}</version>
             </dependency>
 
-            <!-- Force jackson-core version to fix DoS vulnerability in async JSON parser (CVSS 8), GHSA-2M67-WJPJ-XHG9 -->
+            <!-- Force jackson-core version to keep the Jackson stack aligned and fix published security issues -->
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-core</artifactId>
                 <version>${jackson-core.version}</version>
             </dependency>
 
-            <!-- Force logback-core to fix CVE-2026-1225 (ACE in config processing, affects ≤1.5.24) -->
+            <!-- Force logback-core to fix published logback vulnerabilities, including CVE-2026-9828 -->
             <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-core</artifactId>
