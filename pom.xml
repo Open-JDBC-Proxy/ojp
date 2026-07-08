@@ -70,7 +70,13 @@
                 <version>${jackson-core.version}</version>
             </dependency>
 
-            <!-- Force logback-core to fix published logback vulnerabilities, including CVE-2026-9828 -->
+            <!-- Force logback-classic/logback-core to fix published logback vulnerabilities, including CVE-2026-9828 -->
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-core</artifactId>
