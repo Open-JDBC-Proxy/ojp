@@ -3,6 +3,8 @@ package org.openjproxy.grpc.server;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.sql.SQLTransientConnectionException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -302,5 +304,21 @@ class AdmissionControlManagerTest {
         // Performance must still be recorded for failed monitor-only operations.
         assertTrue(admissionControlManager.getOperationAverageTime("failing-op") >= 0);
         assertTrue(admissionControlManager.getPerformanceMonitor().getTotalExecutionCount() >= 1);
+    }
+
+    @Test
+    void shouldThrowSQLTransientConnectionExceptionWhenAdmissionTimeoutInAcquireSessionPermit() throws Exception {
+        // Create a manager with 1 fast slot and a very short timeout (10ms)
+        AdmissionControlManager manager = new AdmissionControlManager(1, 0, 0, 0, 10, 0, 0, true);
+        // Exhaust the single fast slot so that acquireSessionPermit will time out
+        manager.getSlotManager().acquireFastSlot(1000);
+        try {
+            SQLTransientConnectionException ex = assertThrows(SQLTransientConnectionException.class,
+                    () -> manager.acquireSessionPermit("test-hash"));
+            assertTrue(ex.getMessage().contains("Connection admission timeout for hash: test-hash"));
+            assertTrue(ex.getMessage().contains("phase=admission"));
+        } finally {
+            manager.getSlotManager().releaseFastSlot();
+        }
     }
 }
