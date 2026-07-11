@@ -2,7 +2,26 @@
 
 This directory contains technical analysis documents for various OJP features and decisions.
 
-## Latest Analysis (May 2026)
+## Latest Analysis (July 2026)
+
+### 🆕 Off-Heap / Custom Memory Management Adoption Analysis
+
+**Question:** Should OJP adopt advanced off-heap memory techniques (direct buffers, FFM API, binary layouts, mapped files)?
+
+**Quick Answer:** Not broadly. Adopt only after hard evidence of GC/allocation bottlenecks, starting with measurement hardening and then narrow hotspot pilots.
+
+**Document:**
+- **Full Analysis**: [OFF_HEAP_MEMORY_ADOPTION_ANALYSIS.md](./OFF_HEAP_MEMORY_ADOPTION_ANALYSIS.md)
+  - OJP-specific fit analysis by technique
+  - Impact vs risk/complexity ranking
+  - Ordered implementation recommendation
+  - Internal and external sources
+
+**Key Takeaway:** For OJP, measurement-first and surgical optimization is the safest path; broad off-heap rewrites are high-risk and not currently justified.
+
+---
+
+## Previous Latest Analysis (May 2026)
 
 ### 🆕 Prepared Statement Cache Server Settings Design
 
@@ -123,5 +142,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-05-10  
+**Last Updated:** 2026-07-11  
 **Maintained By:** OJP Core Team
