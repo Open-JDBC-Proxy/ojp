@@ -56,7 +56,7 @@ A selective path is justified only after OJP proves (with production-like measur
 - Potential p99 improvement for serialization-heavy flows.
 
 ### Risks / complexity
-- Lifecycle mistakes can cause native memory pressure (`Direct buffer memory` OOM behavior).
+- Lifecycle mistakes can cause native memory pressure (`java.lang.OutOfMemoryError: Direct buffer memory`).
 - Requires stricter native memory observability and limits (`-XX:MaxDirectMemorySize` discipline).
 
 ### Recommendation
@@ -89,7 +89,7 @@ A selective path is justified only after OJP proves (with production-like measur
 
 ### Fit for OJP
 - Could help where OJP keeps large homogeneous in-memory structures (e.g., large metadata/reference datasets), but this is not the current dominant shape of OJP’s architecture.
-- OJP request processing is heavily JDBC/protobuf/gRPC object oriented; a broad switch would increase complexity significantly.
+- OJP request processing is heavily JDBC/protobuf/gRPC object-oriented; a broad switch would increase complexity significantly.
 
 ### Benefits
 - Better memory density and predictable access pattern for specific datasets.
