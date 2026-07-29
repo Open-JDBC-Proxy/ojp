@@ -5,7 +5,6 @@ import com.openjproxy.grpc.SessionInfo;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.datasource.ConnectionPoolProviderRegistry;
 import org.openjproxy.datasource.PoolConfig;
@@ -73,9 +72,9 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
     @Override
     public void execute(ActionContext context, ConnectionDetails connectionDetails, StreamObserver<SessionInfo> responseObserver) {
         // Handle empty connection details (health check)
-        if (StringUtils.isBlank(connectionDetails.getUrl()) &&
-            StringUtils.isBlank(connectionDetails.getUser()) &&
-            StringUtils.isBlank(connectionDetails.getPassword())) {
+        if (connectionDetails.getUrl().isBlank() &&
+            connectionDetails.getUser().isBlank() &&
+            connectionDetails.getPassword().isBlank()) {
             // Empty connection details - return empty session info - used for initial health checks only
             responseObserver.onNext(SessionInfo.newBuilder().build());
             responseObserver.onCompleted();

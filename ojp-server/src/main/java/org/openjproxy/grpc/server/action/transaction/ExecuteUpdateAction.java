@@ -10,7 +10,6 @@ import io.grpc.stub.StreamObserver;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.dto.Parameter;
@@ -119,13 +118,13 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
                             || requiresSessionAffinity);
 
             List<Parameter> params = ProtoConverter.fromProtoList(request.getParametersList());
-            PreparedStatement ps = dto.getSession() != null && StringUtils.isNotBlank(dto.getSession().getSessionUUID())
-                    && StringUtils.isNoneBlank(request.getStatementUUID())
+            PreparedStatement ps = dto.getSession() != null && !dto.getSession().getSessionUUID().isBlank()
+                    && !request.getStatementUUID().isBlank()
                     ? sessionManager.getPreparedStatement(dto.getSession(), request.getStatementUUID())
                     : null;
 
             if (CollectionUtils.isNotEmpty(params) || ps != null || requiresGeneratedKeys) {
-                if (StringUtils.isNotEmpty(request.getStatementUUID()) && ps != null) {
+                if (!request.getStatementUUID().isEmpty() && ps != null) {
                     bindLobsAndParameters(sessionManager, dto, ps, params);
                 } else {
                     ps = StatementFactory.createPreparedStatement(sessionManager, dto, request.getSql(), params,
@@ -267,7 +266,7 @@ public class ExecuteUpdateAction implements Action<StatementRequest, OpResult> {
      * @param stmt the statement to close (may be null)
      */
     private void closeStatementAndConnectionIfNoSession(ConnectionSessionDTO dto, Statement stmt) {
-        if ((dto == null || dto.getSession() == null || StringUtils.isEmpty(dto.getSession().getSessionUUID())) && stmt != null) {
+        if ((dto == null || dto.getSession() == null || dto.getSession().getSessionUUID().isEmpty()) && stmt != null) {
             try {
                 stmt.close();
             } catch (SQLException e) {
