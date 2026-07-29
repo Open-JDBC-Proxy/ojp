@@ -7,7 +7,6 @@ import com.openjproxy.grpc.DbName;
 import com.openjproxy.grpc.ResourceType;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.constants.CommonConstants;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
@@ -172,7 +171,7 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
                     throw new RuntimeException("Resource type invalid");
             }
 
-            if (responseBuilder.getSession() == null || StringUtils.isBlank(responseBuilder.getSession().getSessionUUID())) {
+            if (responseBuilder.getSession() == null || responseBuilder.getSession().getSessionUUID().isBlank()) {
                 responseBuilder.setSession(request.getSession());
             }
 

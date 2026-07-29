@@ -5,7 +5,6 @@ import com.openjproxy.grpc.TransactionInfo;
 import com.openjproxy.grpc.TransactionStatus;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
 import org.openjproxy.grpc.server.action.Action;
 import org.openjproxy.grpc.server.action.ActionContext;
@@ -76,7 +75,7 @@ public class StartTransactionAction implements Action<SessionInfo, SessionInfo> 
             Connection sessionConnection;
 
             // Start a session if none started yet.
-            if (StringUtils.isEmpty(sessionInfo.getSessionUUID())) {
+            if (sessionInfo.getSessionUUID().isEmpty()) {
                 ConnectionSessionDTO dto = SessionConnectionHelper.sessionConnection(context, sessionInfo, true);
                 sessionConnection = dto.getConnection();
                 activeSessionInfo = dto.getSession();

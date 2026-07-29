@@ -5,7 +5,6 @@ import com.openjproxy.grpc.StatementRequest;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.dto.Parameter;
 import org.openjproxy.grpc.server.ConnectionSessionDTO;
@@ -242,7 +241,7 @@ public class ExecuteQueryAction implements Action<StatementRequest, OpResult> {
         // A session UUID being present is not sufficient — it may come from a previous
         // autoCommit SELECT.  We check the actual transaction state via hasActiveTransaction()
         // which does NOT trigger lazy primary connection acquisition.
-        if (StringUtils.isNotBlank(sessionUUID)) {
+        if (!sessionUUID.isBlank()) {
             Session existingSession = context.getSessionManager().getSession(request.getSession());
             if (existingSession == null) {
                 // Session has expired or been invalidated; fall back to primary to avoid
