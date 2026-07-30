@@ -348,6 +348,94 @@ proxy classes without `WELD-001524` errors. Add these to your `maven-surefire-pl
 
 ---
 
+## Runtime Dependencies
+
+The OJP JDBC driver marks two dependencies as `provided`, meaning they are **not** bundled
+inside the JAR and must be present on the classpath at runtime.
+
+| Provided dependency | Notes |
+|---|---|
+| `org.slf4j:slf4j-api` | Required for OJP driver logging. Must be on the server or application classpath. |
+| `jakarta.transaction:jakarta.transaction-api` | Required for JTA/XA support. Part of every Jakarta EE platform. |
+
+The table below shows how these are satisfied across common Jakarta EE and servlet runtimes.
+
+| Runtime | `slf4j-api` | `jakarta.transaction-api` | Action required |
+|---|---|---|---|
+| **GlassFish 7 / Payara** | ❌ Not on default server classpath | ✅ Part of EE platform | Add `slf4j-api` + an SLF4J impl (see below) |
+| **WildFly / JBoss EAP** | ✅ Included in the server's module system | ✅ Part of EE platform | No action needed |
+| **Open Liberty** | ✅ Included via `slf4j-1.7` feature | ✅ Part of EE platform | No action needed |
+| **TomEE** | ✅ Bundled with TomEE's logging layer | ✅ Part of EE platform | No action needed |
+| **Apache Tomcat** (servlet container only) | ❌ Not provided | ❌ Not provided | Add both explicitly (see below) |
+
+### GlassFish / Payara: adding SLF4J
+
+GlassFish and Payara do not include `slf4j-api` on their default server classpath. You have
+two options:
+
+**Option A — bundle in `WEB-INF/lib` (recommended for WAR deployments):**
+
+```xml
+<!-- In your pom.xml — these will be packaged inside WEB-INF/lib -->
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+    <version>2.0.17</version>
+</dependency>
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-simple</artifactId>
+    <version>2.0.17</version>
+</dependency>
+```
+
+**Option B — install on the server (shared across all applications):**
+
+```bash
+cp slf4j-api-2.0.17.jar $GLASSFISH_HOME/domains/domain1/lib/
+cp slf4j-simple-2.0.17.jar $GLASSFISH_HOME/domains/domain1/lib/
+```
+
+### Apache Tomcat: adding both SLF4J and JTA
+
+Apache Tomcat is a **servlet container**, not a full Jakarta EE application server. It does
+not supply `slf4j-api` or `jakarta.transaction-api` by default. Add both to your `pom.xml`:
+
+```xml
+<!-- SLF4J API (runtime logging) -->
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+    <version>2.0.17</version>
+</dependency>
+<!-- SLF4J implementation — Logback is a common choice for Tomcat apps -->
+<dependency>
+    <groupId>ch.qos.logback</groupId>
+    <artifactId>logback-classic</artifactId>
+    <version>1.5.18</version>
+</dependency>
+
+<!-- JTA API — required only if using OJP XA connections (OjpXADataSource) -->
+<!-- Omit if you are not using XA / distributed transactions -->
+<dependency>
+    <groupId>jakarta.transaction</groupId>
+    <artifactId>jakarta.transaction-api</artifactId>
+    <version>2.0.1</version>
+</dependency>
+```
+
+> **Tip:** On Java 11+ the `javax.transaction.xa.*` classes used by OJP's XA support are
+> also available from the JDK's own `java.transaction.xa` module, so you can omit
+> `jakarta.transaction-api` if you are not using XA transactions and your code does not
+> import `jakarta.transaction.*` interfaces directly.
+
+> **Classpath isolation:** Since OJP 0.5.x all third-party libraries bundled inside
+> `ojp-jdbc-driver` (gRPC, Netty, Protobuf, Guava, Commons Lang) are relocated to the
+> `org.openjproxy.shaded.*` namespace. This prevents conflicts whether the driver is deployed
+> inside a WAR or in the server's shared library directory.
+
+---
+
 ## Troubleshooting
 
 ### `NameNotFoundException` when running embedded tests
