@@ -2,7 +2,6 @@ package org.openjproxy.grpc.server.action.streaming;
 
 import com.openjproxy.grpc.SessionInfo;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.database.DatabaseUtils;
 import org.openjproxy.grpc.server.AdmissionControlManager;
 import org.openjproxy.grpc.server.ConnectionAcquisitionManager;
@@ -121,7 +120,7 @@ public class SessionConnectionHelper {
         Connection conn = null;
         var sessionManager = context.getSessionManager();
 
-        if (StringUtils.isNotEmpty(sessionInfo.getSessionUUID())) {
+        if (!sessionInfo.getSessionUUID().isEmpty()) {
             if (replicaDataSource != null) {
                 // Replica-routed request on an existing session: do not trigger lazy primary
                 // acquisition here.  ExecuteQueryAction will call

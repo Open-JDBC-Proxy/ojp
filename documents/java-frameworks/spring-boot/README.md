@@ -382,6 +382,26 @@ For full details on health check options see the [Multinode Configuration Guide]
 
 ---
 
+## Runtime Dependencies
+
+The OJP JDBC driver marks two dependencies as `provided`, meaning they are **not** bundled
+inside the JAR and must be present on the classpath at runtime.
+
+| Provided dependency | Supplied automatically by Spring Boot? |
+|---|---|
+| `org.slf4j:slf4j-api` | ✅ Yes — via `spring-boot-starter-logging` (Logback) |
+| `jakarta.transaction:jakarta.transaction-api` | ✅ Yes — via `spring-tx` (included in `spring-boot-starter-jdbc`) |
+
+No extra Maven dependencies are needed for Spring Boot applications. Both APIs are always on
+the classpath when you use `spring-boot-starter-jdbc` or `spring-boot-starter-ojp`.
+
+> **Classpath isolation:** Since OJP 0.5.x all third-party libraries bundled inside
+> `ojp-jdbc-driver` (gRPC, Netty, Protobuf, Guava, Commons Lang) are relocated to the
+> `org.openjproxy.shaded.*` namespace. Your application can use any version of these
+> libraries without version conflicts.
+
+---
+
 ## Troubleshooting
 
 ### Logging Configuration

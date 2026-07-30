@@ -99,12 +99,6 @@
             <version>${protobuf.version}</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/kr.motd.maven/os-maven-plugin -->
-        <dependency>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>${os-maven-plugin.version}</version>
-        </dependency>
     </dependencies>
 
     <build>

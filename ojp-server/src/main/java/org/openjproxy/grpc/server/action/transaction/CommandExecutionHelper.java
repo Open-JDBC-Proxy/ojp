@@ -6,7 +6,6 @@ import com.openjproxy.grpc.StatementRequest;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.openjproxy.grpc.server.CircuitBreaker;
 import org.openjproxy.grpc.server.PoolNotFoundException;
 import org.openjproxy.grpc.server.AdmissionControlManager;
@@ -39,7 +38,7 @@ public class CommandExecutionHelper {
                                        StatementExecution executionLogic, SqlErrorType sqlDataExceptionType, String operationName) {
 
         // Ensure session isn't null
-        if (StringUtils.isBlank(request.getSession().getConnHash())) {
+        if (request.getSession().getConnHash().isBlank()) {
             sendSQLExceptionMetadata(new SQLException("Invalid request: Session or ConnHash is missing"), responseObserver);
             log.error("Invalid {} request: Session or ConnHash is missing", operationName);
             return;
@@ -180,7 +179,7 @@ public class CommandExecutionHelper {
      */
     static boolean sessionHoldsPermit(ActionContext context, StatementRequest request) {
         try {
-            if (StringUtils.isBlank(request.getSession().getSessionUUID())) {
+            if (request.getSession().getSessionUUID().isBlank()) {
                 return false;
             }
             org.openjproxy.grpc.server.Session session =
