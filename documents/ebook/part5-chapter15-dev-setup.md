@@ -469,7 +469,7 @@ public class MyIntegrationTest {
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-testcontainers</artifactId>
-    <version>0.5.2-beta</version>
+    <version>0.5.3-beta</version>
     <scope>test</scope>
 </dependency>
 ```
