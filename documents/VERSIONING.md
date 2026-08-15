@@ -97,7 +97,7 @@ lts/1.0:  1.0.1-SNAPSHOT   ← receives bug/security fixes only
 main:     1.1.0-SNAPSHOT    ← receives new features
 ```
 
-See [`documents/guides/LTS_BRANCHING.md`](LTS_BRANCHING.md) for the exact commands.
+See [`documents/guides/LTS_BRANCHING.md`](guides/LTS_BRANCHING.md) for the exact commands.
 
 ---
 

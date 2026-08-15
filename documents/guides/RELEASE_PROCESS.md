@@ -205,8 +205,8 @@ From `1.0.0` onwards, release versions are plain semver with no suffix:
 > because new backwards-compatible features belong in the next minor version.
 > The `lts/X.Y` branch owns `X.Y.z` patch maintenance.
 
-See [`documents/VERSIONING.md`](../VERSIONING.md) for full version attribution rules
-and [`documents/guides/LTS_BRANCHING.md`](LTS_BRANCHING.md) for LTS branch creation.
+See [`documents/VERSIONING.md`](VERSIONING.md) for full version attribution rules
+and [`documents/guides/LTS_BRANCHING.md`](guides/LTS_BRANCHING.md) for LTS branch creation.
 
 The version update is performed by Maven Versions Plugin:
 
