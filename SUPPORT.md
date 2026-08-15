@@ -8,7 +8,7 @@ This document describes which versions of Open J Proxy receive active maintenanc
 
 | Version line | Status   | Support type          | End of support |
 |---|---|---|---|
-| `1.0.x`      | **LTS**  | Bug + security fixes  | 3 years from `1.0.0` GA release (targeting August 2029) |
+| `1.0.x`      | **LTS**  | Bug + security fixes  | 3 years from `1.0.0` GA release (targeting September 20, 2029) |
 | `main` / latest | **Current** | All changes | Rolling — no fixed end date |
 
 ---

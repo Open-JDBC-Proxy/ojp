@@ -30,7 +30,7 @@ This document outlines the planned releases and key milestones for the Open J Pr
 
 ---
 
-## 🎯 Version 1.0.0 — August 2026
+## 🎯 Version 1.0.0 — September 20, 2026
 
 **Theme: Production Ready (LTS)**
 
