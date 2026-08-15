@@ -191,22 +191,22 @@ apply the appropriate label before merging it. A fixed **Artifacts** footer
 
 ### Version Scheme
 
-| Current (SNAPSHOT) | Released as | Next dev |
-|--------------------|-------------|----------|
-| `0.4.1-SNAPSHOT` | `0.4.2-beta` | `0.4.2-SNAPSHOT` |
-| `0.5.0-SNAPSHOT` | `0.5.0-beta` | `0.5.1-SNAPSHOT` |
-| `1.0.0-SNAPSHOT` | `1.0.0-GA` ¹ | `1.0.1-SNAPSHOT` |
+From `1.0.0` onwards, release versions are plain semver with no suffix:
 
-> ¹ After `1.0.0-GA` the `-beta` suffix will be removed. In `release.yml`,
-> in the `Compute versions` step, change:
-> ```bash
-> RELEASE="${BASE}-beta"
-> ```
-> to:
-> ```bash
-> RELEASE="${BASE}"
-> ```
-> See also [Remove the `-beta` suffix after `1.0.0-GA`](#1-remove-the--beta-suffix-after-100-ga) in the Suggestions section.
+| Branch | Current (SNAPSHOT) | Released as | Next dev |
+|---|---|---|---|
+| `main` | `1.0.0-SNAPSHOT` | `1.0.0` | `1.1.0-SNAPSHOT` ¹ |
+| `main` | `1.1.0-SNAPSHOT` | `1.1.0` | `1.2.0-SNAPSHOT` ¹ |
+| `main` | `1.1.1-SNAPSHOT` | `1.1.1` | `1.1.2-SNAPSHOT` |
+| `lts/1.0` | `1.0.1-SNAPSHOT` | `1.0.1` | `1.0.2-SNAPSHOT` |
+| `lts/1.0` | `1.0.8-SNAPSHOT` | `1.0.8` | `1.0.9-SNAPSHOT` |
+
+> ¹ On `main`, after any `X.Y.0` release the next dev version advances to `X.(Y+1).0-SNAPSHOT`
+> because new backwards-compatible features belong in the next minor version.
+> The `lts/X.Y` branch owns `X.Y.z` patch maintenance.
+
+See [`documents/VERSIONING.md`](../VERSIONING.md) for full version attribution rules
+and [`documents/guides/LTS_BRANCHING.md`](LTS_BRANCHING.md) for LTS branch creation.
 
 The version update is performed by Maven Versions Plugin:
 
@@ -513,14 +513,10 @@ not be baked into the public Docker image.
 
 ## Suggestions for Future Improvements
 
-### 1. Remove the `-beta` suffix after `1.0.0-GA`
+### 1. ~~Remove the `-beta` suffix after `1.0.0-GA`~~ ✅ Implemented
 
-Update the `Compute versions` step in `release.yml` to use `BASE` directly instead
-of appending `-beta`:
-
-```bash
-RELEASE="${BASE}"   # instead of: RELEASE="${BASE}-beta"
-```
+The release workflow now produces plain `X.Y.Z` versions (no suffix) for all GA releases
+from `1.0.0` onwards. The `-beta` path has been removed.
 
 ### 2. Semantic versioning automation
 
