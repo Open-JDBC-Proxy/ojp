@@ -249,7 +249,7 @@ classDiagram
 <dependency>
     <groupId>org.openjproxy</groupId>
     <artifactId>ojp-jdbc-driver</artifactId>
-    <version>0.5.3-beta</version>
+    <version>0.5.4-beta</version>
 </dependency>
 ```
 
