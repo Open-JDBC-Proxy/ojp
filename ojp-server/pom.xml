@@ -17,7 +17,6 @@
 
     <properties>
         <grpc.version>1.82.0</grpc.version>
-        <netty.version>4.1.135.Final</netty.version>
         <slf4j.version>2.0.17</slf4j.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
