@@ -17,9 +17,9 @@
     </parent>
 
     <properties>
-        <slf4j.version>2.0.17</slf4j.version>
+        <slf4j.version>2.0.18</slf4j.version>
         <commons-pool2.version>2.13.1</commons-pool2.version>
-        <opentelemetry.version>1.62.0</opentelemetry.version>
+        <opentelemetry.version>1.65.0</opentelemetry.version>
     </properties>
 
     <dependencies>
@@ -51,7 +51,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.14.3</version>
+            <version>5.14.4</version>
             <scope>test</scope>
         </dependency>
 

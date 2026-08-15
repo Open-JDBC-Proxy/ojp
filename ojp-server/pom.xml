@@ -18,7 +18,7 @@
     <properties>
         <grpc.version>1.83.1</grpc.version>
         <netty.version>4.2.17.Final</netty.version>
-        <slf4j.version>2.0.17</slf4j.version>
+        <slf4j.version>2.0.18</slf4j.version>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
     </properties>
@@ -101,7 +101,7 @@
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
-            <version>7.0.2</version>
+            <version>7.1.0</version>
         </dependency>
 
         <!-- JTA API (required for XA transaction support) -->
@@ -116,14 +116,14 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
-            <version>4.5.0</version>
+            <version>4.6.0</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/commons-io/commons-io -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.21.0</version>
+            <version>2.22.0</version>
         </dependency>
 
 
@@ -155,7 +155,18 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.62.0</version>
+            <version>1.65.0</version>
+        </dependency>
+
+        <!-- OpenTelemetry API Incubator - explicitly pinned to override the older 1.64.0-alpha
+             pulled transitively via opentelemetry-instrumentation-api. Required because
+             opentelemetry-sdk-metrics:1.65.0 (ExtendedSdkDoubleHistogram) implements
+             BoundDoubleHistogram which was introduced in opentelemetry-api-incubator:1.65.0-alpha. -->
+        <!-- https://mvnrepository.com/artifact/io.opentelemetry/opentelemetry-api-incubator -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api-incubator</artifactId>
+            <version>1.65.0-alpha</version>
         </dependency>
 
         <!-- OpenTelemetry SDK -->
@@ -163,15 +174,18 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk</artifactId>
-            <version>1.62.0</version>
+            <version>1.65.0</version>
         </dependency>
 
         <!-- OpenTelemetry gRPC instrumentation -->
         <!-- https://mvnrepository.com/artifact/io.opentelemetry.instrumentation/opentelemetry-grpc-1.6 -->
+        <!-- Upgraded from 2.17.1-alpha: that version compiled against opentelemetry-api:1.51.0 where
+             InstrumentationUtil was in api.internal; api:1.65.0 moved it to api.impl (binary incompatibility).
+             2.29.0-alpha was compiled against api:1.63.0 which already uses api.impl. -->
         <dependency>
             <groupId>io.opentelemetry.instrumentation</groupId>
             <artifactId>opentelemetry-grpc-1.6</artifactId>
-            <version>2.17.1-alpha</version>
+            <version>2.29.0-alpha</version>
         </dependency>
 
         <!-- Prometheus exporter -->
@@ -187,7 +201,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-zipkin</artifactId>
-            <version>1.62.0</version>
+            <version>1.64.0</version>
         </dependency>
 
         <!-- OTLP trace exporter (alternative to Zipkin, e.g. for Jaeger/Tempo) -->
@@ -195,7 +209,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
-            <version>1.62.0</version>
+            <version>1.65.0</version>
         </dependency>
 
         <!-- HTTP server for metrics endpoint -->
@@ -219,7 +233,7 @@
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
-            <version>3.1.8</version>
+            <version>3.2.4</version>
         </dependency>
 
         <!-- JSqlParser - SQL parsing library for table extraction (Phase 8) -->
@@ -242,7 +256,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.14.3</version>
+            <version>5.14.4</version>
             <scope>test</scope>
         </dependency>
 
@@ -258,7 +272,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
-            <version>5.14.3</version>
+            <version>5.14.4</version>
             <scope>test</scope>
         </dependency>
 
@@ -275,7 +289,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-sdk-testing</artifactId>
-            <version>1.62.0</version>
+            <version>1.65.0</version>
             <scope>test</scope>
         </dependency>
 
