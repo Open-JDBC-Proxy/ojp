@@ -143,10 +143,11 @@
 
         <!-- https://mvnrepository.com/artifact/at.yawk.lz4/lz4-java -->
         <!-- Replaced net.jpountz.lz4:lz4 to fix CVE-2025-66566, CVE-2025-12183 -->
+        <!-- Upgraded from 1.10.4 to 1.11.2 to fix CVE-2026-59949 -->
         <dependency>
             <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <version>1.10.4</version>
+            <version>1.11.2</version>
         </dependency>
 
         <!-- OpenTelemetry API -->
