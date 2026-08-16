@@ -3,6 +3,11 @@
 This document describes the automated one-click release process for all OJP modules and
 the manual steps still required when the automated workflow cannot be used.
 
+> **Releasing 1.0.0 GA?** Use the dedicated runbook:
+> [`RELEASE_1_0_0.md`](RELEASE_1_0_0.md). It covers the recommended Release Candidate
+> (RC) strategy, pre-release checklist, manual fallback steps, LTS branch setup, and
+> rollback guidance specific to the first GA release.
+
 ---
 
 ## Table of Contents

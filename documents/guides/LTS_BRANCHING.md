@@ -23,6 +23,10 @@ v1.0.0 (tag)
 
 ## Step-by-step: releasing 1.0.0 and setting up LTS
 
+> **First-time 1.0.0 release?** See [`RELEASE_1_0_0.md`](RELEASE_1_0_0.md) for the complete
+> runbook, including the recommended Release Candidate (RC) strategy that reduces the risk
+> of having to ship an emergency patch immediately after GA.
+
 ### 1. Release 1.0.0 from `main`
 
 The repository is currently on `1.0.0-SNAPSHOT` on `main`.
