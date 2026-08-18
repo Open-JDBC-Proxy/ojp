@@ -2,6 +2,8 @@
 
 Modern software development involves countless design decisions and trade-offs. The Open J Proxy project represents years of architectural evolution, with each implementation choice carefully considered to balance performance, maintainability, and flexibility. This chapter explores three critical implementation decisions that shaped OJP's architecture: driver externalization, the pool disable capability, and the XA Connection Pool Provider SPI. Understanding these design choices provides insights into how OJP achieves its goals of flexibility and efficiency.
 
+At the time of writing, OJP is documented as a JDBC 4.2-compliant driver rather than a full JDBC 4.3 implementation. It runs on newer Java runtimes where needed, but the project's documented JDBC contract still centers on JDBC 4.2 compatibility.
+
 ## 19.1 Driver Externalization
 
 > **📌 Version 0.4.0-beta Change:** Starting from version 0.4.0-beta, JDBC drivers are **NO LONGER included** in the OJP Server JAR. Users must download drivers and place them in the `ojp-libs` folder before running ojp-server.
@@ -135,4 +137,3 @@ Driver externalization moved complexity from compile-time to runtime, trading a 
 Each feature emerged from real-world usage patterns and feedback. They weren't theoretical exercises in over-engineering—they solved actual problems encountered by OJP users. This pragmatic approach, combined with thoughtful architecture, positions OJP as a production-ready solution that scales from prototype to enterprise deployment.
 
 As you architect your own database access layer or evaluate connection management solutions, consider these implementation patterns. When should you externalize dependencies? How can configuration drive behavior without code changes? Where do extension points add value? The answers vary by context, but the patterns remain applicable across diverse technical domains.
-
