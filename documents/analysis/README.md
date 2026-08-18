@@ -15,7 +15,7 @@ This directory contains technical analysis documents for various OJP features an
   - Current support position
   - What already works through JDK defaults
   - Recommendation on when to claim JDBC 4.3
-  
+
 - **Full Analysis**: [JDBC_4_3_SUPPORT_ANALYSIS.md](./JDBC_4_3_SUPPORT_ANALYSIS.md)
   - Evidence from current code and tests
   - Gap analysis for JDBC 4.3 builders and sharding APIs

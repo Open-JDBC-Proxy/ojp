@@ -34,8 +34,8 @@ This matters because product claims should match both code behavior and the docu
 
 The runtime story is newer than the JDBC contract:
 
-- The root build targets **Java 11** (`/home/runner/work/ojp/ojp/pom.xml`)
-- The server module targets **Java 25** (`/home/runner/work/ojp/ojp/ojp-server/pom.xml`)
+- The root build targets **Java 11** (`pom.xml`)
+- The server module targets **Java 25** (`ojp-server/pom.xml`)
 
 That means OJP is compiled in an environment where JDBC 4.3 interfaces and default methods exist. This explains why some JDBC 4.3 methods are available even when OJP does not explicitly implement them.
 
