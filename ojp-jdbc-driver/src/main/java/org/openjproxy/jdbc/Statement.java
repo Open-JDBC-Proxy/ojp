@@ -53,6 +53,7 @@ public class Statement implements java.sql.Statement {
 
     protected void resetMoreResultsState() {
         this.moreResultsExhausted = false;
+        this.lastUpdateCount = -1;
     }
 
     public Statement(Connection connection, StatementService statementService) {
