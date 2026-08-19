@@ -40,7 +40,12 @@ public class Statement implements java.sql.Statement {
 
     protected boolean closed;
     protected ResultSet lastResultSet;
-    protected int lastUpdateCount;
+    // JDBC contract: -1 means "no update count" (i.e., the last executed statement returned a
+    // ResultSet, or no statement has been executed yet). 0 has a different, valid meaning
+    // ("an update statement affected 0 rows") and must never be used as the default here,
+    // otherwise callers relying on getUpdateCount()==-1 to detect "no more results" (e.g. DataGrip)
+    // will incorrectly believe another result is pending and hang waiting for it.
+    protected int lastUpdateCount = -1;
 
     public Statement(Connection connection, StatementService statementService) {
         this(connection, statementService, null);
@@ -123,6 +128,7 @@ public class Statement implements java.sql.Statement {
     public ResultSet executeQuery(String sql) throws SQLException {
         log.debug("executeQuery: {}", sql);
         checkClosed();
+        this.lastUpdateCount = -1;
         ClientThrottleManager throttle = this.connection.getThrottleManager();
         ClientThrottleMode mode = this.connection.getThrottleMode();
         // getAutoCommit() may throw SQLException; evaluate before acquiring a slot

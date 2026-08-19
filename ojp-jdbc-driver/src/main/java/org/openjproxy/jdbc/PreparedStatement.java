@@ -110,6 +110,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public ResultSet executeQuery() throws SQLException {
         log.debug("executeQuery called");
         this.checkClosed();
+        this.lastUpdateCount = -1;
         log.info("Executing query for -> {}", this.sql);
         ClientThrottleManager throttle = this.connection.getThrottleManager();
         ClientThrottleMode mode = this.connection.getThrottleMode();
