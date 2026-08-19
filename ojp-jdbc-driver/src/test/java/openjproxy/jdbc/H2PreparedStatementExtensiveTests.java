@@ -222,6 +222,46 @@ public class H2PreparedStatementExtensiveTests {
         }
     }
 
+    /**
+     * Regression test for {@code SqlStatementClassifier}: a CTE (WITH ...) must be routed to
+     * executeQuery by execute(), not just a plain SELECT prefix.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testExecuteWithCommonTableExpression(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+        Statement stmt = connection.createStatement();
+        stmt.execute("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (20, 'Cte', 40)");
+        stmt.close();
+
+        ps = connection.prepareStatement(
+                "WITH cte AS (SELECT * FROM h2_prepared_stmt_test WHERE id = 20) SELECT * FROM cte");
+        boolean isResultSet = ps.execute();
+        assertTrue(isResultSet);
+        ResultSet rs = ps.getResultSet();
+        assertNotNull(rs);
+        assertTrue(rs.next());
+        rs.close();
+        assertEquals(-1, ps.getUpdateCount());
+    }
+
+    /**
+     * Regression test for {@code SqlStatementClassifier}: a leading SQL comment before SELECT
+     * must not prevent the statement from being recognized as query-shaped.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testExecuteWithLeadingCommentBeforeSelect(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+        ps = connection.prepareStatement("-- a leading comment\nSELECT * FROM h2_prepared_stmt_test");
+        boolean isResultSet = ps.execute();
+        assertTrue(isResultSet);
+        ResultSet rs = ps.getResultSet();
+        assertNotNull(rs);
+        rs.close();
+        assertEquals(-1, ps.getUpdateCount());
+    }
+
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
     void testMetaDataAndWarnings(String driverClass, String url, String user, String password) throws Exception {
