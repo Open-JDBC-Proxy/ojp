@@ -263,8 +263,7 @@ public class Statement implements java.sql.Statement {
     public boolean execute(String sql) throws SQLException {
         log.debug("execute: {}", sql);
         checkClosed();
-        String trimmedSql = sql.trim().toUpperCase();
-        if (trimmedSql.startsWith("SELECT")) {
+        if (SqlStatementClassifier.looksLikeQuery(sql)) {
             // Delegate to executeQuery
             ResultSet resultSet = this.executeQuery(sql);
             // Store the ResultSet for later retrieval if needed
