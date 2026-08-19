@@ -1,7 +1,6 @@
 package org.openjproxy.jdbc;
 
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /**
  * Best-effort static classifier that decides, without executing the SQL, whether a statement
@@ -24,9 +23,6 @@ import java.util.regex.Pattern;
  */
 final class SqlStatementClassifier {
 
-    private static final Pattern LEADING_COMMENTS = Pattern.compile(
-            "\\A(\\s*(--[^\\n]*\\n|/\\*.*?\\*/))*\\s*", Pattern.DOTALL);
-
     private static final String[] RESULT_SET_PREFIXES = {
         "SELECT", "WITH", "EXEC ", "EXEC(", "EXECUTE ", "EXECUTE(", "CALL ", "CALL(",
         "SHOW ", "DESCRIBE ", "DESC ", "EXPLAIN ", "VALUES ", "VALUES(", "PRAGMA ", "SP_",
@@ -47,13 +43,44 @@ final class SqlStatementClassifier {
         if (sql == null) {
             return false;
         }
-        String withoutLeadingComments = LEADING_COMMENTS.matcher(sql).replaceFirst("");
-        String upperSql = withoutLeadingComments.trim().toUpperCase(Locale.ROOT);
+        String withoutLeadingComments = skipLeadingWhitespaceAndComments(sql);
+        String upperSql = withoutLeadingComments.toUpperCase(Locale.ROOT);
         for (String prefix : RESULT_SET_PREFIXES) {
             if (upperSql.startsWith(prefix)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Skips leading whitespace and SQL comments ({@code --} line comments and {@code /* *}{@code /}
+     * block comments) from the given text, using a manual scan instead of a repeated-group regex
+     * to avoid catastrophic backtracking on large inputs.
+     *
+     * @param sql the raw SQL text
+     * @return the text with leading whitespace/comments removed
+     */
+    private static String skipLeadingWhitespaceAndComments(String sql) {
+        int length = sql.length();
+        int index = 0;
+        boolean advanced = true;
+        while (advanced) {
+            advanced = false;
+            while (index < length && Character.isWhitespace(sql.charAt(index))) {
+                index++;
+                advanced = true;
+            }
+            if (index + 1 < length && sql.charAt(index) == '-' && sql.charAt(index + 1) == '-') {
+                int newLine = sql.indexOf('\n', index + 2);
+                index = newLine < 0 ? length : newLine + 1;
+                advanced = true;
+            } else if (index + 1 < length && sql.charAt(index) == '/' && sql.charAt(index + 1) == '*') {
+                int endComment = sql.indexOf("*/", index + 2);
+                index = endComment < 0 ? length : endComment + 2;
+                advanced = true;
+            }
+        }
+        return sql.substring(index);
     }
 }
