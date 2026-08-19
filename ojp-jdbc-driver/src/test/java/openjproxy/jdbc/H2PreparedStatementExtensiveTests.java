@@ -179,6 +179,49 @@ public class H2PreparedStatementExtensiveTests {
         try { ps.executeLargeUpdate(); } catch (Exception ignore) {}
     }
 
+    /**
+     * Regression test for PR #580: {@code getUpdateCount()} must return {@code -1} (not the
+     * implicit {@code int} default of {@code 0}) right after {@code executeQuery()} on a fresh
+     * {@link PreparedStatement}, otherwise clients relying on {@code getUpdateCount()==-1} to
+     * detect the end of result processing (e.g. DataGrip) believe an update result is still
+     * pending and hang.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testGetUpdateCountIsMinusOneAfterExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
+        ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
+        ps.setInt(1, 10);
+        try (ResultSet rs = ps.executeQuery()) {
+            assertEquals(-1, ps.getUpdateCount());
+        }
+    }
+
+    /**
+     * Regression test for PR #580: {@code execute()} on an UPDATE/INSERT sets a valid (>=0)
+     * update count, but {@code getUpdateCount()} on a different, freshly created
+     * {@link PreparedStatement} bound to a SELECT must still report {@code -1} rather than
+     * leaking the previous statement's update count via any shared state.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testGetUpdateCountResetsToMinusOneWhenQueryFollowsAnUpdate(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+
+        ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
+        ps.setInt(1, 20); ps.setString(2, "Bob"); ps.setInt(3, 40);
+        boolean isResultSet = ps.execute();
+        assertFalse(isResultSet);
+        assertEquals(1, ps.getUpdateCount());
+
+        ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
+        ps.setInt(1, 20);
+        try (ResultSet rs = ps.executeQuery()) {
+            assertEquals(-1, ps.getUpdateCount());
+        }
+    }
+
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
     void testMetaDataAndWarnings(String driverClass, String url, String user, String password) throws Exception {

@@ -58,6 +58,33 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
+    void testGetUpdateCountIsMinusOneAfterExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
+        // Regression test for PR #580: getUpdateCount() must return -1 (not 0) right after
+        // executeQuery(), otherwise clients relying on getUpdateCount()==-1 to detect the end
+        // of result processing (e.g. DataGrip) believe an update result is still pending.
+        this.setUp(driverClass, url, user, password);
+        ResultSet rs = statement.executeQuery("SELECT * FROM h2_statement_test");
+        assertEquals(-1, statement.getUpdateCount());
+        rs.close();
+    }
+
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testGetUpdateCountResetsToMinusOneWhenQueryFollowsAnUpdate(String driverClass, String url, String user, String password) throws Exception {
+        // Regression test for PR #580: execute() on an UPDATE sets a valid (>=0) update count,
+        // but a subsequent executeQuery() on the same Statement must reset it back to -1.
+        this.setUp(driverClass, url, user, password);
+        boolean isResultSet = statement.execute("UPDATE h2_statement_test SET name = 'Updated Alice' WHERE id = 1");
+        assertFalse(isResultSet);
+        assertEquals(1, statement.getUpdateCount());
+
+        ResultSet rs = statement.executeQuery("SELECT name FROM h2_statement_test WHERE id = 1");
+        assertEquals(-1, statement.getUpdateCount());
+        rs.close();
+    }
+
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
     void testExecuteUpdate(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int rows = statement.executeUpdate("UPDATE h2_statement_test SET name = 'Updated Alice' WHERE id = 1");
