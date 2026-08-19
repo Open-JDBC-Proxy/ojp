@@ -219,6 +219,7 @@ public class ConnectAction implements Action<ConnectionDetails, SessionInfo> {
                                 .connectionTimeoutMs(CommonConstants.FAIL_FAST_POOL_CONNECTION_TIMEOUT_MS)
                                 .idleTimeoutMs(dsConfig.getIdleTimeout())
                                 .maxLifetimeMs(dsConfig.getMaxLifetime())
+                                .leakDetectionThresholdMs(dsConfig.getLeakDetectionThreshold())
                                 .defaultTransactionIsolation(defaultTransactionIsolation)
                                 .properties(statementCacheProperties)
                                 .metricsPrefix("OJP-Pool-" + dsConfig.getDataSourceName())

@@ -180,6 +180,12 @@ Controls how the server batches rows into gRPC streaming messages when returning
 - The default of 100 matches the historical behaviour and is a safe starting point for most workloads.
 - Values below 1 or above 10000 are rejected and the default is used instead.
 
+### Connection Pool Settings
+
+| Property                                       | Environment Variable                           | Type | Default | Description                                       | Since |
+|-------------------------------------------------|-------------------------------------------------|------|---------|-----------------------------------------------------|-------|
+| `ojp.connection.pool.leakDetectionThreshold`   | `OJP_CONNECTION_POOL_LEAKDETECTIONTHRESHOLD`   | long | 0       | HikariCP leak detection threshold (ms). `0` = disabled. Leave at `0` unless diagnosing abandoned sessions — OJP holds one physical connection per client session by design, so any non-zero value will produce false-positive warnings for long-lived sessions (e.g. SQL IDEs). | 0.5.4-SNAPSHOT |
+
 ### Slow Query Segregation Settings
 
 | Property                                           | Environment Variable                               | Type    | Default  | Description                                      | Since |
