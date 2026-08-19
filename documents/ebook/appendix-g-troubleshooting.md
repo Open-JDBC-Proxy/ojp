@@ -812,7 +812,7 @@ When one pool exhausts its connections, it can trigger exhaustion in other pools
 **Prevention strategies**:
 - Configure appropriate maximum pool sizes: `hikariCP.maximumPoolSize`
 - Implement connection acquisition timeouts: `hikariCP.connectionTimeout=30000`
-- Use HikariCP's leak detection: `hikariCP.leakDetectionThreshold=300000`
+- Use HikariCP's leak detection: `ojp.connection.pool.leakDetectionThreshold=300000` (note: enabling this in OJP may produce false-positive warnings for normal long-lived client sessions, since OJP holds one connection per session by design)
 - Deploy sufficient OJP server capacity with headroom for traffic spikes
 - Implement application-level retry limits to prevent request amplification
 
@@ -1103,8 +1103,11 @@ Applications that don't close connections exhaust connection pools, causing new 
 
 **Detection**:
 ```properties
-# Enable HikariCP leak detection
-hikariCP.leakDetectionThreshold=60000  # 60 seconds
+# Enable HikariCP leak detection (default: 0 = disabled)
+# Note: enabling this in OJP may produce false-positive warnings for normal
+# long-lived sessions, since OJP intentionally holds one connection per
+# client session for the entire session lifetime by design.
+ojp.connection.pool.leakDetectionThreshold=60000  # 60 seconds
 ```
 
 Leaked connections appear in logs:

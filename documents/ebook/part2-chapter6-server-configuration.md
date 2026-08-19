@@ -559,6 +559,14 @@ Each replica has its own connection pool. Size it to handle peak read traffic in
 
 For the complete property reference see [OJP JDBC Configuration — Read/Write Splitting](../../documents/configuration/ojp-jdbc-configuration.md#readwrite-splitting-configuration).
 
+### 6.8.5 Connection Pool Leak Detection
+
+| Property | Default | Description |
+|---|---|---|
+| `ojp.connection.pool.leakDetectionThreshold` | `0` | HikariCP leak detection threshold (ms). `0` = disabled. |
+
+The default is `0` (disabled) because OJP intentionally holds one physical connection per client session for the entire lifetime of that session — that's the whole point of the proxy. HikariCP's leak detector, however, is designed around the assumption that connections are borrowed and returned quickly, so enabling it produces false-positive "leak" warnings for tools with long-lived sessions (e.g. SQL IDEs). Only set this to a non-zero value temporarily, when you need to diagnose genuinely abandoned sessions, and turn it back off afterward.
+
 ## Summary
 
 OJP server configuration gives you precise control over server behavior, security, performance, and observability. The hierarchical configuration system with JVM properties and environment variables provides flexibility for different deployment scenarios. Default settings work well for most use cases, but understanding the available options lets you optimize for your specific workload.
