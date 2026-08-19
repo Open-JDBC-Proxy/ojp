@@ -223,8 +223,19 @@ public class MultinodeXAIntegrationTest {
         // 4. Keepalive phase
         // After the SQL phase the test assertions are done, but the CI kill/restart verification
         // cycle is still running.  Without this phase the Maven JVM would exit immediately,
-        // killing the daemon health-check thread and closing all XA pool connections so that
-        // pg_stat_activity drops below the CI threshold.
+        // killing the daemon health-check thread.
+        //
+        // Each iteration creates a fresh XAConnection so that the current cluster-health
+        // (number of healthy servers) is included in the connect() RPC sent to the surviving
+        // server.  The server's MultinodePoolCoordinator uses this to recalculate minIdle:
+        //   - 2 healthy servers → minIdle = ceil(20/2) = 10 per server (total 20)
+        //   - 1 healthy server  → minIdle = ceil(20/1) = 20 on survivor (total 20)
+        // HikariCP then proactively creates connections to reach the new minIdle, keeping
+        // pg_stat_activity at or above the CI threshold of 20 throughout kill/restart cycles.
+        //
+        // Using DriverManager (non-XA) here would NOT work: the cluster-health push from
+        // pushClusterHealthToAllHealthyServers() only covers non-XA pools; XA pools are
+        // updated only when a new XA connect() RPC is sent with the updated health value.
         //
         // The CI signals us to stop by creating /tmp/multinode-xa-ci-done.
         // We also enforce a hard cap (KEEPALIVE_MAX_MS) so we never block indefinitely.
@@ -236,10 +247,13 @@ public class MultinodeXAIntegrationTest {
         File ciDoneFile = new File("/tmp/multinode-xa-ci-done");
         long keepaliveEnd = System.currentTimeMillis() + KEEPALIVE_MAX_MS;
         while (!ciDoneFile.exists() && System.currentTimeMillis() < keepaliveEnd) {
-            try (Connection conn = java.sql.DriverManager.getConnection(url, user, password)) {
-                // Intentionally empty: opening the connection is enough to keep
-                // the XA pool populated so the health-check daemon thread continues
-                // to monitor and push cluster-health updates.
+            try {
+                XAConnection xaConn = xaDataSource.getXAConnection();
+                try {
+                    xaConn.getConnection(); // sends connect() RPC with current cluster health
+                } finally {
+                    xaConn.close();
+                }
             } catch (Exception ignored) {
                 // Expected during server kills/restarts
             }
