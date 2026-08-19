@@ -855,10 +855,11 @@ jobs:
 
       - name: Wait for OJP servers to start
         run: |
-          echo "Waiting for servers to start..."
-          sleep 15
-          echo "Checking if servers are listening..."
-          netstat -tuln | grep -E ':(10591|10592)' || echo "Warning: Servers might not be listening yet"
+          echo "Waiting for OJP servers to open gRPC ports 10591 and 10592..."
+          timeout 120 bash -c 'until nc -z localhost 10591; do sleep 1; done'
+          echo "✓ Port 10591 is open"
+          timeout 120 bash -c 'until nc -z localhost 10592; do sleep 1; done'
+          echo "✓ Port 10592 is open"
 
       - name: Build (ojp-jdbc-driver) with JDK 25
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
@@ -874,8 +875,12 @@ jobs:
           nohup mvn test -pl ojp-jdbc-driver -Dtest=MultinodeIntegrationTest -DmultinodeTestsEnabled=true -Dgpg.skip=true > temp/MultinodeIntegrationTest.log 2>&1 &
           echo $! > temp/multinode-test.pid
           echo "MultinodeIntegrationTest started with PID $(cat temp/multinode-test.pid)"
-          # Give test time to start
-          sleep 20
+          # Wait until the test's SQL phase completes and the keepalive phase begins,
+          # indicated by the sentinel file /tmp/multinode-queries-done.
+          # This avoids a fixed sleep that may be too short on a slow runner.
+          echo "Waiting for MultinodeIntegrationTest to enter keepalive phase..."
+          timeout 600 bash -c 'until [ -f /tmp/multinode-queries-done ]; do sleep 5; done'
+          echo "✓ MultinodeIntegrationTest is in keepalive phase — connections are established"
 
       # Verify connection pooling is working correctly
       # Expected: 20-24 connections (10-12 per server)
@@ -1123,7 +1128,9 @@ jobs:
             echo "✗ Test failed"
             exit 1
           else
-            echo "⚠ Could not determine test status"
+            echo "✗ Could not determine test status — BUILD SUCCESS not found in log"
+            cat temp/MultinodeIntegrationTest.log || true
+            exit 1
           fi
 
       # Show logs for debugging (runs even if test fails)
@@ -1262,10 +1269,11 @@ jobs:
 
       - name: Wait for OJP servers to start
         run: |
-          echo "Waiting for servers to start..."
-          sleep 15
-          echo "Checking if servers are listening..."
-          netstat -tuln | grep -E ':(10591|10592)' || echo "Warning: Servers might not be listening yet"
+          echo "Waiting for OJP servers to open gRPC ports 10591 and 10592..."
+          timeout 120 bash -c 'until nc -z localhost 10591; do sleep 1; done'
+          echo "✓ Port 10591 is open"
+          timeout 120 bash -c 'until nc -z localhost 10592; do sleep 1; done'
+          echo "✓ Port 10592 is open"
 
       - name: Build (ojp-jdbc-driver) with JDK 25
         run: mvn clean install -pl ojp-jdbc-driver -am -DskipTests -Dgpg.skip=true
@@ -1282,8 +1290,12 @@ jobs:
           nohup mvn test -pl ojp-jdbc-driver -Dtest=MultinodeXAIntegrationTest -DmultinodeXATestsEnabled=true -Dgpg.skip=true -Dorg.slf4j.simpleLogger.log.org.openjproxy=DEBUG -Dorg.slf4j.simpleLogger.log.org.openjproxy.jdbc.ResultSet=INFO -Dmultinode.ojp.connection.pool.enabled=false > temp/MultinodeXAIntegrationTest.log 2>&1 &
           echo $! > temp/multinode-xa-test.pid
           echo "MultinodeXAIntegrationTest started with DEBUG logging, PID $(cat temp/multinode-xa-test.pid)"
-          # Give test time to start
-          sleep 20
+          # Wait until the test's SQL phase completes and the keepalive phase begins,
+          # indicated by the sentinel file /tmp/multinode-xa-queries-done.
+          # This avoids a fixed sleep that may be too short on a slow runner.
+          echo "Waiting for MultinodeXAIntegrationTest to enter keepalive phase..."
+          timeout 600 bash -c 'until [ -f /tmp/multinode-xa-queries-done ]; do sleep 5; done'
+          echo "✓ MultinodeXAIntegrationTest is in keepalive phase — connections are established"
 
       # Verify XA connection pooling is working
       # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
@@ -1381,11 +1393,9 @@ jobs:
           echo "OJP Server 1 container restarted"
           
           # Wait for server to fully start
-          sleep 15
-          
-          # Verify server is listening
-          echo "Verifying server is listening on port 10591..."
-          netstat -tuln | grep ':10591' || echo "Warning: Server might not be listening yet"
+          echo "Waiting for OJP Server 1 to reopen port 10591..."
+          timeout 120 bash -c 'until nc -z localhost 10591; do sleep 1; done'
+          echo "✓ Port 10591 is open"
 
       # Verify XA recovery: Connections should be distributed across both servers again
       # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
@@ -1484,11 +1494,9 @@ jobs:
           echo "OJP Server 2 container restarted"
           
           # Wait for server to fully start
-          sleep 15
-          
-          # Verify server is listening
-          echo "Verifying server is listening on port 10592..."
-          netstat -tuln | grep ':10592' || echo "Warning: Server might not be listening yet"
+          echo "Waiting for OJP Server 2 to reopen port 10592..."
+          timeout 120 bash -c 'until nc -z localhost 10592; do sleep 1; done'
+          echo "✓ Port 10592 is open"
 
       # Final XA verification: Both servers should be active
       # Expected range: 20-27 connections (XA pool only, non-XA pool disabled)
@@ -1528,6 +1536,16 @@ jobs:
             exit 1
           fi
 
+      # Signal the keepalive phase in MultinodeXAIntegrationTest to exit.
+      # This runs even on failure so the background test process does not linger
+      # for its full 12-minute cap after a CI step has already failed.
+      - name: Signal MultinodeXAIntegrationTest keepalive to stop
+        if: always()
+        run: |
+          echo "Creating /tmp/multinode-xa-ci-done to stop the keepalive loop..."
+          touch /tmp/multinode-xa-ci-done
+          echo "Signal sent"
+
       # Wait for the XA test process to complete
       - name: Wait for MultinodeXAIntegrationTest to complete
         run: |
@@ -1561,7 +1579,9 @@ jobs:
             echo "✗ Test failed"
             exit 1
           else
-            echo "⚠ Could not determine test status"
+            echo "✗ Could not determine test status — BUILD SUCCESS not found in log"
+            cat temp/MultinodeXAIntegrationTest.log || true
+            exit 1
           fi
 
       # Show logs for debugging (runs even if test fails)
