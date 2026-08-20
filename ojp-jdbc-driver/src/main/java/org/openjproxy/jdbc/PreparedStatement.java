@@ -410,8 +410,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     public boolean execute() throws SQLException {
         log.debug("execute called");
         this.checkClosed();
-        String trimmedSql = this.sql.trim().toUpperCase();
-        if (trimmedSql.startsWith("SELECT")) {
+        if (SqlStatementClassifier.looksLikeQuery(this.sql)) {
             // Delegate to executeQuery
             ResultSet resultSet = this.executeQuery();
             // Store the ResultSet for later retrieval if needed

@@ -193,6 +193,59 @@ public class H2StatementExtensiveTests {
         assertEquals(1, statement.getUpdateCount());
     }
 
+    /**
+     * Regression test for {@code SqlStatementClassifier}: a plain {@code startsWith("SELECT")}
+     * check missed a CTE (WITH ...), which is common in tools like SQL IDEs. execute() must
+     * route it to executeQuery so a ResultSet, not an update count, is produced.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testExecuteWithCommonTableExpression(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+        boolean isResultSet = statement.execute(
+                "WITH cte AS (SELECT * FROM h2_statement_test) SELECT * FROM cte");
+        assertTrue(isResultSet);
+        ResultSet rs = statement.getResultSet();
+        assertNotNull(rs);
+        assertTrue(rs.next());
+        rs.close();
+        assertEquals(-1, statement.getUpdateCount());
+    }
+
+    /**
+     * Regression test for {@code SqlStatementClassifier}: a leading SQL comment before SELECT
+     * must not prevent the statement from being recognized as query-shaped.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testExecuteWithLeadingCommentBeforeSelect(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+        boolean isResultSet = statement.execute(
+                "-- a leading comment\nSELECT * FROM h2_statement_test");
+        assertTrue(isResultSet);
+        ResultSet rs = statement.getResultSet();
+        assertNotNull(rs);
+        rs.close();
+        assertEquals(-1, statement.getUpdateCount());
+    }
+
+    /**
+     * Regression test for {@code SqlStatementClassifier}: H2's {@code VALUES} table constructor
+     * is query-shaped even though it does not start with SELECT.
+     */
+    @ParameterizedTest
+    @CsvFileSource(resources = "/h2_connection.csv")
+    void testExecuteWithValuesStatement(String driverClass, String url, String user, String password) throws Exception {
+        this.setUp(driverClass, url, user, password);
+        boolean isResultSet = statement.execute("VALUES (1), (2), (3)");
+        assertTrue(isResultSet);
+        ResultSet rs = statement.getResultSet();
+        assertNotNull(rs);
+        assertTrue(rs.next());
+        rs.close();
+        assertEquals(-1, statement.getUpdateCount());
+    }
+
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
     void testGetMoreResults(String driverClass, String url, String user, String password) throws Exception {
