@@ -242,7 +242,10 @@ public class Statement implements java.sql.Statement {
     public SQLWarning getWarnings() throws SQLException {
         log.debug("getWarnings called");
         checkClosed();
-        return this.callProxy(CallType.CALL_GET, "Warnings", SQLWarning.class);
+        // The server serializes SQLWarning as a plain message string (see CallResourceAction),
+        // since arbitrary Throwable graphs cannot be transported as primitives/Map/List/Properties.
+        String message = this.callProxy(CallType.CALL_GET, "Warnings", String.class);
+        return message == null ? null : new SQLWarning(message);
     }
 
     @Override

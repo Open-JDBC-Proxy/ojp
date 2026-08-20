@@ -25,6 +25,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLWarning;
 import java.sql.Savepoint;
 import java.util.List;
 import java.util.Map;
@@ -211,6 +212,12 @@ public class CallResourceAction implements Action<CallResourceRequest, CallResou
                 String uuid = UUID.randomUUID().toString();
                 resultFirstLevel = uuid;
                 context.getSessionManager().registerAttr(responseBuilder.getSession(), uuid, sp);
+            }
+            if (resultFirstLevel instanceof SQLWarning warning) {
+                // SQLWarning (and its vendor-specific subclasses, e.g. SQLServerWarning) cannot be
+                // transported as-is since ProtoConverter only supports primitives/Map/List/Properties.
+                // Flatten it to its message text; the client reconstructs a plain SQLWarning from it.
+                resultFirstLevel = warning.getMessage();
             }
             if (request.getTarget().hasNextCall()) {
                 //Second level calls, for cases like getMetadata().isAutoIncrement(int column)
