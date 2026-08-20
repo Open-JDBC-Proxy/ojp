@@ -58,7 +58,9 @@ class H2OpenLoopLatencyIntegrationTest {
     private static final int HIKARI_POOL_SIZE = 100;
     private static final int SELECT_OPEN_LOOP_RATE_PER_SECOND = 250;
     private static final int WRITE_OPEN_LOOP_RATE_PER_SECOND = 250;
-    private static final int OPEN_LOOP_WORKER_THREADS = 32;
+    // Keep worker threads below the OJP server's default pool size (CommonConstants.DEFAULT_MAXIMUM_POOL_SIZE = 20)
+    // to avoid pool-exhaustion timeouts that produce spurious gRPC INTERNAL errors under load.
+    private static final int OPEN_LOOP_WORKER_THREADS = 16;
     private static final long EXECUTOR_SHUTDOWN_TIMEOUT_MINUTES = 1L;
     private static final long MAX_WAIT_PARK_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
     private static final long MIN_INTERVAL_NANOS = 1L;
