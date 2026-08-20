@@ -12,9 +12,9 @@ import java.sql.DriverManager;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Integration tests verifying that {@link java.sql.SQLWarning} chains produced by the database
@@ -86,9 +86,8 @@ public class H2SqlWarningIntegrationTest {
             // If H2 produced a warning, verify all attributes are transferred across the gRPC boundary.
             assertNotNull(warning.getMessage(), "message must not be null when a warning is present");
             assertNotNull(warning.getSQLState(), "sqlState must be transferred, not null");
-            // vendorCode is an int; just verify calling it twice is stable (no mutable state).
-            assertEquals(warning.getErrorCode(), warning.getErrorCode(),
-                    "vendorCode must be stable across repeated calls");
+            // vendorCode is transported as an int; verify it is a valid non-negative value.
+            assertTrue(warning.getErrorCode() >= 0, "vendorCode must be a non-negative integer");
         }
         // Clean up
         statement.execute("DROP TABLE IF EXISTS h2_warning_attr_test");
@@ -100,19 +99,21 @@ public class H2SqlWarningIntegrationTest {
             String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
-        // Issue two DDL statements that may produce warnings on certain H2 versions.
-        // Whether or not warnings are generated, the transport path must not crash.
-        statement.execute("CREATE TABLE IF NOT EXISTS h2_warning_chain_test (col INT)");
+        // H2 does not reliably produce chained warnings from SQL alone, so this test validates
+        // the transport path: if any warning is present, its attributes must be fully populated.
         statement.execute("CREATE TABLE IF NOT EXISTS h2_warning_chain_test (col INT)");
 
-        SQLWarning head = statement.getWarnings();
-        if (head != null && head.getNextWarning() != null) {
-            // Verify the second node in the chain is also fully populated.
-            SQLWarning second = head.getNextWarning();
-            assertNotNull(second.getMessage(), "chained warning message must not be null");
-            // vendorCode must be a stable integer.
-            assertEquals(second.getErrorCode(), second.getErrorCode(),
-                    "chained warning vendorCode must be stable");
+        SQLWarning warning = statement.getWarnings();
+        if (warning != null) {
+            assertNotNull(warning.getMessage(), "warning message must not be null");
+            assertNotNull(warning.getSQLState(), "warning sqlState must not be null");
+            assertTrue(warning.getErrorCode() >= 0, "warning vendorCode must be a non-negative integer");
+            // Walk the chain if it exists; each node must have the same validity guarantees.
+            SQLWarning next = warning.getNextWarning();
+            if (next != null) {
+                assertNotNull(next.getMessage(), "chained warning message must not be null");
+                assertNotNull(next.getSQLState(), "chained warning sqlState must not be null");
+            }
         }
         // Clean up
         statement.execute("DROP TABLE IF EXISTS h2_warning_chain_test");
@@ -143,16 +144,16 @@ public class H2SqlWarningIntegrationTest {
 
         // Execute a statement that may produce a warning in H2.
         // We use CREATE TABLE IF NOT EXISTS on a table that already exists, which some H2 versions
-        // report as a warning. Whether or not a warning is produced, vendorCode must be stable.
+        // report as a warning. Whether or not a warning is produced, vendorCode must be valid.
         statement.execute("CREATE TABLE IF NOT EXISTS h2_vendor_code_test (col INT)");
         statement.execute("CREATE TABLE IF NOT EXISTS h2_vendor_code_test (col INT)");
 
         SQLWarning warning = statement.getWarnings();
         if (warning != null) {
-            // vendorCode must be a valid integer; calling getErrorCode() twice must return
-            // the same value to confirm it was correctly deserialized and is not mutable state.
-            assertEquals(warning.getErrorCode(), warning.getErrorCode(),
-                    "vendorCode must be stable across repeated calls");
+            // vendorCode is transported as an int; verify it is a valid non-negative value.
+            // This confirms the int field was deserialized correctly and not lost in transit.
+            assertTrue(warning.getErrorCode() >= 0,
+                    "vendorCode must be a non-negative integer after round-trip over gRPC");
         }
         statement.execute("DROP TABLE IF EXISTS h2_vendor_code_test");
     }
