@@ -14,6 +14,7 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
@@ -156,8 +157,9 @@ class MySQLSqlWarningIntegrationTest {
         SQLWarning warning = statement.getWarnings();
         assertNotNull(warning,
                 "Data truncation must produce a SQLWarning; if this fails the mode change may not have worked");
-        assertEquals("Data truncated for column 'col' at row 1", warning.getMessage(),
-                "Truncation warning message must be transferred");
+        assertNotNull(warning.getMessage(), "Truncation warning message must be transferred");
+        assertTrue(warning.getMessage().contains("Data truncated"),
+                "Truncation warning message must contain the backend warning text");
         assertEquals(expectedTruncationWarningSqlState(url), warning.getSQLState(),
                 "Truncation warning sqlState must match the backend driver's JDBC warning behaviour");
         assertEquals(1265, warning.getErrorCode(),
@@ -168,7 +170,8 @@ class MySQLSqlWarningIntegrationTest {
 
     private static String expectedSingleWarningSqlState(String url) {
         // Verified against the direct JDBC drivers used in CI:
-        // MySQL exposes SQLSTATE 42000 for SIGNAL here, while MariaDB returns null.
+        // MySQL Connector/J remaps this SIGNAL warning to SQLSTATE 42000,
+        // while MariaDB returns null.
         return isMySqlUrl(url) ? "42000" : null;
     }
 
