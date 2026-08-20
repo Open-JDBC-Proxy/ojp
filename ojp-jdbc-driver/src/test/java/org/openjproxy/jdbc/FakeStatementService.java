@@ -7,10 +7,12 @@ import com.openjproxy.grpc.LobDataBlock;
 import com.openjproxy.grpc.LobReference;
 import com.openjproxy.grpc.OpResult;
 import com.openjproxy.grpc.SessionInfo;
+import org.openjproxy.grpc.ProtoConverter;
 import org.openjproxy.grpc.client.StatementService;
 import org.openjproxy.grpc.dto.Parameter;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -26,6 +28,9 @@ class FakeStatementService implements StatementService {
 
     private final OpResult executeUpdateResult;
     private final Iterator<OpResult> executeQueryResult;
+    private final List<CallResourceRequest> callResourceInvocations = new ArrayList<>();
+    private Object callResourceReturnValue;
+    private SessionInfo callResourceReturnSession;
 
     FakeStatementService() {
         this(null, Collections.emptyIterator());
@@ -34,6 +39,26 @@ class FakeStatementService implements StatementService {
     FakeStatementService(OpResult executeUpdateResult, Iterator<OpResult> executeQueryResult) {
         this.executeUpdateResult = executeUpdateResult;
         this.executeQueryResult = executeQueryResult;
+    }
+
+    /**
+     * Configures the value returned as the single value of the next {@link #callResource} response(s).
+     * Pass {@code null} for a void response (no returned value).
+     */
+    void setCallResourceReturnValue(Object value) {
+        this.callResourceReturnValue = value;
+    }
+
+    /**
+     * Configures the {@link SessionInfo} echoed back by {@link #callResource}. Defaults to the request's
+     * own session when not explicitly configured.
+     */
+    void setCallResourceReturnSession(SessionInfo session) {
+        this.callResourceReturnSession = session;
+    }
+
+    List<CallResourceRequest> getCallResourceInvocations() {
+        return this.callResourceInvocations;
     }
 
     @Override
@@ -102,7 +127,14 @@ class FakeStatementService implements StatementService {
 
     @Override
     public CallResourceResponse callResource(CallResourceRequest request) throws SQLException {
-        throw new UnsupportedOperationException();
+        this.callResourceInvocations.add(request);
+        CallResourceResponse.Builder response = CallResourceResponse.newBuilder()
+                .setSession(this.callResourceReturnSession != null ? this.callResourceReturnSession : request.getSession())
+                .setResourceUUID(request.getResourceUUID());
+        if (this.callResourceReturnValue != null) {
+            response.addValues(ProtoConverter.toParameterValue(this.callResourceReturnValue));
+        }
+        return response.build();
     }
 
     @Override
