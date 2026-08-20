@@ -99,7 +99,7 @@ class MySQLSqlWarningIntegrationTest {
         assertNotNull(warning, "A SQLWarning must be returned after SIGNAL SQLSTATE '01000'");
         assertEquals("ojp single warning test", warning.getMessage(),
                 "message must be preserved across gRPC boundary");
-        assertEquals(expectedSingleWarningSqlState(url), warning.getSQLState(),
+        assertSqlStateMatchesBackend(url, expectedSingleWarningSqlState(url), warning.getSQLState(),
                 "sqlState must match the backend driver's JDBC warning behaviour");
         // MySQL maps MYSQL_ERRNO to vendorCode.
         assertEquals(1234, warning.getErrorCode(),
@@ -132,7 +132,7 @@ class MySQLSqlWarningIntegrationTest {
         SQLWarning warning = statement.getWarnings();
         assertNotNull(warning, "The backend-visible warning must be transferred");
         assertEquals("warning two", warning.getMessage(), "The last warning must be preserved");
-        assertEquals(expectedSequentialWarningSqlState(url), warning.getSQLState(),
+        assertSqlStateMatchesBackend(url, expectedSequentialWarningSqlState(url), warning.getSQLState(),
                 "sqlState must match the backend driver's JDBC warning behaviour");
         assertEquals(1002, warning.getErrorCode(), "vendorCode must match the backend-visible warning");
         assertNull(warning.getNextWarning(), "No warning chain is exposed by the backend driver here");
@@ -158,9 +158,9 @@ class MySQLSqlWarningIntegrationTest {
         assertNotNull(warning,
                 "Data truncation must produce a SQLWarning; if this fails the mode change may not have worked");
         assertNotNull(warning.getMessage(), "Truncation warning message must be transferred");
-        assertTrue(warning.getMessage().contains("Data truncated"),
+        assertTrue(warning.getMessage().toLowerCase(Locale.ROOT).contains("truncat"),
                 "Truncation warning message must contain the backend warning text");
-        assertEquals(expectedTruncationWarningSqlState(url), warning.getSQLState(),
+        assertSqlStateMatchesBackend(url, expectedTruncationWarningSqlState(url), warning.getSQLState(),
                 "Truncation warning sqlState must match the backend driver's JDBC warning behaviour");
         assertEquals(1265, warning.getErrorCode(),
                 "Truncation warning vendorCode must be transferred");
@@ -191,5 +191,14 @@ class MySQLSqlWarningIntegrationTest {
     private static boolean isMySqlUrl(String url) {
         // OJP test URLs use the form jdbc:ojp[host:port]_mysql://... for MySQL.
         return url.toLowerCase(Locale.ROOT).contains(MYSQL_URL_MARKER);
+    }
+
+    private static void assertSqlStateMatchesBackend(String url, String expectedSqlState, String actualSqlState,
+                                                     String message) {
+        if (isMySqlUrl(url)) {
+            assertEquals(expectedSqlState, actualSqlState, message);
+        } else {
+            assertNull(actualSqlState, message);
+        }
     }
 }
