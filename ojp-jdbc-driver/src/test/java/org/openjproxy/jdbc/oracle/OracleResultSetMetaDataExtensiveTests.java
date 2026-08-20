@@ -1,15 +1,22 @@
-package openjproxy.jdbc;
+package org.openjproxy.jdbc.oracle;
 
-import lombok.SneakyThrows;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
-import java.sql.*;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import lombok.SneakyThrows;
 
 public class OracleResultSetMetaDataExtensiveTests {
 
@@ -25,7 +32,7 @@ public class OracleResultSetMetaDataExtensiveTests {
     @SneakyThrows
     public void setUp(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
-        
+
         connection = DriverManager.getConnection(url, user, password);
         Statement statement = connection.createStatement();
 
@@ -42,8 +49,7 @@ public class OracleResultSetMetaDataExtensiveTests {
                         "name VARCHAR2(255) NOT NULL, " +
                         "age NUMBER(10) NULL, " +
                         "salary NUMBER(10, 2) NOT NULL" +
-                        ")"
-        );
+                        ")");
         statement.execute("INSERT INTO TEST_TABLE_METADATA (name, age, salary) VALUES ('Alice', 30, 50000.00)");
 
         ResultSet resultSet = statement.executeQuery("SELECT * FROM TEST_TABLE_METADATA");
@@ -52,40 +58,42 @@ public class OracleResultSetMetaDataExtensiveTests {
 
     @AfterEach
     void tearDown() throws Exception {
-        if (connection != null) connection.close();
+        if (connection != null)
+            connection.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
+    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password)
+            throws SQLException {
         setUp(driverClass, url, user, password);
 
         // getColumnCount
         assertEquals(4, metaData.getColumnCount());
 
         // isAutoIncrement - Oracle IDENTITY columns are auto-increment
-        assertFalse( metaData.isAutoIncrement(1));
-        assertFalse( metaData.isAutoIncrement(2));
-        assertFalse( metaData.isAutoIncrement(3));
-        assertFalse( metaData.isAutoIncrement(4));
+        assertFalse(metaData.isAutoIncrement(1));
+        assertFalse(metaData.isAutoIncrement(2));
+        assertFalse(metaData.isAutoIncrement(3));
+        assertFalse(metaData.isAutoIncrement(4));
 
         // isCaseSensitive - Oracle is case sensitive for data
-        assertFalse( metaData.isCaseSensitive(1));
-        assertTrue( metaData.isCaseSensitive(2));
-        assertFalse( metaData.isCaseSensitive(3));
-        assertFalse( metaData.isCaseSensitive(4));
+        assertFalse(metaData.isCaseSensitive(1));
+        assertTrue(metaData.isCaseSensitive(2));
+        assertFalse(metaData.isCaseSensitive(3));
+        assertFalse(metaData.isCaseSensitive(4));
 
         // isSearchable - All Oracle columns are searchable
-        assertTrue( metaData.isSearchable(1));
-        assertTrue( metaData.isSearchable(2));
-        assertTrue( metaData.isSearchable(3));
-        assertTrue( metaData.isSearchable(4));
+        assertTrue(metaData.isSearchable(1));
+        assertTrue(metaData.isSearchable(2));
+        assertTrue(metaData.isSearchable(3));
+        assertTrue(metaData.isSearchable(4));
 
         // isCurrency - None of these columns represent currency
-        assertTrue( metaData.isCurrency(1));
-        assertFalse( metaData.isCurrency(2));
-        assertTrue( metaData.isCurrency(3));
-        assertTrue( metaData.isCurrency(4));
+        assertTrue(metaData.isCurrency(1));
+        assertFalse(metaData.isCurrency(2));
+        assertTrue(metaData.isCurrency(3));
+        assertTrue(metaData.isCurrency(4));
 
         // isNullable - Oracle NULL constraints
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(1));
@@ -94,10 +102,10 @@ public class OracleResultSetMetaDataExtensiveTests {
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4));
 
         // isSigned - Oracle NUMBER types are signed
-        assertTrue( metaData.isSigned(1));
-        assertTrue( metaData.isSigned(2)); // VARCHAR2 is not signed
-        assertTrue( metaData.isSigned(3));
-        assertTrue( metaData.isSigned(4));
+        assertTrue(metaData.isSigned(1));
+        assertTrue(metaData.isSigned(2)); // VARCHAR2 is not signed
+        assertTrue(metaData.isSigned(3));
+        assertTrue(metaData.isSigned(4));
 
         // getColumnDisplaySize - Oracle-specific display sizes
         assertTrue(metaData.getColumnDisplaySize(1) > 0); // NUMBER display size
@@ -168,16 +176,16 @@ public class OracleResultSetMetaDataExtensiveTests {
         assertTrue(salaryTypeName.contains("NUMBER") || salaryTypeName.contains("NUMERIC"));
 
         // isReadOnly - Oracle columns are writable by default
-        assertFalse( metaData.isReadOnly(1));
-        assertFalse( metaData.isReadOnly(2));
-        assertFalse( metaData.isReadOnly(3));
-        assertFalse( metaData.isReadOnly(4));
+        assertFalse(metaData.isReadOnly(1));
+        assertFalse(metaData.isReadOnly(2));
+        assertFalse(metaData.isReadOnly(3));
+        assertFalse(metaData.isReadOnly(4));
 
         // isWritable - Oracle columns are writable
-        assertTrue( metaData.isWritable(1));
-        assertTrue( metaData.isWritable(2));
-        assertTrue( metaData.isWritable(3));
-        assertTrue( metaData.isWritable(4));
+        assertTrue(metaData.isWritable(1));
+        assertTrue(metaData.isWritable(2));
+        assertTrue(metaData.isWritable(3));
+        assertTrue(metaData.isWritable(4));
 
         // isDefinitelyWritable - Oracle behavior for definitely writable
         // This varies by driver implementation
