@@ -76,7 +76,8 @@ class ClientThrottleManagerTest {
         int reduced = mgr.getReactiveLimit();
         assertTrue(reduced < initial);
 
-        // Acquire/release 1000 times; reactiveLimit should grow back, bounded by proactive.
+        // Acquire/release 1000 times; reactiveLimit should grow back, bounded by
+        // proactive.
         for (int i = 0; i < 1000; i++) {
             assertTrue(mgr.tryAcquire(ClientThrottleMode.REACTIVE, false));
             mgr.release(ClientThrottleMode.REACTIVE, false);
