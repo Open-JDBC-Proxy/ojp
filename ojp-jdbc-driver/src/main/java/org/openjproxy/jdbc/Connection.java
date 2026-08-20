@@ -315,7 +315,10 @@ public class Connection implements java.sql.Connection {
     public SQLWarning getWarnings() throws SQLException {
         log.debug("getWarnings called");
         checkValid();
-        return this.callProxy(CallType.CALL_GET, "Warnings", SQLWarning.class);
+        // The server serializes a SQLWarning chain as List<Map<String,Object>> (see CallResourceAction),
+        // because arbitrary Throwable subclasses cannot be transported via ProtoConverter.
+        List<?> entries = this.callProxy(CallType.CALL_GET, "Warnings", List.class);
+        return SqlWarningUtils.buildWarningChain(entries);
     }
 
     @Override

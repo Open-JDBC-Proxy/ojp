@@ -242,7 +242,10 @@ public class Statement implements java.sql.Statement {
     public SQLWarning getWarnings() throws SQLException {
         log.debug("getWarnings called");
         checkClosed();
-        return this.callProxy(CallType.CALL_GET, "Warnings", SQLWarning.class);
+        // The server serializes a SQLWarning chain as List<Map<String,Object>> (see CallResourceAction),
+        // because arbitrary Throwable subclasses cannot be transported via ProtoConverter.
+        List<?> entries = this.callProxy(CallType.CALL_GET, "Warnings", List.class);
+        return SqlWarningUtils.buildWarningChain(entries);
     }
 
     @Override
