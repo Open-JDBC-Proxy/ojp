@@ -28,6 +28,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  */
 class MySQLSqlWarningIntegrationTest {
 
+    private static final String MYSQL_URL_MARKER = "_mysql://";
+
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
 
@@ -165,18 +167,26 @@ class MySQLSqlWarningIntegrationTest {
     }
 
     private static String expectedSingleWarningSqlState(String url) {
+        // Verified against the direct JDBC drivers used in CI:
+        // MySQL exposes SQLSTATE 42000 for SIGNAL here, while MariaDB returns null.
         return isMySqlUrl(url) ? "42000" : null;
     }
 
     private static String expectedSequentialWarningSqlState(String url) {
+        // Verified against the direct JDBC drivers used in CI:
+        // MySQL surfaces only the last SIGNAL warning with SQLSTATE HY000,
+        // while MariaDB surfaces only the last warning and leaves SQLSTATE null.
         return isMySqlUrl(url) ? "HY000" : null;
     }
 
     private static String expectedTruncationWarningSqlState(String url) {
+        // Verified against the direct JDBC drivers used in CI:
+        // MySQL reports SQLSTATE 01000 for truncation warnings, while MariaDB reports null.
         return isMySqlUrl(url) ? "01000" : null;
     }
 
     private static boolean isMySqlUrl(String url) {
-        return url.toLowerCase(Locale.ROOT).contains("_mysql://");
+        // OJP test URLs use the form jdbc:ojp[host:port]_mysql://... for MySQL.
+        return url.toLowerCase(Locale.ROOT).contains(MYSQL_URL_MARKER);
     }
 }
