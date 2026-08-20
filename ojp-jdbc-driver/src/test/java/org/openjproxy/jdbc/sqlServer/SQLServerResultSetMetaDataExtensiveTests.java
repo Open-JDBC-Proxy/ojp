@@ -1,11 +1,7 @@
-package openjproxy.jdbc;
+package org.openjproxy.jdbc.sqlServer;
 
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
-import openjproxy.jdbc.testutil.TestDBUtils;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.condition.EnabledIf;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -15,14 +11,18 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 /**
  * SQL Server-specific ResultSetMetaData integration tests.
  * Tests SQL Server-specific metadata functionality for result sets.
  */
-@EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
+@EnabledIf("org.openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
 class SQLServerResultSetMetaDataExtensiveTests {
 
     private static boolean isTestDisabled;
@@ -34,7 +34,8 @@ class SQLServerResultSetMetaDataExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    void testSqlServerResultSetMetaDataBasics(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerResultSetMetaDataBasics(String driverClass, String url, String user, String pwd)
+            throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -114,10 +115,12 @@ class SQLServerResultSetMetaDataExtensiveTests {
                     assertTrue(columnTypeName.toLowerCase().contains("money"), "MONEY type should be recognized");
                     break;
                 case "uniqueidentifier_col":
-                    assertTrue(columnTypeName.toLowerCase().contains("uniqueidentifier"), "UNIQUEIDENTIFIER type should be recognized");
+                    assertTrue(columnTypeName.toLowerCase().contains("uniqueidentifier"),
+                            "UNIQUEIDENTIFIER type should be recognized");
                     break;
                 case "datetimeoffset_col":
-                    assertTrue(columnTypeName.toLowerCase().contains("datetimeoffset"), "DATETIMEOFFSET type should be recognized");
+                    assertTrue(columnTypeName.toLowerCase().contains("datetimeoffset"),
+                            "DATETIMEOFFSET type should be recognized");
                     break;
                 case "datetime2_col":
                     assertTrue(
@@ -142,7 +145,8 @@ class SQLServerResultSetMetaDataExtensiveTests {
 
         // Create a table with specific column properties
         try {
-            TestDBUtils.executeUpdate(conn, "IF OBJECT_ID('sqlserver_column_props_test', 'U') IS NOT NULL DROP TABLE sqlserver_column_props_test");
+            TestDBUtils.executeUpdate(conn,
+                    "IF OBJECT_ID('sqlserver_column_props_test', 'U') IS NOT NULL DROP TABLE sqlserver_column_props_test");
         } catch (Exception e) {
             // Ignore
         }
@@ -151,7 +155,7 @@ class SQLServerResultSetMetaDataExtensiveTests {
                 "id INT IDENTITY(1,1) PRIMARY KEY, " +
                 "required_col NVARCHAR(50) NOT NULL, " +
                 "optional_col NVARCHAR(100) NULL, " +
-                "readonly_col AS (id * 2), " +  // Computed column
+                "readonly_col AS (id * 2), " + // Computed column
                 "decimal_col DECIMAL(10,2) NOT NULL, " +
                 "max_col NVARCHAR(MAX))");
 
@@ -259,8 +263,7 @@ class SQLServerResultSetMetaDataExtensiveTests {
                 "SELECT id AS identifier, name AS full_name, " +
                         "UPPER(name) AS upper_name, " +
                         "LEN(name) AS name_length " +
-                        "FROM sqlserver_alias_test"
-        );
+                        "FROM sqlserver_alias_test");
         ResultSet rs = ps.executeQuery();
         ResultSetMetaData rsmd = rs.getMetaData();
 
@@ -285,7 +288,8 @@ class SQLServerResultSetMetaDataExtensiveTests {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    void testSqlServerNullabilityAndUpdatability(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerNullabilityAndUpdatability(String driverClass, String url, String user, String pwd)
+            throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -293,7 +297,8 @@ class SQLServerResultSetMetaDataExtensiveTests {
 
         // Create table with various constraints
         try {
-            TestDBUtils.executeUpdate(conn, "IF OBJECT_ID('sqlserver_constraints_test', 'U') IS NOT NULL DROP TABLE sqlserver_constraints_test");
+            TestDBUtils.executeUpdate(conn,
+                    "IF OBJECT_ID('sqlserver_constraints_test', 'U') IS NOT NULL DROP TABLE sqlserver_constraints_test");
         } catch (Exception e) {
             // Ignore
         }
@@ -319,16 +324,19 @@ class SQLServerResultSetMetaDataExtensiveTests {
                     assertTrue(rsmd.isAutoIncrement(i), "Identity column should be auto-increment");
                     break;
                 case "not_null_col":
-                    assertEquals(ResultSetMetaData.columnNoNulls, rsmd.isNullable(i), "NOT NULL column should not allow nulls");
+                    assertEquals(ResultSetMetaData.columnNoNulls, rsmd.isNullable(i),
+                            "NOT NULL column should not allow nulls");
                     break;
                 case "nullable_col":
-                    assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i), "Nullable column should allow nulls");
+                    assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i),
+                            "Nullable column should allow nulls");
                     break;
                 case "computed_col":
                     assertTrue(rsmd.isReadOnly(i), "Computed column should be read-only");
                     break;
                 case "default_col":
-                    assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i), "Column with default should allow nulls");
+                    assertEquals(ResultSetMetaData.columnNullable, rsmd.isNullable(i),
+                            "Column with default should allow nulls");
                     break;
             }
         }

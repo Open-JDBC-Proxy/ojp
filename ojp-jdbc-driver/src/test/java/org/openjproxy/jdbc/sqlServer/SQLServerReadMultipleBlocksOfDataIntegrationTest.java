@@ -1,11 +1,11 @@
-package openjproxy.jdbc;
+package org.openjproxy.jdbc.sqlServer;
 
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
-import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -22,9 +22,10 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * SQL Server-specific tests for reading multiple blocks of data.
- * Tests SQL Server-specific large result set handling and streaming capabilities.
+ * Tests SQL Server-specific large result set handling and streaming
+ * capabilities.
  */
-@EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
+@EnabledIf("org.openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
 public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
     private static boolean isTestDisabled;
@@ -36,15 +37,17 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    void testSqlServerLargeResultSetReading(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerLargeResultSetReading(String driverClass, String url, String user, String pwd)
+            throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server large result set for url -> " + url);
 
         // Create table for large result set test
         try {
-            TestDBUtils.executeUpdate(conn, "IF OBJECT_ID('sqlserver_large_resultset_test', 'U') IS NOT NULL DROP TABLE sqlserver_large_resultset_test");
+            TestDBUtils.executeUpdate(conn,
+                    "IF OBJECT_ID('sqlserver_large_resultset_test', 'U') IS NOT NULL DROP TABLE sqlserver_large_resultset_test");
         } catch (Exception e) {
             // Ignore
         }
@@ -56,15 +59,14 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
         // Insert a large number of rows
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_large_resultset_test (text_data, number_data) VALUES (?, ?)"
-        );
+                "INSERT INTO sqlserver_large_resultset_test (text_data, number_data) VALUES (?, ?)");
 
         final int TOTAL_ROWS = 1000;
         for (int i = 1; i <= TOTAL_ROWS; i++) {
             psInsert.setString(1, "Row " + i + " data");
             psInsert.setInt(2, i * 10);
             psInsert.addBatch();
-            
+
             if (i % 100 == 0) {
                 psInsert.executeBatch();
                 psInsert.clearBatch();
@@ -83,7 +85,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
             int id = rs.getInt("id");
             String textData = rs.getString("text_data");
             int numberData = rs.getInt("number_data");
-            
+
             assertEquals(rowCount, id);
             assertEquals("Row " + rowCount + " data", textData);
             assertEquals(rowCount * 10, numberData);
@@ -99,15 +101,17 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    void testSqlServerStreamingLargeData(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
+    void testSqlServerStreamingLargeData(String driverClass, String url, String user, String pwd)
+            throws SQLException, IOException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server streaming large data for url -> " + url);
 
         // Create table with large data types
         try {
-            TestDBUtils.executeUpdate(conn, "IF OBJECT_ID('sqlserver_streaming_test', 'U') IS NOT NULL DROP TABLE sqlserver_streaming_test");
+            TestDBUtils.executeUpdate(conn,
+                    "IF OBJECT_ID('sqlserver_streaming_test', 'U') IS NOT NULL DROP TABLE sqlserver_streaming_test");
         } catch (Exception e) {
             // Ignore
         }
@@ -131,8 +135,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
         // Insert large data using streaming
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_streaming_test (id, large_text, large_binary) VALUES (?, ?, ?)"
-        );
+                "INSERT INTO sqlserver_streaming_test (id, large_text, large_binary) VALUES (?, ?, ?)");
 
         psInsert.setInt(1, 1);
         psInsert.setString(2, largeTextStr);
@@ -146,7 +149,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
         ResultSet rs = psSelect.executeQuery();
 
         assertTrue(rs.next());
-        
+
         // Verify large text
         String retrievedText = rs.getString("large_text");
         assertEquals(largeTextStr.length(), retrievedText.length());
@@ -156,10 +159,10 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
         // Verify large binary using stream
         InputStream binaryStream = rs.getBinaryStream("large_binary");
         assertNotNull(binaryStream);
-        
+
         byte[] retrievedBinary = binaryStream.readAllBytes();
         assertEquals(largeBinary.length, retrievedBinary.length);
-        
+
         // Verify binary data integrity (sample check)
         for (int i = 0; i < 1000; i += 100) {
             assertEquals(largeBinary[i], retrievedBinary[i]);
@@ -176,7 +179,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerPaginatedReading(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server paginated reading for url -> " + url);
 
@@ -184,8 +187,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
         // Insert test data
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_pagination_test (id, name) VALUES (?, ?)"
-        );
+                "INSERT INTO sqlserver_pagination_test (id, name) VALUES (?, ?)");
 
         final int TOTAL_ROWS = 100;
         for (int i = 1; i <= TOTAL_ROWS; i++) {
@@ -202,26 +204,25 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
         for (int page = 0; page < (TOTAL_ROWS / PAGE_SIZE); page++) {
             int offset = page * PAGE_SIZE;
-            
+
             PreparedStatement psSelect = conn.prepareStatement(
                     "SELECT id, name FROM sqlserver_pagination_test " +
-                    "ORDER BY id OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
-            );
+                            "ORDER BY id OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
             psSelect.setInt(1, offset);
             psSelect.setInt(2, PAGE_SIZE);
-            
+
             ResultSet rs = psSelect.executeQuery();
-            
+
             int pageCount = 0;
             while (rs.next()) {
                 pageCount++;
                 totalRetrieved++;
-                
+
                 int expectedId = offset + pageCount;
                 assertEquals(expectedId, rs.getInt("id"));
                 assertEquals("Name " + expectedId, rs.getString("name"));
             }
-            
+
             assertEquals(PAGE_SIZE, pageCount);
             rs.close();
             psSelect.close();
@@ -236,7 +237,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerCursorBasedReading(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server cursor-based reading for url -> " + url);
 
@@ -244,8 +245,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
         // Insert test data
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_cursor_test (id, name) VALUES (?, ?)"
-        );
+                "INSERT INTO sqlserver_cursor_test (id, name) VALUES (?, ?)");
 
         final int TOTAL_ROWS = 50;
         for (int i = 1; i <= TOTAL_ROWS; i++) {
@@ -259,7 +259,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
         // Test with different fetch sizes
         Statement stmt = conn.createStatement();
         stmt.setFetchSize(10); // Set fetch size for cursor-based reading
-        
+
         ResultSet rs = stmt.executeQuery("SELECT * FROM sqlserver_cursor_test ORDER BY id");
 
         int rowCount = 0;
@@ -281,7 +281,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerConcurrentReading(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server concurrent reading for url -> " + url);
 
@@ -289,8 +289,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
 
         // Insert test data
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_concurrent_test (id, name) VALUES (?, ?)"
-        );
+                "INSERT INTO sqlserver_concurrent_test (id, name) VALUES (?, ?)");
 
         final int TOTAL_ROWS = 20;
         for (int i = 1; i <= TOTAL_ROWS; i++) {
@@ -319,7 +318,7 @@ public class SQLServerReadMultipleBlocksOfDataIntegrationTest {
                 assertEquals(count1, rs1.getInt("id"));
                 hasNext1 = rs1.next();
             }
-            
+
             if (hasNext2) {
                 count2++;
                 assertEquals(10 + count2, rs2.getInt("id"));

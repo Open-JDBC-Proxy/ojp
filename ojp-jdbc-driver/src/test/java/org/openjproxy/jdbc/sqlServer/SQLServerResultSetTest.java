@@ -1,13 +1,13 @@
-package openjproxy.jdbc;
+package org.openjproxy.jdbc.sqlServer;
 
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
-import openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * SQL Server-specific ResultSet integration tests.
  * Tests SQL Server-specific ResultSet functionality and navigation.
  */
-@EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
+@EnabledIf("org.openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
 class SQLServerResultSetTest {
 
     private static boolean isTestDisabled;
@@ -38,9 +38,10 @@ class SQLServerResultSetTest {
 
     @ParameterizedTest
     @ArgumentsSource(SQLServerConnectionProvider.class)
-    void testSqlServerBasicResultSetOperations(String driverClass, String url, String user, String pwd) throws SQLException {
+    void testSqlServerBasicResultSetOperations(String driverClass, String url, String user, String pwd)
+            throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server basic ResultSet operations for url -> " + url);
 
@@ -48,8 +49,7 @@ class SQLServerResultSetTest {
 
         // Insert test data
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_rs_basic_test (id, name) VALUES (?, ?)"
-        );
+                "INSERT INTO sqlserver_rs_basic_test (id, name) VALUES (?, ?)");
         for (int i = 1; i <= 5; i++) {
             psInsert.setInt(1, i);
             psInsert.setString(2, "Test " + i);
@@ -81,7 +81,7 @@ class SQLServerResultSetTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerScrollableResultSet(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server scrollable ResultSet for url -> " + url);
 
@@ -89,8 +89,7 @@ class SQLServerResultSetTest {
 
         // Insert test data
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_rs_scroll_test (id, name) VALUES (?, ?)"
-        );
+                "INSERT INTO sqlserver_rs_scroll_test (id, name) VALUES (?, ?)");
         for (int i = 1; i <= 10; i++) {
             psInsert.setInt(1, i);
             psInsert.setString(2, "Scroll Test " + i);
@@ -103,8 +102,7 @@ class SQLServerResultSetTest {
         PreparedStatement ps = conn.prepareStatement(
                 "SELECT * FROM sqlserver_rs_scroll_test ORDER BY id",
                 ResultSet.TYPE_SCROLL_INSENSITIVE,
-                ResultSet.CONCUR_READ_ONLY
-        );
+                ResultSet.CONCUR_READ_ONLY);
         ResultSet rs = ps.executeQuery();
 
         // Test scrollable operations
@@ -133,7 +131,7 @@ class SQLServerResultSetTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerResultSetTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server ResultSet types for url -> " + url);
 
@@ -142,8 +140,7 @@ class SQLServerResultSetTest {
         // Insert test data with various types
         PreparedStatement psInsert = conn.prepareStatement(
                 "INSERT INTO sqlserver_rs_types_test (val_int, val_varchar, val_double_precision, val_bigint, " +
-                "val_tinyint, val_smallint, val_boolean, val_decimal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        );
+                        "val_tinyint, val_smallint, val_boolean, val_decimal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         psInsert.setInt(1, 42);
         psInsert.setString(2, "Type Test");
         psInsert.setDouble(3, 3.14159);
@@ -166,7 +163,7 @@ class SQLServerResultSetTest {
         assertEquals("Type Test", rs.getString(2));
         assertEquals(3.14159, rs.getDouble(3), 0.00001);
         assertEquals(9876543210L, rs.getLong(4));
-        assertEquals((byte) 255, rs.getByte(5) );
+        assertEquals((byte) 255, rs.getByte(5));
         assertEquals(32000, rs.getShort(6));
         assertTrue(rs.getBoolean(7));
         assertEquals(new java.math.BigDecimal("123.45"), rs.getBigDecimal(8));
@@ -191,7 +188,7 @@ class SQLServerResultSetTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server null handling for url -> " + url);
 
@@ -199,8 +196,7 @@ class SQLServerResultSetTest {
 
         // Insert row with all null values (except required columns)
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_rs_null_test (val_int, val_varchar) VALUES (?, ?)"
-        );
+                "INSERT INTO sqlserver_rs_null_test (val_int, val_varchar) VALUES (?, ?)");
         psInsert.setInt(1, 1);
         psInsert.setString(2, "Test");
         psInsert.executeUpdate();
@@ -237,13 +233,14 @@ class SQLServerResultSetTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerBinaryData(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server binary data handling for url -> " + url);
 
         // Create table with binary columns
         try {
-            TestDBUtils.executeUpdate(conn, "IF OBJECT_ID('sqlserver_rs_binary_test', 'U') IS NOT NULL DROP TABLE sqlserver_rs_binary_test");
+            TestDBUtils.executeUpdate(conn,
+                    "IF OBJECT_ID('sqlserver_rs_binary_test', 'U') IS NOT NULL DROP TABLE sqlserver_rs_binary_test");
         } catch (Exception e) {
             // Ignore
         }
@@ -261,8 +258,7 @@ class SQLServerResultSetTest {
         }
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO sqlserver_rs_binary_test (id, binary_data, large_binary) VALUES (?, ?, ?)"
-        );
+                "INSERT INTO sqlserver_rs_binary_test (id, binary_data, large_binary) VALUES (?, ?, ?)");
         psInsert.setInt(1, 1);
         psInsert.setBytes(2, smallBinary);
         psInsert.setBytes(3, largeBinary);
@@ -294,13 +290,14 @@ class SQLServerResultSetTest {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerDateTimeHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-        
+
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server date/time handling for url -> " + url);
 
         // Create table with various date/time types
         try {
-            TestDBUtils.executeUpdate(conn, "IF OBJECT_ID('sqlserver_rs_datetime_test', 'U') IS NOT NULL DROP TABLE sqlserver_rs_datetime_test");
+            TestDBUtils.executeUpdate(conn,
+                    "IF OBJECT_ID('sqlserver_rs_datetime_test', 'U') IS NOT NULL DROP TABLE sqlserver_rs_datetime_test");
         } catch (Exception e) {
             // Ignore
         }
@@ -315,8 +312,7 @@ class SQLServerResultSetTest {
         // Insert date/time data
         PreparedStatement psInsert = conn.prepareStatement(
                 "INSERT INTO sqlserver_rs_datetime_test (id, date_col, time_col, datetime2_col, datetimeoffset_col) " +
-                "VALUES (?, ?, ?, ?, ?)"
-        );
+                        "VALUES (?, ?, ?, ?, ?)");
         psInsert.setInt(1, 1);
         psInsert.setDate(2, Date.valueOf("2025-01-15"));
         psInsert.setTime(3, Time.valueOf("14:30:45"));

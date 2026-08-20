@@ -1,13 +1,14 @@
-package openjproxy.jdbc;
+package org.openjproxy.jdbc.sqlServer;
 
 import lombok.extern.slf4j.Slf4j;
-import openjproxy.jdbc.testutil.TestDBUtils;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import openjproxy.jdbc.testutil.SQLServerConnectionProvider;
+import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.openjproxy.jdbc.xa.OjpXADataSource;
 
 import javax.sql.XAConnection;
@@ -30,8 +31,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * 3. The client-side code updated to use integrated StatementService
  */
 @Slf4j
-@EnabledIf("openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
-public class SqlServerXAIntegrationTest {
+@EnabledIf("org.openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
+class SQLServerXAIntegrationTest {
 
     private static boolean isTestDisabled;
     private XAConnection xaConnection;
@@ -85,7 +86,8 @@ public class SqlServerXAIntegrationTest {
         XAResource xaResource = xaConnection.getXAResource();
         assertNotNull(xaResource, "XA resource should not be null");
 
-        // Verify connection is not auto-commit (XA connections should never be auto-commit)
+        // Verify connection is not auto-commit (XA connections should never be
+        // auto-commit)
         assertFalse(connection.getAutoCommit(), "XA connection should not be auto-commit");
     }
 
@@ -104,7 +106,7 @@ public class SqlServerXAIntegrationTest {
         // Table creation should not be part of XA transaction
         String tableName = "xa_test_table_" + System.currentTimeMillis();
         try (java.sql.Connection regularConn = java.sql.DriverManager.getConnection(url, user, password);
-             Statement stmt = regularConn.createStatement()) {
+                Statement stmt = regularConn.createStatement()) {
             stmt.executeUpdate("CREATE TABLE " + tableName + " (id INT PRIMARY KEY, name VARCHAR(100))");
         }
 

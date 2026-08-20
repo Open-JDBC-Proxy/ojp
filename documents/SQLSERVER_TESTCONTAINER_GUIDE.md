@@ -12,14 +12,14 @@ All SQL Server integration tests have been migrated to use TestContainers. This 
 ### TestContainer Setup
 
 1. **SQLServerTestContainer** - Singleton class that manages a shared SQL Server container
-   - Located: `ojp-jdbc-driver/src/test/java/openjproxy/jdbc/testutil/SQLServerTestContainer.java`
+   - Located: `ojp-jdbc-driver/src/test/java/org/openjproxy/jdbc/testutil/SQLServerTestContainer.java`
    - Uses `mcr.microsoft.com/mssql/server:2022-latest` Docker image
    - Automatically starts on first test execution
    - Shared across all SQL Server tests for efficiency
    - Automatically stops when tests complete
 
 2. **SQLServerConnectionProvider** - Custom JUnit ArgumentsProvider
-   - Located: `ojp-jdbc-driver/src/test/java/openjproxy/jdbc/testutil/SQLServerConnectionProvider.java`
+   - Located: `ojp-jdbc-driver/src/test/java/org/openjproxy/jdbc/testutil/SQLServerConnectionProvider.java`
    - Provides dynamic connection details from the TestContainer
    - Replaces CSV-based connection configuration
 
