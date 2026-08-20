@@ -97,6 +97,18 @@ class StatementLastUpdateCountTest {
         assertEquals(3, statement.getUpdateCount());
     }
 
+    @Test
+    void shouldTreatCallStatementsAsUpdateShapedByDefault() throws Exception {
+        FakeStatementService fakeService = new FakeStatementService(updateResult(0), null);
+        Connection connection = newConnection(fakeService);
+        Statement statement = new Statement(connection, fakeService);
+
+        boolean isResultSet = statement.execute("CALL no_result_proc()");
+
+        assertEquals(false, isResultSet);
+        assertEquals(0, statement.getUpdateCount());
+    }
+
     private static Connection newConnection(FakeStatementService fakeService) {
         return new Connection(SESSION, fakeService, DbName.H2);
     }
