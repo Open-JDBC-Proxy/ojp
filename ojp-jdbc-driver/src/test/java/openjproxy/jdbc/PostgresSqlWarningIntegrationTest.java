@@ -1,4 +1,4 @@
-package openjproxy.jdbc;
+package org.openjproxy.jdbc;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  *
  * <p>Run with {@code -DenablePostgresTests=true}.
  */
-public class PostgresSqlWarningIntegrationTest {
+class PostgresSqlWarningIntegrationTest {
 
     private static boolean isTestEnabled;
 
@@ -157,7 +157,7 @@ public class PostgresSqlWarningIntegrationTest {
         assertNotNull(warning.getMessage(), "Warning message must not be null");
         // The exact message may be prefixed by PostgreSQL (e.g. "WARNING: ..."); check it contains
         // the text we set so we know the message payload was truly transferred.
-        org.junit.jupiter.api.Assertions.        assertTrue(
+        assertTrue(
                 warning.getMessage().contains(expectedMessageSnippet),
                 "Warning message must contain the text we emitted; got: " + warning.getMessage()
         );
