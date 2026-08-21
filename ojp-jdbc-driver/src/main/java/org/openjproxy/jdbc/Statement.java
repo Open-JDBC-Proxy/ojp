@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.openjproxy.grpc.client.GrpcExceptionHandler.handle;
 import static org.openjproxy.jdbc.Constants.EMPTY_PARAMETERS_LIST;
 
 @Slf4j
@@ -53,6 +54,7 @@ public class Statement implements java.sql.Statement {
 
     protected void resetMoreResultsState() {
         this.moreResultsExhausted = false;
+        this.lastUpdateCount = -1;
     }
 
     public Statement(Connection connection, StatementService statementService) {
@@ -149,7 +151,7 @@ public class Statement implements java.sql.Statement {
                     EMPTY_PARAMETERS_LIST, this.statementUUID, this.properties);
             return new ResultSet(itResults, this.statementService, this);
         } catch (StatusRuntimeException sre) {
-            throw onServerOverload(throttle, mode, sre);
+            throw handle(onServerOverload(throttle, mode, sre));
         } finally {
             if (acquired) {
                 throttle.release(mode, inTransaction);
@@ -174,7 +176,7 @@ public class Statement implements java.sql.Statement {
             this.connection.setSession(result.getSession());
             return result.getIntValue();
         } catch (StatusRuntimeException sre) {
-            throw onServerOverload(throttle, mode, sre);
+            throw handle(onServerOverload(throttle, mode, sre));
         } finally {
             if (acquired) {
                 throttle.release(mode, inTransaction);

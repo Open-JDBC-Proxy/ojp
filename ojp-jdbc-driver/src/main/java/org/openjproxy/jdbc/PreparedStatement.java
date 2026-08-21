@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.openjproxy.grpc.client.GrpcExceptionHandler.handle;
 import static org.openjproxy.grpc.dto.ParameterType.ARRAY;
 import static org.openjproxy.grpc.dto.ParameterType.ASCII_STREAM;
 import static org.openjproxy.grpc.dto.ParameterType.BIG_DECIMAL;
@@ -122,7 +123,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
                     .executeQuery(this.connection.getSession(), this.sql, new ArrayList<>(this.paramsMap.values()), this.properties);
             return new ResultSet(itOpResult, this.statementService, this);
         } catch (StatusRuntimeException sre) {
-            throw onServerOverload(throttle, mode, sre);
+            throw handle(onServerOverload(throttle, mode, sre));
         } finally {
             if (acquired) {
                 throttle.release(mode, inTransaction);
@@ -149,7 +150,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
             }
             return result.getIntValue();
         } catch (StatusRuntimeException sre) {
-            throw onServerOverload(throttle, mode, sre);
+            throw handle(onServerOverload(throttle, mode, sre));
         } finally {
             if (acquired) {
                 throttle.release(mode, inTransaction);

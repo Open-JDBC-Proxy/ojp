@@ -17,9 +17,17 @@ public class GrpcExceptionHandler {
     /**
      * Handler for StatusRuntimeException, converting it to a SQLException when SQL metadata returned.
      *
+     * <p>Connection-level failures (server unreachable, network closed mid-request, deadline exceeded,
+     * pool exhaustion) never carry {@link SqlErrorResponse} metadata, since they are not SQL errors emitted
+     * by the server-side application logic - they represent the transport itself failing. These MUST always
+     * be translated into a checked {@link SQLTransientConnectionException} here, otherwise the raw unchecked
+     * {@link StatusRuntimeException} escapes every JDBC method (which only declares {@code throws SQLException})
+     * and can crash callers that only catch {@code SQLException}, as required by the JDBC contract.
+     *
      * @param sre StatusRuntimeException
-     * @return StatusRuntimeException if SQL metadata not found just return the exception received.
-     * @throws SQLException If conversion possible.
+     * @return StatusRuntimeException if SQL metadata not found and the failure is not connection-level,
+     *         just return the exception received (caller is expected to build its own fallback SQLException).
+     * @throws SQLException If conversion possible, or if this is a connection-level error.
      */
     public static StatusRuntimeException handle(StatusRuntimeException sre) throws SQLException {
         Metadata metadata = Status.trailersFromThrowable(sre);
@@ -28,7 +36,10 @@ public class GrpcExceptionHandler {
             errorResponse = metadata.get(ProtoUtils.keyForProto(SqlErrorResponse.getDefaultInstance()));
         }
         if (errorResponse == null) {
-            if (sre.getStatus().getCode() == Status.Code.RESOURCE_EXHAUSTED) {
+            Status.Code code = sre.getStatus().getCode();
+            if (code == Status.Code.RESOURCE_EXHAUSTED
+                    || code == Status.Code.UNAVAILABLE
+                    || code == Status.Code.DEADLINE_EXCEEDED) {
                 String message = sre.getStatus().getDescription() != null
                         ? sre.getStatus().getDescription()
                         : sre.getMessage();
