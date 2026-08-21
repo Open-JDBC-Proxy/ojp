@@ -122,7 +122,7 @@ This approach ensures the fix does not accidentally depend on APIs that only exi
 
 ## When to use a major version bump
 
-`2.0.0` (or higher) is appropriate when a change is **not** backwards-compatible. Examples:
+`2.0.0` (or higher) will be done on September 20th every year and might contain changes that are **not** backwards-compatible. Examples:
 
 - Removing or renaming a public API method or class
 - Changing an SPI contract in a breaking way
