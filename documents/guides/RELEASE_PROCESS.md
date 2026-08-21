@@ -198,17 +198,27 @@ apply the appropriate label before merging it. A fixed **Artifacts** footer
 
 From `1.0.0` onwards, release versions are plain semver with no suffix:
 
-| Branch | Current (SNAPSHOT) | Released as | Next dev |
-|---|---|---|---|
-| `main` | `1.0.0-SNAPSHOT` | `1.0.0` | `1.1.0-SNAPSHOT` ¹ |
-| `main` | `1.1.0-SNAPSHOT` | `1.1.0` | `1.2.0-SNAPSHOT` ¹ |
-| `main` | `1.1.1-SNAPSHOT` | `1.1.1` | `1.1.2-SNAPSHOT` |
-| `lts/1.0` | `1.0.1-SNAPSHOT` | `1.0.1` | `1.0.2-SNAPSHOT` |
-| `lts/1.0` | `1.0.8-SNAPSHOT` | `1.0.8` | `1.0.9-SNAPSHOT` |
+| Branch | Current (SNAPSHOT) | `release_version` input | Released as | Next dev |
+|---|---|---|---|---|
+| `main` | `1.0.0-SNAPSHOT` | _(none)_ | `1.0.0` | `1.1.0-SNAPSHOT` ¹ |
+| `main` | `1.1.0-SNAPSHOT` | _(none)_ | `1.1.0` | `1.2.0-SNAPSHOT` ¹ |
+| `main` | `1.1.1-SNAPSHOT` | _(none)_ | `1.1.1` | `1.1.2-SNAPSHOT` |
+| `lts/1.0` | `1.0.1-SNAPSHOT` | _(none)_ | `1.0.1` | `1.0.2-SNAPSHOT` |
+| `lts/1.0` | `1.0.8-SNAPSHOT` | _(none)_ | `1.0.8` | `1.0.9-SNAPSHOT` |
+| `main` | `1.0.0-SNAPSHOT` | `1.0.0-RC1` | `1.0.0-RC1` ² | _(unchanged)_ |
+| `main` | `1.0.0-SNAPSHOT` | `1.0.0-RC2` | `1.0.0-RC2` ² | _(unchanged)_ |
+| `main` | `1.0.0-SNAPSHOT` | `1.0.0-SNAPSHOT1` | `1.0.0-SNAPSHOT1` ² | _(unchanged)_ |
+| `lts/1.0` | `1.0.1-SNAPSHOT` | `1.0.1-RC1` | `1.0.1-RC1` ² | _(unchanged)_ |
 
 > ¹ On `main`, after any `X.Y.0` release the next dev version advances to `X.(Y+1).0-SNAPSHOT`
 > because new backwards-compatible features belong in the next minor version.
 > The `lts/X.Y` branch owns `X.Y.z` patch maintenance.
+>
+> ² **Pre-release versions** (`X.Y.Z-<qualifier>` where qualifier starts with a letter, e.g. `RC1`,
+> `RC2`, `SNAPSHOT1`, `alpha1`): published as-is without version bump. The pom stays at the
+> current SNAPSHOT version. The Docker image is not tagged as `latest`.
+> The GitHub Release is created as a pre-release. After validation, trigger the workflow again
+> with no override to publish the final GA version.
 
 See [`documents/VERSIONING.md`](VERSIONING.md) for full version attribution rules
 and [`documents/guides/LTS_BRANCHING.md`](guides/LTS_BRANCHING.md) for LTS branch creation.

@@ -63,10 +63,34 @@ Complete all items before releasing the RC.
 
 ## 3. Phase 1 — Release Candidate (`1.0.0-RC1`)
 
-> **Why manually?** The automated workflow computes the next GA version from the snapshot.
-> For an RC version (`1.0.0-RC1`) the automated workflow would need an explicit override,
-> but deploying an RC and then deploying GA from the same snapshot in sequence is cleaner
-> done with explicit version control.
+The release workflow natively supports pre-release versions: supply `release_version=1.0.0-RC1`
+and the workflow will publish that version **without bumping the pom to a next SNAPSHOT** —
+the repository remains on `1.0.0-SNAPSHOT` so the GA release can follow immediately after
+validation by triggering the workflow again with no override.
+
+### 3a — Automated RC release (preferred)
+
+```
+GitHub → Actions → "Release to Maven Central & Docker Hub" → Run workflow
+  Branch: main
+  Release version: 1.0.0-RC1
+  Dry run: unchecked
+```
+
+The workflow will:
+- Set all poms to `1.0.0-RC1`, build, deploy to Maven Central, build and push the Docker image
+- Tag `v1.0.0-RC1`
+- Create a GitHub **pre-release** (not marked as latest)
+- **Not push `rrobetti/ojp:latest`** — the `latest` tag is reserved for GA
+- **Not advance the pom** — `main` stays at `1.0.0-SNAPSHOT`
+
+Proceed to [Phase 2 — RC validation](#4-phase-2--rc-validation).
+
+---
+
+### 3b — Manual RC release (fallback)
+
+Use only if the automated workflow is unavailable.
 
 ### 3.1 Set the RC version
 
@@ -74,15 +98,9 @@ Complete all items before releasing the RC.
 git checkout main
 git pull origin main
 
-# Set all modules to 1.0.0-RC1
-mvn --batch-mode versions:set \
-    -DnewVersion=1.0.0-RC1 \
-    -DprocessAllModules=true \
-    -DgenerateBackupPoms=false
-
-# Verify
+# Verify starting state
 mvn help:evaluate -Dexpression=project.version -q -DforceStdout
-# Expected: 1.0.0-RC1
+# Expected: 1.0.0-SNAPSHOT
 ```
 
 ### 3.2 Build and verify locally
@@ -100,6 +118,12 @@ Fix any compilation or checkstyle failures before continuing.
 ### 3.3 Deploy to Maven Central
 
 ```bash
+# Temporarily set version to RC1 for the deploy
+mvn --batch-mode versions:set \
+    -DnewVersion=1.0.0-RC1 \
+    -DprocessAllModules=true \
+    -DgenerateBackupPoms=false
+
 # Deploy all modules with the release profile (signs + sources + javadoc)
 mvn clean deploy -Prelease -DskipTests
 ```
@@ -107,8 +131,7 @@ mvn clean deploy -Prelease -DskipTests
 Go to <https://central.sonatype.com/publishing/deployments> and **publish** the
 staged bundle. Wait for the **Published** status before continuing.
 
-> Note: RC artifacts will be visible on Maven Central but are not linked from the
-> main search page until GA. Early adopters can reference them explicitly.
+> Note: RC artifacts will be visible on Maven Central. Early adopters can reference them explicitly.
 
 ### 3.4 Build and push the Docker image
 

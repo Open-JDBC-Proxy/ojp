@@ -39,15 +39,25 @@
 #     1.0.1-SNAPSHOT → release 1.0.1 → next dev 1.0.2-SNAPSHOT
 #     1.0.8-SNAPSHOT → release 1.0.8 → next dev 1.0.9-SNAPSHOT
 #
+# PRE-RELEASE VERSIONS (RC / SNAPSHOT-numbered):
+#   Release candidates and numbered snapshots are supported via release_version:
+#     release_version=1.0.0-RC1     → publish 1.0.0-RC1, no version bump, no 'latest' Docker tag
+#     release_version=1.0.0-RC2     → publish 1.0.0-RC2, no version bump, no 'latest' Docker tag
+#     release_version=1.0.0-SNAPSHOT1 → publish 1.0.0-SNAPSHOT1, no version bump
+#   After the pre-release validates, trigger the workflow again with no override to
+#   publish the final GA version and perform the normal SNAPSHOT → next-dev bump.
+#   Pre-releases are marked as GitHub pre-releases automatically.
+#
 # LTS BRANCH VALIDATION:
-#   On lts/X.Y, only X.Y.z versions are allowed (explicit overrides included).
+#   On lts/X.Y, only X.Y.z (and X.Y.z-qualifier) versions are allowed.
 #   Attempting to release 1.1.0 from lts/1.0 is rejected with a clear error.
 #
 # EXPLICIT RELEASE VERSION:
 #   Supply release_version to override the computed version.
-#   On main: any valid semver is accepted (e.g. 1.2.0, 2.0.0).
-#   On lts/X.Y: only X.Y.z is accepted.
-#   The next development version is always derived automatically after release.
+#   On main: any valid semver (plain or with qualifier) is accepted.
+#   On lts/X.Y: only X.Y.z or X.Y.z-qualifier is accepted.
+#   For plain GA versions the next development version is derived automatically.
+#   For pre-release versions no version bump is performed.
 #
 # REQUIRED GITHUB SECRETS
 # -----------------------
@@ -198,17 +208,25 @@ jobs:
           echo "Current version: ${CURRENT}"
 
           # ── Determine release version ───────────────────────────────────────
+          IS_PRERELEASE=false
           if [[ -n "${{ inputs.release_version }}" ]]; then
             RELEASE="${{ inputs.release_version }}"
             echo "Using provided release version: ${RELEASE}"
 
-            # Validate format: must be plain X.Y.Z (no suffix, no -SNAPSHOT)
-            if ! echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "ERROR: release_version '${RELEASE}' must be a plain semver X.Y.Z (e.g. 1.2.0, 2.0.0)." >&2
+            # Validate format: plain X.Y.Z  OR  X.Y.Z-<qualifier>
+            # Qualifier must start with a letter (e.g. RC1, RC2, SNAPSHOT1, alpha1)
+            if ! echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z][A-Za-z0-9]*)?$'; then
+              echo "ERROR: release_version '${RELEASE}' must be X.Y.Z or X.Y.Z-<qualifier> (e.g. 1.2.0, 1.0.0-RC1)." >&2
               exit 1
             fi
+
+            # Detect pre-release (qualifier present)
+            if echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-'; then
+              IS_PRERELEASE=true
+              echo "Pre-release version detected: ${RELEASE} (no version bump will be performed)"
+            fi
           else
-            # Auto-derive from SNAPSHOT
+            # Auto-derive from SNAPSHOT: only plain X.Y.Z-SNAPSHOT is allowed here
             if [[ "${CURRENT}" != *"-SNAPSHOT" ]]; then
               echo "ERROR: Current version '${CURRENT}' does not end in -SNAPSHOT." >&2
               echo "Only SNAPSHOT versions can be released automatically, or provide a custom release version." >&2
@@ -223,11 +241,15 @@ jobs:
             fi
           fi
 
-          # ── Validate release version against LTS branch constraint ──────────
-          REL_MAJOR=$(echo "${RELEASE}" | cut -d. -f1)
-          REL_MINOR=$(echo "${RELEASE}" | cut -d. -f2)
-          REL_PATCH=$(echo "${RELEASE}" | cut -d. -f3)
+          # ── Extract numeric base (X.Y.Z) from release version ──────────────
+          # For pre-releases like 1.0.0-RC1, we need 1.0.0 for LTS validation
+          # and next-version logic (not used for pre-releases but extracted anyway)
+          BASE_RELEASE="${RELEASE%%-*}"
+          REL_MAJOR=$(echo "${BASE_RELEASE}" | cut -d. -f1)
+          REL_MINOR=$(echo "${BASE_RELEASE}" | cut -d. -f2)
+          REL_PATCH=$(echo "${BASE_RELEASE}" | cut -d. -f3)
 
+          # ── Validate release version against LTS branch constraint ──────────
           if [[ "${LTS_BRANCH}" == "true" ]]; then
             if [[ "${REL_MAJOR}" != "${LTS_MAJOR}" || "${REL_MINOR}" != "${LTS_MINOR}" ]]; then
               echo "ERROR: Branch '${BRANCH}' only allows ${LTS_MAJOR}.${LTS_MINOR}.x releases." >&2
@@ -243,10 +265,13 @@ jobs:
           fi
 
           # ── Compute next development version ────────────────────────────────
+          # Pre-releases: no version bump — NEXT equals CURRENT (pom is reverted after publish)
           # LTS branch: always increment patch only
           # main branch after X.Y.0 release: bump minor (new feature cycle)
           # main branch after X.Y.Z (Z > 0): increment patch
-          if [[ "${LTS_BRANCH}" == "true" ]]; then
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            NEXT="${CURRENT}"
+          elif [[ "${LTS_BRANCH}" == "true" ]]; then
             NEXT_PATCH=$((REL_PATCH + 1))
             NEXT="${REL_MAJOR}.${REL_MINOR}.${NEXT_PATCH}-SNAPSHOT"
           elif [[ "${BRANCH}" == "main" && "${REL_PATCH}" == "0" ]]; then
@@ -259,11 +284,13 @@ jobs:
 
           echo "Release version : ${RELEASE}"
           echo "Next dev version: ${NEXT}"
+          echo "Is pre-release  : ${IS_PRERELEASE}"
 
-          echo "current=${CURRENT}"  >> "$GITHUB_OUTPUT"
-          echo "release=${RELEASE}"  >> "$GITHUB_OUTPUT"
-          echo "next=${NEXT}"        >> "$GITHUB_OUTPUT"
-          echo "branch=${BRANCH}"    >> "$GITHUB_OUTPUT"
+          echo "current=${CURRENT}"            >> "$GITHUB_OUTPUT"
+          echo "release=${RELEASE}"            >> "$GITHUB_OUTPUT"
+          echo "next=${NEXT}"                  >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}"              >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
 
       # -----------------------------------------------------------------------
       # 6. Set release version in all pom.xml files
@@ -321,8 +348,11 @@ jobs:
           IMAGE="rrobetti/ojp:${{ steps.versions.outputs.release }}"
           docker build -t "$IMAGE" ojp-server/
           docker push "$IMAGE"
-          docker tag "$IMAGE" rrobetti/ojp:latest
-          docker push rrobetti/ojp:latest
+          # Only tag as 'latest' for GA releases, not pre-releases (RC, SNAPSHOT-numbered, etc.)
+          if [[ "${{ steps.versions.outputs.is_prerelease }}" != "true" ]]; then
+            docker tag "$IMAGE" rrobetti/ojp:latest
+            docker push rrobetti/ojp:latest
+          fi
 
       # -----------------------------------------------------------------------
       # 10. Update version references in all documentation (*.md files)
@@ -359,8 +389,12 @@ jobs:
 
       # -----------------------------------------------------------------------
       # 12. Set next development (SNAPSHOT) version
+      #     Skipped for pre-releases (RC, SNAPSHOT-numbered, etc.) — the pom
+      #     stays at the current SNAPSHOT version so the repository state is
+      #     unchanged after a pre-release publication.
       # -----------------------------------------------------------------------
       - name: Set next development version (${{ steps.versions.outputs.next }})
+        if: ${{ steps.versions.outputs.is_prerelease == 'false' }}
         run: |
           mvn --batch-mode versions:set \
               -DnewVersion=${{ steps.versions.outputs.next }} \
@@ -369,7 +403,7 @@ jobs:
               --no-transfer-progress
 
       - name: Commit next development version
-        if: ${{ inputs.dry_run == false }}
+        if: ${{ inputs.dry_run == false && steps.versions.outputs.is_prerelease == 'false' }}
         run: |
           git add -A -- ':!**/target/**'
           git commit -m "chore(release): prepare next development iteration ${{ steps.versions.outputs.next }}"
@@ -424,8 +458,8 @@ jobs:
               name:        generated.name,
               body:        generated.body + artifactsFooter,
               draft:       false,
-              prerelease:  false,
-              make_latest: 'true',
+              prerelease:  ${{ steps.versions.outputs.is_prerelease }},
+              make_latest: ${{ steps.versions.outputs.is_prerelease == 'true' && 'false' || 'true' }},
             });
 
       # -----------------------------------------------------------------------

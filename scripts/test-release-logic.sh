@@ -19,7 +19,7 @@ RST=$'\033[0m'
 
 # -----------------------------------------------------------------------------
 # Core version-calculation function — mirrors the logic in release.yml
-# Returns: "<release_version>|<next_dev_version>" or "ERROR:<message>"
+# Returns: "<release_version>|<next_dev_version>|<is_prerelease>" or "ERROR:<message>"
 # Arguments: $1=branch  $2=current_pom_version  $3=release_version_override
 # -----------------------------------------------------------------------------
 compute_versions() {
@@ -38,11 +38,16 @@ compute_versions() {
     fi
 
     local release
+    local is_prerelease=false
     if [[ -n "${override}" ]]; then
         release="${override}"
-        if ! echo "${release}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "ERROR: release_version '${release}' must be a plain semver X.Y.Z"
+        # Accept plain X.Y.Z  OR  X.Y.Z-<qualifier> (qualifier starts with a letter)
+        if ! echo "${release}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z][A-Za-z0-9]*)?$'; then
+            echo "ERROR: release_version '${release}' must be X.Y.Z or X.Y.Z-<qualifier> (e.g. 1.2.0, 1.0.0-RC1)"
             return
+        fi
+        if echo "${release}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-'; then
+            is_prerelease=true
         fi
     else
         if [[ "${current}" != *"-SNAPSHOT" ]]; then
@@ -56,10 +61,12 @@ compute_versions() {
         fi
     fi
 
+    # Extract numeric base (X.Y.Z) — for pre-releases like 1.0.0-RC1 strip qualifier
+    local base_release="${release%%-*}"
     local rel_major rel_minor rel_patch
-    rel_major=$(echo "${release}" | cut -d. -f1)
-    rel_minor=$(echo "${release}" | cut -d. -f2)
-    rel_patch=$(echo "${release}" | cut -d. -f3)
+    rel_major=$(echo "${base_release}" | cut -d. -f1)
+    rel_minor=$(echo "${base_release}" | cut -d. -f2)
+    rel_patch=$(echo "${base_release}" | cut -d. -f3)
 
     if [[ "${lts_branch}" == "true" ]]; then
         if [[ "${rel_major}" != "${lts_major}" || "${rel_minor}" != "${lts_minor}" ]]; then
@@ -69,7 +76,9 @@ compute_versions() {
     fi
 
     local next
-    if [[ "${lts_branch}" == "true" ]]; then
+    if [[ "${is_prerelease}" == "true" ]]; then
+        next="${current}"
+    elif [[ "${lts_branch}" == "true" ]]; then
         local next_patch=$(( rel_patch + 1 ))
         next="${rel_major}.${rel_minor}.${next_patch}-SNAPSHOT"
     elif [[ "${branch}" == "main" && "${rel_patch}" == "0" ]]; then
@@ -80,7 +89,7 @@ compute_versions() {
         next="${rel_major}.${rel_minor}.${next_patch}-SNAPSHOT"
     fi
 
-    echo "${release}|${next}"
+    echo "${release}|${next}|${is_prerelease}"
 }
 
 # -----------------------------------------------------------------------------
@@ -121,17 +130,17 @@ echo "── lts/1.0 branch ─────────────────�
 
 assert_eq \
     "lts/1.0 + 1.0.1-SNAPSHOT => release 1.0.1 + next 1.0.2-SNAPSHOT" \
-    "1.0.1|1.0.2-SNAPSHOT" \
+    "1.0.1|1.0.2-SNAPSHOT|false" \
     "$(compute_versions "lts/1.0" "1.0.1-SNAPSHOT" "")"
 
 assert_eq \
     "lts/1.0 + 1.0.8-SNAPSHOT => release 1.0.8 + next 1.0.9-SNAPSHOT" \
-    "1.0.8|1.0.9-SNAPSHOT" \
+    "1.0.8|1.0.9-SNAPSHOT|false" \
     "$(compute_versions "lts/1.0" "1.0.8-SNAPSHOT" "")"
 
 assert_eq \
     "lts/1.0 + explicit 1.0.7 => release 1.0.7 + next 1.0.8-SNAPSHOT" \
-    "1.0.7|1.0.8-SNAPSHOT" \
+    "1.0.7|1.0.8-SNAPSHOT|false" \
     "$(compute_versions "lts/1.0" "1.0.1-SNAPSHOT" "1.0.7")"
 
 assert_error \
@@ -154,33 +163,67 @@ echo "── main branch ──────────────────�
 
 assert_eq \
     "main + 1.0.0-SNAPSHOT => release 1.0.0 + next 1.1.0-SNAPSHOT (minor bump after .0)" \
-    "1.0.0|1.1.0-SNAPSHOT" \
+    "1.0.0|1.1.0-SNAPSHOT|false" \
     "$(compute_versions "main" "1.0.0-SNAPSHOT" "")"
 
 assert_eq \
     "main + 1.1.0-SNAPSHOT => release 1.1.0 + next 1.2.0-SNAPSHOT (minor bump after .0)" \
-    "1.1.0|1.2.0-SNAPSHOT" \
+    "1.1.0|1.2.0-SNAPSHOT|false" \
     "$(compute_versions "main" "1.1.0-SNAPSHOT" "")"
 
 assert_eq \
     "main + 1.1.1-SNAPSHOT => release 1.1.1 + next 1.1.2-SNAPSHOT (patch bump)" \
-    "1.1.1|1.1.2-SNAPSHOT" \
+    "1.1.1|1.1.2-SNAPSHOT|false" \
     "$(compute_versions "main" "1.1.1-SNAPSHOT" "")"
 
 assert_eq \
     "main + explicit 1.2.0 => release 1.2.0 + next 1.3.0-SNAPSHOT" \
-    "1.2.0|1.3.0-SNAPSHOT" \
+    "1.2.0|1.3.0-SNAPSHOT|false" \
     "$(compute_versions "main" "1.1.1-SNAPSHOT" "1.2.0")"
 
 assert_eq \
     "main + explicit 2.0.0 => release 2.0.0 + next 2.1.0-SNAPSHOT" \
-    "2.0.0|2.1.0-SNAPSHOT" \
+    "2.0.0|2.1.0-SNAPSHOT|false" \
     "$(compute_versions "main" "1.1.1-SNAPSHOT" "2.0.0")"
 
 assert_eq \
     "main + 2.0.0-SNAPSHOT (auto) => release 2.0.0 + next 2.1.0-SNAPSHOT" \
-    "2.0.0|2.1.0-SNAPSHOT" \
+    "2.0.0|2.1.0-SNAPSHOT|false" \
     "$(compute_versions "main" "2.0.0-SNAPSHOT" "")"
+
+# =============================================================================
+# Tests — pre-release versions (RC, SNAPSHOT-numbered)
+# =============================================================================
+echo ""
+echo "── pre-release versions ─────────────────────────────────────────────────"
+
+assert_eq \
+    "main + explicit 1.0.0-RC1 => publish RC1, no bump, is_prerelease=true" \
+    "1.0.0-RC1|1.0.0-SNAPSHOT|true" \
+    "$(compute_versions "main" "1.0.0-SNAPSHOT" "1.0.0-RC1")"
+
+assert_eq \
+    "main + explicit 1.0.0-RC2 => publish RC2, no bump, is_prerelease=true" \
+    "1.0.0-RC2|1.0.0-SNAPSHOT|true" \
+    "$(compute_versions "main" "1.0.0-SNAPSHOT" "1.0.0-RC2")"
+
+assert_eq \
+    "main + explicit 1.0.0-SNAPSHOT1 => publish SNAPSHOT1, no bump, is_prerelease=true" \
+    "1.0.0-SNAPSHOT1|1.0.0-SNAPSHOT|true" \
+    "$(compute_versions "main" "1.0.0-SNAPSHOT" "1.0.0-SNAPSHOT1")"
+
+assert_eq \
+    "lts/1.0 + explicit 1.0.1-RC1 => publish RC1, no bump, is_prerelease=true" \
+    "1.0.1-RC1|1.0.1-SNAPSHOT|true" \
+    "$(compute_versions "lts/1.0" "1.0.1-SNAPSHOT" "1.0.1-RC1")"
+
+assert_error \
+    "lts/1.0 + explicit 1.1.0-RC1 => FAIL (wrong minor, even for RC)" \
+    "$(compute_versions "lts/1.0" "1.0.1-SNAPSHOT" "1.1.0-RC1")"
+
+assert_error \
+    "main + invalid pre-release format (digit-only qualifier) => FAIL" \
+    "$(compute_versions "main" "1.0.0-SNAPSHOT" "1.0.0-1")"
 
 # =============================================================================
 # Tests — future lts/2.0 branch
@@ -190,7 +233,7 @@ echo "── lts/2.0 branch (future) ──────────────�
 
 assert_eq \
     "lts/2.0 + 2.0.3-SNAPSHOT => release 2.0.3 + next 2.0.4-SNAPSHOT" \
-    "2.0.3|2.0.4-SNAPSHOT" \
+    "2.0.3|2.0.4-SNAPSHOT|false" \
     "$(compute_versions "lts/2.0" "2.0.3-SNAPSHOT" "")"
 
 assert_error \
@@ -216,12 +259,12 @@ assert_error \
     "$(compute_versions "main" "1.0.0-beta-SNAPSHOT" "")"
 
 assert_error \
-    "main + invalid override (with suffix) => FAIL" \
-    "$(compute_versions "main" "1.0.0-SNAPSHOT" "1.0.0-beta")"
-
-assert_error \
     "main + invalid override (missing patch) => FAIL" \
     "$(compute_versions "main" "1.0.0-SNAPSHOT" "1.0")"
+
+assert_error \
+    "main + invalid override (digit-only qualifier) => FAIL" \
+    "$(compute_versions "main" "1.0.0-SNAPSHOT" "1.0.0-1")"
 
 # =============================================================================
 # Summary
@@ -234,3 +277,4 @@ echo ""
 if [[ ${FAIL} -gt 0 ]]; then
     exit 1
 fi
+
