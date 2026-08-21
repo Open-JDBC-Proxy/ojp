@@ -427,7 +427,7 @@ that enables all three publishing requirements:
       <plugin>
         <groupId>org.sonatype.central</groupId>
         <artifactId>central-publishing-maven-plugin</artifactId>
-        <version>0.8.0</version>
+        <version>1.0.0-RC1</version>
         <extensions>true</extensions>
         <configuration>
           <publishingServerId>central</publishingServerId>
