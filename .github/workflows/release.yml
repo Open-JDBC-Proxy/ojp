@@ -177,7 +177,6 @@ jobs:
 
             if echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT[0-9]*$'; then
               DEPLOY_ONLY=true
-              BASE="${RELEASE%%-*}"
               echo "Snapshot-style release override detected; deployment-only mode enabled."
             # Validate regular release format: must be X.Y.Z followed by a hyphen and an alphanumeric suffix
             elif echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z0-9-]+$'; then
