@@ -20,8 +20,8 @@ import java.util.Map;
 
 /**
  * Minimal {@link StatementService} test double used by unit tests that need to exercise
- * {@link Statement} / {@link PreparedStatement} behaviour without a real gRPC server.
- * Every method not overridden by the caller throws {@link UnsupportedOperationException}
+ * {@link Statement} / {@link PreparedStatement} / {@link ResultSet} behaviour without a real
+ * gRPC server. Every method not overridden by the caller throws {@link UnsupportedOperationException}
  * so accidental usage of unstubbed behaviour fails fast.
  */
 class FakeStatementService implements StatementService {
