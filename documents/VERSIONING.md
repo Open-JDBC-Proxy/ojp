@@ -22,7 +22,7 @@ Examples:
 | `1.0.0` | First production-ready, stable release |
 | `1.1.0` | New feature(s) added, fully backwards-compatible |
 | `1.0.1` | Bug or security fix on the 1.0.x LTS line |
-| `2.0.0` | A breaking change that required a major version bump |
+| `2.0.0` | A yearly LTS release that might contain breaking changes |
 
 ---
 
