@@ -68,7 +68,7 @@ Items under consideration for future releases:
 
 ## Versioning policy
 
-Open J Proxy follows [Semantic Versioning](https://semver.org/):
+Open J Proxy mostly follows the [Semantic Versioning](https://semver.org/):
 
 | Version segment | When it changes |
 |---|---|
