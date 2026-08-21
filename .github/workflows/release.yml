@@ -318,7 +318,7 @@ jobs:
       # -----------------------------------------------------------------------
       # 12. Set next development (SNAPSHOT) version
       # -----------------------------------------------------------------------
-      - name: Set next development version (${{ steps.versions.outputs.next }})
+      - name: Set next development version
         if: ${{ steps.versions.outputs.deploy_only != 'true' }}
         run: |
           mvn --batch-mode versions:set \
