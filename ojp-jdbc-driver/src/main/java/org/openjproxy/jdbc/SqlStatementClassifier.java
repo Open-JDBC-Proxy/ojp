@@ -18,13 +18,18 @@ import java.util.Locale;
  * query-shaped default to "update", matching the historical OJP behaviour. Tools that rely heavily
  * on {@code DatabaseMetaData} (e.g. SQL IDEs) frequently issue metadata calls that do not start
  * with {@code SELECT} (CTEs via {@code WITH}, catalog stored procedures such as
- * {@code sp_columns}/{@code sp_tables} on SQL Server, {@code CALL}/{@code EXEC} statements, etc.),
+ * {@code sp_columns}/{@code sp_tables} on SQL Server, {@code EXEC} statements, etc.),
  * which is why the prefix list below is broader than a plain {@code SELECT} check.
+ *
+ * <p>{@code CALL} is intentionally not treated as query-shaped. Stored procedures are ambiguous:
+ * some return rows, some only update state, and some only emit warnings. Routing all {@code CALL}
+ * statements to {@code executeQuery} breaks procedures that do not produce a navigable result set,
+ * which is worse than falling back to the historical "update" default for ambiguous statements.
  */
 final class SqlStatementClassifier {
 
     private static final String[] RESULT_SET_PREFIXES = {
-        "SELECT", "WITH", "EXEC ", "EXEC(", "EXECUTE ", "EXECUTE(", "CALL ", "CALL(",
+        "SELECT", "WITH", "EXEC ", "EXEC(", "EXECUTE ", "EXECUTE(",
         "SHOW ", "DESCRIBE ", "DESC ", "EXPLAIN ", "VALUES ", "VALUES(", "PRAGMA ", "SP_",
     };
 

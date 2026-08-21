@@ -47,9 +47,6 @@ class SqlStatementClassifierTest {
         "EXEC(sp_help)",
         "EXECUTE sp_help",
         "EXECUTE(sp_help)",
-        "CALL my_proc()",
-        "call my_proc()",
-        "CALL(1)",
         "SHOW TABLES",
         "DESCRIBE t",
         "DESC t",
@@ -62,6 +59,16 @@ class SqlStatementClassifierTest {
     })
     void shouldRecognizeOtherQueryShapedStatements(String sql) {
         assertTrue(SqlStatementClassifier.looksLikeQuery(sql));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "CALL my_proc()",
+        "call my_proc()",
+        "CALL(1)",
+    })
+    void shouldTreatCallStatementsAsAmbiguousAndDefaultToUpdate(String sql) {
+        assertFalse(SqlStatementClassifier.looksLikeQuery(sql));
     }
 
     @ParameterizedTest
