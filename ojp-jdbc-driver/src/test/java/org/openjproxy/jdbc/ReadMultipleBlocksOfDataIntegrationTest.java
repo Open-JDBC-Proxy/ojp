@@ -9,9 +9,9 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 public class ReadMultipleBlocksOfDataIntegrationTest {
 
@@ -26,8 +26,7 @@ public class ReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections_with_record_counts.csv")
-    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user,
-            String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
+    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
             return;
         }
@@ -41,18 +40,19 @@ public class ReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table read_blocks_test_multi");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
-
+        
         // Create table for H2/PostgreSQL
         String createTableSql = "create table read_blocks_test_multi(" +
                 "id INT NOT NULL, " +
                 "title VARCHAR(50) NOT NULL)";
         executeUpdate(conn, createTableSql);
 
-        for (int i = 0; i < totalRecords; i++) { // TODO make this test parameterized with multiple parameters
+        for (int i = 0; i < totalRecords; i++) { //TODO make this test parameterized with multiple parameters
             executeUpdate(conn,
-                    "insert into read_blocks_test_multi (id, title) values (" + i + ", 'TITLE_" + i + "')");
+                    "insert into read_blocks_test_multi (id, title) values (" + i + ", 'TITLE_" + i + "')"
+            );
         }
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from read_blocks_test_multi order by id");

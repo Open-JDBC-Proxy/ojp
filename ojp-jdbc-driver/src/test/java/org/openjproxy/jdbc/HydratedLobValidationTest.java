@@ -16,13 +16,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 /**
  * Test to validate the hydrated LOB approach.
- * This test specifically validates that LOBs are handled as complete byte
- * arrays
+ * This test specifically validates that LOBs are handled as complete byte arrays
  * rather than streamed, ensuring consistent behavior across all databases.
  */
 class HydratedLobValidationTest {
@@ -58,8 +57,7 @@ class HydratedLobValidationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testHydratedLobBehavior(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+    void testHydratedLobBehavior(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         setUp(driverClass, url, user, pwd);
 
         System.out.println("Testing hydrated LOB behavior for url -> " + url);
@@ -71,7 +69,8 @@ class HydratedLobValidationTest {
 
         // Insert LOBs of different sizes
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO " + tableName + " (id, small_blob, medium_blob, large_blob) VALUES (?, ?, ?, ?)");
+                "INSERT INTO " + tableName + " (id, small_blob, medium_blob, large_blob) VALUES (?, ?, ?, ?)"
+        );
         psInsert.setInt(1, 1);
         psInsert.setBinaryStream(2, new ByteArrayInputStream(smallData), smallData.length);
         psInsert.setBinaryStream(3, new ByteArrayInputStream(mediumData), mediumData.length);
@@ -80,7 +79,8 @@ class HydratedLobValidationTest {
 
         // Retrieve and verify all LOBs
         PreparedStatement psSelect = conn.prepareStatement(
-                "SELECT small_blob, medium_blob, large_blob FROM " + tableName + " WHERE id = ?");
+                "SELECT small_blob, medium_blob, large_blob FROM " + tableName + " WHERE id = ?"
+        );
         psSelect.setInt(1, 1);
         ResultSet rs = psSelect.executeQuery();
 
@@ -104,8 +104,7 @@ class HydratedLobValidationTest {
         byte[] retrievedLargeData = largeBlob.getBinaryStream().readAllBytes();
         assertArrayEquals(largeData, retrievedLargeData, "Large BLOB data should match");
 
-        // Validate that multiple reads of the same BLOB work (hydrated data should be
-        // reusable)
+        // Validate that multiple reads of the same BLOB work (hydrated data should be reusable)
         byte[] secondRead = largeBlob.getBinaryStream().readAllBytes();
         assertArrayEquals(largeData, secondRead, "Second read of large BLOB should match");
 
@@ -120,7 +119,7 @@ class HydratedLobValidationTest {
 
         // Verify partial data matches the beginning of the original data
         for (int i = 0; i < 100; i++) {
-            assertEquals(largeData[i], partialData[i], "Partial data should match original at position " + i);
+            assertEquals(largeData[i], partialData[i],"Partial data should match original at position " + i);
         }
 
         // Cleanup
@@ -136,8 +135,7 @@ class HydratedLobValidationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testHydratedBinaryStreamBehavior(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+    void testHydratedBinaryStreamBehavior(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         setUp(driverClass, url, user, pwd);
 
         System.out.println("Testing hydrated binary stream behavior for url -> " + url);
@@ -147,13 +145,15 @@ class HydratedLobValidationTest {
         byte[] testData = testString.getBytes(StandardCharsets.UTF_8);
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO " + tableName + " (id, small_blob) VALUES (?, ?)");
+                "INSERT INTO " + tableName + " (id, small_blob) VALUES (?, ?)"
+        );
         psInsert.setInt(1, 2);
         psInsert.setBinaryStream(2, new ByteArrayInputStream(testData), testData.length);
         psInsert.executeUpdate();
 
         PreparedStatement psSelect = conn.prepareStatement(
-                "SELECT small_blob FROM " + tableName + " WHERE id = ?");
+                "SELECT small_blob FROM " + tableName + " WHERE id = ?"
+        );
         psSelect.setInt(1, 2);
         ResultSet rs = psSelect.executeQuery();
 

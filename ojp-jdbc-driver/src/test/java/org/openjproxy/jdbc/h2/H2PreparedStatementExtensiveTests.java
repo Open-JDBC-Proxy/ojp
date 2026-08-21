@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class H2PreparedStatementExtensiveTests {
 
     private static boolean isH2TestEnabled;
-
+    
     private Connection connection;
     private PreparedStatement ps;
 
@@ -48,8 +48,7 @@ public class H2PreparedStatementExtensiveTests {
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE h2_prepared_stmt_test");
-        } catch (SQLException ignore) {
-        }
+        } catch (SQLException ignore) {}
         stmt.execute("CREATE TABLE h2_prepared_stmt_test (" +
                 "id INT PRIMARY KEY, " +
                 "name VARCHAR(255), " +
@@ -62,10 +61,8 @@ public class H2PreparedStatementExtensiveTests {
 
     @AfterEach
     void tearDown() throws Exception {
-        if (ps != null)
-            ps.close();
-        if (connection != null)
-            connection.close();
+        if (ps != null) ps.close();
+        if (connection != null) connection.close();
     }
 
     @ParameterizedTest
@@ -73,8 +70,7 @@ public class H2PreparedStatementExtensiveTests {
     void testParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
-        ps = connection.prepareStatement(
-                "INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
+        ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
 
         // Numeric and boolean
         ps.setInt(1, 1);
@@ -96,16 +92,13 @@ public class H2PreparedStatementExtensiveTests {
         ps.setObject(1, "test", Types.VARCHAR, 10);
 
         // Byte arrays and streams
-        ps.setBytes(4, new byte[] { 1, 2, 3 });
+        ps.setBytes(4, new byte[] {1, 2, 3});
         ps.setAsciiStream(2, new ByteArrayInputStream("ascii".getBytes()), 5);
-        ps.setBinaryStream(4, new ByteArrayInputStream(new byte[] { 4, 5 }), 2);
+        ps.setBinaryStream(4, new ByteArrayInputStream(new byte[] {4, 5}), 2);
         ps.setAsciiStream(2, new ByteArrayInputStream("ascii".getBytes()));
-        ps.setBinaryStream(4, new ByteArrayInputStream(new byte[] { 4, 5 }));
+        ps.setBinaryStream(4, new ByteArrayInputStream(new byte[] {4, 5}));
         // Deprecated
-        try {
-            ps.setUnicodeStream(2, new ByteArrayInputStream(new byte[] { 1 }), 1);
-        } catch (Exception ignore) {
-        }
+        try { ps.setUnicodeStream(2, new ByteArrayInputStream(new byte[] {1}), 1); } catch (Exception ignore) {}
 
         // Date/time
         ps.setDate(6, new java.sql.Date(System.currentTimeMillis()));
@@ -129,13 +122,13 @@ public class H2PreparedStatementExtensiveTests {
         // CLOB, BLOB, NCLOB
         ps.setClob(5, new StringReader("clob"), 4L);
         ps.setNClob(5, new StringReader("nclob"), 5L);
-        ps.setBlob(4, new ByteArrayInputStream(new byte[] { 1, 2 }), 2L);
+        ps.setBlob(4, new ByteArrayInputStream(new byte[] {1, 2}), 2L);
         ps.setClob(5, new StringReader("clob"));
         ps.setNClob(5, new StringReader("nclob"));
-        ps.setBlob(4, new ByteArrayInputStream(new byte[] { 1, 2 }));
-        ps.setNClob(5, (NClob) null);
-        ps.setBlob(4, (Blob) null);
-        ps.setClob(5, (Clob) null);
+        ps.setBlob(4, new ByteArrayInputStream(new byte[] {1, 2}));
+        ps.setNClob(5, (NClob)null);
+        ps.setBlob(4, (Blob)null);
+        ps.setClob(5, (Clob)null);
 
         // Ref, Array, SQLXML
         assertThrows(SQLException.class, () -> ps.setRef(1, null));
@@ -151,22 +144,13 @@ public class H2PreparedStatementExtensiveTests {
     void testExecutionAndBatchMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
-        ps = connection.prepareStatement(
-                "INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
-        ps.setInt(1, 10);
-        ps.setString(2, "Test");
-        ps.setInt(3, 30);
-        ps.setBytes(4, new byte[] { 1 });
-        ps.setString(5, "info");
-        ps.setDate(6, new java.sql.Date(System.currentTimeMillis()));
+        ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age, data, info, dt) VALUES (?, ?, ?, ?, ?, ?)");
+        ps.setInt(1, 10); ps.setString(2, "Test"); ps.setInt(3, 30);
+        ps.setBytes(4, new byte[]{1}); ps.setString(5, "info"); ps.setDate(6, new java.sql.Date(System.currentTimeMillis()));
         ps.addBatch();
 
-        ps.setInt(1, 11);
-        ps.setString(2, "Another");
-        ps.setInt(3, 31);
-        ps.setBytes(4, new byte[] { 2 });
-        ps.setString(5, "info2");
-        ps.setDate(6, new java.sql.Date(System.currentTimeMillis()));
+        ps.setInt(1, 11); ps.setString(2, "Another"); ps.setInt(3, 31);
+        ps.setBytes(4, new byte[]{2}); ps.setString(5, "info2"); ps.setDate(6, new java.sql.Date(System.currentTimeMillis()));
         ps.addBatch();
 
         int[] results = ps.executeBatch();
@@ -179,8 +163,7 @@ public class H2PreparedStatementExtensiveTests {
         assertNotNull(rs);
 
         ps = connection.prepareStatement("UPDATE h2_prepared_stmt_test SET age = ? WHERE id = ?");
-        ps.setInt(1, 42);
-        ps.setInt(2, 11);
+        ps.setInt(1, 42); ps.setInt(2, 11);
         int updateCount = ps.executeUpdate();
         assertTrue(updateCount >= 0);
 
@@ -193,27 +176,19 @@ public class H2PreparedStatementExtensiveTests {
         }
 
         // executeLargeUpdate (may throw on some drivers)
-        try {
-            ps.executeLargeUpdate();
-        } catch (Exception ignore) {
-        }
+        try { ps.executeLargeUpdate(); } catch (Exception ignore) {}
     }
 
     /**
-     * Regression test for PR #580: {@code getUpdateCount()} must return {@code -1}
-     * (not the
-     * implicit {@code int} default of {@code 0}) right after {@code executeQuery()}
-     * on a fresh
-     * {@link PreparedStatement}, otherwise clients relying on
-     * {@code getUpdateCount()==-1} to
-     * detect the end of result processing (e.g. DataGrip) believe an update result
-     * is still
+     * Regression test for PR #580: {@code getUpdateCount()} must return {@code -1} (not the
+     * implicit {@code int} default of {@code 0}) right after {@code executeQuery()} on a fresh
+     * {@link PreparedStatement}, otherwise clients relying on {@code getUpdateCount()==-1} to
+     * detect the end of result processing (e.g. DataGrip) believe an update result is still
      * pending and hang.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testGetUpdateCountIsMinusOneAfterExecuteQuery(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testGetUpdateCountIsMinusOneAfterExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
@@ -224,23 +199,18 @@ public class H2PreparedStatementExtensiveTests {
     }
 
     /**
-     * Regression test for PR #580: {@code execute()} on an UPDATE/INSERT sets a
-     * valid (>=0)
+     * Regression test for PR #580: {@code execute()} on an UPDATE/INSERT sets a valid (>=0)
      * update count, but {@code getUpdateCount()} on a different, freshly created
-     * {@link PreparedStatement} bound to a SELECT must still report {@code -1}
-     * rather than
+     * {@link PreparedStatement} bound to a SELECT must still report {@code -1} rather than
      * leaking the previous statement's update count via any shared state.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testGetUpdateCountResetsToMinusOneWhenQueryFollowsAnUpdate(String driverClass, String url, String user,
-            String password) throws Exception {
+    void testGetUpdateCountResetsToMinusOneWhenQueryFollowsAnUpdate(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
-        ps.setInt(1, 20);
-        ps.setString(2, "Bob");
-        ps.setInt(3, 40);
+        ps.setInt(1, 20); ps.setString(2, "Bob"); ps.setInt(3, 40);
         boolean isResultSet = ps.execute();
         assertFalse(isResultSet);
         assertEquals(1, ps.getUpdateCount());
@@ -315,15 +285,13 @@ public class H2PreparedStatementExtensiveTests {
      * a {@code prepareStatement(null)} and throw an NPE
      * ("Cannot invoke \"String.startsWith(String)\" because \"sql\" is null").
      * The {@code getWarnings()}, {@code clearWarnings()} and other
-     * {@link java.sql.Statement} methods inherited by
-     * {@link java.sql.PreparedStatement}
+     * {@link java.sql.Statement} methods inherited by {@link java.sql.PreparedStatement}
      * must include the SQL in the proxied request so the server can resolve the
      * underlying PreparedStatement.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testGetWarningsAfterExecuteQueryWithoutPriorCallProxy(String driverClass, String url, String user,
-            String password) throws Exception {
+    void testGetWarningsAfterExecuteQueryWithoutPriorCallProxy(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test");
@@ -362,9 +330,7 @@ public class H2PreparedStatementExtensiveTests {
         ps.setCursorName("testCursor");
         ps.setFetchDirection(ResultSet.FETCH_FORWARD);
         assertEquals(ResultSet.FETCH_FORWARD, ps.getFetchDirection());
-        assertThrows(Exception.class, () -> {
-            ps.setFetchSize(50);
-        });
+        assertThrows(Exception.class, () -> { ps.setFetchSize(50); });
         assertEquals(100, ps.getFetchSize());
 
         assertTrue(ps.getResultSetConcurrency() >= 0);
@@ -384,8 +350,7 @@ public class H2PreparedStatementExtensiveTests {
         try {
             ps.cancel();
         } catch (Exception ignore) {
-            // Some drivers may throw if cancel() is not supported or statement is not
-            // running.
+            // Some drivers may throw if cancel() is not supported or statement is not running.
         }
 
         ps.close();
@@ -394,8 +359,7 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testStatementBatchAndConnection(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testStatementBatchAndConnection(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("SELECT * FROM h2_prepared_stmt_test WHERE id = ?");
@@ -408,12 +372,10 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testResultAndGeneratedKeysMethods(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testResultAndGeneratedKeysMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
-        PreparedStatement ps = connection
-                .prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
+        PreparedStatement ps = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
         ps.setLong(1, 100);
         ps.setString(2, "A");
         ps.setInt(3, 1);
@@ -440,9 +402,7 @@ public class H2PreparedStatementExtensiveTests {
         assertFalse(stmtQuery.getMoreResults(Statement.CLOSE_CURRENT_RESULT));
 
         // Generated Keys
-        PreparedStatement psInsert = connection.prepareStatement(
-                "INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)",
-                PreparedStatement.RETURN_GENERATED_KEYS);
+        PreparedStatement psInsert = connection.prepareStatement("INSERT INTO h2_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)", PreparedStatement.RETURN_GENERATED_KEYS);
         psInsert.setInt(1, 101);
         psInsert.setString(2, "B");
         psInsert.setInt(3, 2);
@@ -456,8 +416,8 @@ public class H2PreparedStatementExtensiveTests {
 
         // Various execute overloads
         stmtQuery.execute("SELECT * FROM h2_prepared_stmt_test", Statement.NO_GENERATED_KEYS);
-        stmtQuery.execute("SELECT * FROM h2_prepared_stmt_test", new int[] { 1 });
-        stmtQuery.execute("SELECT * FROM h2_prepared_stmt_test", new String[] { "id" });
+        stmtQuery.execute("SELECT * FROM h2_prepared_stmt_test", new int[]{1});
+        stmtQuery.execute("SELECT * FROM h2_prepared_stmt_test", new String[]{"id"});
     }
 
     /**
@@ -471,14 +431,12 @@ public class H2PreparedStatementExtensiveTests {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testGetGeneratedKeysWithAutoIncrementTable(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testGetGeneratedKeysWithAutoIncrementTable(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         Statement stmt = connection.createStatement();
         stmt.execute("DROP TABLE IF EXISTS t_identity");
-        stmt.execute(
-                "CREATE TABLE t_identity (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(100))");
+        stmt.execute("CREATE TABLE t_identity (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(100))");
         stmt.close();
 
         // RETURN_GENERATED_KEYS variant
@@ -497,7 +455,7 @@ public class H2PreparedStatementExtensiveTests {
 
         // column-index variant
         PreparedStatement psColIdx = connection.prepareStatement(
-                "INSERT INTO t_identity (name) VALUES (?)", new int[] { 1 });
+                "INSERT INTO t_identity (name) VALUES (?)", new int[]{1});
         psColIdx.setString(1, "bob");
         assertEquals(1, psColIdx.executeUpdate());
         ResultSet keysColIdx = psColIdx.getGeneratedKeys();
@@ -509,7 +467,7 @@ public class H2PreparedStatementExtensiveTests {
 
         // column-name variant
         PreparedStatement psColName = connection.prepareStatement(
-                "INSERT INTO t_identity (name) VALUES (?)", new String[] { "id" });
+                "INSERT INTO t_identity (name) VALUES (?)", new String[]{"id"});
         psColName.setString(1, "carol");
         assertEquals(1, psColName.executeUpdate());
         ResultSet keysColName = psColName.getGeneratedKeys();
@@ -521,29 +479,22 @@ public class H2PreparedStatementExtensiveTests {
     }
 
     /**
-     * Reproduces the Spring Data saveAll / batch insert scenario with generated
-     * keys (issue #408).
-     * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is
-     * followed by
-     * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data
-     * uses for saveAll.
+     * Reproduces the Spring Data saveAll / batch insert scenario with generated keys (issue #408).
+     * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is followed by
+     * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data uses for saveAll.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         Statement stmt = connection.createStatement();
         stmt.execute("DROP TABLE IF EXISTS h2_batch_gen_keys_test");
-        stmt.execute(
-                "CREATE TABLE h2_batch_gen_keys_test (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(100))");
+        stmt.execute("CREATE TABLE h2_batch_gen_keys_test (id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(100))");
         stmt.close();
 
-        // Reproduces: prepareStatement(sql, RETURN_GENERATED_KEYS) → addBatch() x N →
-        // executeBatch() → getGeneratedKeys()
-        ps = connection.prepareStatement("INSERT INTO h2_batch_gen_keys_test (name) VALUES (?)",
-                Statement.RETURN_GENERATED_KEYS);
+        // Reproduces: prepareStatement(sql, RETURN_GENERATED_KEYS) → addBatch() x N → executeBatch() → getGeneratedKeys()
+        ps = connection.prepareStatement("INSERT INTO h2_batch_gen_keys_test (name) VALUES (?)", Statement.RETURN_GENERATED_KEYS);
 
         ps.setString(1, "Alice");
         ps.addBatch();
@@ -574,45 +525,19 @@ public class H2PreparedStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testStatementLargeAndDefaultMethods(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testStatementLargeAndDefaultMethods(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         Statement stmt = connection.createStatement();
         // Large update/batch methods (may throw on H2)
-        try {
-            stmt.getLargeUpdateCount();
-        } catch (Exception ignore) {
-        }
-        try {
-            stmt.setLargeMaxRows(100L);
-        } catch (Exception ignore) {
-        }
-        try {
-            stmt.getLargeMaxRows();
-        } catch (Exception ignore) {
-        }
-        try {
-            stmt.executeLargeBatch();
-        } catch (Exception ignore) {
-        }
-        try {
-            stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100");
-        } catch (Exception ignore) {
-        }
-        try {
-            stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100",
-                    Statement.RETURN_GENERATED_KEYS);
-        } catch (Exception ignore) {
-        }
-        try {
-            stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100", new int[] { 1 });
-        } catch (Exception ignore) {
-        }
-        try {
-            stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100", new String[] { "id" });
-        } catch (Exception ignore) {
-        }
+        try { stmt.getLargeUpdateCount(); } catch (Exception ignore) {}
+        try { stmt.setLargeMaxRows(100L); } catch (Exception ignore) {}
+        try { stmt.getLargeMaxRows(); } catch (Exception ignore) {}
+        try { stmt.executeLargeBatch(); } catch (Exception ignore) {}
+        try { stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100"); } catch (Exception ignore) {}
+        try { stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100", Statement.RETURN_GENERATED_KEYS); } catch (Exception ignore) {}
+        try { stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100", new int[]{1}); } catch (Exception ignore) {}
+        try { stmt.executeLargeUpdate("UPDATE h2_prepared_stmt_test SET age = 101 WHERE id = 100", new String[]{"id"}); } catch (Exception ignore) {}
 
         // Enquote and identifier methods
         assertEquals("'foo''bar'", stmt.enquoteLiteral("foo'bar"));

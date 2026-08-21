@@ -22,14 +22,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Integration tests for multi-datasource functionality using H2 database.
- * Tests the complete flow from client to server with different datasource
- * configurations.
+ * Tests the complete flow from client to server with different datasource configurations.
  * <p>
  * Note: These tests require the OJP server to be running on localhost:1059.
- * These tests are skipped when running database-specific tests (Oracle, DB2,
- * SQL Server, etc.)
- * to avoid failures when H2 drivers are not available or to keep test runs
- * focused.
+ * These tests are skipped when running database-specific tests (Oracle, DB2, SQL Server, etc.)
+ * to avoid failures when H2 drivers are not available or to keep test runs focused.
  */
 class MultiDataSourceIntegrationTest {
 
@@ -108,26 +105,22 @@ class MultiDataSourceIntegrationTest {
         Driver testDriver = createTestDriver();
 
         // Test Database A - Primary datasource
-        try (Connection dbAPrimaryConn = testDriver.connect(buildOjpUrl("databaseA", "dbA_primary"),
-                new Properties())) {
+        try (Connection dbAPrimaryConn = testDriver.connect(buildOjpUrl("databaseA", "dbA_primary"), new Properties())) {
             createAndTestTable(dbAPrimaryConn, "dba_primary_table");
         }
 
         // Test Database A - Readonly datasource
-        try (Connection dbAReadonlyConn = testDriver.connect(buildOjpUrl("databaseA", "dbA_readonly"),
-                new Properties())) {
+        try (Connection dbAReadonlyConn = testDriver.connect(buildOjpUrl("databaseA", "dbA_readonly"), new Properties())) {
             createAndTestTable(dbAReadonlyConn, "dba_readonly_table");
         }
 
-        // Test Database B - Primary datasource
-        try (Connection dbBPrimaryConn = testDriver.connect(buildOjpUrl("databaseB", "dbB_primary"),
-                new Properties())) {
+        // Test Database B - Primary datasource 
+        try (Connection dbBPrimaryConn = testDriver.connect(buildOjpUrl("databaseB", "dbB_primary"), new Properties())) {
             createAndTestTable(dbBPrimaryConn, "dbb_primary_table");
         }
 
         // Test Database B - Analytics datasource
-        try (Connection dbBAnalyticsConn = testDriver.connect(buildOjpUrl("databaseB", "dbB_analytics"),
-                new Properties())) {
+        try (Connection dbBAnalyticsConn = testDriver.connect(buildOjpUrl("databaseB", "dbB_analytics"), new Properties())) {
             createAndTestTable(dbBAnalyticsConn, "dbb_analytics_table");
         }
 
@@ -157,12 +150,9 @@ class MultiDataSourceIntegrationTest {
             createAndTestTable(configuredConn, "configured_table");
         }
 
-        // Connection with unconfigured datasource should return properties with no pool
-        // settings
-        // (The server will use defaults, but the client won't send any specific
-        // properties)
-        try (Connection unconfiguredConn = testDriver.connect(buildOjpUrl("testdb", "unconfiguredDS"),
-                new Properties())) {
+        // Connection with unconfigured datasource should return properties with no pool settings
+        // (The server will use defaults, but the client won't send any specific properties)
+        try (Connection unconfiguredConn = testDriver.connect(buildOjpUrl("testdb", "unconfiguredDS"), new Properties())) {
             assertNotNull(unconfiguredConn);
             // This should work but use default pool settings
             createAndTestTable(unconfiguredConn, "unconfigured_table");
@@ -182,8 +172,7 @@ class MultiDataSourceIntegrationTest {
         }
 
         // Connection with explicit default dataSource should also work
-        try (Connection explicitDefaultConn = testDriver.connect(buildOjpUrl("backcompat", "default"),
-                new Properties())) {
+        try (Connection explicitDefaultConn = testDriver.connect(buildOjpUrl("backcompat", "default"), new Properties())) {
             assertNotNull(explicitDefaultConn);
             // Should be able to access the same table
             assertTrue(tableExists(explicitDefaultConn, "backcompat_table"));
@@ -212,16 +201,13 @@ class MultiDataSourceIntegrationTest {
             assertTrue(tableExists(dbBConn, tableInDbB));
         }
 
-        // Now try to access the table from database A using datasource B (which points
-        // to database B)
+        // Now try to access the table from database A using datasource B (which points to database B)
         // This should throw an exception because the table doesn't exist in database B
         try (Connection dbBConn = testDriver.connect(buildOjpUrl("database_b", "dbB"), new Properties())) {
             Statement stmt = dbBConn.createStatement();
 
-            // This should throw SQLException because table_in_database_a doesn't exist in
-            // database B
-            assertThrows(SQLException.class, () -> stmt.executeQuery("SELECT * FROM " + tableInDbA),
-                    "Expected SQLException when trying to access table from different database");
+            // This should throw SQLException because table_in_database_a doesn't exist in database B
+            assertThrows(SQLException.class, () -> stmt.executeQuery("SELECT * FROM " + tableInDbA), "Expected SQLException when trying to access table from different database");
 
             // Verify the specific error message indicates table doesn't exist
             try {
@@ -230,31 +216,29 @@ class MultiDataSourceIntegrationTest {
             } catch (SQLException e) {
                 String errorMessage = e.getMessage().toLowerCase();
                 assertTrue(
-                        errorMessage.contains("table") && (errorMessage.contains("not found") ||
-                                errorMessage.contains("does not exist") ||
-                                errorMessage.contains("doesn't exist") ||
-                                errorMessage.contains("not exist")),
-                        "Expected error message about table not existing, but got: " + e.getMessage());
+                        errorMessage.contains("table") && (
+                                errorMessage.contains("not found") ||
+                                        errorMessage.contains("does not exist") ||
+                                        errorMessage.contains("doesn't exist") ||
+                                        errorMessage.contains("not exist")
+                        ),
+                        "Expected error message about table not existing, but got: " + e.getMessage()
+                );
             }
         }
 
-        // Verify the reverse scenario - trying to access table from database B using
-        // datasource A
+        // Verify the reverse scenario - trying to access table from database B using datasource A
         try (Connection dbAConn = testDriver.connect(buildOjpUrl("database_a", "dbA"), new Properties())) {
             Statement stmt = dbAConn.createStatement();
 
-            // This should also throw SQLException because table_in_database_b doesn't exist
-            // in database A
-            assertThrows(SQLException.class, () -> stmt.executeQuery("SELECT * FROM " + tableInDbB),
-                    "Expected SQLException when trying to access table from different database");
+            // This should also throw SQLException because table_in_database_b doesn't exist in database A
+            assertThrows(SQLException.class, () -> stmt.executeQuery("SELECT * FROM " + tableInDbB), "Expected SQLException when trying to access table from different database");
         }
     }
 
     /**
-     * Creates a test driver that uses the provided properties content instead of
-     * loading from classpath.
-     * Note: Since property loading moved to DatasourcePropertiesLoader, this is now
-     * a no-op wrapper.
+     * Creates a test driver that uses the provided properties content instead of loading from classpath.
+     * Note: Since property loading moved to DatasourcePropertiesLoader, this is now a no-op wrapper.
      */
     private Driver createTestDriver() {
         // Property loading is now handled by DatasourcePropertiesLoader utility class
@@ -271,8 +255,7 @@ class MultiDataSourceIntegrationTest {
             // Create unique table for this datasource
             stmt.execute("CREATE TABLE IF NOT EXISTS " + tableName + " (id INT PRIMARY KEY, name VARCHAR(50))");
 
-            // Clean up any existing data first (in case table already exists from previous
-            // run)
+            // Clean up any existing data first (in case table already exists from previous run)
             stmt.execute("DELETE FROM " + tableName + " WHERE id = 1");
 
             // Insert test data

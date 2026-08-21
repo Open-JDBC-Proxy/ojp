@@ -1,10 +1,10 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,8 +79,7 @@ class CockroachDBPreparedStatementExtensiveTests {
         assertEquals(1, affected);
 
         // Verify the insert
-        PreparedStatement selectPs = connection
-                .prepareStatement("SELECT * FROM cockroachdb_prepared_stmt_test WHERE id = ?");
+        PreparedStatement selectPs = connection.prepareStatement("SELECT * FROM cockroachdb_prepared_stmt_test WHERE id = ?");
         selectPs.setInt(1, 1);
         ResultSet rs = selectPs.executeQuery();
         assertTrue(rs.next());
@@ -105,8 +104,7 @@ class CockroachDBPreparedStatementExtensiveTests {
         assertEquals(1, affected);
 
         // Verify the insert
-        PreparedStatement selectPs = connection
-                .prepareStatement("SELECT * FROM cockroachdb_prepared_stmt_test WHERE id = ?");
+        PreparedStatement selectPs = connection.prepareStatement("SELECT * FROM cockroachdb_prepared_stmt_test WHERE id = ?");
         selectPs.setInt(1, 2);
         ResultSet rs = selectPs.executeQuery();
         assertTrue(rs.next());
@@ -130,8 +128,7 @@ class CockroachDBPreparedStatementExtensiveTests {
         stmt.execute("ALTER TABLE cockroachdb_prepared_stmt_test ADD COLUMN salary DECIMAL(10,2)");
         stmt.close();
 
-        ps = connection
-                .prepareStatement("INSERT INTO cockroachdb_prepared_stmt_test (id, name, salary) VALUES (?, ?, ?)");
+        ps = connection.prepareStatement("INSERT INTO cockroachdb_prepared_stmt_test (id, name, salary) VALUES (?, ?, ?)");
         ps.setInt(1, 3);
         ps.setString(2, "Jane");
         ps.setBigDecimal(3, new BigDecimal("50000.50"));
@@ -140,8 +137,7 @@ class CockroachDBPreparedStatementExtensiveTests {
         assertEquals(1, affected);
 
         // Verify
-        PreparedStatement selectPs = connection
-                .prepareStatement("SELECT salary FROM cockroachdb_prepared_stmt_test WHERE id = ?");
+        PreparedStatement selectPs = connection.prepareStatement("SELECT salary FROM cockroachdb_prepared_stmt_test WHERE id = ?");
         selectPs.setInt(1, 3);
         ResultSet rs = selectPs.executeQuery();
         assertTrue(rs.next());
@@ -179,8 +175,7 @@ class CockroachDBPreparedStatementExtensiveTests {
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
     void testLargeObjectHandling(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
-        ps = connection.prepareStatement(
-                "INSERT INTO cockroachdb_prepared_stmt_test (id, name, data, info) VALUES (?, ?, ?, ?)");
+        ps = connection.prepareStatement("INSERT INTO cockroachdb_prepared_stmt_test (id, name, data, info) VALUES (?, ?, ?, ?)");
 
         byte[] testData = "This is test binary data".getBytes();
         String testText = "This is test text data";
@@ -194,8 +189,7 @@ class CockroachDBPreparedStatementExtensiveTests {
         assertEquals(1, affected);
 
         // Verify
-        PreparedStatement selectPs = connection
-                .prepareStatement("SELECT data, info FROM cockroachdb_prepared_stmt_test WHERE id = ?");
+        PreparedStatement selectPs = connection.prepareStatement("SELECT data, info FROM cockroachdb_prepared_stmt_test WHERE id = ?");
         selectPs.setInt(1, 6);
         ResultSet rs = selectPs.executeQuery();
         assertTrue(rs.next());
@@ -228,8 +222,7 @@ class CockroachDBPreparedStatementExtensiveTests {
 
         // Verify
         Statement stmt = connection.createStatement();
-        ResultSet rs = stmt
-                .executeQuery("SELECT COUNT(*) AS cnt FROM cockroachdb_prepared_stmt_test WHERE id IN (10, 11)");
+        ResultSet rs = stmt.executeQuery("SELECT COUNT(*) AS cnt FROM cockroachdb_prepared_stmt_test WHERE id IN (10, 11)");
         assertTrue(rs.next());
         assertEquals(2, rs.getInt("cnt"));
         rs.close();
@@ -256,8 +249,7 @@ class CockroachDBPreparedStatementExtensiveTests {
         assertEquals(1, affected);
 
         // Verify
-        PreparedStatement selectPs = connection
-                .prepareStatement("SELECT * FROM cockroachdb_prepared_stmt_test WHERE id = ?");
+        PreparedStatement selectPs = connection.prepareStatement("SELECT * FROM cockroachdb_prepared_stmt_test WHERE id = ?");
         selectPs.setInt(1, 21);
         ResultSet rs = selectPs.executeQuery();
         assertTrue(rs.next());
@@ -350,39 +342,30 @@ class CockroachDBPreparedStatementExtensiveTests {
         });
     }
 
-    // Note: testMaxRows, testQueryTimeout, and testFetchSize are removed due to OJP
-    // driver issues
-    // with PreparedStatement methods called before execution. These work fine with
-    // Statement.
+    // Note: testMaxRows, testQueryTimeout, and testFetchSize are removed due to OJP driver issues
+    // with PreparedStatement methods called before execution. These work fine with Statement.
 
     /**
-     * Reproduces the Spring Data saveAll / batch insert scenario with generated
-     * keys (issue #408).
-     * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is
-     * followed by
-     * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data
-     * uses for saveAll.
+     * Reproduces the Spring Data saveAll / batch insert scenario with generated keys (issue #408).
+     * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is followed by
+     * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data uses for saveAll.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE cockroachdb_batch_gen_keys_test");
         } catch (SQLException ignore) {
-            // Table may not exist on first run; ignore the error and proceed with CREATE
-            // TABLE
+            // Table may not exist on first run; ignore the error and proceed with CREATE TABLE
         }
         stmt.execute("CREATE TABLE cockroachdb_batch_gen_keys_test (id SERIAL PRIMARY KEY, name VARCHAR(100))");
         stmt.close();
 
-        // Reproduces: prepareStatement(sql, RETURN_GENERATED_KEYS) → addBatch() x N →
-        // executeBatch() → getGeneratedKeys()
-        ps = connection.prepareStatement("INSERT INTO cockroachdb_batch_gen_keys_test (name) VALUES (?)",
-                Statement.RETURN_GENERATED_KEYS);
+        // Reproduces: prepareStatement(sql, RETURN_GENERATED_KEYS) → addBatch() x N → executeBatch() → getGeneratedKeys()
+        ps = connection.prepareStatement("INSERT INTO cockroachdb_batch_gen_keys_test (name) VALUES (?)", Statement.RETURN_GENERATED_KEYS);
 
         ps.setString(1, "Alice");
         ps.addBatch();

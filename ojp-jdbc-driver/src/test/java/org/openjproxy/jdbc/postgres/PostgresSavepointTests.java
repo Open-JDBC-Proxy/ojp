@@ -23,7 +23,7 @@ public class PostgresSavepointTests {
 
     @BeforeAll
     static void checkTestConfiguration() {
-        isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
+      isTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
     }
 
     @SneakyThrows
@@ -33,15 +33,16 @@ public class PostgresSavepointTests {
         connection = DriverManager.getConnection(url, user, pwd);
         connection.setAutoCommit(false);
         connection.createStatement().execute(
-                "DROP TABLE IF EXISTS savepoint_test_table");
+                "DROP TABLE IF EXISTS savepoint_test_table"
+        );
         connection.createStatement().execute(
-                "CREATE TABLE savepoint_test_table (id INT PRIMARY KEY, name VARCHAR(255))");
+            "CREATE TABLE savepoint_test_table (id INT PRIMARY KEY, name VARCHAR(255))"
+        );
     }
 
     @AfterEach
     void tearDown() throws Exception {
-        if (connection != null)
-            connection.close();
+        if (connection != null) connection.close();
     }
 
     @ParameterizedTest
@@ -54,8 +55,7 @@ public class PostgresSavepointTests {
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (2, 'Bob')");
         connection.rollback(savepoint);
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT * FROM savepoint_test_table order by id desc");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM savepoint_test_table order by id desc");
         assertTrue(resultSet.next());
         assertEquals(1, resultSet.getInt("id"));
     }

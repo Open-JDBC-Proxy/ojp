@@ -1,4 +1,4 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
@@ -51,7 +51,8 @@ class CockroachDBResultSetMetaDataExtensiveTests {
                         "name VARCHAR(255) NOT NULL, " +
                         "age INT NULL, " +
                         "salary DECIMAL(10, 2) NOT NULL" +
-                        ")");
+                        ")"
+        );
         statement.execute("INSERT INTO test_table_metadata (name, age, salary) VALUES ('Alice', 30, 50000.00)");
 
         ResultSet resultSet = statement.executeQuery("SELECT * FROM test_table_metadata");
@@ -67,8 +68,7 @@ class CockroachDBResultSetMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
         // getColumnCount
@@ -103,8 +103,7 @@ class CockroachDBResultSetMetaDataExtensiveTests {
 
         // isNullable - CockroachDB NULL constraints
         int nullable1 = metaData.isNullable(1);
-        assertTrue(
-                nullable1 == ResultSetMetaData.columnNoNulls || nullable1 == ResultSetMetaData.columnNullableUnknown);
+        assertTrue(nullable1 == ResultSetMetaData.columnNoNulls || nullable1 == ResultSetMetaData.columnNullableUnknown);
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(2));
         assertEquals(ResultSetMetaData.columnNullable, metaData.isNullable(3));
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4));
@@ -186,8 +185,7 @@ class CockroachDBResultSetMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testResultSetMetaDataWithNullValues(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testResultSetMetaDataWithNullValues(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
         connection = DriverManager.getConnection(url, user, password);
@@ -203,7 +201,8 @@ class CockroachDBResultSetMetaDataExtensiveTests {
                 "CREATE TABLE test_null_metadata (" +
                         "id INT PRIMARY KEY, " +
                         "nullable_field VARCHAR(100)" +
-                        ")");
+                        ")"
+        );
         statement.execute("INSERT INTO test_null_metadata (id, nullable_field) VALUES (1, NULL)");
 
         ResultSet resultSet = statement.executeQuery("SELECT * FROM test_null_metadata");
@@ -212,14 +211,12 @@ class CockroachDBResultSetMetaDataExtensiveTests {
         assertEquals(2, md.getColumnCount());
         assertEquals(ResultSetMetaData.columnNoNulls, md.isNullable(1));
         int nullable2 = md.isNullable(2);
-        assertTrue(
-                nullable2 == ResultSetMetaData.columnNullable || nullable2 == ResultSetMetaData.columnNullableUnknown);
+        assertTrue(nullable2 == ResultSetMetaData.columnNullable || nullable2 == ResultSetMetaData.columnNullableUnknown);
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testResultSetMetaDataWithComplexTypes(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testResultSetMetaDataWithComplexTypes(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
         connection = DriverManager.getConnection(url, user, password);
@@ -238,10 +235,10 @@ class CockroachDBResultSetMetaDataExtensiveTests {
                         "timestamp_field TIMESTAMP, " +
                         "text_field TEXT, " +
                         "bytea_field BYTEA" +
-                        ")");
-        statement.execute(
-                "INSERT INTO test_complex_metadata (id, bool_field, timestamp_field, text_field, bytea_field) " +
-                        "VALUES (1, true, CURRENT_TIMESTAMP, 'test text', '\\x48656C6C6F'::BYTEA)");
+                        ")"
+        );
+        statement.execute("INSERT INTO test_complex_metadata (id, bool_field, timestamp_field, text_field, bytea_field) " +
+                "VALUES (1, true, CURRENT_TIMESTAMP, 'test text', '\\x48656C6C6F'::BYTEA)");
 
         ResultSet resultSet = statement.executeQuery("SELECT * FROM test_complex_metadata");
         ResultSetMetaData md = resultSet.getMetaData();

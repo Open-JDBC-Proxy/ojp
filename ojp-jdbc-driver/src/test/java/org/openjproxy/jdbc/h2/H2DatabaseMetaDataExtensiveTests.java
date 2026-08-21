@@ -1,11 +1,11 @@
 package org.openjproxy.jdbc.h2;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Types;
 
 import static org.junit.jupiter.api.Assertions.*;
+
 
 class H2DatabaseMetaDataExtensiveTests {
 
@@ -39,8 +40,7 @@ class H2DatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password)
-            throws Exception {
+    void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData meta = connection.getMetaData();
 
@@ -52,10 +52,10 @@ class H2DatabaseMetaDataExtensiveTests {
         assertFalse(meta.isReadOnly());
 
         // 6–10
-        assertFalse(meta.nullsAreSortedHigh()); // random
-        assertTrue(meta.nullsAreSortedLow()); // random
-        assertFalse(meta.nullsAreSortedAtStart()); // random
-        assertFalse(meta.nullsAreSortedAtEnd()); // random
+        assertFalse(meta.nullsAreSortedHigh());      // random
+        assertTrue(meta.nullsAreSortedLow());        // random
+        assertFalse(meta.nullsAreSortedAtStart());   // random
+        assertFalse(meta.nullsAreSortedAtEnd());      // random
         assertEquals("H2", meta.getDatabaseProductName());
 
         // 11–15
@@ -203,7 +203,7 @@ class H2DatabaseMetaDataExtensiveTests {
         try (ResultSet rs = meta.getProcedureColumns(null, null, null, null)) {
             validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getTables(null, null, null, new String[] { "TABLE" })) {
+        try (ResultSet rs = meta.getTables(null, null, null, new String[]{"TABLE"})) {
             validateAllRows(rs);
         }
         try (ResultSet rs = meta.getSchemas()) {
@@ -224,8 +224,7 @@ class H2DatabaseMetaDataExtensiveTests {
         try (ResultSet rs = meta.getTablePrivileges(null, null, null)) {
             validateAllRows(rs);
         }
-        try (ResultSet rs = meta.getBestRowIdentifier(null, null, "TEST_TABLE", DatabaseMetaData.bestRowSession,
-                false)) {
+        try (ResultSet rs = meta.getBestRowIdentifier(null, null, "TEST_TABLE", DatabaseMetaData.bestRowSession, false)) {
             validateAllRows(rs);
         }
         try (ResultSet rs = meta.getVersionColumns(null, null, "TEST_TABLE")) {

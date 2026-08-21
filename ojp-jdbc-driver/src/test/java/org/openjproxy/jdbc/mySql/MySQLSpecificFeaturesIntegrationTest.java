@@ -15,10 +15,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
- * Tests for MySQL-specific functionality that is not covered by
- * database-agnostic tests.
- * Includes features like ON DUPLICATE KEY UPDATE, SELECT ... FOR UPDATE, SHOW
- * commands, etc.
+ * Tests for MySQL-specific functionality that is not covered by database-agnostic tests.
+ * Includes features like ON DUPLICATE KEY UPDATE, SELECT ... FOR UPDATE, SHOW commands, etc.
  */
 class MySQLSpecificFeaturesIntegrationTest {
 
@@ -33,13 +31,12 @@ class MySQLSpecificFeaturesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void onDuplicateKeyUpdateTestSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException {
+    void onDuplicateKeyUpdateTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
+        
         // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
@@ -86,18 +83,17 @@ class MySQLSpecificFeaturesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void selectForUpdateTestSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException {
+    void selectForUpdateTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
+        
         // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing SELECT ... FOR UPDATE for url -> " + url);
@@ -147,18 +143,17 @@ class MySQLSpecificFeaturesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void showTablesTestSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException {
+    void showTablesTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
+        
         // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing SHOW TABLES for url -> " + url);
@@ -183,8 +178,8 @@ class MySQLSpecificFeaturesIntegrationTest {
                     break;
                 }
             }
-            // "Table mysql_show_test should be found in SHOW TABLES",
-            Assertions.assertTrue(foundTable);
+            //"Table mysql_show_test should be found in SHOW TABLES",
+            Assertions.assertTrue( foundTable);
 
             rs.close();
         }
@@ -194,18 +189,17 @@ class MySQLSpecificFeaturesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void autoIncrementAndLastInsertIdTestSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException {
+    void autoIncrementAndLastInsertIdTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
+        
         // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing AUTO_INCREMENT and LAST_INSERT_ID() for url -> " + url);
@@ -243,7 +237,7 @@ class MySQLSpecificFeaturesIntegrationTest {
             assertTrue(rs.next());
             assertEquals(firstId, rs.getLong("id"));
             assertEquals("First Item", rs.getString("name"));
-
+            
             assertTrue(rs.next());
             assertEquals(secondId, rs.getLong("id"));
             assertEquals("Second Item", rs.getString("name"));
@@ -256,18 +250,17 @@ class MySQLSpecificFeaturesIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void mysqlInformationSchemaTestSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException {
+    void mysqlInformationSchemaTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
+        
         // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing MySQL INFORMATION_SCHEMA queries for url -> " + url);
@@ -276,8 +269,9 @@ class MySQLSpecificFeaturesIntegrationTest {
             // Test INFORMATION_SCHEMA.TABLES
             ResultSet rs = stmt.executeQuery(
                     "SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES " +
-                            "WHERE TABLE_SCHEMA = DATABASE() LIMIT 10");
-
+                    "WHERE TABLE_SCHEMA = DATABASE() LIMIT 10"
+            );
+            
             // Should have at least some results
             boolean hasResults = false;
             while (rs.next()) {
@@ -288,14 +282,15 @@ class MySQLSpecificFeaturesIntegrationTest {
                 assertNotNull(tableType);
             }
             // Note: We can't assert hasResults because the database might be empty in tests
-
+            
             rs.close();
 
             // Test INFORMATION_SCHEMA.COLUMNS
             rs = stmt.executeQuery(
                     "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS " +
-                            "WHERE TABLE_SCHEMA = DATABASE() LIMIT 10");
-
+                    "WHERE TABLE_SCHEMA = DATABASE() LIMIT 10"
+            );
+            
             // Validate the query runs without error
             while (rs.next()) {
                 String columnName = rs.getString("COLUMN_NAME");

@@ -1,13 +1,12 @@
 package org.openjproxy.jdbc.mySql;
 
 import lombok.SneakyThrows;
-
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.CallableStatement;
 import java.sql.Connection;
@@ -26,7 +25,7 @@ import java.util.Properties;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-class MySQLMariaDBConnectionExtensiveTests {
+ class MySQLMariaDBConnectionExtensiveTests {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
@@ -199,8 +198,7 @@ class MySQLMariaDBConnectionExtensiveTests {
         setUp(driverClass, url, user, password);
 
         int isolationLevel = connection.getTransactionIsolation();
-        assertTrue(
-                isolationLevel >= Connection.TRANSACTION_NONE && isolationLevel <= Connection.TRANSACTION_SERIALIZABLE);
+        assertTrue(isolationLevel >= Connection.TRANSACTION_NONE && isolationLevel <= Connection.TRANSACTION_SERIALIZABLE);
 
         // Test setting transaction isolation level
         connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
@@ -225,8 +223,7 @@ class MySQLMariaDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testCreateStatementWithParameters(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testCreateStatementWithParameters(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
         Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
@@ -240,12 +237,10 @@ class MySQLMariaDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testPrepareStatementWithParameters(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testPrepareStatementWithParameters(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
-        PreparedStatement ps = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY);
+        PreparedStatement ps = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
         assertNotNull(ps);
         ps.close();
 
@@ -260,8 +255,7 @@ class MySQLMariaDBConnectionExtensiveTests {
         setUp(driverClass, url, user, password);
 
         int holdability = connection.getHoldability();
-        assertTrue(
-                holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
+        assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
 
         // Test setting holdability
         connection.setHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT);
@@ -332,11 +326,11 @@ class MySQLMariaDBConnectionExtensiveTests {
 
         // Test operations that might not be supported
         Assert.assertThrows(SQLException.class, () -> {
-            connection.createArrayOf("VARCHAR", new String[] { "test" });
+            connection.createArrayOf("VARCHAR", new String[]{"test"});
         });
 
         Assert.assertThrows(SQLFeatureNotSupportedException.class, () -> {
-            connection.createStruct("test_type", new Object[] {});
+            connection.createStruct("test_type", new Object[]{});
         });
     }
 }

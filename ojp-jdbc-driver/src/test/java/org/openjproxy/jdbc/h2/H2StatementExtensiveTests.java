@@ -1,11 +1,11 @@
 package org.openjproxy.jdbc.h2;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -58,14 +58,10 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testGetUpdateCountIsMinusOneAfterExecuteQuery(String driverClass, String url, String user, String password)
-            throws Exception {
-        // Regression test for PR #580: getUpdateCount() must return -1 (not 0) right
-        // after
-        // executeQuery(), otherwise clients relying on getUpdateCount()==-1 to detect
-        // the end
-        // of result processing (e.g. DataGrip) believe an update result is still
-        // pending.
+    void testGetUpdateCountIsMinusOneAfterExecuteQuery(String driverClass, String url, String user, String password) throws Exception {
+        // Regression test for PR #580: getUpdateCount() must return -1 (not 0) right after
+        // executeQuery(), otherwise clients relying on getUpdateCount()==-1 to detect the end
+        // of result processing (e.g. DataGrip) believe an update result is still pending.
         this.setUp(driverClass, url, user, password);
         ResultSet rs = statement.executeQuery("SELECT * FROM h2_statement_test");
         assertEquals(-1, statement.getUpdateCount());
@@ -74,12 +70,9 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testGetUpdateCountResetsToMinusOneWhenQueryFollowsAnUpdate(String driverClass, String url, String user,
-            String password) throws Exception {
-        // Regression test for PR #580: execute() on an UPDATE sets a valid (>=0) update
-        // count,
-        // but a subsequent executeQuery() on the same Statement must reset it back to
-        // -1.
+    void testGetUpdateCountResetsToMinusOneWhenQueryFollowsAnUpdate(String driverClass, String url, String user, String password) throws Exception {
+        // Regression test for PR #580: execute() on an UPDATE sets a valid (>=0) update count,
+        // but a subsequent executeQuery() on the same Statement must reset it back to -1.
         this.setUp(driverClass, url, user, password);
         boolean isResultSet = statement.execute("UPDATE h2_statement_test SET name = 'Updated Alice' WHERE id = 1");
         assertFalse(isResultSet);
@@ -127,10 +120,8 @@ public class H2StatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
         statement.close();
         assertThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM h2_statement_test"));
-        assertThrows(SQLException.class,
-                () -> statement.executeUpdate("UPDATE h2_statement_test SET name = 'fail' WHERE id = 1"));
-        assertThrows(SQLException.class,
-                () -> statement.addBatch("INSERT INTO h2_statement_test (id, name) VALUES (99, 'ShouldFail')"));
+        assertThrows(SQLException.class, () -> statement.executeUpdate("UPDATE h2_statement_test SET name = 'fail' WHERE id = 1"));
+        assertThrows(SQLException.class, () -> statement.addBatch("INSERT INTO h2_statement_test (id, name) VALUES (99, 'ShouldFail')"));
     }
 
     @ParameterizedTest
@@ -286,14 +277,12 @@ public class H2StatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int concurrency = statement.getResultSetConcurrency();
         int type = statement.getResultSetType();
         assertTrue(concurrency == ResultSet.CONCUR_READ_ONLY || concurrency == ResultSet.CONCUR_UPDATABLE);
-        assertTrue(type == ResultSet.TYPE_FORWARD_ONLY || type == ResultSet.TYPE_SCROLL_INSENSITIVE
-                || type == ResultSet.TYPE_SCROLL_SENSITIVE);
+        assertTrue(type == ResultSet.TYPE_FORWARD_ONLY || type == ResultSet.TYPE_SCROLL_INSENSITIVE || type == ResultSet.TYPE_SCROLL_SENSITIVE);
     }
 
     @ParameterizedTest
@@ -341,8 +330,7 @@ public class H2StatementExtensiveTests {
     void testGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         TestDBUtils.createAutoIncrementTestTable(connection, "test_auto_keys", TestDBUtils.SqlSyntax.H2);
-        int affected = statement.executeUpdate("INSERT INTO test_auto_keys (name) VALUES ('foo')",
-                Statement.RETURN_GENERATED_KEYS);
+        int affected = statement.executeUpdate("INSERT INTO test_auto_keys (name) VALUES ('foo')", Statement.RETURN_GENERATED_KEYS);
         assertEquals(1, affected);
         ResultSet keys = statement.getGeneratedKeys();
         assertTrue(keys.next());
@@ -358,11 +346,11 @@ public class H2StatementExtensiveTests {
         int a = statement.executeUpdate("INSERT INTO test_cols (name) VALUES ('bar')", Statement.RETURN_GENERATED_KEYS);
         assertEquals(1, a);
 
-        int[] colIndexes = { 1 };
+        int[] colIndexes = {1};
         a = statement.executeUpdate("INSERT INTO test_cols (name) VALUES ('baz')", colIndexes);
         assertEquals(1, a);
 
-        String[] colNames = { "id" };
+        String[] colNames = {"id"};
         a = statement.executeUpdate("INSERT INTO test_cols (name) VALUES ('qux')", colNames);
         assertEquals(1, a);
     }
@@ -375,11 +363,11 @@ public class H2StatementExtensiveTests {
         boolean b = statement.execute("INSERT INTO test_exec (name) VALUES ('v1')", Statement.RETURN_GENERATED_KEYS);
         assertFalse(b);
 
-        int[] colIndexes = { 1 };
+        int[] colIndexes = {1};
         b = statement.execute("INSERT INTO test_exec (name) VALUES ('v2')", colIndexes);
         assertFalse(b);
 
-        String[] colNames = { "id" };
+        String[] colNames = {"id"};
         b = statement.execute("INSERT INTO test_exec (name) VALUES ('v3')", colNames);
         assertFalse(b);
     }
@@ -389,8 +377,7 @@ public class H2StatementExtensiveTests {
     void testGetResultSetHoldability(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int holdability = statement.getResultSetHoldability();
-        assertTrue(
-                holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
+        assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT || holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @ParameterizedTest
@@ -423,12 +410,9 @@ public class H2StatementExtensiveTests {
         assertEquals(10L, statement.getLargeMaxRows());
         assertDoesNotThrow(() -> statement.executeLargeBatch());
         assertDoesNotThrow(() -> statement.executeLargeUpdate("UPDATE h2_statement_test SET name = 'x' WHERE id = 1"));
-        assertDoesNotThrow(() -> statement.executeLargeUpdate("UPDATE h2_statement_test SET name = 'x' WHERE id = 1",
-                Statement.RETURN_GENERATED_KEYS));
-        assertDoesNotThrow(() -> statement.executeLargeUpdate("UPDATE h2_statement_test SET name = 'x' WHERE id = 1",
-                new int[] { 1 }));
-        assertDoesNotThrow(() -> statement.executeLargeUpdate("UPDATE h2_statement_test SET name = 'x' WHERE id = 1",
-                new String[] { "id" }));
+        assertDoesNotThrow(() -> statement.executeLargeUpdate("UPDATE h2_statement_test SET name = 'x' WHERE id = 1", Statement.RETURN_GENERATED_KEYS));
+        assertDoesNotThrow(() -> statement.executeLargeUpdate("UPDATE h2_statement_test SET name = 'x' WHERE id = 1", new int[]{1}));
+        assertDoesNotThrow(() -> statement.executeLargeUpdate("UPDATE h2_statement_test SET name = 'x' WHERE id = 1", new String[]{"id"}));
     }
 
     @ParameterizedTest

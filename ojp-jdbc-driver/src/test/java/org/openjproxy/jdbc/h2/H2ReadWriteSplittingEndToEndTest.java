@@ -17,51 +17,40 @@ import java.util.Properties;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * End-to-end integration tests for read/write traffic splitting through OJP
- * JDBC driver and server.
+ * End-to-end integration tests for read/write traffic splitting through OJP JDBC driver and server.
  *
  * <h2>Client-Side Configuration</h2>
  *
  * <p>
- * All read/write splitting configuration is supplied by the client via the
- * {@link java.util.Properties}
- * object passed to
- * {@link java.sql.DriverManager#getConnection(String, Properties)}. No
- * server-side
- * properties file is required. The driver forwards these properties to the OJP
- * server, which uses
+ * All read/write splitting configuration is supplied by the client via the {@link java.util.Properties}
+ * object passed to {@link java.sql.DriverManager#getConnection(String, Properties)}. No server-side
+ * properties file is required. The driver forwards these properties to the OJP server, which uses
  * them to configure the primary/replica datasources on first connection.
  * </p>
  *
- * <p>
- * Example configuration properties used by these tests:
- * </p>
- * 
+ * <p>Example configuration properties used by these tests:</p>
  * <pre>
  * Properties props = new Properties();
  * props.setProperty("user", "sa");
  * props.setProperty("password", "");
- * props.setProperty("ojp.datasource.name", "rw_e2e_ds");
- * props.setProperty("rw_e2e_ds.ojp.readwrite.enabled", "true");
- * props.setProperty("rw_e2e_replica.ojp.readwrite.role", "replica");
- * props.setProperty("rw_e2e_replica.ojp.readwrite.primary", "rw_e2e_ds");
+ * props.setProperty("ojp.datasource.name",                         "rw_e2e_ds");
+ * props.setProperty("rw_e2e_ds.ojp.readwrite.enabled",             "true");
+ * props.setProperty("rw_e2e_replica.ojp.readwrite.role",           "replica");
+ * props.setProperty("rw_e2e_replica.ojp.readwrite.primary",        "rw_e2e_ds");
  * props.setProperty("rw_e2e_replica.ojp.connection.url",
  *         "jdbc:h2:mem:rw_e2e_replica;DB_CLOSE_DELAY=-1");
- * props.setProperty("rw_e2e_replica.ojp.connection.user", "sa");
+ * props.setProperty("rw_e2e_replica.ojp.connection.user",  "sa");
  * props.setProperty("rw_e2e_replica.ojp.connection.password", "");
  * </pre>
  *
  * <h2>Test Strategy: Dual Unsynchronized H2 Databases</h2>
  *
  * <p>
- * Two separate, intentionally <em>unsynchronized</em> H2 in-memory databases
- * are used:
+ * Two separate, intentionally <em>unsynchronized</em> H2 in-memory databases are used:
  * </p>
  * <ul>
- * <li><b>Primary</b> ({@code rw_e2e_primary}): seeded with id=1,
- * source="primary"</li>
- * <li><b>Replica</b> ({@code rw_e2e_replica}): seeded with id=2,
- * source="replica"</li>
+ *   <li><b>Primary</b> ({@code rw_e2e_primary}): seeded with id=1, source="primary"</li>
+ *   <li><b>Replica</b> ({@code rw_e2e_replica}): seeded with id=2, source="replica"</li>
  * </ul>
  * <p>
  * Routing correctness is verified by checking which row is returned:
@@ -71,8 +60,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <h3>Test Execution Requirements</h3>
  * <ul>
- * <li>OJP server running on localhost:1059</li>
- * <li>Enable with {@code -DenableH2Tests=true} Maven flag</li>
+ *   <li>OJP server running on localhost:1059</li>
+ *   <li>Enable with {@code -DenableH2Tests=true} Maven flag</li>
  * </ul>
  *
  * @see org.openjproxy.grpc.server.readwrite.ReadWriteDataSourceRegistry
@@ -148,8 +137,7 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * Builds the Properties for a direct replica-datasource connection (used to
-     * seed the
+     * Builds the Properties for a direct replica-datasource connection (used to seed the
      * replica H2 database during test setup).
      */
     private Properties replicaProps() {
@@ -161,17 +149,16 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * Seeds both H2 databases through OJP so that each test starts from a known
-     * state:
+     * Seeds both H2 databases through OJP so that each test starts from a known state:
      * <ul>
-     * <li>Primary: test_data(id=1, source='primary')</li>
-     * <li>Replica: test_data(id=2, source='replica')</li>
+     *   <li>Primary: test_data(id=1, source='primary')</li>
+     *   <li>Replica:  test_data(id=2, source='replica')</li>
      * </ul>
      */
     private void setupDatabases() throws SQLException {
         // Seed primary
         try (Connection c = DriverManager.getConnection(primaryUrl(), primaryProps());
-                Statement s = c.createStatement()) {
+             Statement s = c.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_data");
             s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
             s.execute("INSERT INTO test_data VALUES (1, 'primary')");
@@ -179,7 +166,7 @@ class H2ReadWriteSplittingEndToEndTest {
 
         // Seed replica
         try (Connection c = DriverManager.getConnection(replicaUrl(), replicaProps());
-                Statement s = c.createStatement()) {
+             Statement s = c.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_data");
             s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
             s.execute("INSERT INTO test_data VALUES (2, 'replica')");
@@ -202,7 +189,7 @@ class H2ReadWriteSplittingEndToEndTest {
         connection = DriverManager.getConnection(primaryUrl(), primaryProps());
 
         try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery("SELECT id, source FROM test_data")) {
+             ResultSet rs = stmt.executeQuery("SELECT id, source FROM test_data")) {
 
             assertTrue(rs.next(), "Should have at least one row");
             assertEquals(2, rs.getInt("id"),
@@ -225,7 +212,7 @@ class H2ReadWriteSplittingEndToEndTest {
 
         for (int i = 0; i < 3; i++) {
             try (Statement stmt = connection.createStatement();
-                    ResultSet rs = stmt.executeQuery("SELECT id, source FROM test_data")) {
+                 ResultSet rs = stmt.executeQuery("SELECT id, source FROM test_data")) {
 
                 assertTrue(rs.next(), "Should have at least one row in iteration " + i);
                 assertEquals(2, rs.getInt("id"),
@@ -257,8 +244,8 @@ class H2ReadWriteSplittingEndToEndTest {
             // Use a transaction to force routing to primary
             verify.setAutoCommit(false);
             try (Statement s = verify.createStatement();
-                    ResultSet rs = s.executeQuery(
-                            "SELECT COUNT(*) FROM test_data WHERE id = 100")) {
+                 ResultSet rs = s.executeQuery(
+                     "SELECT COUNT(*) FROM test_data WHERE id = 100")) {
                 assertTrue(rs.next());
                 assertEquals(1, rs.getInt(1), "Primary database should contain the inserted row");
             }
@@ -286,18 +273,17 @@ class H2ReadWriteSplittingEndToEndTest {
             // Force select to go to primary for validation
             verify.setAutoCommit(false);
             try (Statement s = verify.createStatement();
-                    ResultSet rs = s.executeQuery("SELECT source FROM test_data WHERE id = 1")) {
+                ResultSet rs = s.executeQuery("SELECT source FROM test_data WHERE id = 1")) {
                 assertTrue(rs.next());
                 assertEquals("updated", rs.getString("source"),
-                        "Primary database should show the updated value");
+                    "Primary database should show the updated value");
             }
             verify.rollback();
         }
     }
 
     /**
-     * DELETE must be routed to the primary; the row must be absent from the primary
-     * afterwards.
+     * DELETE must be routed to the primary; the row must be absent from the primary afterwards.
      */
     @Test
     void testDeleteGoesToPrimary() throws SQLException {
@@ -317,8 +303,8 @@ class H2ReadWriteSplittingEndToEndTest {
             // the primary was actually modified and not the replica.
             verify.setAutoCommit(false);
             try (Statement s = verify.createStatement();
-                    ResultSet rs = s.executeQuery(
-                            "SELECT COUNT(*) FROM test_data WHERE id = 1")) {
+                 ResultSet rs = s.executeQuery(
+                         "SELECT COUNT(*) FROM test_data WHERE id = 1")) {
                 assertTrue(rs.next());
                 assertEquals(0, rs.getInt(1),
                         "Primary database should not contain the deleted row");
@@ -328,8 +314,7 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * A write followed immediately by a read (no sticky session) demonstrates
-     * eventual
+     * A write followed immediately by a read (no sticky session) demonstrates eventual
      * consistency: the read goes to the replica and does not see the write.
      */
     @Test
@@ -353,10 +338,8 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * With sticky session configured, a write followed immediately by a read SHOULD
-     * see
-     * the write (read-your-writes guarantee). After the sticky session expires,
-     * reads
+     * With sticky session configured, a write followed immediately by a read SHOULD see
+     * the write (read-your-writes guarantee). After the sticky session expires, reads
      * go back to the replica.
      */
     @Test
@@ -370,7 +353,7 @@ class H2ReadWriteSplittingEndToEndTest {
 
         // Setup separate sticky session databases
         try (Connection c = DriverManager.getConnection(stickyPrimaryUrl, stickyProps);
-                Statement s = c.createStatement()) {
+             Statement s = c.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_data");
             s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
             s.execute("INSERT INTO test_data VALUES (1, 'sticky_primary')");
@@ -382,7 +365,7 @@ class H2ReadWriteSplittingEndToEndTest {
         replicaOnlyProps.setProperty("ojp.datasource.name", "rw_sticky_replica");
 
         try (Connection c = DriverManager.getConnection(stickyReplicaUrl, replicaOnlyProps);
-                Statement s = c.createStatement()) {
+             Statement s = c.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_data");
             s.execute("CREATE TABLE test_data (id INT PRIMARY KEY, source VARCHAR(50))");
             s.execute("INSERT INTO test_data VALUES (2, 'sticky_replica')");
@@ -403,7 +386,7 @@ class H2ReadWriteSplittingEndToEndTest {
             }
 
             // Wait for sticky session to expire (3 seconds + buffer)
-            Thread.sleep(3500); // NOSONAR - intentional wait for sticky session expiration
+            Thread.sleep(3500); //NOSONAR - intentional wait for sticky session expiration
 
             // After expiration, read goes to replica → does not see the write
             try (ResultSet rs = stmt.executeQuery(
@@ -416,8 +399,7 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * Builds Properties with sticky session (3 second timeout) for read/write
-     * splitting.
+     * Builds Properties with sticky session (3 second timeout) for read/write splitting.
      */
     private Properties stickyProps() {
         Properties props = new Properties();
@@ -472,46 +454,28 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * Without a sticky session, a read immediately after a committed transaction is
-     * expected to go
-     * to the replica (eventual consistency). The replica does not have the
-     * just-committed row.
+     * Without a sticky session, a read immediately after a committed transaction is expected to go
+     * to the replica (eventual consistency). The replica does not have the just-committed row.
      *
-     * <p>
-     * <b>DISABLED — current limitation: {@code setAutoCommit(true)} is not
-     * propagated to the server.</b>
+     * <p><b>DISABLED — current limitation: {@code setAutoCommit(true)} is not propagated to the server.</b>
      *
-     * <p>
-     * When the client calls {@code connection.setAutoCommit(true)} after
-     * committing, the OJP
-     * driver currently does NOT forward this to the server via {@code callResource}
-     * or any other
+     * <p>When the client calls {@code connection.setAutoCommit(true)} after committing, the OJP
+     * driver currently does NOT forward this to the server via {@code callResource} or any other
      * gRPC call. As a result, the server-side physical JDBC connection remains in
-     * {@code autoCommit=false} mode even after the transaction has been committed.
-     * Because
+     * {@code autoCommit=false} mode even after the transaction has been committed. Because
      * {@link org.openjproxy.grpc.server.Session#hasActiveTransaction()} checks
-     * {@code !primaryConnection.getAutoCommit()}, it continues to return
-     * {@code true}, and
-     * subsequent SELECT statements are pinned to the primary instead of being
-     * routed to the
+     * {@code !primaryConnection.getAutoCommit()}, it continues to return {@code true}, and
+     * subsequent SELECT statements are pinned to the primary instead of being routed to the
      * replica.
      *
-     * <p>
-     * <b>Note on propagating {@code setAutoCommit(true)} via
-     * {@code callResource}:</b>
-     * Propagating this call is not straightforward and requires careful evaluation.
-     * Key concerns
+     * <p><b>Note on propagating {@code setAutoCommit(true)} via {@code callResource}:</b>
+     * Propagating this call is not straightforward and requires careful evaluation. Key concerns
      * include: (1) the {@link com.openjproxy.grpc.TransactionInfo} embedded in
-     * {@link com.openjproxy.grpc.SessionInfo} would become stale after a
-     * {@code callResource}
-     * invocation (the response does not update {@code TransactionInfo}); (2)
-     * implicit-commit
-     * semantics on {@code setAutoCommit(true)} vary across database drivers and
-     * must be
-     * validated per supported database; and (3) interaction with the server-side
-     * connection pool
-     * cleanup logic needs to be verified. See the analysis document for full
-     * details.
+     * {@link com.openjproxy.grpc.SessionInfo} would become stale after a {@code callResource}
+     * invocation (the response does not update {@code TransactionInfo}); (2) implicit-commit
+     * semantics on {@code setAutoCommit(true)} vary across database drivers and must be
+     * validated per supported database; and (3) interaction with the server-side connection pool
+     * cleanup logic needs to be verified. See the analysis document for full details.
      *
      * @see #testAfterTransactionCommit_ReadsGoToPrimary_WithNoStickySession
      */
@@ -536,8 +500,8 @@ class H2ReadWriteSplittingEndToEndTest {
         connection.setAutoCommit(true);
 
         try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                        "SELECT COUNT(*) FROM test_data WHERE id = 250")) {
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT COUNT(*) FROM test_data WHERE id = 250")) {
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1),
                     "Without sticky session, SELECT after commit routes to replica which does not have the row");
@@ -545,16 +509,12 @@ class H2ReadWriteSplittingEndToEndTest {
     }
 
     /**
-     * Documents the current actual behavior: after an explicit transaction is
-     * committed, reads
+     * Documents the current actual behavior: after an explicit transaction is committed, reads
      * continue to go to the <em>primary</em> because the connection remains in
-     * {@code autoCommit=false} mode and the read/write splitter sees an active
-     * transaction.
+     * {@code autoCommit=false} mode and the read/write splitter sees an active transaction.
      *
-     * <p>
-     * {@link org.openjproxy.grpc.server.Session#hasActiveTransaction()} checks
-     * {@code !primaryConnection.getAutoCommit()}, which still returns {@code true}
-     * after the
+     * <p>{@link org.openjproxy.grpc.server.Session#hasActiveTransaction()} checks
+     * {@code !primaryConnection.getAutoCommit()}, which still returns {@code true} after the
      * commit, causing all subsequent SELECT statements to be routed to the primary.
      * The inserted row (id=251) is present on the primary, so the count is 1.
      */
@@ -574,8 +534,8 @@ class H2ReadWriteSplittingEndToEndTest {
         }
 
         try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                        "SELECT COUNT(*) FROM test_data WHERE id = 251")) {
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT COUNT(*) FROM test_data WHERE id = 251")) {
             assertTrue(rs.next());
             assertEquals(1, rs.getInt(1),
                     "Current behavior: connection is in autoCommit=false mode, "

@@ -38,8 +38,7 @@ class SQLServerSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/sqlserver_connections.csv")
-    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table session affinity for SQL Server: {}", url);
@@ -102,8 +101,7 @@ class SQLServerSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/sqlserver_connections.csv")
-    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing complex temporary table operations for SQL Server: {}", url);
@@ -184,8 +182,7 @@ class SQLServerSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/sqlserver_connections.csv")
-    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table persistence across transactions for SQL Server: {}", url);

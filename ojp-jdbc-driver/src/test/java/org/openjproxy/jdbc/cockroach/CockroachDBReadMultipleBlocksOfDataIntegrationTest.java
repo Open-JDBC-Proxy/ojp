@@ -1,4 +1,4 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,18 +11,17 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 /**
  * CockroachDB-specific multiple blocks of data integration tests.
  * Tests CockroachDB pagination and large result set handling.
  */
 class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
-    private static final Logger logger = LoggerFactory
-            .getLogger(CockroachDBReadMultipleBlocksOfDataIntegrationTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(CockroachDBReadMultipleBlocksOfDataIntegrationTest.class);
 
     private static boolean isTestEnabled;
 
@@ -33,8 +32,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBMultiplePagesOfRows(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testCockroachDBMultiplePagesOfRows(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -45,7 +43,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "DROP TABLE cockroachdb_read_blocks_test_multi");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         // Create table with CockroachDB-specific syntax
@@ -55,12 +53,11 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
 
         for (int i = 0; i < totalRecords; i++) {
             executeUpdate(conn,
-                    "INSERT INTO cockroachdb_read_blocks_test_multi (id, title) VALUES (" + i + ", 'COCKROACHDB_TITLE_"
-                            + i + "')");
+                    "INSERT INTO cockroachdb_read_blocks_test_multi (id, title) VALUES (" + i + ", 'COCKROACHDB_TITLE_" + i + "')"
+            );
         }
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("SELECT * FROM cockroachdb_read_blocks_test_multi ORDER BY id");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM cockroachdb_read_blocks_test_multi ORDER BY id");
         ResultSet resultSet = psSelect.executeQuery();
 
         for (int i = 0; i < totalRecords; i++) {
@@ -83,8 +80,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBLargeDataSetPagination(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testCockroachDBLargeDataSetPagination(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -94,7 +90,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "DROP TABLE cockroachdb_pagination_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         // Create table with CockroachDB-specific data types
@@ -109,8 +105,8 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
                     "INSERT INTO cockroachdb_pagination_test (id, name, value, description) " +
-                            "VALUES (" + i + ", 'Name_" + i + "', " + (i * 10.5) + ", 'Description for record " + i
-                            + "')");
+                            "VALUES (" + i + ", 'Name_" + i + "', " + (i * 10.5) + ", 'Description for record " + i + "')"
+            );
         }
 
         // Test pagination with LIMIT and OFFSET
@@ -120,7 +116,8 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
         for (int page = 0; page < totalPages; page++) {
             int offset = page * pageSize;
             java.sql.PreparedStatement psSelect = conn.prepareStatement(
-                    "SELECT * FROM cockroachdb_pagination_test ORDER BY id LIMIT " + pageSize + " OFFSET " + offset);
+                    "SELECT * FROM cockroachdb_pagination_test ORDER BY id LIMIT " + pageSize + " OFFSET " + offset
+            );
             ResultSet resultSet = psSelect.executeQuery();
 
             int count = 0;
@@ -142,8 +139,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBLargeResultSetWithVariousTypes(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testCockroachDBLargeResultSetWithVariousTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -153,7 +149,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "DROP TABLE cockroachdb_large_types_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         // Create table with various CockroachDB data types
@@ -174,12 +170,14 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
                     "INSERT INTO cockroachdb_large_types_test " +
                             "(int_val, bigint_val, float_val, decimal_val, text_val, bool_val, timestamp_val) " +
                             "VALUES (" + i + ", " + (i * 1000L) + ", " + (i * 1.5) + ", " + (i * 100.123) + ", " +
-                            "'Text value for record " + i + "', " + (i % 2 == 0) + ", CURRENT_TIMESTAMP)");
+                            "'Text value for record " + i + "', " + (i % 2 == 0) + ", CURRENT_TIMESTAMP)"
+            );
         }
 
         // Retrieve all records and verify
         java.sql.PreparedStatement psSelect = conn.prepareStatement(
-                "SELECT * FROM cockroachdb_large_types_test ORDER BY id");
+                "SELECT * FROM cockroachdb_large_types_test ORDER BY id"
+        );
         ResultSet resultSet = psSelect.executeQuery();
 
         int count = 0;
@@ -202,8 +200,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBFetchSizePerformance(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testCockroachDBFetchSizePerformance(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -213,7 +210,7 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "DROP TABLE cockroachdb_fetch_size_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         executeUpdate(conn, "CREATE TABLE cockroachdb_fetch_size_test(" +
@@ -224,15 +221,17 @@ class CockroachDBReadMultipleBlocksOfDataIntegrationTest {
         int totalRecords = 3000;
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
-                    "INSERT INTO cockroachdb_fetch_size_test (data) VALUES ('Data row " + i + "')");
+                    "INSERT INTO cockroachdb_fetch_size_test (data) VALUES ('Data row " + i + "')"
+            );
         }
 
         // Test with different fetch sizes
-        int[] fetchSizes = { 10, 50, 100, 500 };
+        int[] fetchSizes = {10, 50, 100, 500};
 
         for (int fetchSize : fetchSizes) {
             java.sql.PreparedStatement psSelect = conn.prepareStatement(
-                    "SELECT * FROM cockroachdb_fetch_size_test ORDER BY id");
+                    "SELECT * FROM cockroachdb_fetch_size_test ORDER BY id"
+            );
             psSelect.setFetchSize(fetchSize);
 
             ResultSet resultSet = psSelect.executeQuery();

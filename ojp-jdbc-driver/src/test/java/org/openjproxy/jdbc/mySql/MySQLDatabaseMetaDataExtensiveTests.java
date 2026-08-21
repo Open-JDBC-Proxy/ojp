@@ -1,11 +1,11 @@
 package org.openjproxy.jdbc.mySql;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -15,7 +15,7 @@ import java.sql.ResultSet;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-class MySQLDatabaseMetaDataExtensiveTests {
+ class MySQLDatabaseMetaDataExtensiveTests {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
@@ -27,7 +27,7 @@ class MySQLDatabaseMetaDataExtensiveTests {
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
-    void setUp(String driverClass, String url, String user, String password) throws Exception {
+     void setUp(String driverClass, String url, String user, String password) throws Exception {
         assumeFalse(!isMySQLTestEnabled, "MySQL tests are not enabled");
         assumeFalse(!isMariaDBTestEnabled, "MariaDB tests are not enabled");
         connection = DriverManager.getConnection(url, user, password);
@@ -41,8 +41,7 @@ class MySQLDatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testBasicDatabaseMetaDataProperties(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testBasicDatabaseMetaDataProperties(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData meta = connection.getMetaData();
 
@@ -168,8 +167,7 @@ class MySQLDatabaseMetaDataExtensiveTests {
 
         // ResultSet type support
         assertTrue(meta.supportsResultSetType(ResultSet.TYPE_FORWARD_ONLY));
-        // MySQL may or may not support scrollable result sets depending on
-        // configuration
+        // MySQL may or may not support scrollable result sets depending on configuration
         meta.supportsResultSetType(ResultSet.TYPE_SCROLL_INSENSITIVE);
         meta.supportsResultSetType(ResultSet.TYPE_SCROLL_SENSITIVE);
 
@@ -189,7 +187,7 @@ class MySQLDatabaseMetaDataExtensiveTests {
         DatabaseMetaData meta = connection.getMetaData();
 
         // Test getTables method
-        ResultSet tables = meta.getTables(null, null, "%", new String[] { "TABLE" });
+        ResultSet tables = meta.getTables(null, null, "%", new String[]{"TABLE"});
         assertNotNull(tables);
 
         boolean foundTestTable = false;

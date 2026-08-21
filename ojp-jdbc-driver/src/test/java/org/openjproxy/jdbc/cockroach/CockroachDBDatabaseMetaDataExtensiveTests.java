@@ -1,10 +1,10 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +36,7 @@ class CockroachDBDatabaseMetaDataExtensiveTests {
         assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
         connection = DriverManager.getConnection(url, user, password);
-        TestDBUtils.createBasicTestTable(connection, "cockroachdb_db_metadata_test", TestDBUtils.SqlSyntax.COCKROACHDB,
-                true);
+        TestDBUtils.createBasicTestTable(connection, "cockroachdb_db_metadata_test", TestDBUtils.SqlSyntax.COCKROACHDB, true);
     }
 
     @AfterAll
@@ -47,8 +46,7 @@ class CockroachDBDatabaseMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password)
-            throws Exception {
+    void allDatabaseMetaDataMethodsShouldWorkAndBeAsserted(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         DatabaseMetaData meta = connection.getMetaData();
 
@@ -257,7 +255,7 @@ class CockroachDBDatabaseMetaDataExtensiveTests {
         assertNotNull(procedures);
         procedures.close();
 
-        ResultSet tables = meta.getTables(null, null, "%", new String[] { "TABLE" });
+        ResultSet tables = meta.getTables(null, null, "%", new String[]{"TABLE"});
         assertNotNull(tables);
         boolean foundTable = false;
         while (tables.next()) {

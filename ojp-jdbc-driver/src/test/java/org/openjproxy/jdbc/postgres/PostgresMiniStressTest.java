@@ -1,4 +1,5 @@
 package org.openjproxy.jdbc.postgres;
+import org.openjproxy.jdbc.PerformanceMetrics;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -6,8 +7,6 @@ import org.codehaus.plexus.util.ExceptionUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.PerformanceMetrics;
-import org.openjproxy.jdbc.PerformanceMetrics.JvmStatistics;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -56,7 +55,7 @@ public class PostgresMiniStressTest {
     @CsvFileSource(resources = "/postgres_connection.csv")
     void runTests(String driverClass, String url, String user, String password) throws SQLException {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
-
+        
         this.setUp();
         // 1. Schema and seeding (not timed)
         try (Connection conn = getConnection(driverClass, url, user, password)) {
@@ -95,30 +94,36 @@ public class PostgresMiniStressTest {
                             "  product_id INT REFERENCES products(id)," +
                             "  rating INT," +
                             "  comment TEXT" +
-                            ");");
+                            ");"
+            );
             stmt.close();
 
             // Seed data
             System.out.println("Seeding users...");
             conn.createStatement().execute(
                     "INSERT INTO users (username, email) " +
-                            "SELECT 'user' || g, 'user' || g || '@example.com' FROM generate_series(1,10000) g");
+                            "SELECT 'user' || g, 'user' || g || '@example.com' FROM generate_series(1,10000) g"
+            );
             System.out.println("Seeding products...");
             conn.createStatement().execute(
                     "INSERT INTO products (name, price) " +
-                            "SELECT 'Product ' || g, (random()*1000)::int + 1 FROM generate_series(1,1000) g");
+                            "SELECT 'Product ' || g, (random()*1000)::int + 1 FROM generate_series(1,1000) g"
+            );
             System.out.println("Seeding orders...");
             conn.createStatement().execute(
                     "INSERT INTO orders (user_id, order_date) " +
-                            "SELECT (random()*9999 + 1)::int, NOW() - INTERVAL '1 day' * (random()*365)::int FROM generate_series(1,50000) g");
+                            "SELECT (random()*9999 + 1)::int, NOW() - INTERVAL '1 day' * (random()*365)::int FROM generate_series(1,50000) g"
+            );
             System.out.println("Seeding order_items...");
             conn.createStatement().execute(
                     "INSERT INTO order_items (order_id, product_id, quantity) " +
-                            "SELECT (random()*49999+1)::int, (random()*999+1)::int, (random()*10+1)::int FROM generate_series(1,100000) g");
+                            "SELECT (random()*49999+1)::int, (random()*999+1)::int, (random()*10+1)::int FROM generate_series(1,100000) g"
+            );
             System.out.println("Seeding reviews...");
             conn.createStatement().execute(
                     "INSERT INTO reviews (user_id, product_id, rating, comment) " +
-                            "SELECT (random()*9999+1)::int, (random()*999+1)::int, (random()*5+1)::int, 'review ' || g FROM generate_series(1,30000) g");
+                            "SELECT (random()*9999+1)::int, (random()*999+1)::int, (random()*5+1)::int, 'review ' || g FROM generate_series(1,30000) g"
+            );
         }
 
         // 2. Test timing with ramp-up
@@ -130,8 +135,7 @@ public class PostgresMiniStressTest {
             executor.submit(() -> {
                 try {
                     // Ramp-up delay for this thread
-                    if (threadNum > 0)
-                        Thread.sleep(threadNum * rampupPerThread);
+                    if (threadNum > 0) Thread.sleep(threadNum * rampupPerThread);
                 } catch (InterruptedException ignored) {
                 }
                 runExactQuerySequence(threadNum, driverClass, url, user, password);
@@ -147,27 +151,27 @@ public class PostgresMiniStressTest {
         int numQueries = totalQueries.get();
         int numFailures = failedQueries.get();
         long totalTimeMs = (globalEnd - globalStart) / 1_000_000;
-
+        
         System.out.println("\n=== TEST REPORT ===");
         System.out.println("Total queries executed: " + numQueries);
         System.out.println("Total test duration: " + totalTimeMs + " ms");
         System.out.println("Total query failures: " + numFailures);
-
+        
         // Display performance metrics
         List<Long> durationList = new ArrayList<>(queryDurations);
         String performanceReport = PerformanceMetrics.generatePerformanceReport(durationList, numQueries, totalTimeMs);
         System.out.println(performanceReport);
-
+        
         // Display JVM metrics
         System.out.println("=== OJP SERVER JVM METRICS ===");
         PerformanceMetrics.JvmStatistics jvmStats = PerformanceMetrics.collectJvmStatistics();
         System.out.println(jvmStats);
-
+        
         // Original assertions
         assertEquals(680, numQueries);
         assertEquals(10, numFailures);
         assertTrue(totalTimeMs < 30000);
-
+        
         // Calculate average for assertion
         double avgQueryMs = numQueries > 0
                 ? durationList.stream().mapToLong(Long::longValue).average().orElse(0) / 1_000_000.0
@@ -189,18 +193,15 @@ public class PostgresMiniStressTest {
     }
 
     /**
-     * Each thread runs this exact sequence of 100 queries, all using
-     * PreparedStatement.
+     * Each thread runs this exact sequence of 100 queries, all using PreparedStatement.
      * Also demonstrates realistic transaction blocks.
      * All queries are coded individually and marked if part of a transaction.
      */
-    private static Connection getConnection(String driverClass, String url, String user, String password)
-            throws SQLException {
+    private static Connection getConnection(String driverClass, String url, String user, String password) throws SQLException {
         return DriverManager.getConnection(url, user, password);
     }
 
-    private static void runExactQuerySequence(int threadNum, String driverClass, String url, String user,
-            String password) {
+    private static void runExactQuerySequence(int threadNum, String driverClass, String url, String user, String password) {
         // Transaction Block 1: create user, create order for that user, add order items
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
@@ -211,16 +212,14 @@ public class PostgresMiniStressTest {
                     pstUser.setString(2, "txuser_" + threadNum + "@example.com");
                     ResultSet rs = pstUser.executeQuery();
                     int userId = 0;
-                    if (rs.next())
-                        userId = rs.getInt(1);
+                    if (rs.next()) userId = rs.getInt(1);
 
                     int orderId = 0;
                     try (PreparedStatement pstOrder = conn.prepareStatement(
                             "INSERT INTO orders (user_id, order_date) VALUES (?, NOW()) RETURNING id")) {
                         pstOrder.setInt(1, userId);
                         ResultSet rsOrder = pstOrder.executeQuery();
-                        if (rsOrder.next())
-                            orderId = rsOrder.getInt(1);
+                        if (rsOrder.next()) orderId = rsOrder.getInt(1);
 
                         // Add 3 items to this order
                         for (int i = 1; i <= 3; i++) {
@@ -313,8 +312,7 @@ public class PostgresMiniStressTest {
         // Queries 4-100: Each query uses its own connection
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
                     pst.setString(1, "userA");
                     pst.setString(2, "userA@example.com");
                     pst.execute();
@@ -327,8 +325,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
                     pst.setString(1, "userB");
                     pst.setString(2, "userB@example.com");
                     pst.execute();
@@ -341,8 +338,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
                     pst.setString(1, "userC");
                     pst.setString(2, "userC@example.com");
                     pst.execute();
@@ -394,8 +390,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
                     pst.setString(1, "userD");
                     pst.setString(2, "userD@example.com");
                     pst.execute();
@@ -408,8 +403,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
                     pst.setString(1, "userE");
                     pst.setString(2, "userE@example.com");
                     pst.execute();
@@ -435,8 +429,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO users (username, email) VALUES (?, ?)")) {
                     pst.setString(1, "userF");
                     pst.setString(2, "userF@example.com");
                     pst.execute();
@@ -451,8 +444,7 @@ public class PostgresMiniStressTest {
         // -- Product insert/update
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
                     pst.setString(1, "ProductA");
                     pst.setBigDecimal(2, new BigDecimal("123.45"));
                     pst.execute();
@@ -465,8 +457,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
                     pst.setString(1, "ProductB");
                     pst.setBigDecimal(2, new BigDecimal("67.89"));
                     pst.execute();
@@ -479,8 +470,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
                     pst.setString(1, "ProductC");
                     pst.setBigDecimal(2, new BigDecimal("250.00"));
                     pst.execute();
@@ -519,8 +509,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
                     pst.setString(1, "ProductD");
                     pst.setBigDecimal(2, new BigDecimal("111.11"));
                     pst.execute();
@@ -533,8 +522,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
                     pst.setString(1, "ProductE");
                     pst.setBigDecimal(2, new BigDecimal("77.77"));
                     pst.execute();
@@ -573,8 +561,7 @@ public class PostgresMiniStressTest {
         });
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
+                try (PreparedStatement pst = conn.prepareStatement("INSERT INTO products (name, price) VALUES (?, ?)")) {
                     pst.setString(1, "ProductF");
                     pst.setBigDecimal(2, new BigDecimal("333.33"));
                     pst.execute();
@@ -655,8 +642,7 @@ public class PostgresMiniStressTest {
 
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("SELECT * FROM orders ORDER BY order_date DESC LIMIT 10")) {
+                try (PreparedStatement pst = conn.prepareStatement("SELECT * FROM orders ORDER BY order_date DESC LIMIT 10")) {
                     try (ResultSet rs = pst.executeQuery()) {
                         while (rs.next()) {
                             rs.getInt("id");
@@ -722,13 +708,12 @@ public class PostgresMiniStressTest {
 
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("SELECT count(*) FROM order_items WHERE order_id=?")) {
+                try (PreparedStatement pst = conn.prepareStatement("SELECT count(*) FROM order_items WHERE order_id=?")) {
                     pst.setInt(1, 1);
                     log.info("select count of quantities from order_items for order_id = " + 1);
                     try (ResultSet rs = pst.executeQuery()) {
                         while (rs.next()) {
-                            Long sum = rs.getLong(1);
+                            Long sum  = rs.getLong(1);
                             log.info("count returned = " + sum);
                         }
                     }
@@ -742,8 +727,7 @@ public class PostgresMiniStressTest {
 
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("SELECT SUM(quantity) FROM order_items WHERE order_id=?")) {
+                try (PreparedStatement pst = conn.prepareStatement("SELECT SUM(quantity) FROM order_items WHERE order_id=?")) {
                     pst.setInt(1, 1);
                     log.info("select sum of quantities from order_items for order_id = " + 1);
                     try (ResultSet rs = pst.executeQuery()) {
@@ -833,8 +817,7 @@ public class PostgresMiniStressTest {
 
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("SELECT AVG(rating) FROM reviews WHERE product_id=?")) {
+                try (PreparedStatement pst = conn.prepareStatement("SELECT AVG(rating) FROM reviews WHERE product_id=?")) {
                     pst.setInt(1, 1);
                     try (ResultSet rs = pst.executeQuery()) {
                         while (rs.next()) {
@@ -868,8 +851,7 @@ public class PostgresMiniStressTest {
 
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn.prepareStatement(
-                        "SELECT u.username, o.id FROM users u JOIN orders o ON u.id = o.user_id WHERE u.id=?")) {
+                try (PreparedStatement pst = conn.prepareStatement("SELECT u.username, o.id FROM users u JOIN orders o ON u.id = o.user_id WHERE u.id=?")) {
                     pst.setInt(1, 1);
                     try (ResultSet rs = pst.executeQuery()) {
                         while (rs.next()) {
@@ -886,8 +868,7 @@ public class PostgresMiniStressTest {
 
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn.prepareStatement(
-                        "SELECT oi.id, p.name FROM order_items oi JOIN products p ON oi.product_id=p.id WHERE oi.order_id=?")) {
+                try (PreparedStatement pst = conn.prepareStatement("SELECT oi.id, p.name FROM order_items oi JOIN products p ON oi.product_id=p.id WHERE oi.order_id=?")) {
                     pst.setInt(1, 1);
                     try (ResultSet rs = pst.executeQuery()) {
                         while (rs.next()) {
@@ -904,8 +885,7 @@ public class PostgresMiniStressTest {
 
         timeAndRun(() -> {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
-                try (PreparedStatement pst = conn
-                        .prepareStatement("SELECT user_id, COUNT(*) FROM orders GROUP BY user_id")) {
+                try (PreparedStatement pst = conn.prepareStatement("SELECT user_id, COUNT(*) FROM orders GROUP BY user_id")) {
                     try (ResultSet rs = pst.executeQuery()) {
                         while (rs.next()) {
                             rs.getInt("user_id");
@@ -1039,17 +1019,18 @@ public class PostgresMiniStressTest {
             try (Connection conn = getConnection(driverClass, url, user, password)) {
                 try (PreparedStatement pst = conn.prepareStatement(
                         "SELECT" +
-                                "  u.id," +
-                                "  COUNT(o.id) AS num_orders," +
-                                "  SUM(oi.quantity) AS total_quantity," +
-                                "  AVG(p.price) AS avg_price," +
-                                "  (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) AS avg_rating," +
-                                "  1 / 0 AS failHere" +
-                                "FROM users u" +
-                                "JOIN orders o ON u.id = o.user_id" +
-                                "JOIN order_items oi ON o.id = oi.order_id" +
-                                "JOIN products p ON oi.product_id = p.id" +
-                                "GROUP BY u.id, p.id")) {
+                        "  u.id," +
+                        "  COUNT(o.id) AS num_orders," +
+                        "  SUM(oi.quantity) AS total_quantity," +
+                        "  AVG(p.price) AS avg_price," +
+                        "  (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) AS avg_rating," +
+                        "  1 / 0 AS failHere" +
+                        "FROM users u" +
+                        "JOIN orders o ON u.id = o.user_id" +
+                        "JOIN order_items oi ON o.id = oi.order_id" +
+                        "JOIN products p ON oi.product_id = p.id" +
+                        "GROUP BY u.id, p.id"
+                        )) {
                     try (ResultSet rs = pst.executeQuery()) {
                         while (rs.next()) {
                             rs.getInt(1);

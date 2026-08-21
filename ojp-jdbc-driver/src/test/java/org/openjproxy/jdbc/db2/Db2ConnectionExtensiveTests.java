@@ -1,10 +1,10 @@
 package org.openjproxy.jdbc.db2;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,10 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * DB2-specific integration tests to validate OJP functionality with IBM DB2
- * Database.
- * These tests verify that OJP can properly handle DB2-specific SQL syntax and
- * data types.
+ * DB2-specific integration tests to validate OJP functionality with IBM DB2 Database.
+ * These tests verify that OJP can properly handle DB2-specific SQL syntax and data types.
  */
 
 class Db2ConnectionExtensiveTests {
@@ -58,8 +56,7 @@ class Db2ConnectionExtensiveTests {
             // Test basic DB2 functionality
             try (Statement statement = connection.createStatement()) {
                 // Create a simple test table
-                TestDBUtils.createBasicTestTable(connection, "DB2INST1.db2_test_table", TestDBUtils.SqlSyntax.DB2,
-                        true);
+                TestDBUtils.createBasicTestTable(connection, "DB2INST1.db2_test_table", TestDBUtils.SqlSyntax.DB2, true);
 
                 // Verify data was inserted correctly
                 try (ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM DB2INST1.db2_test_table")) {
@@ -70,8 +67,7 @@ class Db2ConnectionExtensiveTests {
                 // Test DB2-specific INTEGER data type
                 statement.execute("INSERT INTO DB2INST1.db2_test_table (id, name) VALUES (3, 'Charlie')");
 
-                try (ResultSet rs = statement
-                        .executeQuery("SELECT id, name FROM DB2INST1.db2_test_table WHERE id = 3")) {
+                try (ResultSet rs = statement.executeQuery("SELECT id, name FROM DB2INST1.db2_test_table WHERE id = 3")) {
                     assertTrue(rs.next());
                     assertEquals(3, rs.getInt("id"));
                     assertEquals("Charlie", rs.getString("name"));
@@ -167,8 +163,7 @@ class Db2ConnectionExtensiveTests {
                 statement.execute("INSERT INTO DB2INST1.db2_boolean_test VALUES (3, NULL)");
 
                 // Verify boolean values
-                try (ResultSet rs = statement
-                        .executeQuery("SELECT id, is_active FROM DB2INST1.db2_boolean_test ORDER BY id")) {
+                try (ResultSet rs = statement.executeQuery("SELECT id, is_active FROM DB2INST1.db2_boolean_test ORDER BY id")) {
                     assertTrue(rs.next());
                     assertEquals(1, rs.getInt("id"));
                     assertTrue(rs.getBoolean("is_active"));
@@ -218,8 +213,7 @@ class Db2ConnectionExtensiveTests {
                 statement.execute("INSERT INTO DB2INST1.db2_null_test VALUES (3, 'Valid Text')");
 
                 // Verify NULL vs empty string handling
-                try (ResultSet rs = statement
-                        .executeQuery("SELECT id, text_col FROM DB2INST1.db2_null_test ORDER BY id")) {
+                try (ResultSet rs = statement.executeQuery("SELECT id, text_col FROM DB2INST1.db2_null_test ORDER BY id")) {
                     assertTrue(rs.next());
                     assertEquals(1, rs.getInt("id"));
                     assertNull(rs.getString("text_col"));

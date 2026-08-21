@@ -2,14 +2,13 @@ package org.openjproxy.jdbc.h2;
 
 import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
-
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Array;
 import java.sql.Blob;
@@ -65,17 +64,16 @@ public class H2ConnectionExtensiveTests {
     void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         Assertions.assertFalse(connection.isClosed());
-        assertTrue(connection.isValid(5));
+        assertTrue( connection.isValid(5));
         assertEquals("PUBLIC", connection.getSchema());
         assertNull(connection.getClientInfo("nonexistent"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertTrue(connection.getAutoCommit());
+        assertTrue( connection.getAutoCommit());
         connection.setAutoCommit(false);
         Assertions.assertFalse(connection.getAutoCommit());
 
@@ -97,13 +95,13 @@ public class H2ConnectionExtensiveTests {
         connection.rollback();
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test WHERE id = 3");
-        assertFalse(rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO h2_connection_test (id, name) VALUES (3, 'Charlie')");
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test");
-        assertTrue(rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
@@ -119,14 +117,14 @@ public class H2ConnectionExtensiveTests {
         connection.rollback(sp1);
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test WHERE id = 3");
-        assertFalse(rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO h2_connection_test (id, name) VALUES (3, 'Charlie')");
         connection.releaseSavepoint(sp1);
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM h2_connection_test WHERE id = 3");
-        assertTrue(rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
@@ -136,13 +134,13 @@ public class H2ConnectionExtensiveTests {
         DatabaseMetaData metaData = connection.getMetaData();
         assertNotNull(metaData);
         assertEquals("H2", metaData.getDatabaseProductName());
-        assertTrue(metaData.supportsTransactions());
+        assertTrue( metaData.supportsTransactions());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
     void testClientInfo(String driverClass, String url, String user, String password) throws SQLException {
-        if (url.contains("h2")) {// Not supported in H2
+        if (url.contains("h2")) {//Not supported in H2
             return;
         }
         this.setUp(driverClass, url, user, password);
@@ -154,9 +152,9 @@ public class H2ConnectionExtensiveTests {
     @CsvFileSource(resources = "/h2_connection.csv")
     void testClose(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertFalse(connection.isClosed());
+        assertFalse( connection.isClosed());
         connection.close();
-        assertTrue(connection.isClosed());
+        assertTrue( connection.isClosed());
     }
 
     // ---------- Additional tests for every Connection interface method ----------
@@ -191,9 +189,9 @@ public class H2ConnectionExtensiveTests {
 
         // setReadOnly / isReadOnly
         connection.setReadOnly(false);
-        assertFalse(connection.isReadOnly());
+        assertFalse( connection.isReadOnly());
         connection.setReadOnly(true);
-        assertFalse(connection.isReadOnly());
+        assertFalse( connection.isReadOnly());
 
         // setCatalog / getCatalog
         String oldCatalog = connection.getCatalog();
@@ -212,13 +210,11 @@ public class H2ConnectionExtensiveTests {
         assertNotNull(st2);
 
         // prepareStatement(String, int, int)
-        PreparedStatement ps2 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY);
+        PreparedStatement ps2 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
         assertNotNull(ps2);
 
         // prepareCall(String, int, int)
-        CallableStatement cs2 = connection.prepareCall("CALL 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY);
+        CallableStatement cs2 = connection.prepareCall("CALL 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
         assertNotNull(cs2);
 
         // getTypeMap / setTypeMap
@@ -245,18 +241,15 @@ public class H2ConnectionExtensiveTests {
         connection.releaseSavepoint(sp2);
 
         // createStatement(int, int, int)
-        Statement st3 = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,
-                ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        Statement st3 = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
         assertNotNull(st3);
 
         // prepareStatement(String, int, int, int)
-        PreparedStatement ps3 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        PreparedStatement ps3 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
         assertNotNull(ps3);
 
         // prepareCall(String, int, int, int)
-        CallableStatement cs3 = connection.prepareCall("CALL 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        CallableStatement cs3 = connection.prepareCall("CALL 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
         assertNotNull(cs3);
 
         // prepareStatement(String, int)
@@ -282,21 +275,19 @@ public class H2ConnectionExtensiveTests {
         assertNotNull(sqlxml);
 
         // isValid
-        assertTrue(connection.isValid(5));
+        assertTrue( connection.isValid(5));
 
         // setClientInfo (Properties)
         Properties props = new Properties();
         props.setProperty("foo", "bar");
         try {
             connection.setClientInfo(props);
-        } catch (SQLException | StatusRuntimeException ignored) {
-        }
+        } catch (SQLException | StatusRuntimeException ignored) {}
 
         // setClientInfo(String, String)
         try {
             connection.setClientInfo("foo", "bar");
-        } catch (SQLException | StatusRuntimeException ignored) {
-        }
+        } catch (SQLException | StatusRuntimeException ignored) {}
 
         // getClientInfo(String)
         String val = connection.getClientInfo("foo");
@@ -307,12 +298,12 @@ public class H2ConnectionExtensiveTests {
         assertNotNull(p2);
 
         // createArrayOf
-        Array arr = connection.createArrayOf("INTEGER", new Object[] { 1, 2, 3 });
+        Array arr = connection.createArrayOf("INTEGER", new Object[]{1, 2, 3});
         assertNotNull(arr);
 
         // createStruct - H2 does not support Struct, so assertThrows!
         assertThrows(SQLFeatureNotSupportedException.class, () -> {
-            connection.createStruct("YOUR_STRUCT_TYPE", new Object[] {});
+            connection.createStruct("YOUR_STRUCT_TYPE", new Object[]{});
         });
 
         // setSchema/getSchema
@@ -328,7 +319,7 @@ public class H2ConnectionExtensiveTests {
                 }
             });
         } catch (SQLFeatureNotSupportedException e) {
-            // OJP does not support executors
+            //OJP does not support executors
         }
 
         // setNetworkTimeout/getNetworkTimeout
@@ -339,8 +330,7 @@ public class H2ConnectionExtensiveTests {
         connection.beginRequest();
         connection.endRequest();
 
-        // setShardingKeyIfValid/setShardingKey (should throw
-        // SQLFeatureNotSupportedException)
+        // setShardingKeyIfValid/setShardingKey (should throw SQLFeatureNotSupportedException)
         assertThrows(SQLFeatureNotSupportedException.class, () -> {
             connection.setShardingKeyIfValid(null, null, 0);
         });

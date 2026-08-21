@@ -1,6 +1,11 @@
 package org.openjproxy.jdbc;
 
-import static org.junit.jupiter.api.Assertions.*;
+import lombok.SneakyThrows;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -10,13 +15,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvFileSource;
-
-import lombok.SneakyThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ResultSetMetaDataExtensiveTests {
 
@@ -48,7 +47,8 @@ public class ResultSetMetaDataExtensiveTests {
                         "name VARCHAR(255) NOT NULL, " +
                         "age INT NULL, " +
                         "salary NUMERIC(10, 2) NOT NULL" +
-                        ")");
+                        ")"
+        );
         statement.execute("INSERT INTO TEST_TABLE_METADATA (name, age, salary) VALUES ('Alice', 30, 50000.00)");
 
         ResultSet resultSet = statement.executeQuery("SELECT * FROM TEST_TABLE_METADATA");
@@ -57,42 +57,40 @@ public class ResultSetMetaDataExtensiveTests {
 
     @AfterEach
     void tearDown() throws Exception {
-        if (connection != null)
-            connection.close();
+        if (connection != null) connection.close();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
         // getColumnCount
         assertEquals(4, metaData.getColumnCount());
 
         // isAutoIncrement
-        assertTrue(metaData.isAutoIncrement(1));
-        assertFalse(metaData.isAutoIncrement(2));
-        assertFalse(metaData.isAutoIncrement(3));
-        assertFalse(metaData.isAutoIncrement(4));
+        assertTrue( metaData.isAutoIncrement(1));
+        assertFalse( metaData.isAutoIncrement(2));
+        assertFalse( metaData.isAutoIncrement(3));
+        assertFalse( metaData.isAutoIncrement(4));
 
         // isCaseSensitive
-        assertTrue(metaData.isCaseSensitive(1));
-        assertTrue(metaData.isCaseSensitive(2));
-        assertTrue(metaData.isCaseSensitive(3));
-        assertTrue(metaData.isCaseSensitive(4));
+        assertTrue( metaData.isCaseSensitive(1));
+        assertTrue( metaData.isCaseSensitive(2));
+        assertTrue( metaData.isCaseSensitive(3));
+        assertTrue( metaData.isCaseSensitive(4));
 
         // isSearchable
-        assertTrue(metaData.isSearchable(1));
-        assertTrue(metaData.isSearchable(2));
-        assertTrue(metaData.isSearchable(3));
-        assertTrue(metaData.isSearchable(4));
+        assertTrue( metaData.isSearchable(1));
+        assertTrue( metaData.isSearchable(2));
+        assertTrue( metaData.isSearchable(3));
+        assertTrue( metaData.isSearchable(4));
 
         // isCurrency
-        assertFalse(metaData.isCurrency(1));
-        assertFalse(metaData.isCurrency(2));
-        assertFalse(metaData.isCurrency(3));
-        assertFalse(metaData.isCurrency(4));
+        assertFalse( metaData.isCurrency(1));
+        assertFalse( metaData.isCurrency(2));
+        assertFalse( metaData.isCurrency(3));
+        assertFalse( metaData.isCurrency(4));
 
         // isNullable
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(1));
@@ -101,10 +99,10 @@ public class ResultSetMetaDataExtensiveTests {
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4));
 
         // isSigned
-        assertTrue(metaData.isSigned(1));
-        assertFalse(metaData.isSigned(2));
-        assertTrue(metaData.isSigned(3));
-        assertTrue(metaData.isSigned(4));
+        assertTrue( metaData.isSigned(1));
+        assertFalse( metaData.isSigned(2));
+        assertTrue( metaData.isSigned(3));
+        assertTrue( metaData.isSigned(4));
 
         // getColumnDisplaySize
         assertEquals(11, metaData.getColumnDisplaySize(1));
@@ -167,22 +165,22 @@ public class ResultSetMetaDataExtensiveTests {
         assertEquals("NUMERIC", metaData.getColumnTypeName(4));
 
         // isReadOnly
-        assertFalse(metaData.isReadOnly(1));
-        assertFalse(metaData.isReadOnly(2));
-        assertFalse(metaData.isReadOnly(3));
-        assertFalse(metaData.isReadOnly(4));
+        assertFalse( metaData.isReadOnly(1));
+        assertFalse( metaData.isReadOnly(2));
+        assertFalse( metaData.isReadOnly(3));
+        assertFalse( metaData.isReadOnly(4));
 
         // isWritable
-        assertTrue(metaData.isWritable(1));
-        assertTrue(metaData.isWritable(2));
-        assertTrue(metaData.isWritable(3));
-        assertTrue(metaData.isWritable(4));
+        assertTrue( metaData.isWritable(1));
+        assertTrue( metaData.isWritable(2));
+        assertTrue( metaData.isWritable(3));
+        assertTrue( metaData.isWritable(4));
 
         // isDefinitelyWritable
-        assertFalse(metaData.isDefinitelyWritable(1));
-        assertFalse(metaData.isDefinitelyWritable(2));
-        assertFalse(metaData.isDefinitelyWritable(3));
-        assertFalse(metaData.isDefinitelyWritable(4));
+        assertFalse( metaData.isDefinitelyWritable(1));
+        assertFalse( metaData.isDefinitelyWritable(2));
+        assertFalse( metaData.isDefinitelyWritable(3));
+        assertFalse( metaData.isDefinitelyWritable(4));
 
         // getColumnClassName
         assertEquals("java.lang.Integer", metaData.getColumnClassName(1));

@@ -1,11 +1,11 @@
 package org.openjproxy.jdbc.h2;
+import org.openjproxy.jdbc.PerformanceMetrics;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.openjproxy.constants.CommonConstants;
-import org.openjproxy.jdbc.PerformanceMetrics;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
@@ -40,16 +40,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * Open-loop latency integration test for H2 through OJP.
  *
- * <p>
- * This test intentionally acquires and closes a pooled connection for each
- * measured operation
+ * <p>This test intentionally acquires and closes a pooled connection for each measured operation
  * to expose potential latency hotspots across connect/execute/close flow steps.
  *
- * <p>
- * It also intentionally enables app-side HikariCP (100/100) as a
- * diagnostics-only exception to
- * the normal "no client-side pool with OJP" guidance, because this test
- * specifically profiles
+ * <p>It also intentionally enables app-side HikariCP (100/100) as a diagnostics-only exception to
+ * the normal "no client-side pool with OJP" guidance, because this test specifically profiles
  * checkout/checkin overhead at fixed concurrency.
  */
 @Slf4j
@@ -137,8 +132,7 @@ class H2OpenLoopLatencyIntegrationTest {
             long fullTestDurationNanos = System.nanoTime() - fullTestStartNanos;
             int totalOperations = SELECT_QUERY_COUNT + WRITE_OPERATION_COUNT;
 
-            logLatencyReport(loopMode, sqlLatencies, stepLatencies, fullTestDurationNanos, totalOperations,
-                    failureTracker);
+            logLatencyReport(loopMode, sqlLatencies, stepLatencies, fullTestDurationNanos, totalOperations, failureTracker);
             assertEquals(0, failureTracker.getTotalExceptions(),
                     "Unexpected SQL workload exceptions. See FAILURE SUMMARY section in report.");
             assertExpectedCounts(sqlLatencies, stepLatencies);
@@ -155,8 +149,7 @@ class H2OpenLoopLatencyIntegrationTest {
         config.setJdbcUrl(url);
         config.setUsername(user);
         config.setPassword(password);
-        // Reviewer-requested fixed-size pool to stress checkout/checkin behavior under
-        // a large pool.
+        // Reviewer-requested fixed-size pool to stress checkout/checkin behavior under a large pool.
         config.setMaximumPoolSize(HIKARI_POOL_SIZE);
         config.setMinimumIdle(HIKARI_POOL_SIZE);
         config.setPoolName("H2OpenLoopLatencyPool");
@@ -177,7 +170,7 @@ class H2OpenLoopLatencyIntegrationTest {
 
     private void setupSchemaAndSeedRows(String url, String user, String password) throws SQLException {
         try (Connection connection = DriverManager.getConnection(url, user, password);
-                Statement statement = connection.createStatement()) {
+             Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS " + TABLE_NAME);
             statement.execute("CREATE TABLE " + TABLE_NAME + " (id INT PRIMARY KEY, name VARCHAR(255))");
             try (PreparedStatement insert = connection.prepareStatement(
@@ -193,99 +186,97 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void runSelectQueries(LoopMode loopMode,
-            Map<SqlType, List<Long>> sqlLatencies,
-            Map<StepType, List<Long>> stepLatencies,
-            List<Integer> activeIds,
-            FailureTracker failureTracker) throws SQLException {
-        executeWorkload(loopMode, SELECT_QUERY_COUNT, SELECT_OPEN_LOOP_RATE_PER_SECOND, failureTracker,
-                operationIndex -> {
-                    int id = activeIds.get(ThreadLocalRandom.current().nextInt(activeIds.size()));
-                    withInstrumentedConnection(stepLatencies, connection -> {
-                        try (PreparedStatement select = connection.prepareStatement(
-                                "SELECT name FROM " + TABLE_NAME + " WHERE id = ?")) {
-                            select.setInt(1, id);
-                            long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_QUERY, () -> {
-                                try (ResultSet resultSet = select.executeQuery()) {
-                                    assertTrue(resultSet.next(), "Expected one row for id=" + id);
-                                }
-                            });
-                            sqlLatencies.get(SqlType.SELECT).add(latency);
+                                  Map<SqlType, List<Long>> sqlLatencies,
+                                  Map<StepType, List<Long>> stepLatencies,
+                                  List<Integer> activeIds,
+                                  FailureTracker failureTracker) throws SQLException {
+        executeWorkload(loopMode, SELECT_QUERY_COUNT, SELECT_OPEN_LOOP_RATE_PER_SECOND, failureTracker, operationIndex -> {
+            int id = activeIds.get(ThreadLocalRandom.current().nextInt(activeIds.size()));
+            withInstrumentedConnection(stepLatencies, connection -> {
+                try (PreparedStatement select = connection.prepareStatement(
+                        "SELECT name FROM " + TABLE_NAME + " WHERE id = ?")) {
+                    select.setInt(1, id);
+                    long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_QUERY, () -> {
+                        try (ResultSet resultSet = select.executeQuery()) {
+                            assertTrue(resultSet.next(), "Expected one row for id=" + id);
                         }
                     });
-                });
+                    sqlLatencies.get(SqlType.SELECT).add(latency);
+                }
+            });
+        });
     }
 
     private void runWriteQueries(LoopMode loopMode,
-            Map<SqlType, List<Long>> sqlLatencies,
-            Map<StepType, List<Long>> stepLatencies,
-            List<Integer> activeIds,
-            FailureTracker failureTracker) throws SQLException {
+                                 Map<SqlType, List<Long>> sqlLatencies,
+                                 Map<StepType, List<Long>> stepLatencies,
+                                 List<Integer> activeIds,
+                                 FailureTracker failureTracker) throws SQLException {
         AtomicInteger nextInsertId = new AtomicInteger(INITIAL_ROWS + 1);
         Object activeIdsLock = new Object();
-        executeWorkload(loopMode, WRITE_OPERATION_COUNT, WRITE_OPEN_LOOP_RATE_PER_SECOND, failureTracker,
-                operationIndex -> {
-                    int operationType = operationIndex % WRITE_OPERATION_TYPE_COUNT;
-                    if (operationType == 0) {
-                        int newId = nextInsertId.getAndIncrement();
-                        withInstrumentedConnection(stepLatencies, connection -> {
-                            try (PreparedStatement insert = connection.prepareStatement(
-                                    "INSERT INTO " + TABLE_NAME + " (id, name) VALUES (?, ?)")) {
-                                insert.setInt(1, newId);
-                                insert.setString(2, "insert-" + newId);
-                                long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_UPDATE, () -> {
-                                    int rows = insert.executeUpdate();
-                                    assertEquals(1, rows);
-                                });
-                                sqlLatencies.get(SqlType.INSERT).add(latency);
-                            }
+        executeWorkload(loopMode, WRITE_OPERATION_COUNT, WRITE_OPEN_LOOP_RATE_PER_SECOND, failureTracker, operationIndex -> {
+            int operationType = operationIndex % WRITE_OPERATION_TYPE_COUNT;
+            if (operationType == 0) {
+                int newId = nextInsertId.getAndIncrement();
+                withInstrumentedConnection(stepLatencies, connection -> {
+                    try (PreparedStatement insert = connection.prepareStatement(
+                            "INSERT INTO " + TABLE_NAME + " (id, name) VALUES (?, ?)")) {
+                        insert.setInt(1, newId);
+                        insert.setString(2, "insert-" + newId);
+                        long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_UPDATE, () -> {
+                            int rows = insert.executeUpdate();
+                            assertEquals(1, rows);
                         });
-                        synchronized (activeIdsLock) {
-                            activeIds.add(newId);
-                        }
-                    } else if (operationType == 1) {
-                        int idToUpdate;
-                        synchronized (activeIdsLock) {
-                            idToUpdate = activeIds.get(ThreadLocalRandom.current().nextInt(activeIds.size()));
-                        }
-                        withInstrumentedConnection(stepLatencies, connection -> {
-                            try (PreparedStatement update = connection.prepareStatement(
-                                    "UPDATE " + TABLE_NAME + " SET name = ? WHERE id = ?")) {
-                                update.setString(1, "updated-" + idToUpdate);
-                                update.setInt(2, idToUpdate);
-                                long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_UPDATE, () -> {
-                                    int rows = update.executeUpdate();
-                                    assertEquals(1, rows);
-                                });
-                                sqlLatencies.get(SqlType.UPDATE).add(latency);
-                            }
-                        });
-                    } else {
-                        int idToDelete;
-                        synchronized (activeIdsLock) {
-                            int deleteIndex = ThreadLocalRandom.current().nextInt(activeIds.size());
-                            idToDelete = activeIds.remove(deleteIndex);
-                        }
-                        withInstrumentedConnection(stepLatencies, connection -> {
-                            try (PreparedStatement delete = connection.prepareStatement(
-                                    "DELETE FROM " + TABLE_NAME + " WHERE id = ?")) {
-                                delete.setInt(1, idToDelete);
-                                long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_UPDATE, () -> {
-                                    int rows = delete.executeUpdate();
-                                    assertEquals(1, rows);
-                                });
-                                sqlLatencies.get(SqlType.DELETE).add(latency);
-                            }
-                        });
+                        sqlLatencies.get(SqlType.INSERT).add(latency);
                     }
                 });
+                synchronized (activeIdsLock) {
+                    activeIds.add(newId);
+                }
+            } else if (operationType == 1) {
+                int idToUpdate;
+                synchronized (activeIdsLock) {
+                    idToUpdate = activeIds.get(ThreadLocalRandom.current().nextInt(activeIds.size()));
+                }
+                withInstrumentedConnection(stepLatencies, connection -> {
+                    try (PreparedStatement update = connection.prepareStatement(
+                            "UPDATE " + TABLE_NAME + " SET name = ? WHERE id = ?")) {
+                        update.setString(1, "updated-" + idToUpdate);
+                        update.setInt(2, idToUpdate);
+                        long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_UPDATE, () -> {
+                            int rows = update.executeUpdate();
+                            assertEquals(1, rows);
+                        });
+                        sqlLatencies.get(SqlType.UPDATE).add(latency);
+                    }
+                });
+            } else {
+                int idToDelete;
+                synchronized (activeIdsLock) {
+                    int deleteIndex = ThreadLocalRandom.current().nextInt(activeIds.size());
+                    idToDelete = activeIds.remove(deleteIndex);
+                }
+                withInstrumentedConnection(stepLatencies, connection -> {
+                    try (PreparedStatement delete = connection.prepareStatement(
+                            "DELETE FROM " + TABLE_NAME + " WHERE id = ?")) {
+                        delete.setInt(1, idToDelete);
+                        long latency = measureStepLatency(stepLatencies, StepType.EXECUTE_UPDATE, () -> {
+                            int rows = delete.executeUpdate();
+                            assertEquals(1, rows);
+                        });
+                        sqlLatencies.get(SqlType.DELETE).add(latency);
+                    }
+                });
+            }
+        });
     }
 
     private void logLatencyReport(LoopMode loopMode,
-            Map<SqlType, List<Long>> sqlLatencies,
-            Map<StepType, List<Long>> stepLatencies,
-            long fullTestDurationNanos,
-            int totalOperations,
-            FailureTracker failureTracker) {
+                                  Map<SqlType, List<Long>> sqlLatencies,
+                                  Map<StepType, List<Long>> stepLatencies,
+                                  long fullTestDurationNanos,
+                                  int totalOperations,
+                                  FailureTracker failureTracker) {
         StringBuilder report = new StringBuilder();
         double fullTestDurationMs = nanosToMillis(fullTestDurationNanos);
         double fullTestAvgPerOperationMs = calculateAverageMsPerOperation(fullTestDurationNanos, totalOperations);
@@ -324,8 +315,7 @@ class H2OpenLoopLatencyIntegrationTest {
         report.append(String.format("Total JDBC step count: %d%n", totalJdbcStepCount));
         report.append("Proxy formula: connect + executeQuery + executeUpdate + close call counts\n");
         report.append("Note: this is not a direct gRPC decoder metric; it approximates the number of JDBC-layer\n");
-        report.append(
-                "request/response touch points where parse work can happen, and serves as an upper-bound proxy.\n");
+        report.append("request/response touch points where parse work can happen, and serves as an upper-bound proxy.\n");
 
         log.info(report.toString());
     }
@@ -398,9 +388,9 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void appendDurationComparisonLine(StringBuilder report,
-            String metric,
-            long openLoopDurationNanos,
-            long closedLoopDurationNanos) {
+                                              String metric,
+                                              long openLoopDurationNanos,
+                                              long closedLoopDurationNanos) {
         double openLoopMs = openLoopDurationNanos / 1_000_000.0;
         double closedLoopMs = closedLoopDurationNanos / 1_000_000.0;
         double deltaMs = openLoopMs - closedLoopMs;
@@ -409,11 +399,11 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void appendDurationPerOperationComparisonLine(StringBuilder report,
-            String metric,
-            long openLoopDurationNanos,
-            int openLoopOperations,
-            long closedLoopDurationNanos,
-            int closedLoopOperations) {
+                                                          String metric,
+                                                          long openLoopDurationNanos,
+                                                          int openLoopOperations,
+                                                          long closedLoopDurationNanos,
+                                                          int closedLoopOperations) {
         double openLoopMs = calculateAverageMsPerOperation(openLoopDurationNanos, openLoopOperations);
         double closedLoopMs = calculateAverageMsPerOperation(closedLoopDurationNanos, closedLoopOperations);
         double deltaMs = openLoopMs - closedLoopMs;
@@ -469,9 +459,9 @@ class H2OpenLoopLatencyIntegrationTest {
         private final int totalOperations;
 
         LoopRunResult(Map<SqlType, List<Long>> sqlLatencies,
-                Map<StepType, List<Long>> stepLatencies,
-                long fullTestDurationNanos,
-                int totalOperations) {
+                      Map<StepType, List<Long>> stepLatencies,
+                      long fullTestDurationNanos,
+                      int totalOperations) {
             this.sqlLatencies = copyLatencyMap(sqlLatencies);
             this.stepLatencies = copyLatencyMap(stepLatencies);
             this.fullTestDurationNanos = fullTestDurationNanos;
@@ -505,8 +495,8 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private long measureStepLatency(Map<StepType, List<Long>> stepLatencies,
-            StepType stepType,
-            SqlOperation operation) throws SQLException {
+                                    StepType stepType,
+                                    SqlOperation operation) throws SQLException {
         long start = System.nanoTime();
         operation.run();
         long latency = System.nanoTime() - start;
@@ -515,7 +505,7 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void withInstrumentedConnection(Map<StepType, List<Long>> stepLatencies,
-            ConnectionOperation operation) throws SQLException {
+                                            ConnectionOperation operation) throws SQLException {
         Connection connection = null;
         try {
             long connectStart = System.nanoTime();
@@ -567,7 +557,7 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void assertExpectedCounts(Map<SqlType, List<Long>> sqlLatencies,
-            Map<StepType, List<Long>> stepLatencies) {
+                                      Map<StepType, List<Long>> stepLatencies) {
         assertEquals(SELECT_QUERY_COUNT, sqlLatencies.get(SqlType.SELECT).size());
         assertEquals(WRITE_OPERATION_COUNT, sqlLatencies.get(SqlType.INSERT).size()
                 + sqlLatencies.get(SqlType.UPDATE).size()
@@ -582,10 +572,10 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void executeWorkload(LoopMode loopMode,
-            int operationCount,
-            int operationsPerSecond,
-            FailureTracker failureTracker,
-            IndexedSqlOperation operation) throws SQLException {
+                                 int operationCount,
+                                 int operationsPerSecond,
+                                 FailureTracker failureTracker,
+                                 IndexedSqlOperation operation) throws SQLException {
         if (loopMode == LoopMode.OPEN_LOOP) {
             executeOpenLoopWorkload(operationCount, operationsPerSecond, failureTracker, operation);
             return;
@@ -594,8 +584,8 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void executeClosedLoopWorkload(int operationCount,
-            FailureTracker failureTracker,
-            IndexedSqlOperation operation) throws SQLException {
+                                           FailureTracker failureTracker,
+                                           IndexedSqlOperation operation) throws SQLException {
         for (int i = 0; i < operationCount; i++) {
             try {
                 operation.run(i);
@@ -606,9 +596,9 @@ class H2OpenLoopLatencyIntegrationTest {
     }
 
     private void executeOpenLoopWorkload(int operationCount,
-            int operationsPerSecond,
-            FailureTracker failureTracker,
-            IndexedSqlOperation operation) throws SQLException {
+                                         int operationsPerSecond,
+                                         FailureTracker failureTracker,
+                                         IndexedSqlOperation operation) throws SQLException {
         if (operationsPerSecond <= 0) {
             throw new SQLException("operationsPerSecond must be greater than zero");
         }

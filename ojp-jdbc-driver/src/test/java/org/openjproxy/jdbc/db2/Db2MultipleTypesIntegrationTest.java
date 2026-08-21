@@ -1,9 +1,9 @@
 package org.openjproxy.jdbc.db2;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-class Db2MultipleTypesIntegrationTest {
+ class Db2MultipleTypesIntegrationTest {
 
     private static boolean isTestDisabled;
 
@@ -49,8 +49,7 @@ class Db2MultipleTypesIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ParseException, UnsupportedEncodingException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException, UnsupportedEncodingException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -67,13 +66,11 @@ class Db2MultipleTypesIntegrationTest {
         String dbEncoding = "ISO-8859-1"; // default fallback
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
-                "insert into DB2INST1.db2_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, "
-                        +
-                        "val_smallint, val_boolean, val_decimal, val_float, val_byte, val_binary, val_date, val_time, "
-                        +
-                        "val_timestamp, val_localdatetime, val_localdate, val_localtime, val_instant, val_offsetdatetime, val_offsettime) "
-                        +
-                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                "insert into DB2INST1.db2_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +
+                        "val_smallint, val_boolean, val_decimal, val_float, val_byte, val_binary, val_date, val_time, " +
+                        "val_timestamp, val_localdatetime, val_localdate, val_localtime, val_instant, val_offsetdatetime, val_offsettime) " +
+                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
 
         psInsert.setInt(1, 1);
         psInsert.setString(2, new String("TITLE_1".getBytes(), dbEncoding));
@@ -84,19 +81,19 @@ class Db2MultipleTypesIntegrationTest {
         psInsert.setBoolean(7, true); // DB2 has native boolean support
         psInsert.setBigDecimal(8, new BigDecimal(10));
         psInsert.setFloat(9, 20.20f);
-        psInsert.setBytes(10, new byte[] { (byte) 1 }); // DB2 VARBINARY expects byte array
+        psInsert.setBytes(10, new byte[]{(byte) 1}); // DB2 VARBINARY expects byte array
         psInsert.setBytes(11, "AAAA".getBytes(StandardCharsets.UTF_8)); // DB2 VARBINARY with UTF-8
-
+        
         // Using java.time types with setObject instead of java.sql types
         LocalDate valDate = LocalDate.of(2025, 3, 29);
         psInsert.setObject(12, valDate, Types.DATE);
-
+        
         LocalTime valTime = LocalTime.of(11, 12, 13);
         psInsert.setObject(13, valTime, Types.TIME);
-
+        
         LocalDateTime valTimestamp = LocalDateTime.of(2025, 3, 30, 21, 22, 23);
         psInsert.setObject(14, valTimestamp, Types.TIMESTAMP);
-
+        
         // DB2 natively supported java.time types (JDBC 4.2)
         LocalDateTime valLocalDateTime = LocalDateTime.of(2024, 12, 1, 14, 30, 45);
         psInsert.setObject(15, valLocalDateTime, Types.TIMESTAMP);
@@ -113,23 +110,22 @@ class Db2MultipleTypesIntegrationTest {
         psInsert.setObject(18, null, Types.TIMESTAMP); // Instant - not first-class
         psInsert.setObject(19, null, Types.TIMESTAMP); // OffsetDateTime - not first-class
         psInsert.setObject(20, null, Types.TIMESTAMP); // OffsetTime - not first-class
-
+        
         psInsert.executeUpdate();
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("select * from DB2INST1.db2_multi_types_test where val_int = ?");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from DB2INST1.db2_multi_types_test where val_int = ?");
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
         assertEquals(1, resultSet.getInt(1));
         assertEquals("TITLE_1", resultSet.getString(2));
-        assertEquals("2.2222", "" + resultSet.getDouble(3));
+        assertEquals("2.2222", ""+resultSet.getDouble(3));
         assertEquals(33333333333333L, resultSet.getLong(4));
         assertEquals(127, resultSet.getInt(5)); // SMALLINT in DB2
         assertEquals(32767, resultSet.getInt(6));
         assertTrue(resultSet.getBoolean(7)); // DB2 native boolean
         assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal(8));
-        assertEquals(20.20f + "", "" + resultSet.getFloat(9));
+        assertEquals(20.20f+"", ""+resultSet.getFloat(9));
         // DB2 VARBINARY column
         byte[] byteValue = resultSet.getBytes(10);
         assertNotNull(byteValue, "VARBINARY column should not be null");
@@ -137,16 +133,16 @@ class Db2MultipleTypesIntegrationTest {
         assertEquals(1, byteValue[0]);
         // DB2 VARBINARY column
         assertEquals("AAAA", new String(resultSet.getBytes(11), StandardCharsets.UTF_8));
-
+        
         // Validate columns 12, 13, 14 using getObject with java.time types
         Object valDateRet = resultSet.getObject(12);
         Object valTimeRet = resultSet.getObject(13);
         Object valTimestampRet = resultSet.getObject(14);
-
+        
         assertNotNull(valDateRet, "Date column should not be null");
         assertNotNull(valTimeRet, "Time column should not be null");
         assertNotNull(valTimestampRet, "Timestamp column should not be null");
-
+        
         // Validate date (column 12)
         if (valDateRet instanceof LocalDate) {
             assertEquals(valDate, valDateRet);
@@ -154,7 +150,7 @@ class Db2MultipleTypesIntegrationTest {
             LocalDate retrievedDate = ((Date) valDateRet).toLocalDate();
             assertEquals(valDate, retrievedDate);
         }
-
+        
         // Validate time (column 13)
         if (valTimeRet instanceof LocalTime) {
             LocalTime retrievedTime = (LocalTime) valTimeRet;
@@ -167,7 +163,7 @@ class Db2MultipleTypesIntegrationTest {
             assertEquals(valTime.getMinute(), retrievedTime.getMinute());
             assertEquals(valTime.getSecond(), retrievedTime.getSecond());
         }
-
+        
         // Validate timestamp (column 14)
         if (valTimestampRet instanceof LocalDateTime) {
             assertEquals(valTimestamp, valTimestampRet);
@@ -175,20 +171,18 @@ class Db2MultipleTypesIntegrationTest {
             LocalDateTime retrievedTimestamp = ((Timestamp) valTimestampRet).toLocalDateTime();
             assertEquals(valTimestamp, retrievedTimestamp);
         }
-
-        // DB2 natively supported java.time types - retrieve as Object to get the actual
-        // type
+        
+        // DB2 natively supported java.time types - retrieve as Object to get the actual type
         Object valLocalDateTimeRet = resultSet.getObject(15);
         Object valLocalDateRet = resultSet.getObject(16);
         Object valLocalTimeRet = resultSet.getObject(17);
-        // Columns 18-20 (Instant, OffsetDateTime, OffsetTime) are null - not tested in
-        // success scenario
-
+        // Columns 18-20 (Instant, OffsetDateTime, OffsetTime) are null - not tested in success scenario
+        
         // Validate DB2's natively supported java.time types (JDBC 4.2)
         assertNotNull(valLocalDateTimeRet, "LocalDateTime should not be null");
         assertNotNull(valLocalDateRet, "LocalDate should not be null");
         assertNotNull(valLocalTimeRet, "LocalTime should not be null");
-
+        
         // DB2 JDBC driver should return actual java.time types per JDBC 4.2
         // For LocalDateTime (TIMESTAMP)
         if (valLocalDateTimeRet instanceof LocalDateTime) {
@@ -197,7 +191,7 @@ class Db2MultipleTypesIntegrationTest {
             LocalDateTime retrievedLdt = ((Timestamp) valLocalDateTimeRet).toLocalDateTime();
             assertEquals(valLocalDateTime, retrievedLdt);
         }
-
+        
         // For LocalDate (DATE)
         if (valLocalDateRet instanceof LocalDate) {
             assertEquals(valLocalDate, valLocalDateRet);
@@ -205,7 +199,7 @@ class Db2MultipleTypesIntegrationTest {
             LocalDate retrievedLd = ((Date) valLocalDateRet).toLocalDate();
             assertEquals(valLocalDate, retrievedLd);
         }
-
+        
         // For LocalTime (TIME)
         if (valLocalTimeRet instanceof LocalTime) {
             LocalTime retrievedLt = (LocalTime) valLocalTimeRet;
@@ -222,12 +216,12 @@ class Db2MultipleTypesIntegrationTest {
         // Test column name access
         assertEquals(1, resultSet.getInt("val_int"));
         assertEquals("TITLE_1", resultSet.getString("val_varchar"));
-        assertEquals("2.2222", "" + resultSet.getDouble("val_double_precision"));
+        assertEquals("2.2222", ""+resultSet.getDouble("val_double_precision"));
         assertEquals(33333333333333L, resultSet.getLong("val_bigint"));
         assertEquals(127, resultSet.getInt("val_tinyint"));
         assertEquals(32767, resultSet.getInt("val_smallint"));
         assertEquals(new BigDecimal("10.00"), resultSet.getBigDecimal("val_decimal"));
-        assertEquals(20.20f + "", "" + resultSet.getFloat("val_float"));
+        assertEquals(20.20f+"", ""+resultSet.getFloat("val_float"));
         assertTrue(resultSet.getBoolean("val_boolean")); // DB2 native boolean
         // DB2 VARBINARY column
         byte[] byteValueByName = resultSet.getBytes("val_byte");
@@ -235,17 +229,16 @@ class Db2MultipleTypesIntegrationTest {
         assertEquals(1, byteValueByName.length);
         assertEquals(1, byteValueByName[0]);
         assertEquals("AAAA", new String(resultSet.getBytes("val_binary")));
-
+        
         // SimpleDateFormat variables for validation using column names (lines 232-234)
-        // Set explicit UTC timezone to ensure consistent behavior across different JVM
-        // timezone settings
+        // Set explicit UTC timezone to ensure consistent behavior across different JVM timezone settings
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         SimpleDateFormat sdfTime = new SimpleDateFormat("hh:mm:ss");
         sdfTime.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         SimpleDateFormat sdfTimestamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
         sdfTimestamp.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
-
+        
         assertEquals("29/03/2025", sdf.format(resultSet.getDate("val_date")));
         assertEquals("11:12:13", sdfTime.format(resultSet.getTime("val_time")));
         assertEquals("30/03/2025 21:22:23", sdfTimestamp.format(resultSet.getTimestamp("val_timestamp")));
@@ -275,7 +268,7 @@ class Db2MultipleTypesIntegrationTest {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
-
+        
         // Verify connection is valid
         assertNotNull(conn, "Connection should be established");
 
@@ -288,10 +281,8 @@ class Db2MultipleTypesIntegrationTest {
 
         TestDBUtils.createMultiTypeTestTable(conn, "DB2INST1.db2_partial_types_test", TestDBUtils.SqlSyntax.DB2);
 
-        // DB2 JDBC driver has a critical blocking bug with timezone-aware java.time
-        // types.
-        // When calling setObject() with Instant, OffsetDateTime, or OffsetTime, the
-        // driver
+        // DB2 JDBC driver has a critical blocking bug with timezone-aware java.time types.
+        // When calling setObject() with Instant, OffsetDateTime, or OffsetTime, the driver
         // enters an infinite wait/block BEFORE throwing any SQLException. This prevents
         // the server from catching and returning an error to the client.
         //
@@ -299,7 +290,7 @@ class Db2MultipleTypesIntegrationTest {
         // Users should use LocalDateTime, LocalDate, and LocalTime instead.
         //
         // These types are intentionally NOT tested to avoid hanging the test suite.
-
+        
         System.out.println("DB2: Skipping Instant, OffsetDateTime, and OffsetTime tests");
         System.out.println("DB2: These types are not supported due to:");
         System.out.println("DB2:   1. DB2 lacks native TIMESTAMP WITH TIME ZONE and TIME WITH TIME ZONE");
@@ -321,7 +312,7 @@ class Db2MultipleTypesIntegrationTest {
     @CsvFileSource(resources = "/db2_connection.csv")
     void testDb2SpecificTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing DB2-specific types for url -> " + url);
@@ -333,16 +324,18 @@ class Db2MultipleTypesIntegrationTest {
             // Ignore if table doesn't exist
         }
 
-        TestDBUtils.executeUpdate(conn,
-                "CREATE TABLE test_db2_types (" +
-                        "id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, " +
-                        "clob_col CLOB(1M), " +
-                        "blob_col BLOB(1M), " +
-                        "graphic_col GRAPHIC(50), " +
-                        "dbclob_col DBCLOB(1M))");
+        TestDBUtils.executeUpdate(conn, 
+            "CREATE TABLE test_db2_types (" +
+            "id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, " +
+            "clob_col CLOB(1M), " +
+            "blob_col BLOB(1M), " +
+            "graphic_col GRAPHIC(50), " +
+            "dbclob_col DBCLOB(1M))"
+        );
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO test_db2_types (clob_col, blob_col, graphic_col, dbclob_col) VALUES (?, ?, ?, ?)");
+            "INSERT INTO test_db2_types (clob_col, blob_col, graphic_col, dbclob_col) VALUES (?, ?, ?, ?)"
+        );
 
         // Test CLOB
         psInsert.setString(1, "DB2 CLOB data type for large text");
@@ -355,10 +348,9 @@ class Db2MultipleTypesIntegrationTest {
 
         psInsert.executeUpdate();
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("SELECT graphic_col FROM test_db2_types WHERE id = 1");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT graphic_col FROM test_db2_types WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
-
+        
         assertTrue(resultSet.next());
         String graphicValue = resultSet.getString("graphic_col");
         assertNotNull(graphicValue);
@@ -374,7 +366,7 @@ class Db2MultipleTypesIntegrationTest {
     @CsvFileSource(resources = "/db2_connection.csv")
     void testDb2NumericTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         // Set schema explicitly to avoid "object not found" errors
@@ -391,21 +383,22 @@ class Db2MultipleTypesIntegrationTest {
             // Ignore if table doesn't exist
         }
 
-        TestDBUtils.executeUpdate(conn,
-                "CREATE TABLE DB2INST1.test_db2_numbers (" +
-                        "id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, " +
-                        "smallint_col SMALLINT, " +
-                        "integer_col INTEGER, " +
-                        "bigint_col BIGINT, " +
-                        "decimal_col DECIMAL(10,2), " +
-                        "numeric_col NUMERIC(15,5), " +
-                        "real_col REAL, " +
-                        "double_col DOUBLE)");
+        TestDBUtils.executeUpdate(conn, 
+            "CREATE TABLE DB2INST1.test_db2_numbers (" +
+            "id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, " +
+            "smallint_col SMALLINT, " +
+            "integer_col INTEGER, " +
+            "bigint_col BIGINT, " +
+            "decimal_col DECIMAL(10,2), " +
+            "numeric_col NUMERIC(15,5), " +
+            "real_col REAL, " +
+            "double_col DOUBLE)"
+        );
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO DB2INST1.test_db2_numbers (smallint_col, integer_col, bigint_col, decimal_col, numeric_col, real_col, double_col) "
-                        +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?)");
+            "INSERT INTO DB2INST1.test_db2_numbers (smallint_col, integer_col, bigint_col, decimal_col, numeric_col, real_col, double_col) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
 
         // Test numeric types
         psInsert.setShort(1, (short) 32767);
@@ -418,10 +411,9 @@ class Db2MultipleTypesIntegrationTest {
 
         psInsert.executeUpdate();
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("SELECT * FROM DB2INST1.test_db2_numbers WHERE id = 1");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM DB2INST1.test_db2_numbers WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
-
+        
         assertTrue(resultSet.next());
         assertEquals(32767, resultSet.getInt("smallint_col")); // Use getInt instead of getShort to avoid ClassCast
         assertEquals(2147483647, resultSet.getInt("integer_col"));
@@ -441,7 +433,7 @@ class Db2MultipleTypesIntegrationTest {
     @CsvFileSource(resources = "/db2_connection.csv")
     void testDb2DateTimeTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "DB2 tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing DB2 date/time types for url -> " + url);
@@ -453,15 +445,17 @@ class Db2MultipleTypesIntegrationTest {
             // Ignore if table doesn't exist
         }
 
-        TestDBUtils.executeUpdate(conn,
-                "CREATE TABLE test_db2_datetime (" +
-                        "id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, " +
-                        "date_col DATE, " +
-                        "time_col TIME, " +
-                        "timestamp_col TIMESTAMP)");
+        TestDBUtils.executeUpdate(conn, 
+            "CREATE TABLE test_db2_datetime (" +
+            "id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, " +
+            "date_col DATE, " +
+            "time_col TIME, " +
+            "timestamp_col TIMESTAMP)"
+        );
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO test_db2_datetime (date_col, time_col, timestamp_col) VALUES (?, ?, ?)");
+            "INSERT INTO test_db2_datetime (date_col, time_col, timestamp_col) VALUES (?, ?, ?)"
+        );
 
         Date testDate = Date.valueOf("2025-03-29");
         Time testTime = Time.valueOf("11:12:13");
@@ -475,7 +469,7 @@ class Db2MultipleTypesIntegrationTest {
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement("SELECT * FROM test_db2_datetime WHERE id = 1");
         ResultSet resultSet = psSelect.executeQuery();
-
+        
         assertTrue(resultSet.next());
         assertEquals(testDate.toString(), resultSet.getDate("date_col").toString());
         assertEquals(testTime.toString(), resultSet.getTime("time_col").toString());

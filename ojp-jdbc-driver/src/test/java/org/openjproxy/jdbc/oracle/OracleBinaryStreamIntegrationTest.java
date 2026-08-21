@@ -13,9 +13,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 /**
  * Oracle-specific binary stream integration tests.
@@ -32,8 +32,7 @@ class OracleBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException, IOException {
+    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -43,19 +42,20 @@ class OracleBinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table oracle_binary_stream_test");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Create table with Oracle-specific binary types
         executeUpdate(conn, "create table oracle_binary_stream_test(" +
-                " val_raw1 RAW(2000)," + // Oracle RAW for binary data
+                " val_raw1 RAW(2000)," +  // Oracle RAW for binary data
                 " val_raw2 RAW(2000)" +
                 ")");
 
         conn.setAutoCommit(false);
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into oracle_binary_stream_test (val_raw1, val_raw2) values (?, ?)");
+                "insert into oracle_binary_stream_test (val_raw1, val_raw2) values (?, ?)"
+        );
 
         String testString = "ORACLE RAW VIA INPUT STREAM";
         InputStream inputStream = new ByteArrayInputStream(testString.getBytes());
@@ -70,7 +70,7 @@ class OracleBinaryStreamIntegrationTest {
         PreparedStatement psSelect = conn.prepareStatement("select val_raw1, val_raw2 from oracle_binary_stream_test ");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-
+        
         InputStream blobResult = resultSet.getBinaryStream(1);
         String fromBlobByIdx = new String(blobResult.readAllBytes());
         assertEquals(testString, fromBlobByIdx);
@@ -93,8 +93,7 @@ class OracleBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -104,7 +103,7 @@ class OracleBinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table oracle_large_binary_test");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Create table with Oracle BLOB for large binary data
@@ -113,7 +112,8 @@ class OracleBinaryStreamIntegrationTest {
                 ")");
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into oracle_large_binary_test (val_blob) values (?)");
+                "insert into oracle_large_binary_test (val_blob) values (?)"
+        );
 
         InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
         psInsert.setBinaryStream(1, inputStream);
@@ -143,8 +143,7 @@ class OracleBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException, IOException {
+    void testOracleSpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -154,7 +153,7 @@ class OracleBinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table oracle_binary_types_test");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Test different Oracle binary types
@@ -165,7 +164,8 @@ class OracleBinaryStreamIntegrationTest {
                 ")");
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into oracle_binary_types_test (small_raw, medium_raw, large_blob) values (?, ?, ?)");
+                "insert into oracle_binary_types_test (small_raw, medium_raw, large_blob) values (?, ?, ?)"
+        );
 
         // Test different sizes
         String smallData = "Small RAW data";
@@ -178,8 +178,7 @@ class OracleBinaryStreamIntegrationTest {
 
         psInsert.executeUpdate();
 
-        PreparedStatement psSelect = conn
-                .prepareStatement("select small_raw, medium_raw, large_blob from oracle_binary_types_test");
+        PreparedStatement psSelect = conn.prepareStatement("select small_raw, medium_raw, large_blob from oracle_binary_types_test");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
 

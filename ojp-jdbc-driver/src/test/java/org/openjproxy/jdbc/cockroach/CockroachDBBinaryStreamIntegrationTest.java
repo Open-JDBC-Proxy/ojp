@@ -1,4 +1,4 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,12 +15,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 /**
  * CockroachDB-specific binary stream integration tests.
@@ -37,8 +37,7 @@ class CockroachDBBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
 
@@ -49,19 +48,20 @@ class CockroachDBBinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "DROP TABLE cockroachdb_binary_stream_test");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Create table with CockroachDB-specific binary types
         executeUpdate(conn, "CREATE TABLE cockroachdb_binary_stream_test(" +
-                " val_bytea1 BYTEA," + // CockroachDB BYTEA for binary data
+                " val_bytea1 BYTEA," +  // CockroachDB BYTEA for binary data
                 " val_bytea2 BYTEA" +
                 ")");
 
         conn.setAutoCommit(false);
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO cockroachdb_binary_stream_test (val_bytea1, val_bytea2) VALUES (?, ?)");
+                "INSERT INTO cockroachdb_binary_stream_test (val_bytea1, val_bytea2) VALUES (?, ?)"
+        );
 
         String testString = "COCKROACHDB BYTEA VIA INPUT STREAM";
         InputStream inputStream = new ByteArrayInputStream(testString.getBytes());
@@ -73,8 +73,7 @@ class CockroachDBBinaryStreamIntegrationTest {
 
         conn.commit();
 
-        PreparedStatement psSelect = conn
-                .prepareStatement("SELECT val_bytea1, val_bytea2 FROM cockroachdb_binary_stream_test");
+        PreparedStatement psSelect = conn.prepareStatement("SELECT val_bytea1, val_bytea2 FROM cockroachdb_binary_stream_test");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
 
@@ -100,8 +99,7 @@ class CockroachDBBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
 
@@ -112,7 +110,7 @@ class CockroachDBBinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "DROP TABLE cockroachdb_large_binary_stream_test");
         } catch (Exception e) {
-            // If fails disregard
+            //If fails disregard
         }
 
         executeUpdate(conn, "CREATE TABLE cockroachdb_large_binary_stream_test(" +
@@ -122,7 +120,8 @@ class CockroachDBBinaryStreamIntegrationTest {
         conn.setAutoCommit(false);
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO cockroachdb_large_binary_stream_test (val_bytea) VALUES (?)");
+                "INSERT INTO cockroachdb_large_binary_stream_test (val_bytea) VALUES (?)"
+        );
 
         // Create a large binary stream (1MB)
         byte[] largeData = new byte[1024 * 1024]; // 1MB
@@ -136,8 +135,7 @@ class CockroachDBBinaryStreamIntegrationTest {
 
         conn.commit();
 
-        PreparedStatement psSelect = conn
-                .prepareStatement("SELECT val_bytea FROM cockroachdb_large_binary_stream_test");
+        PreparedStatement psSelect = conn.prepareStatement("SELECT val_bytea FROM cockroachdb_large_binary_stream_test");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
 
@@ -155,8 +153,7 @@ class CockroachDBBinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testBinaryStreamWithNullValues(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+    void testBinaryStreamWithNullValues(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         assumeFalse(!isTestEnabled, "Skipping CockroachDB tests");
 
@@ -167,7 +164,7 @@ class CockroachDBBinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "DROP TABLE cockroachdb_binary_null_test");
         } catch (Exception e) {
-            // Ignore
+            //Ignore
         }
 
         executeUpdate(conn, "CREATE TABLE cockroachdb_binary_null_test(" +
@@ -176,7 +173,8 @@ class CockroachDBBinaryStreamIntegrationTest {
                 ")");
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "INSERT INTO cockroachdb_binary_null_test (id, val_bytea) VALUES (?, ?)");
+                "INSERT INTO cockroachdb_binary_null_test (id, val_bytea) VALUES (?, ?)"
+        );
 
         // Insert NULL value
         psInsert.setInt(1, 1);
@@ -189,8 +187,7 @@ class CockroachDBBinaryStreamIntegrationTest {
         psInsert.setBinaryStream(2, new ByteArrayInputStream(testString.getBytes()));
         psInsert.executeUpdate();
 
-        PreparedStatement psSelect = conn
-                .prepareStatement("SELECT id, val_bytea FROM cockroachdb_binary_null_test ORDER BY id");
+        PreparedStatement psSelect = conn.prepareStatement("SELECT id, val_bytea FROM cockroachdb_binary_null_test ORDER BY id");
         ResultSet resultSet = psSelect.executeQuery();
 
         // Check NULL value

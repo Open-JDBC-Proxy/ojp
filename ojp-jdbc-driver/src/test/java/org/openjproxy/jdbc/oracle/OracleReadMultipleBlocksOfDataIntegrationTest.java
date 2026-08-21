@@ -9,9 +9,9 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 /**
  * Oracle-specific multiple blocks of data integration tests.
@@ -28,10 +28,9 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections_with_record_counts.csv")
-    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user,
-            String pwd) throws SQLException, ClassNotFoundException {
+    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing Oracle retrieving " + totalRecords + " records from url -> " + url);
@@ -39,9 +38,9 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table oracle_read_blocks_test_multi");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
-
+        
         // Create table with Oracle-specific syntax
         executeUpdate(conn, "create table oracle_read_blocks_test_multi(" +
                 "id NUMBER(10) NOT NULL, " +
@@ -49,12 +48,11 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
 
         for (int i = 0; i < totalRecords; i++) {
             executeUpdate(conn,
-                    "insert into oracle_read_blocks_test_multi (id, title) values (" + i + ", 'ORACLE_TITLE_" + i
-                            + "')");
+                    "insert into oracle_read_blocks_test_multi (id, title) values (" + i + ", 'ORACLE_TITLE_" + i + "')"
+            );
         }
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("select * from oracle_read_blocks_test_multi order by id");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from oracle_read_blocks_test_multi order by id");
         ResultSet resultSet = psSelect.executeQuery();
 
         for (int i = 0; i < totalRecords; i++) {
@@ -79,7 +77,7 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
     @CsvFileSource(resources = "/oracle_connections.csv")
     void testOracleLargeDataSetPagination(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing Oracle large dataset pagination for url -> " + url);
@@ -87,9 +85,9 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table oracle_pagination_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
-
+        
         // Create table with Oracle-specific data types
         executeUpdate(conn, "create table oracle_pagination_test(" +
                 "id NUMBER(10) PRIMARY KEY, " +
@@ -101,15 +99,16 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         int totalRecords = 5000;
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
-                    "insert into oracle_pagination_test (id, name, value, description) values (" +
-                            i + ", 'Oracle_Name_" + i + "', " + (i * 10.5) + ", 'Description for record " + i + "')");
+                    "insert into oracle_pagination_test (id, name, value, description) values (" + 
+                    i + ", 'Oracle_Name_" + i + "', " + (i * 10.5) + ", 'Description for record " + i + "')"
+            );
         }
 
         // Test pagination with ROWNUM (Oracle-specific)
         java.sql.PreparedStatement psPage1 = conn.prepareStatement(
                 "SELECT * FROM (SELECT id, name, value, description FROM oracle_pagination_test ORDER BY id) WHERE ROWNUM <= 1000");
         ResultSet page1 = psPage1.executeQuery();
-
+        
         int count = 0;
         while (page1.next()) {
             count++;
@@ -121,7 +120,7 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         java.sql.PreparedStatement psPage2 = conn.prepareStatement(
                 "SELECT id, name, value, description FROM oracle_pagination_test ORDER BY id OFFSET 1000 ROWS FETCH NEXT 1000 ROWS ONLY");
         ResultSet page2 = psPage2.executeQuery();
-
+        
         count = 0;
         while (page2.next()) {
             count++;
@@ -143,7 +142,7 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
     @CsvFileSource(resources = "/oracle_connections.csv")
     void testOracleResultSetScrolling(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing Oracle ResultSet scrolling for url -> " + url);
@@ -151,9 +150,9 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table oracle_scroll_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
-
+        
         // Create table with Oracle NUMBER and VARCHAR2 types
         executeUpdate(conn, "create table oracle_scroll_test(" +
                 "id NUMBER(10) PRIMARY KEY, " +
@@ -163,14 +162,15 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         int totalRecords = 100;
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
-                    "insert into oracle_scroll_test (id, data) values (" + i + ", 'Oracle Data " + i + "')");
+                    "insert into oracle_scroll_test (id, data) values (" + i + ", 'Oracle Data " + i + "')"
+            );
         }
 
         // Create scrollable ResultSet
         java.sql.Statement scrollableStmt = conn.createStatement(
-                ResultSet.TYPE_SCROLL_INSENSITIVE,
+                ResultSet.TYPE_SCROLL_INSENSITIVE, 
                 ResultSet.CONCUR_READ_ONLY);
-
+        
         ResultSet scrollableRs = scrollableStmt.executeQuery(
                 "SELECT id, data FROM oracle_scroll_test ORDER BY id");
 
@@ -205,7 +205,7 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
     @CsvFileSource(resources = "/oracle_connections.csv")
     void testOracleMultipleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping Oracle tests");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing Oracle multiple data types in large result set for url -> " + url);
@@ -213,9 +213,9 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table oracle_multi_types_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
-
+        
         // Create table with various Oracle data types
         executeUpdate(conn, "create table oracle_multi_types_test(" +
                 "id NUMBER(10) PRIMARY KEY, " +
@@ -232,10 +232,10 @@ class OracleReadMultipleBlocksOfDataIntegrationTest {
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
                     "insert into oracle_multi_types_test " +
-                            "(id, int_col, decimal_col, varchar_col, char_col, date_col, timestamp_col, clob_col) values ("
-                            +
-                            i + ", " + (i * 10) + ", " + (i * 100.5) + ", 'Varchar " + i + "', 'Char" + i + "', " +
-                            "DATE '2023-01-01', TIMESTAMP '2023-01-01 12:00:00', 'CLOB data for record " + i + "')");
+                    "(id, int_col, decimal_col, varchar_col, char_col, date_col, timestamp_col, clob_col) values (" + 
+                    i + ", " + (i * 10) + ", " + (i * 100.5) + ", 'Varchar " + i + "', 'Char" + i + "', " +
+                    "DATE '2023-01-01', TIMESTAMP '2023-01-01 12:00:00', 'CLOB data for record " + i + "')"
+            );
         }
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement(

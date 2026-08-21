@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+
 class ConcurrencyTimeoutTest {
     private static final Logger logger = LoggerFactory.getLogger(ConcurrencyTimeoutTest.class);
 
@@ -46,8 +47,7 @@ class ConcurrencyTimeoutTest {
         // Setup a simple table
         try (Connection conn = getConnection(driverClass, url, user, password)) {
             conn.createStatement().execute("DROP TABLE IF EXISTS concurrency_test");
-            conn.createStatement()
-                    .execute("CREATE TABLE concurrency_test (id INT PRIMARY KEY, test_value VARCHAR(50))");
+            conn.createStatement().execute("CREATE TABLE concurrency_test (id INT PRIMARY KEY, test_value VARCHAR(50))");
         }
 
         // Run concurrent operations
@@ -57,8 +57,7 @@ class ConcurrencyTimeoutTest {
             executor.submit(() -> {
                 for (int i = 0; i < OPERATIONS_PER_THREAD; i++) {
                     try (Connection conn = getConnection(driverClass, url, user, password)) {
-                        try (PreparedStatement pst = conn
-                                .prepareStatement("INSERT INTO concurrency_test (id, test_value) VALUES (?, ?)")) {
+                        try (PreparedStatement pst = conn.prepareStatement("INSERT INTO concurrency_test (id, test_value) VALUES (?, ?)")) {
                             pst.setInt(1, threadNum * OPERATIONS_PER_THREAD + i);
                             pst.setString(2, "thread_" + threadNum + "_op_" + i);
                             pst.execute();
@@ -74,8 +73,7 @@ class ConcurrencyTimeoutTest {
 
         executor.shutdown();
 
-        // The key test: this should complete in reasonable time instead of hanging
-        // indefinitely
+        // The key test: this should complete in reasonable time instead of hanging indefinitely
         boolean finished = executor.awaitTermination(60, TimeUnit.SECONDS);
 
         int successful = successfulOperations.get();
@@ -92,8 +90,7 @@ class ConcurrencyTimeoutTest {
         assertTrue(total >= expected * 0.8, "Most operations should complete (success or controlled failure)");
     }
 
-    private static Connection getConnection(String driverClass, String url, String user, String password)
-            throws SQLException {
+    private static Connection getConnection(String driverClass, String url, String user, String password) throws SQLException {
         return DriverManager.getConnection(url, user, password);
     }
 }

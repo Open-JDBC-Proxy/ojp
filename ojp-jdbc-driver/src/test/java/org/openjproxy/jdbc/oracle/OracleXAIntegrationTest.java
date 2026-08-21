@@ -1,12 +1,11 @@
 package org.openjproxy.jdbc.oracle;
 
 import lombok.extern.slf4j.Slf4j;
-
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.openjproxy.jdbc.xa.OjpXADataSource;
 
 import javax.sql.XAConnection;

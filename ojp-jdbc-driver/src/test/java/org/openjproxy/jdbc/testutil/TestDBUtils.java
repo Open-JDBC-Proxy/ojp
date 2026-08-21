@@ -18,17 +18,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Shared utility class for database test setup, teardown, and validation
- * operations.
- * Used by both H2 and Postgres integration tests to provide common
- * functionality
+ * Shared utility class for database test setup, teardown, and validation operations.
+ * Used by both H2 and Postgres integration tests to provide common functionality
  * while allowing database-specific customizations.
  */
 public class TestDBUtils {
 
     /**
-     * Result holder for connection creation that includes both Connection and
-     * XAConnection.
+     * Result holder for connection creation that includes both Connection and XAConnection.
      * When isXA is false, only connection is populated and xaConnection is null.
      */
     public static class ConnectionResult {
@@ -65,8 +62,7 @@ public class TestDBUtils {
         }
 
         /**
-         * Starts XA transaction if this is an XA connection and transaction not already
-         * started.
+         * Starts XA transaction if this is an XA connection and transaction not already started.
          * Should be called after setAutoCommit(false) for XA connections.
          */
         public void startXATransactionIfNeeded() throws SQLException {
@@ -84,10 +80,8 @@ public class TestDBUtils {
         }
 
         /**
-         * Commits the transaction using the appropriate method based on connection
-         * type.
-         * For XA connections, uses XAResource.commit(). For regular connections, uses
-         * Connection.commit().
+         * Commits the transaction using the appropriate method based on connection type.
+         * For XA connections, uses XAResource.commit(). For regular connections, uses Connection.commit().
          */
         public void commit() throws SQLException {
             if (isXA) {
@@ -172,8 +166,7 @@ public class TestDBUtils {
      * Simple Xid implementation for XA transactions in tests.
      */
     private static class SimpleXid implements Xid {
-        // AtomicInteger replaces synchronized(SimpleXid.class) for thread-safe ID
-        // generation
+        // AtomicInteger replaces synchronized(SimpleXid.class) for thread-safe ID generation
         // and avoids virtual-thread pinning
         private static final AtomicInteger counter = new AtomicInteger(0);
         private final int id;
@@ -207,12 +200,10 @@ public class TestDBUtils {
      * @param user     The database user
      * @param password The database password
      * @param isXA     Whether to create an XA connection
-     * @return ConnectionResult containing the Connection and optionally
-     *         XAConnection
+     * @return ConnectionResult containing the Connection and optionally XAConnection
      * @throws SQLException if connection creation fails
      */
-    public static ConnectionResult createConnection(String url, String user, String password, boolean isXA)
-            throws SQLException {
+    public static ConnectionResult createConnection(String url, String user, String password, boolean isXA) throws SQLException {
         if (isXA) {
             OjpXADataSource xaDataSource = new OjpXADataSource();
             xaDataSource.setUrl(url);
@@ -232,8 +223,7 @@ public class TestDBUtils {
     }
 
     /**
-     * Enum representing different SQL syntax variations for database-specific
-     * operations.
+     * Enum representing different SQL syntax variations for database-specific operations.
      */
     public enum SqlSyntax {
         H2,
@@ -250,12 +240,10 @@ public class TestDBUtils {
      *
      * @param connection The database connection
      * @param tableName  The name of the table to create
-     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or
-     *                   SQLSERVER)
+     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
      * @throws SQLException if table creation fails
      */
-    public static void createBasicTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax,
-            boolean createDefalutData) throws SQLException {
+    public static void createBasicTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax, boolean createDefalutData) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             // Drop table if exists with database-specific syntax
             if (sqlSyntax == SqlSyntax.ORACLE) {
@@ -306,12 +294,10 @@ public class TestDBUtils {
      *
      * @param connection The database connection
      * @param tableName  The name of the table to create
-     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or
-     *                   SQLSERVER)
+     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
      * @throws SQLException if table creation fails
      */
-    public static void createAutoIncrementTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax)
-            throws SQLException {
+    public static void createAutoIncrementTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             // Drop table if exists with database-specific syntax
             if (sqlSyntax == SqlSyntax.ORACLE) {
@@ -339,25 +325,20 @@ public class TestDBUtils {
             // Create table with appropriate auto-increment syntax
             String createTableSql;
             if (sqlSyntax == SqlSyntax.H2) {
-                createTableSql = "CREATE TABLE " + tableName
-                        + " (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))";
+                createTableSql = "CREATE TABLE " + tableName + " (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))";
             } else if (sqlSyntax == SqlSyntax.POSTGRES || sqlSyntax == SqlSyntax.COCKROACHDB) {
                 createTableSql = "CREATE TABLE " + tableName + " (id SERIAL PRIMARY KEY, name VARCHAR(255))";
             } else if (sqlSyntax == SqlSyntax.ORACLE) {
                 // Oracle uses sequences and triggers or IDENTITY columns (12c+)
-                createTableSql = "CREATE TABLE " + tableName
-                        + " (id NUMBER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR2(255))";
+                createTableSql = "CREATE TABLE " + tableName + " (id NUMBER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR2(255))";
             } else if (sqlSyntax == SqlSyntax.SQLSERVER) {
                 // SQL Server uses IDENTITY
-                createTableSql = "CREATE TABLE " + tableName
-                        + " (id INT IDENTITY(1,1) PRIMARY KEY, name NVARCHAR(255))";
+                createTableSql = "CREATE TABLE " + tableName + " (id INT IDENTITY(1,1) PRIMARY KEY, name NVARCHAR(255))";
             } else if (sqlSyntax == SqlSyntax.DB2) {
                 // DB2 uses GENERATED BY DEFAULT AS IDENTITY
-                createTableSql = "CREATE TABLE " + tableName
-                        + " (id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(255))";
+                createTableSql = "CREATE TABLE " + tableName + " (id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, name VARCHAR(255))";
             } else { // MYSQL
-                createTableSql = "CREATE TABLE " + tableName
-                        + " (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))";
+                createTableSql = "CREATE TABLE " + tableName + " (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))";
             }
             statement.execute(createTableSql);
         }
@@ -368,12 +349,10 @@ public class TestDBUtils {
      *
      * @param connection The database connection
      * @param tableName  The name of the table to create
-     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or
-     *                   SQLSERVER)
+     * @param sqlSyntax  The SQL syntax to use (H2, POSTGRES, MYSQL, ORACLE, or SQLSERVER)
      * @throws SQLException if table creation fails
      */
-    public static void createMultiTypeTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax)
-            throws SQLException {
+    public static void createMultiTypeTestTable(Connection connection, String tableName, SqlSyntax sqlSyntax) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             // Drop table if exists with database-specific syntax
             if (sqlSyntax == SqlSyntax.ORACLE) {
@@ -416,106 +395,104 @@ public class TestDBUtils {
                         " val_date DATE," +
                         " val_time TIME," +
                         " val_timestamp TIMESTAMP," +
-                        " val_localdatetime TIMESTAMP," + // LocalDateTime
-                        " val_localdate DATE," + // LocalDate
-                        " val_localtime TIME," + // LocalTime
-                        " val_instant TIMESTAMP," + // Instant
-                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," + // OffsetDateTime
-                        " val_offsettime TIME WITH TIME ZONE)"; // OffsetTime
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," +  // OffsetDateTime
+                        " val_offsettime TIME WITH TIME ZONE)";  // OffsetTime
             } else if (sqlSyntax == SqlSyntax.POSTGRES || sqlSyntax == SqlSyntax.COCKROACHDB) {
-                // PostgreSQL/CockroachDB syntax - adjust types for PostgreSQL/CockroachDB
-                // compatibility
+                // PostgreSQL/CockroachDB syntax - adjust types for PostgreSQL/CockroachDB compatibility
                 createTableSql = "CREATE TABLE " + tableName + "(" +
                         " val_int INT NOT NULL," +
                         " val_varchar VARCHAR(50) NOT NULL," +
                         " val_double_precision DOUBLE PRECISION," +
                         " val_bigint BIGINT," +
-                        " val_tinyint SMALLINT," + // PostgreSQL/CockroachDB doesn't have TINYINT, use SMALLINT
+                        " val_tinyint SMALLINT," +  // PostgreSQL/CockroachDB doesn't have TINYINT, use SMALLINT
                         " val_smallint SMALLINT," +
                         " val_boolean BOOLEAN," +
                         " val_decimal DECIMAL," +
-                        " val_float REAL," + // PostgreSQL/CockroachDB uses REAL instead of FLOAT(2)
-                        " val_byte BYTEA," + // PostgreSQL/CockroachDB uses BYTEA instead of BINARY
+                        " val_float REAL," +  // PostgreSQL/CockroachDB uses REAL instead of FLOAT(2)
+                        " val_byte BYTEA," +  // PostgreSQL/CockroachDB uses BYTEA instead of BINARY
                         " val_binary BYTEA," +
                         " val_date DATE," +
                         " val_time TIME," +
                         " val_timestamp TIMESTAMP," +
-                        " val_localdatetime TIMESTAMP," + // LocalDateTime
-                        " val_localdate DATE," + // LocalDate
-                        " val_localtime TIME," + // LocalTime
-                        " val_instant TIMESTAMP," + // Instant
-                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," + // OffsetDateTime
-                        " val_offsettime TIME WITH TIME ZONE)"; // OffsetTime
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," +  // OffsetDateTime
+                        " val_offsettime TIME WITH TIME ZONE)";  // OffsetTime
             } else if (sqlSyntax == SqlSyntax.ORACLE) {
                 // Oracle syntax - Oracle-specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
-                        " val_int NUMBER(10) NOT NULL," + // Oracle uses NUMBER instead of INT
-                        " val_varchar VARCHAR2(50) NOT NULL," + // Oracle uses VARCHAR2
-                        " val_double_precision BINARY_DOUBLE," + // Oracle's equivalent
-                        " val_bigint NUMBER(19)," + // Oracle uses NUMBER for BIGINT
-                        " val_tinyint NUMBER(3)," + // Oracle uses NUMBER for TINYINT
-                        " val_smallint NUMBER(5)," + // Oracle uses NUMBER for SMALLINT
-                        " val_boolean NUMBER(1)," + // Oracle uses NUMBER(1) for boolean (before 23c)
+                        " val_int NUMBER(10) NOT NULL," +  // Oracle uses NUMBER instead of INT
+                        " val_varchar VARCHAR2(50) NOT NULL," +  // Oracle uses VARCHAR2
+                        " val_double_precision BINARY_DOUBLE," +  // Oracle's equivalent
+                        " val_bigint NUMBER(19)," +  // Oracle uses NUMBER for BIGINT
+                        " val_tinyint NUMBER(3)," +  // Oracle uses NUMBER for TINYINT
+                        " val_smallint NUMBER(5)," +  // Oracle uses NUMBER for SMALLINT
+                        " val_boolean NUMBER(1)," +  // Oracle uses NUMBER(1) for boolean (before 23c)
                         " val_decimal NUMBER," +
-                        " val_float BINARY_FLOAT," + // Oracle's floating point type
-                        " val_byte RAW(1)," + // Oracle uses RAW for binary data
+                        " val_float BINARY_FLOAT," +  // Oracle's floating point type
+                        " val_byte RAW(1)," +  // Oracle uses RAW for binary data
                         " val_binary RAW(4)," +
                         " val_date DATE," +
-                        " val_time TIMESTAMP," + // Oracle DATE includes time, use TIMESTAMP for time-only
+                        " val_time TIMESTAMP," +  // Oracle DATE includes time, use TIMESTAMP for time-only
                         " val_timestamp TIMESTAMP," +
-                        " val_localdatetime TIMESTAMP," + // LocalDateTime
-                        " val_localdate DATE," + // LocalDate
-                        " val_localtime TIMESTAMP," + // LocalTime (Oracle doesn't have TIME type)
-                        " val_instant TIMESTAMP," + // Instant
-                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," + // OffsetDateTime
-                        " val_offsettime TIMESTAMP WITH TIME ZONE)"; // OffsetTime
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIMESTAMP," +  // LocalTime (Oracle doesn't have TIME type)
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP WITH TIME ZONE," +  // OffsetDateTime
+                        " val_offsettime TIMESTAMP WITH TIME ZONE)";  // OffsetTime
             } else if (sqlSyntax == SqlSyntax.SQLSERVER) {
                 // SQL Server syntax - SQL Server-specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
                         " val_int INT NOT NULL," +
-                        " val_varchar NVARCHAR(50)," + // SQL Server uses NVARCHAR for Unicode
-                        " val_double_precision FLOAT," + // SQL Server uses FLOAT for double precision
+                        " val_varchar NVARCHAR(50)," +  // SQL Server uses NVARCHAR for Unicode
+                        " val_double_precision FLOAT," +  // SQL Server uses FLOAT for double precision
                         " val_bigint BIGINT," +
                         " val_tinyint TINYINT," +
                         " val_smallint SMALLINT," +
-                        " val_boolean BIT," + // SQL Server uses BIT for boolean
+                        " val_boolean BIT," +  // SQL Server uses BIT for boolean
                         " val_decimal DECIMAL(10, 2)," +
-                        " val_float REAL," + // SQL Server uses REAL for single precision
-                        " val_byte VARBINARY(1)," + // SQL Server uses VARBINARY for binary data
+                        " val_float REAL," +  // SQL Server uses REAL for single precision
+                        " val_byte VARBINARY(1)," +  // SQL Server uses VARBINARY for binary data
                         " val_binary VARBINARY(4)," +
                         " val_date DATE," +
                         " val_time TIME," +
-                        " val_timestamp DATETIME2," + // SQL Server uses DATETIME2 for timestamp
-                        " val_localdatetime DATETIME2," + // LocalDateTime
-                        " val_localdate DATE," + // LocalDate
-                        " val_localtime TIME," + // LocalTime
-                        " val_instant DATETIME2," + // Instant
-                        " val_offsetdatetime DATETIMEOFFSET," + // OffsetDateTime
-                        " val_offsettime DATETIMEOFFSET)"; // OffsetTime (SQL Server doesn't have TIME WITH TIME ZONE)
+                        " val_timestamp DATETIME2," +  // SQL Server uses DATETIME2 for timestamp
+                        " val_localdatetime DATETIME2," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant DATETIME2," +  // Instant
+                        " val_offsetdatetime DATETIMEOFFSET," +  // OffsetDateTime
+                        " val_offsettime DATETIMEOFFSET)";  // OffsetTime (SQL Server doesn't have TIME WITH TIME ZONE)
             } else if (sqlSyntax == SqlSyntax.DB2) {
                 // DB2 syntax - DB2-specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
-                        " val_int INTEGER NOT NULL," + // DB2 uses INTEGER instead of INT
+                        " val_int INTEGER NOT NULL," +  // DB2 uses INTEGER instead of INT
                         " val_varchar VARCHAR(50) NOT NULL," +
-                        " val_double_precision DOUBLE," + // DB2 uses DOUBLE for double precision
+                        " val_double_precision DOUBLE," +  // DB2 uses DOUBLE for double precision
                         " val_bigint BIGINT," +
-                        " val_tinyint SMALLINT," + // DB2 uses SMALLINT for TINYINT (no TINYINT in DB2)
+                        " val_tinyint SMALLINT," +  // DB2 uses SMALLINT for TINYINT (no TINYINT in DB2)
                         " val_smallint SMALLINT," +
-                        " val_boolean BOOLEAN," + // DB2 has native BOOLEAN support
+                        " val_boolean BOOLEAN," +  // DB2 has native BOOLEAN support
                         " val_decimal DECIMAL(10, 2)," +
-                        " val_float REAL," + // DB2 uses REAL for single precision float
-                        " val_byte VARBINARY(1)," + // DB2 uses VARBINARY for binary data
+                        " val_float REAL," +  // DB2 uses REAL for single precision float
+                        " val_byte VARBINARY(1)," +  // DB2 uses VARBINARY for binary data
                         " val_binary VARBINARY(4)," +
                         " val_date DATE," +
                         " val_time TIME," +
                         " val_timestamp TIMESTAMP," +
-                        " val_localdatetime TIMESTAMP," + // LocalDateTime
-                        " val_localdate DATE," + // LocalDate
-                        " val_localtime TIME," + // LocalTime
-                        " val_instant TIMESTAMP," + // Instant
-                        " val_offsetdatetime TIMESTAMP," + // OffsetDateTime (DB2 doesn't have TIMESTAMP WITH TIME ZONE
-                                                           // in all versions)
-                        " val_offsettime TIMESTAMP)"; // OffsetTime
+                        " val_localdatetime TIMESTAMP," +  // LocalDateTime
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP," +  // OffsetDateTime (DB2 doesn't have TIMESTAMP WITH TIME ZONE in all versions)
+                        " val_offsettime TIMESTAMP)";  // OffsetTime
             } else { // MYSQL
                 // MySQL syntax - MySQL specific types and adjustments
                 createTableSql = "CREATE TABLE " + tableName + "(" +
@@ -533,13 +510,12 @@ public class TestDBUtils {
                         " val_date DATE," +
                         " val_time TIME," +
                         " val_timestamp TIMESTAMP," +
-                        " val_localdatetime DATETIME," + // LocalDateTime - MySQL uses DATETIME
-                        " val_localdate DATE," + // LocalDate
-                        " val_localtime TIME," + // LocalTime
-                        " val_instant TIMESTAMP," + // Instant
-                        " val_offsetdatetime TIMESTAMP," + // OffsetDateTime (MySQL doesn't have timezone support in
-                                                           // older versions)
-                        " val_offsettime TIME)"; // OffsetTime
+                        " val_localdatetime DATETIME," +  // LocalDateTime - MySQL uses DATETIME
+                        " val_localdate DATE," +  // LocalDate
+                        " val_localtime TIME," +  // LocalTime
+                        " val_instant TIMESTAMP," +  // Instant
+                        " val_offsetdatetime TIMESTAMP," +  // OffsetDateTime (MySQL doesn't have timezone support in older versions)
+                        " val_offsettime TIME)";  // OffsetTime
             }
             statement.execute(createTableSql);
         }
@@ -594,8 +570,7 @@ public class TestDBUtils {
                 }
             }
             rowCount++;
-            if (rowCount > 100)
-                break; // Limit for test runtime
+            if (rowCount > 100) break; // Limit for test runtime
         }
         assertTrue(rowCount >= 0, "Row count should be >= 0");
     }
@@ -658,11 +633,12 @@ public class TestDBUtils {
             statement.execute("DROP TABLE IF EXISTS " + tableName);
             statement.execute(
                     "CREATE TABLE " + tableName + "(" +
-                            " id SERIAL PRIMARY KEY," +
-                            " json_col JSON," +
-                            " jsonb_col JSONB," +
-                            " json_null_col JSON" +
-                            ")");
+                    " id SERIAL PRIMARY KEY," +
+                    " json_col JSON," +
+                    " jsonb_col JSONB," +
+                    " json_null_col JSON" +
+                    ")"
+            );
         }
     }
 

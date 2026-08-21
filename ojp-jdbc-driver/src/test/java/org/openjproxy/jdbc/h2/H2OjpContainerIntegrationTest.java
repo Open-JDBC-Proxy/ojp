@@ -15,8 +15,7 @@ import java.sql.Statement;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Simple H2 integration test using OjpContainer to verify that the
- * testcontainers
+ * Simple H2 integration test using OjpContainer to verify that the testcontainers
  * module works correctly with OJP Server and H2 database.
  */
 class H2OjpContainerIntegrationTest {
@@ -84,7 +83,7 @@ class H2OjpContainerIntegrationTest {
 
             // Query all data
             try (Statement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as cnt FROM test_table")) {
+                 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as cnt FROM test_table")) {
                 assertTrue(rs.next(), "ResultSet should have a count");
                 assertEquals(2, rs.getInt("cnt"), "Should have 2 rows");
             }

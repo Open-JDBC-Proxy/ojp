@@ -9,12 +9,12 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 /**
  * DB2-specific multiple blocks of data integration tests.
@@ -31,8 +31,7 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connections_with_record_counts.csv")
-    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user,
-            String pwd) throws SQLException {
+    void multiplePagesOfRowsResultSetSuccessful(int totalRecords, String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -47,7 +46,7 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table DB2INST1.db2_read_blocks_test_multi");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         // Create table with DB2-specific syntax
@@ -57,11 +56,11 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
 
         for (int i = 0; i < totalRecords; i++) {
             executeUpdate(conn,
-                    "insert into db2_read_blocks_test_multi (id, title) values (" + i + ", 'DB2_TITLE_" + i + "')");
+                    "insert into db2_read_blocks_test_multi (id, title) values (" + i + ", 'DB2_TITLE_" + i + "')"
+            );
         }
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("select * from db2_read_blocks_test_multi order by id");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from db2_read_blocks_test_multi order by id");
         ResultSet resultSet = psSelect.executeQuery();
 
         for (int i = 0; i < totalRecords; i++) {
@@ -94,7 +93,7 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table db2_pagination_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         // Create table with DB2-specific data types
@@ -109,7 +108,8 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
                     "insert into db2_pagination_test (id, name, value, description) values (" +
-                            i + ", 'DB2_Name_" + i + "', " + (i * 10.5) + ", 'Description for record " + i + "')");
+                            i + ", 'DB2_Name_" + i + "', " + (i * 10.5) + ", 'Description for record " + i + "')"
+            );
         }
 
         // Test pagination with LIMIT/OFFSET (DB2 v9.7+)
@@ -148,8 +148,7 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2ResultSetScrolling(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException {
+    void testDb2ResultSetScrolling(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -159,7 +158,7 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table db2_scroll_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         // Create table with DB2 INTEGER and VARCHAR types
@@ -171,7 +170,8 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
         int totalRecords = 100;
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
-                    "insert into db2_scroll_test (id, data) values (" + i + ", 'DB2 Data " + i + "')");
+                    "insert into db2_scroll_test (id, data) values (" + i + ", 'DB2 Data " + i + "')"
+            );
         }
 
         // Create scrollable ResultSet
@@ -211,8 +211,7 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2MultipleDataTypes(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException {
+    void testDb2MultipleDataTypes(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -222,7 +221,7 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
         try {
             executeUpdate(conn, "drop table db2_multi_types_test");
         } catch (Exception e) {
-            // Does not matter
+            //Does not matter
         }
 
         // Create table with various DB2 data types
@@ -241,10 +240,10 @@ class Db2ReadMultipleBlocksOfDataIntegrationTest {
         for (int i = 1; i <= totalRecords; i++) {
             executeUpdate(conn,
                     "insert into db2_multi_types_test " +
-                            "(id, int_col, decimal_col, varchar_col, char_col, date_col, timestamp_col, clob_col) values ("
-                            +
+                            "(id, int_col, decimal_col, varchar_col, char_col, date_col, timestamp_col, clob_col) values (" +
                             i + ", " + (i * 10) + ", " + (i * 100.5) + ", 'Varchar " + i + "', 'Char" + i + "', " +
-                            "DATE('2023-01-01'), TIMESTAMP('2023-01-01-12.00.00'), 'CLOB data for record " + i + "')");
+                            "DATE('2023-01-01'), TIMESTAMP('2023-01-01-12.00.00'), 'CLOB data for record " + i + "')"
+            );
         }
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement(

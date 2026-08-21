@@ -2,13 +2,12 @@ package org.openjproxy.jdbc.postgres;
 
 import io.grpc.StatusRuntimeException;
 import lombok.SneakyThrows;
-
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Array;
 import java.sql.Blob;
@@ -65,19 +64,18 @@ public class PostgresConnectionExtensiveTests {
     void testConnectionProperties(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
         Assertions.assertFalse(connection.isClosed());
-        assertTrue(connection.isValid(5));
+        assertTrue( connection.isValid(5));
         assertNotNull(connection.getSchema()); // PostgreSQL should return current schema
         assertNull(connection.getClientInfo("nonexistent"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testAutoCommitAndTransactionIsolation(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertTrue(connection.getAutoCommit());
+        assertTrue( connection.getAutoCommit());
         connection.setAutoCommit(false);
-        assertFalse(connection.getAutoCommit());
+        assertFalse( connection.getAutoCommit());
 
         int isolation = connection.getTransactionIsolation();
         assertEquals(Connection.TRANSACTION_READ_COMMITTED, isolation);
@@ -90,37 +88,35 @@ public class PostgresConnectionExtensiveTests {
     @CsvFileSource(resources = "/postgres_connection.csv")
     void testCommitAndRollback(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-
-        // PostgreSQL DDL statements are transactional, so we need to create and commit
-        // the table first
+        
+        // PostgreSQL DDL statements are transactional, so we need to create and commit the table first
         TestDBUtils.createBasicTestTable(connection, "postgres_connection_test", TestDBUtils.SqlSyntax.POSTGRES, true);
         connection.commit(); // Ensure table creation is committed
-
+        
         connection.setAutoCommit(false);
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
         connection.rollback();
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertFalse(rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertTrue(rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
     void testSavepoints(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-
-        // PostgreSQL DDL statements are transactional, so we need to create and commit
-        // the table first
+        
+        // PostgreSQL DDL statements are transactional, so we need to create and commit the table first
         TestDBUtils.createBasicTestTable(connection, "postgres_connection_test", TestDBUtils.SqlSyntax.POSTGRES, true);
         connection.commit(); // Ensure table creation is committed
-
+        
         connection.setAutoCommit(false);
 
         Savepoint sp1 = connection.setSavepoint("Savepoint1");
@@ -128,17 +124,16 @@ public class PostgresConnectionExtensiveTests {
         connection.rollback(sp1);
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertFalse(rs.next());
+        assertFalse( rs.next());
 
         connection.createStatement().execute("INSERT INTO postgres_connection_test (id, name) VALUES (3, 'Charlie')");
-        // sp1 is no longer valid after rollback, so create a new savepoint to
-        // demonstrate release functionality
+        // sp1 is no longer valid after rollback, so create a new savepoint to demonstrate release functionality  
         Savepoint sp2 = connection.setSavepoint("Savepoint2");
         connection.releaseSavepoint(sp2);
         connection.commit();
 
         rs = connection.createStatement().executeQuery("SELECT * FROM postgres_connection_test WHERE id = 3");
-        assertTrue(rs.next());
+        assertTrue( rs.next());
     }
 
     @ParameterizedTest
@@ -148,7 +143,7 @@ public class PostgresConnectionExtensiveTests {
         DatabaseMetaData metaData = connection.getMetaData();
         assertNotNull(metaData);
         assertEquals("PostgreSQL", metaData.getDatabaseProductName());
-        assertTrue(metaData.supportsTransactions());
+        assertTrue( metaData.supportsTransactions());
     }
 
     @ParameterizedTest
@@ -168,9 +163,9 @@ public class PostgresConnectionExtensiveTests {
     @CsvFileSource(resources = "/postgres_connection.csv")
     void testClose(String driverClass, String url, String user, String password) throws SQLException {
         this.setUp(driverClass, url, user, password);
-        assertFalse(connection.isClosed());
+        assertFalse( connection.isClosed());
         connection.close();
-        assertTrue(connection.isClosed());
+        assertTrue( connection.isClosed());
     }
 
     // ---------- Additional tests for every Connection interface method ----------
@@ -205,11 +200,11 @@ public class PostgresConnectionExtensiveTests {
 
         // setReadOnly / isReadOnly
         connection.setReadOnly(false);
-        assertFalse(connection.isReadOnly());
+        assertFalse( connection.isReadOnly());
         // Note: PostgreSQL might not allow setting read-only in a transaction
         try {
             connection.setReadOnly(true);
-            assertTrue(connection.isReadOnly());
+            assertTrue( connection.isReadOnly());
         } catch (SQLException e) {
             // PostgreSQL might reject this in certain states
         }
@@ -231,13 +226,11 @@ public class PostgresConnectionExtensiveTests {
         assertNotNull(st2);
 
         // prepareStatement(String, int, int)
-        PreparedStatement ps2 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY);
+        PreparedStatement ps2 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
         assertNotNull(ps2);
 
         // prepareCall(String, int, int)
-        CallableStatement cs2 = connection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY);
+        CallableStatement cs2 = connection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
         assertNotNull(cs2);
 
         // getTypeMap / setTypeMap
@@ -267,18 +260,15 @@ public class PostgresConnectionExtensiveTests {
         connection.releaseSavepoint(sp3);
 
         // createStatement(int, int, int)
-        Statement st3 = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,
-                ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        Statement st3 = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
         assertNotNull(st3);
 
         // prepareStatement(String, int, int, int)
-        PreparedStatement ps3 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        PreparedStatement ps3 = connection.prepareStatement("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
         assertNotNull(ps3);
 
         // prepareCall(String, int, int, int)
-        CallableStatement cs3 = connection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY,
-                ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        CallableStatement cs3 = connection.prepareCall("SELECT 1", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
         assertNotNull(cs3);
 
         // prepareStatement(String, int)
@@ -304,21 +294,19 @@ public class PostgresConnectionExtensiveTests {
         assertNotNull(sqlxml);
 
         // isValid
-        assertTrue(connection.isValid(5));
+        assertTrue( connection.isValid(5));
 
         // setClientInfo (Properties)
         Properties props = new Properties();
         props.setProperty("ApplicationName", "TestApp");
         try {
             connection.setClientInfo(props);
-        } catch (SQLClientInfoException | StatusRuntimeException ignored) {
-        }
+        } catch (SQLClientInfoException | StatusRuntimeException ignored) {}
 
         // setClientInfo(String, String)
         try {
             connection.setClientInfo("ApplicationName", "TestApp");
-        } catch (SQLClientInfoException | StatusRuntimeException ignored) {
-        }
+        } catch (SQLClientInfoException | StatusRuntimeException ignored) {}
 
         // getClientInfo(String)
         String val = connection.getClientInfo("ApplicationName");
@@ -329,13 +317,12 @@ public class PostgresConnectionExtensiveTests {
         assertNotNull(p2);
 
         // createArrayOf
-        Array arr = connection.createArrayOf("INTEGER", new Object[] { 1, 2, 3 });
+        Array arr = connection.createArrayOf("INTEGER", new Object[]{1, 2, 3});
         assertNotNull(arr);
 
-        // createStruct - PostgreSQL supports composite types, but this might still
-        // throw
+        // createStruct - PostgreSQL supports composite types, but this might still throw
         try {
-            connection.createStruct("pg_type", new Object[] {});
+            connection.createStruct("pg_type", new Object[]{});
         } catch (SQLFeatureNotSupportedException e) {
             // Expected for most cases
         }
@@ -353,7 +340,7 @@ public class PostgresConnectionExtensiveTests {
                 }
             });
         } catch (SQLFeatureNotSupportedException e) {
-            // OJP does not support executors
+            //OJP does not support executors
         }
 
         // setNetworkTimeout/getNetworkTimeout
@@ -364,8 +351,7 @@ public class PostgresConnectionExtensiveTests {
         connection.beginRequest();
         connection.endRequest();
 
-        // setShardingKeyIfValid/setShardingKey (should throw
-        // SQLFeatureNotSupportedException)
+        // setShardingKeyIfValid/setShardingKey (should throw SQLFeatureNotSupportedException)
         assertThrows(SQLFeatureNotSupportedException.class, () -> {
             connection.setShardingKeyIfValid(null, null, 0);
         });

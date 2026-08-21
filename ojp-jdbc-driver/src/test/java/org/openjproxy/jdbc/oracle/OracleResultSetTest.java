@@ -47,16 +47,16 @@ public class OracleResultSetTest {
         // Create a scrollable and updatable Statement
         statement = connection.createStatement(
                 ResultSet.TYPE_SCROLL_INSENSITIVE, // Scrollable ResultSet
-                ResultSet.CONCUR_UPDATABLE // Updatable ResultSet
+                ResultSet.CONCUR_UPDATABLE         // Updatable ResultSet
         );
 
         // Create a test table and insert data
         try {
             statement.execute("DROP TABLE oracle_resultset_test_table");
         } catch (Exception e) {
-            // Expected if table does not exist.
+            //Expected if table does not exist.
         }
-
+        
         // Create table with Oracle-specific data types
         statement.execute("CREATE TABLE oracle_resultset_test_table (" +
                 "id NUMBER(10) PRIMARY KEY, " +
@@ -65,7 +65,7 @@ public class OracleResultSetTest {
                 "salary NUMBER(10,2), " +
                 "active NUMBER(1), " +
                 "created_at TIMESTAMP)");
-
+        
         statement.execute("INSERT INTO oracle_resultset_test_table (id, name, age, salary, active, created_at) " +
                 "VALUES (1, 'Alice', 30, 50000.00, 1, CURRENT_TIMESTAMP)");
         statement.execute("INSERT INTO oracle_resultset_test_table (id, name, age, salary, active, created_at) " +
@@ -80,12 +80,9 @@ public class OracleResultSetTest {
     @AfterEach
     void tearDown() throws SQLException {
         // Clean up resources
-        if (resultSet != null)
-            resultSet.close();
-        if (statement != null)
-            statement.close();
-        if (connection != null)
-            connection.close();
+        if (resultSet != null) resultSet.close();
+        if (statement != null) statement.close();
+        if (connection != null) connection.close();
     }
 
     @ParameterizedTest
@@ -119,8 +116,7 @@ public class OracleResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testOracleGetMethodsByColumnIndex(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testOracleGetMethodsByColumnIndex(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
         resultSet.next();
         assertEquals(1, resultSet.getInt(1)); // id
@@ -186,14 +182,14 @@ public class OracleResultSetTest {
     @CsvFileSource(resources = "/oracle_connections.csv")
     void testOracleSpecificDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
-
+        
         // Create table with Oracle-specific data types
         try {
             statement.execute("DROP TABLE oracle_specific_types_test");
         } catch (Exception e) {
             // Ignore
         }
-
+        
         statement.execute("CREATE TABLE oracle_specific_types_test (" +
                 "id NUMBER(10) PRIMARY KEY, " +
                 "varchar2_col VARCHAR2(100), " +
@@ -203,15 +199,15 @@ public class OracleResultSetTest {
                 "binary_float_col BINARY_FLOAT, " +
                 "raw_col RAW(100), " +
                 "clob_col CLOB)");
-
+        
         statement.execute("INSERT INTO oracle_specific_types_test " +
                 "(id, varchar2_col, char_col, number_col, binary_double_col, binary_float_col, raw_col, clob_col) " +
                 "VALUES (1, 'Oracle VARCHAR2', 'CHAR10    ', 12345.6789, 123.456, 78.9, " +
                 "HEXTORAW('48656C6C6F'), 'CLOB content')");
-
+        
         ResultSet rs = statement.executeQuery("SELECT * FROM oracle_specific_types_test WHERE id = 1");
         assertTrue(rs.next());
-
+        
         assertEquals("Oracle VARCHAR2", rs.getString("varchar2_col"));
         assertEquals("CHAR10    ", rs.getString("char_col")); // CHAR is padded
         assertEquals(12345.6789, rs.getDouble("number_col"), 0.0001);
@@ -219,7 +215,7 @@ public class OracleResultSetTest {
         assertEquals(78.9, rs.getFloat("binary_float_col"), 0.1);
         assertNotNull(rs.getBytes("raw_col"));
         assertEquals("CLOB content", rs.getString("clob_col"));
-
+        
         rs.close();
     }
 
@@ -227,17 +223,17 @@ public class OracleResultSetTest {
     @CsvFileSource(resources = "/oracle_connections.csv")
     void testOracleResultSetMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
-
+        
         java.sql.ResultSetMetaData metadata = resultSet.getMetaData();
-
+        
         assertNotNull(metadata);
         assertTrue(metadata.getColumnCount() >= 6);
-
+        
         // Verify Oracle-specific type mappings
         for (int i = 1; i <= metadata.getColumnCount(); i++) {
             String columnName = metadata.getColumnName(i);
             String typeName = metadata.getColumnTypeName(i);
-
+            
             if ("id".equalsIgnoreCase(columnName) || "age".equalsIgnoreCase(columnName)) {
                 assertEquals("NUMBER", typeName);
             } else if ("name".equalsIgnoreCase(columnName)) {
@@ -252,7 +248,7 @@ public class OracleResultSetTest {
     @CsvFileSource(resources = "/oracle_connections.csv")
     void testOracleRowCounting(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
-
+        
         // Count rows by iterating
         int count = 0;
         resultSet.beforeFirst();
@@ -260,11 +256,11 @@ public class OracleResultSetTest {
             count++;
         }
         assertEquals(3, count);
-
+        
         // Test getRow() method
         resultSet.absolute(2);
         assertEquals(2, resultSet.getRow());
-
+        
         resultSet.last();
         assertTrue(resultSet.getRow() >= 3);
     }

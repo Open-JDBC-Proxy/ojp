@@ -47,7 +47,8 @@ class Db2SavepointTests {
 
         // DB2-specific CREATE TABLE syntax
         stmt.execute(
-                "CREATE TABLE DB2INST1.savepoint_test_table (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(255))");
+                "CREATE TABLE DB2INST1.savepoint_test_table (id INTEGER NOT NULL PRIMARY KEY, name VARCHAR(255))"
+        );
         stmt.close();
     }
 
@@ -176,8 +177,7 @@ class Db2SavepointTests {
         // Release the savepoint
         connection.releaseSavepoint(sp);
 
-        // Try to rollback to released savepoint - DB2 does not allow this
-        // (SQLCODE=-880/SQLSTATE=3B001):
+        // Try to rollback to released savepoint - DB2 does not allow this (SQLCODE=-880/SQLSTATE=3B001):
         // once a savepoint is released it no longer exists.
         assertThrows(SQLException.class, () -> connection.rollback(sp));
 
@@ -239,8 +239,7 @@ class Db2SavepointTests {
         // Commit the transaction
         connection.commit();
 
-        // After commit, the savepoint no longer exists; DB2 throws
-        // SQLCODE=-880/SQLSTATE=3B001
+        // After commit, the savepoint no longer exists; DB2 throws SQLCODE=-880/SQLSTATE=3B001
         // when ROLLBACK TO SAVEPOINT references a savepoint cleared by the commit.
         assertThrows(SQLException.class, () -> connection.rollback(sp));
 

@@ -1,10 +1,10 @@
 package org.openjproxy.jdbc;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
+import org.openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
-import org.openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,9 +16,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 class BinaryStreamIntegrationTest {
     private static final Logger logger = LoggerFactory.getLogger(BinaryStreamIntegrationTest.class);
@@ -34,8 +34,7 @@ class BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA)
-            throws SQLException, IOException {
+    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
             return;
@@ -52,7 +51,7 @@ class BinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table binary_stream_test_blob");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Create table with database-specific binary types
@@ -66,7 +65,8 @@ class BinaryStreamIntegrationTest {
         conn.setAutoCommit(false);
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into binary_stream_test_blob (val_blob1, val_blob2) values (?, ?)");
+                "insert into binary_stream_test_blob (val_blob1, val_blob2) values (?, ?)"
+        );
 
         String testString = "BLOB VIA INPUT STREAM";
         InputStream inputStream = new ByteArrayInputStream(testString.getBytes());
@@ -98,7 +98,8 @@ class BinaryStreamIntegrationTest {
         String fromBlobByIdx2 = new String(blobResult2.readAllBytes());
         assertEquals(testString.substring(0, 5), fromBlobByIdx2);
 
-        executeUpdate(conn, "delete from binary_stream_test_blob");
+        executeUpdate(conn, "delete from binary_stream_test_blob"
+        );
 
         resultSet.close();
         psSelect.close();
@@ -107,8 +108,7 @@ class BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd,
-            boolean isXA) throws SQLException, IOException {
+    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, IOException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         if (!isH2TestEnabled && url.toLowerCase().contains("_h2:")) {
             return;
@@ -125,7 +125,7 @@ class BinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table binary_stream_test_blob");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Create table with database-specific binary types for large data
@@ -136,7 +136,9 @@ class BinaryStreamIntegrationTest {
         executeUpdate(conn, createTableSql);
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into binary_stream_test_blob (val_blob) values (?)");
+                "insert into binary_stream_test_blob (val_blob) values (?)"
+        );
+
 
         InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
         psInsert.setBinaryStream(1, inputStream);

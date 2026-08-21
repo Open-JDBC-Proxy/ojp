@@ -38,17 +38,15 @@ public class PostgresCallableStatementTests {
 
     public void setUp(String driverClass, String url, String user, String password) throws Exception {
         assumeFalse(!isTestEnabled, "Postgres tests are disabled");
-
+        
         // Connect to the PostgreSQL database
         connection = DriverManager.getConnection(url, user, password);
 
         // Ensure the employee table and stored procedures exist
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS employee");
-            stmt.execute(
-                    "CREATE TABLE employee (id SERIAL PRIMARY KEY, name VARCHAR(255), salary NUMERIC(10, 2), hire_date DATE, hire_time TIME, hire_ts TIMESTAMP)");
-            stmt.execute(
-                    "INSERT INTO employee (name, salary, hire_date, hire_time, hire_ts) VALUES ('Alice', 50000, '2021-01-01', '09:00:00', '2021-01-01 09:00:00')");
+            stmt.execute("CREATE TABLE employee (id SERIAL PRIMARY KEY, name VARCHAR(255), salary NUMERIC(10, 2), hire_date DATE, hire_time TIME, hire_ts TIMESTAMP)");
+            stmt.execute("INSERT INTO employee (name, salary, hire_date, hire_time, hire_ts) VALUES ('Alice', 50000, '2021-01-01', '09:00:00', '2021-01-01 09:00:00')");
 
             stmt.execute(
                     "CREATE OR REPLACE PROCEDURE update_salary(" +
@@ -59,7 +57,8 @@ public class PostgresCallableStatementTests {
                             "BEGIN " +
                             "    UPDATE employee SET salary = new_salary WHERE id = emp_id;" +
                             "    SELECT salary INTO updated_salary FROM employee WHERE id = emp_id;" +
-                            "END; $$;");
+                            "END; $$;"
+            );
 
             stmt.execute(
                     "CREATE OR REPLACE PROCEDURE update_employee_dates(" +
@@ -72,20 +71,17 @@ public class PostgresCallableStatementTests {
                             "    OUT out_ts TIMESTAMP" +
                             ") LANGUAGE plpgsql AS $$ " +
                             "BEGIN " +
-                            "    UPDATE employee SET hire_date=new_date, hire_time=new_time, hire_ts=new_ts WHERE id=emp_id;"
-                            +
-                            "    SELECT hire_date, hire_time, hire_ts INTO out_date, out_time, out_ts FROM employee WHERE id=emp_id;"
-                            +
-                            "END; $$;");
+                            "    UPDATE employee SET hire_date=new_date, hire_time=new_time, hire_ts=new_ts WHERE id=emp_id;" +
+                            "    SELECT hire_date, hire_time, hire_ts INTO out_date, out_time, out_ts FROM employee WHERE id=emp_id;" +
+                            "END; $$;"
+            );
         }
     }
 
     @AfterEach
     void tearDown() throws Exception {
-        if (callableStatement != null)
-            callableStatement.close();
-        if (connection != null)
-            connection.close();
+        if (callableStatement != null) callableStatement.close();
+        if (connection != null) connection.close();
     }
 
     @ParameterizedTest

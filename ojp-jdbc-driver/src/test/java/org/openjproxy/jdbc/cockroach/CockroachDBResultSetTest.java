@@ -1,4 +1,4 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
@@ -43,14 +43,14 @@ class CockroachDBResultSetTest {
         // Create a scrollable and updatable Statement
         statement = connection.createStatement(
                 ResultSet.TYPE_SCROLL_INSENSITIVE, // Scrollable ResultSet
-                ResultSet.CONCUR_UPDATABLE // Updatable ResultSet
+                ResultSet.CONCUR_UPDATABLE         // Updatable ResultSet
         );
 
         // Create a test table and insert data
         try {
             statement.execute("DROP TABLE cockroachdb_resultset_test_table");
         } catch (Exception e) {
-            // Expected if table does not exist.
+            //Expected if table does not exist.
         }
 
         // Create table with CockroachDB-specific data types
@@ -104,8 +104,7 @@ class CockroachDBResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBAbsoluteAndRelativePositioning(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testCockroachDBAbsoluteAndRelativePositioning(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         assertTrue(resultSet.absolute(2)); // Move to row 2
@@ -206,8 +205,7 @@ class CockroachDBResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBResultSetConcurrency(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testCockroachDBResultSetConcurrency(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         int concurrency = resultSet.getConcurrency();
@@ -237,8 +235,7 @@ class CockroachDBResultSetTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBBeforeFirstAfterLast(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testCockroachDBBeforeFirstAfterLast(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
 
         resultSet.beforeFirst();

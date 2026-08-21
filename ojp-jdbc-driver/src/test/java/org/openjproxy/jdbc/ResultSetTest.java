@@ -52,25 +52,21 @@ public class ResultSetTest {
         // Create a scrollable and read-only Statement
         statement = connection.createStatement(
                 ResultSet.TYPE_SCROLL_INSENSITIVE, // Scrollable ResultSet
-                ResultSet.CONCUR_UPDATABLE // Read-only ResultSet
+                ResultSet.CONCUR_UPDATABLE         // Read-only ResultSet
         );
 
         // Create a test table and insert data
         try {
             statement.execute("DROP TABLE resultset_test_table");
         } catch (Exception e) {
-            // Expected if table does not exist.
+            //Expected if table does not exist.
         }
-
+        
         // Create table for H2/PostgreSQL
-        statement.execute(
-                "CREATE TABLE resultset_test_table (id INT PRIMARY KEY, name VARCHAR(255), age INT, salary DECIMAL(10,2), active BOOLEAN, created_at TIMESTAMP)");
-        statement.execute(
-                "INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (1, 'Alice', 30, 50000.00, TRUE, CURRENT_TIMESTAMP)");
-        statement.execute(
-                "INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (2, 'Bob', 25, 45000.00, FALSE, CURRENT_TIMESTAMP)");
-        statement.execute(
-                "INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (3, 'Charlie', 35, 55000.00, TRUE, CURRENT_TIMESTAMP)");
+        statement.execute("CREATE TABLE resultset_test_table (id INT PRIMARY KEY, name VARCHAR(255), age INT, salary DECIMAL(10,2), active BOOLEAN, created_at TIMESTAMP)");
+        statement.execute("INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (1, 'Alice', 30, 50000.00, TRUE, CURRENT_TIMESTAMP)");
+        statement.execute("INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (2, 'Bob', 25, 45000.00, FALSE, CURRENT_TIMESTAMP)");
+        statement.execute("INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (3, 'Charlie', 35, 55000.00, TRUE, CURRENT_TIMESTAMP)");
 
         // Query the data with a scrollable ResultSet
         resultSet = statement.executeQuery("SELECT * FROM resultset_test_table");
@@ -79,12 +75,9 @@ public class ResultSetTest {
     @AfterEach
     void tearDown() throws SQLException {
         // Clean up resources
-        if (resultSet != null)
-            resultSet.close();
-        if (statement != null)
-            statement.close();
-        if (connection != null)
-            connection.close();
+        if (resultSet != null) resultSet.close();
+        if (statement != null) statement.close();
+        if (connection != null) connection.close();
     }
 
     @ParameterizedTest
@@ -133,8 +126,7 @@ public class ResultSetTest {
     @CsvFileSource(resources = "/h2_postgres_connections.csv")
     void testNullHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         setUp(driverClass, url, user, pwd);
-        statement.execute(
-                "INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (5, NULL, NULL, NULL, NULL, NULL)");
+        statement.execute("INSERT INTO resultset_test_table (id, name, age, salary, active, created_at) VALUES (5, NULL, NULL, NULL, NULL, NULL)");
         resultSet = statement.executeQuery("SELECT * FROM resultset_test_table WHERE id = 5");
         assertTrue(resultSet.next());
         assertNull(resultSet.getString("name"));

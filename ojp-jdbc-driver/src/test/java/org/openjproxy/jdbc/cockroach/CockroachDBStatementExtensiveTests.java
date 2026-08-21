@@ -1,10 +1,10 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -40,8 +40,7 @@ class CockroachDBStatementExtensiveTests {
         connection = DriverManager.getConnection(url, user, password);
         statement = connection.createStatement();
 
-        TestDBUtils.createBasicTestTable(connection, "cockroachdb_statement_test", TestDBUtils.SqlSyntax.COCKROACHDB,
-                true);
+        TestDBUtils.createBasicTestTable(connection, "cockroachdb_statement_test", TestDBUtils.SqlSyntax.COCKROACHDB, true);
     }
 
     @AfterEach
@@ -97,10 +96,8 @@ class CockroachDBStatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
         statement.close();
         assertThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM cockroachdb_statement_test"));
-        assertThrows(SQLException.class,
-                () -> statement.executeUpdate("UPDATE cockroachdb_statement_test SET name = 'fail' WHERE id = 1"));
-        assertThrows(SQLException.class, () -> statement
-                .addBatch("INSERT INTO cockroachdb_statement_test (id, name) VALUES (99, 'ShouldFail')"));
+        assertThrows(SQLException.class, () -> statement.executeUpdate("UPDATE cockroachdb_statement_test SET name = 'fail' WHERE id = 1"));
+        assertThrows(SQLException.class, () -> statement.addBatch("INSERT INTO cockroachdb_statement_test (id, name) VALUES (99, 'ShouldFail')"));
     }
 
     @ParameterizedTest
@@ -203,14 +200,12 @@ class CockroachDBStatementExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testResultSetConcurrencyAndType(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
         int concurrency = statement.getResultSetConcurrency();
         int type = statement.getResultSetType();
         assertTrue(concurrency == ResultSet.CONCUR_READ_ONLY || concurrency == ResultSet.CONCUR_UPDATABLE);
-        assertTrue(type == ResultSet.TYPE_FORWARD_ONLY || type == ResultSet.TYPE_SCROLL_INSENSITIVE
-                || type == ResultSet.TYPE_SCROLL_SENSITIVE);
+        assertTrue(type == ResultSet.TYPE_FORWARD_ONLY || type == ResultSet.TYPE_SCROLL_INSENSITIVE || type == ResultSet.TYPE_SCROLL_SENSITIVE);
     }
 
     @ParameterizedTest
@@ -263,8 +258,7 @@ class CockroachDBStatementExtensiveTests {
             stmt.execute("CREATE TABLE cockroachdb_gen_keys_test (id SERIAL PRIMARY KEY, name VARCHAR(255))");
         }
 
-        int affected = statement.executeUpdate("INSERT INTO cockroachdb_gen_keys_test (name) VALUES ('TestGen')",
-                Statement.RETURN_GENERATED_KEYS);
+        int affected = statement.executeUpdate("INSERT INTO cockroachdb_gen_keys_test (name) VALUES ('TestGen')", Statement.RETURN_GENERATED_KEYS);
         assertEquals(1, affected);
 
         ResultSet rs = statement.getGeneratedKeys();
@@ -292,8 +286,7 @@ class CockroachDBStatementExtensiveTests {
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
     void testExecuteLargeUpdate(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
-        long affected = statement
-                .executeLargeUpdate("UPDATE cockroachdb_statement_test SET name = 'LargeUpdate' WHERE id = 1");
+        long affected = statement.executeLargeUpdate("UPDATE cockroachdb_statement_test SET name = 'LargeUpdate' WHERE id = 1");
         assertEquals(1L, affected);
     }
 

@@ -1,9 +1,9 @@
 package org.openjproxy.jdbc.mySql;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-class MySQLMultipleTypesIntegrationTest {
+ class MySQLMultipleTypesIntegrationTest {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
@@ -48,18 +48,16 @@ class MySQLMultipleTypesIntegrationTest {
      * - LocalDateTime (TIMESTAMP/DATETIME)
      * 
      * Note: MySQL/MariaDB do NOT have native TIMESTAMP WITH TIME ZONE,
-     * so OffsetDateTime/OffsetTime/Instant are NOT tested here (see unsupported
-     * test).
+     * so OffsetDateTime/OffsetTime/Instant are NOT tested here (see unsupported test).
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ParseException {
+    void typesCoverageTestSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ParseException {
         // Skip MySQL tests if not enabled
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
+        
         // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
@@ -74,13 +72,11 @@ class MySQLMultipleTypesIntegrationTest {
         TestDBUtils.createMultiTypeTestTable(conn, "mysql_multi_types_test", TestDBUtils.SqlSyntax.MYSQL);
 
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
-                "insert into mysql_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, "
-                        +
-                        "val_smallint, val_boolean, val_decimal, val_float, val_byte, val_binary, val_date, val_time, "
-                        +
-                        "val_timestamp, val_localdatetime, val_localdate, val_localtime, val_instant, val_offsetdatetime, val_offsettime) "
-                        +
-                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                "insert into mysql_multi_types_test (val_int, val_varchar, val_double_precision, val_bigint, val_tinyint, " +
+                        "val_smallint, val_boolean, val_decimal, val_float, val_byte, val_binary, val_date, val_time, " +
+                        "val_timestamp, val_localdatetime, val_localdate, val_localtime, val_instant, val_offsetdatetime, val_offsettime) " +
+                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
 
         psInsert.setInt(1, 1);
         psInsert.setString(2, "TITLE_1");
@@ -115,8 +111,7 @@ class MySQLMultipleTypesIntegrationTest {
         psInsert.setObject(17, valLocalTime, Types.TIME);
 
         // Instant, OffsetDateTime, OffsetTime: NOT natively supported in MySQL/MariaDB
-        // MySQL lacks TIMESTAMP WITH TIME ZONE, so these would require lossy
-        // conversions
+        // MySQL lacks TIMESTAMP WITH TIME ZONE, so these would require lossy conversions
         // Setting to null - will be tested in unsupported types test
         psInsert.setObject(18, null, Types.TIMESTAMP); // Instant - not natively supported
         psInsert.setObject(19, null, Types.TIMESTAMP); // OffsetDateTime - not natively supported
@@ -124,8 +119,7 @@ class MySQLMultipleTypesIntegrationTest {
 
         psInsert.executeUpdate();
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("select * from mysql_multi_types_test where val_int = ?");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from mysql_multi_types_test where val_int = ?");
         psSelect.setInt(1, 1);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
@@ -135,24 +129,21 @@ class MySQLMultipleTypesIntegrationTest {
         assertEquals("TITLE_1", resultSet.getString(2));
         assertEquals(127, resultSet.getInt(5));
         assertEquals(32767, resultSet.getInt(6));
-        // MySQL/MariaDB BOOLEAN is TINYINT(1) under the hood; MariaDB Connector/J
-        // returns Boolean
-        // for TINYINT(1)/BOOLEAN columns; getBoolean() must work for both Boolean and
-        // Integer values
+        // MySQL/MariaDB BOOLEAN is TINYINT(1) under the hood; MariaDB Connector/J returns Boolean
+        // for TINYINT(1)/BOOLEAN columns; getBoolean() must work for both Boolean and Integer values
         assertTrue(resultSet.getBoolean(7));
-        // getInt() must work even when the stored value is a Boolean (MariaDB returns
-        // Boolean for TINYINT(1))
+        // getInt() must work even when the stored value is a Boolean (MariaDB returns Boolean for TINYINT(1))
         assertEquals(1, resultSet.getInt(7));
 
         // Validate columns 12, 13, 14 using getObject with java.time types
         Object valDateRet = resultSet.getObject(12);
         Object valTimeRet = resultSet.getObject(13);
         Object valTimestampRet = resultSet.getObject(14);
-
+        
         assertNotNull(valDateRet, "Date column should not be null");
         assertNotNull(valTimeRet, "Time column should not be null");
         assertNotNull(valTimestampRet, "Timestamp column should not be null");
-
+        
         // Validate date (column 12)
         if (valDateRet instanceof LocalDate) {
             assertEquals(valDate, valDateRet);
@@ -160,7 +151,7 @@ class MySQLMultipleTypesIntegrationTest {
             LocalDate retrievedDate = ((Date) valDateRet).toLocalDate();
             assertEquals(valDate, retrievedDate);
         }
-
+        
         // Validate time (column 13)
         if (valTimeRet instanceof LocalTime) {
             LocalTime retrievedTime = (LocalTime) valTimeRet;
@@ -173,7 +164,7 @@ class MySQLMultipleTypesIntegrationTest {
             assertEquals(valTime.getMinute(), retrievedTime.getMinute());
             assertEquals(valTime.getSecond(), retrievedTime.getSecond());
         }
-
+        
         // Validate timestamp (column 14)
         if (valTimestampRet instanceof LocalDateTime) {
             assertEquals(valTimestamp, valTimestampRet);
@@ -187,14 +178,13 @@ class MySQLMultipleTypesIntegrationTest {
         Object valLocalDateTimeRet = resultSet.getObject(15);
         Object valLocalDateRet = resultSet.getObject(16);
         Object valLocalTimeRet = resultSet.getObject(17);
-        // Columns 18-20 (Instant, OffsetDateTime, OffsetTime) are null - not tested in
-        // success scenario
-
+        // Columns 18-20 (Instant, OffsetDateTime, OffsetTime) are null - not tested in success scenario
+        
         // Validate MySQL/MariaDB's natively supported java.time types (JDBC 4.2)
         assertNotNull(valLocalDateTimeRet, "LocalDateTime should not be null");
         assertNotNull(valLocalDateRet, "LocalDate should not be null");
         assertNotNull(valLocalTimeRet, "LocalTime should not be null");
-
+        
         // MySQL/MariaDB JDBC driver should return actual java.time types per JDBC 4.2
         // For LocalDateTime
         if (valLocalDateTimeRet instanceof LocalDateTime) {
@@ -203,7 +193,7 @@ class MySQLMultipleTypesIntegrationTest {
             LocalDateTime retrievedLdt = ((Timestamp) valLocalDateTimeRet).toLocalDateTime();
             assertEquals(valLocalDateTime, retrievedLdt);
         }
-
+        
         // For LocalDate
         if (valLocalDateRet instanceof LocalDate) {
             assertEquals(valLocalDate, valLocalDateRet);
@@ -211,7 +201,7 @@ class MySQLMultipleTypesIntegrationTest {
             LocalDate retrievedLd = ((Date) valLocalDateRet).toLocalDate();
             assertEquals(valLocalDate, retrievedLd);
         }
-
+        
         // For LocalTime
         if (valLocalTimeRet instanceof LocalTime) {
             LocalTime retrievedLt = (LocalTime) valLocalTimeRet;
@@ -243,8 +233,7 @@ class MySQLMultipleTypesIntegrationTest {
     }
 
     /**
-     * Test MySQL/MariaDB's behavior with java.time types that are NOT natively
-     * supported.
+     * Test MySQL/MariaDB's behavior with java.time types that are NOT natively supported.
      * MySQL/MariaDB lack native TIMESTAMP WITH TIME ZONE, so these types either:
      * - Work with lossy conversions (timezone info lost)
      * - Return database errors
@@ -259,14 +248,14 @@ class MySQLMultipleTypesIntegrationTest {
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
+        
         // Skip MariaDB tests if not enabled
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
-
+        
         boolean isMariaDB = url.toLowerCase().contains("mariadb");
         String dbType = isMariaDB ? "MariaDB" : "MySQL";
         System.out.println("Testing " + dbType + " unsupported java.time types for url -> " + url);
@@ -275,25 +264,26 @@ class MySQLMultipleTypesIntegrationTest {
 
         // Test Instant - MySQL/MariaDB don't have native instant support
         java.sql.PreparedStatement psInsertInstant = conn.prepareStatement(
-                "insert into mysql_unsupported_test (val_int, val_instant) values (?, ?)");
-
+                "insert into mysql_unsupported_test (val_int, val_instant) values (?, ?)"
+        );
+        
         psInsertInstant.setInt(1, 1);
         Instant valInstant = Instant.parse("2024-12-01T10:10:10Z");
-
+        
         // Attempt to insert Instant
         try {
             psInsertInstant.setObject(2, valInstant, Types.TIMESTAMP);
             psInsertInstant.executeUpdate();
-            System.out
-                    .println(dbType + ": Instant insertion succeeded with lossy conversion (no timezone preservation)");
-
+            System.out.println(dbType + ": Instant insertion succeeded with lossy conversion (no timezone preservation)");
+            
             // If it succeeded, document that timezone info is lost
             java.sql.PreparedStatement psSelect = conn.prepareStatement(
-                    "select val_instant from mysql_unsupported_test where val_int = 1");
+                    "select val_instant from mysql_unsupported_test where val_int = 1"
+            );
             ResultSet rs = psSelect.executeQuery();
             if (rs.next()) {
                 Object retrieved = rs.getObject(1);
-                System.out.println(dbType + ": Instant retrieved as: " +
+                System.out.println(dbType + ": Instant retrieved as: " + 
                         (retrieved != null ? retrieved.getClass().getName() : "null") +
                         " (timezone info lost - converted to local/UTC)");
             }
@@ -302,35 +292,36 @@ class MySQLMultipleTypesIntegrationTest {
         } catch (SQLException e) {
             // Expected: MySQL/MariaDB may reject Instant
             System.out.println(dbType + ": Instant not supported - " + e.getMessage());
-            // MySQL/MariaDB JDBC drivers may throw various error messages for unsupported
-            // types
+            // MySQL/MariaDB JDBC drivers may throw various error messages for unsupported types
             // Just verify that an SQLException was thrown (which indicates lack of support)
             assertNotNull(e.getMessage(), "SQLException should have a message");
         }
-
+        
         psInsertInstant.close();
         TestDBUtils.executeUpdate(conn, "delete from mysql_unsupported_test where val_int=1");
 
         // Test OffsetDateTime - MySQL/MariaDB lack TIMESTAMP WITH TIME ZONE
         java.sql.PreparedStatement psInsertOffsetDateTime = conn.prepareStatement(
-                "insert into mysql_unsupported_test (val_int, val_offsetdatetime) values (?, ?)");
-
+                "insert into mysql_unsupported_test (val_int, val_offsetdatetime) values (?, ?)"
+        );
+        
         psInsertOffsetDateTime.setInt(1, 2);
         OffsetDateTime valOffsetDateTime = OffsetDateTime.of(2024, 12, 1, 10, 10, 10, 0, ZoneOffset.ofHours(2));
-
+        
         // Attempt to insert OffsetDateTime
         try {
             psInsertOffsetDateTime.setObject(2, valOffsetDateTime, Types.TIMESTAMP);
             psInsertOffsetDateTime.executeUpdate();
             System.out.println(dbType + ": OffsetDateTime insertion succeeded with lossy conversion (timezone lost)");
-
+            
             // If it succeeded, document that timezone info is lost
             java.sql.PreparedStatement psSelect = conn.prepareStatement(
-                    "select val_offsetdatetime from mysql_unsupported_test where val_int = 2");
+                    "select val_offsetdatetime from mysql_unsupported_test where val_int = 2"
+            );
             ResultSet rs = psSelect.executeQuery();
             if (rs.next()) {
                 Object retrieved = rs.getObject(1);
-                System.out.println(dbType + ": OffsetDateTime retrieved as: " +
+                System.out.println(dbType + ": OffsetDateTime retrieved as: " + 
                         (retrieved != null ? retrieved.getClass().getName() : "null") +
                         " (timezone offset lost - stored as local time)");
             }
@@ -339,35 +330,36 @@ class MySQLMultipleTypesIntegrationTest {
         } catch (SQLException e) {
             // Expected: MySQL/MariaDB may reject OffsetDateTime
             System.out.println(dbType + ": OffsetDateTime not supported - " + e.getMessage());
-            // MySQL/MariaDB JDBC drivers may throw various error messages for unsupported
-            // types
+            // MySQL/MariaDB JDBC drivers may throw various error messages for unsupported types
             // Just verify that an SQLException was thrown (which indicates lack of support)
             assertNotNull(e.getMessage(), "SQLException should have a message");
         }
-
+        
         psInsertOffsetDateTime.close();
         TestDBUtils.executeUpdate(conn, "delete from mysql_unsupported_test where val_int=2");
 
         // Test OffsetTime - MySQL/MariaDB lack TIME WITH TIME ZONE
         java.sql.PreparedStatement psInsertOffsetTime = conn.prepareStatement(
-                "insert into mysql_unsupported_test (val_int, val_offsettime) values (?, ?)");
-
+                "insert into mysql_unsupported_test (val_int, val_offsettime) values (?, ?)"
+        );
+        
         psInsertOffsetTime.setInt(1, 3);
         OffsetTime valOffsetTime = OffsetTime.of(16, 20, 30, 0, ZoneOffset.ofHours(-5));
-
+        
         // Attempt to insert OffsetTime
         try {
             psInsertOffsetTime.setObject(2, valOffsetTime, Types.TIMESTAMP);
             psInsertOffsetTime.executeUpdate();
             System.out.println(dbType + ": OffsetTime insertion succeeded with lossy conversion (timezone lost)");
-
+            
             // If it succeeded, document that timezone info is lost
             java.sql.PreparedStatement psSelect = conn.prepareStatement(
-                    "select val_offsettime from mysql_unsupported_test where val_int = 3");
+                    "select val_offsettime from mysql_unsupported_test where val_int = 3"
+            );
             ResultSet rs = psSelect.executeQuery();
             if (rs.next()) {
                 Object retrieved = rs.getObject(1);
-                System.out.println(dbType + ": OffsetTime retrieved as: " +
+                System.out.println(dbType + ": OffsetTime retrieved as: " + 
                         (retrieved != null ? retrieved.getClass().getName() : "null") +
                         " (timezone offset lost - stored as local time)");
             }
@@ -376,12 +368,11 @@ class MySQLMultipleTypesIntegrationTest {
         } catch (SQLException e) {
             // Expected: MySQL/MariaDB may reject OffsetTime
             System.out.println(dbType + ": OffsetTime not supported - " + e.getMessage());
-            // MySQL/MariaDB JDBC drivers may throw various error messages for unsupported
-            // types
+            // MySQL/MariaDB JDBC drivers may throw various error messages for unsupported types
             // Just verify that an SQLException was thrown (which indicates lack of support)
             assertNotNull(e.getMessage(), "SQLException should have a message");
         }
-
+        
         psInsertOffsetTime.close();
         TestDBUtils.executeUpdate(conn, "delete from mysql_unsupported_test where val_int=3");
 
@@ -395,12 +386,12 @@ class MySQLMultipleTypesIntegrationTest {
         if (url.toLowerCase().contains("mysql") && !isMySQLTestEnabled) {
             assumeFalse(true, "Skipping MySQL tests");
         }
-
-        // Skip MariaDB tests if not enabled
+        
+        // Skip MariaDB tests if not enabled  
         if (url.toLowerCase().contains("mariadb") && !isMariaDBTestEnabled) {
             assumeFalse(true, "Skipping MariaDB tests");
         }
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
 
         System.out.println("Testing MySQL-specific types for url -> " + url);
@@ -410,7 +401,8 @@ class MySQLMultipleTypesIntegrationTest {
         java.sql.PreparedStatement psInsert = conn.prepareStatement(
                 "insert into mysql_specific_types_test (enum_col, json_col, text_col, mediumtext_col, " +
                         "longtext_col, blob_col, mediumblob_col, longblob_col, set_col, year_col, bit_col) " +
-                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
 
         psInsert.setString(1, "medium");
         psInsert.setString(2, "{\"key\": \"value\", \"number\": 42}");
@@ -426,8 +418,7 @@ class MySQLMultipleTypesIntegrationTest {
 
         psInsert.executeUpdate();
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("select * from mysql_specific_types_test where id = LAST_INSERT_ID()");
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select * from mysql_specific_types_test where id = LAST_INSERT_ID()");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
 

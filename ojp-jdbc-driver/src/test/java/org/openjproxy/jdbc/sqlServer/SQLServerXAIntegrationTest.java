@@ -1,14 +1,13 @@
 package org.openjproxy.jdbc.sqlServer;
 
 import lombok.extern.slf4j.Slf4j;
-
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.openjproxy.jdbc.xa.OjpXADataSource;
 
 import javax.sql.XAConnection;
@@ -32,7 +31,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  */
 @Slf4j
 @EnabledIf("org.openjproxy.jdbc.testutil.SQLServerTestContainer#isEnabled")
-class SQLServerXAIntegrationTest {
+public class SQLServerXAIntegrationTest {
 
     private static boolean isTestDisabled;
     private XAConnection xaConnection;
@@ -86,8 +85,7 @@ class SQLServerXAIntegrationTest {
         XAResource xaResource = xaConnection.getXAResource();
         assertNotNull(xaResource, "XA resource should not be null");
 
-        // Verify connection is not auto-commit (XA connections should never be
-        // auto-commit)
+        // Verify connection is not auto-commit (XA connections should never be auto-commit)
         assertFalse(connection.getAutoCommit(), "XA connection should not be auto-commit");
     }
 
@@ -106,7 +104,7 @@ class SQLServerXAIntegrationTest {
         // Table creation should not be part of XA transaction
         String tableName = "xa_test_table_" + System.currentTimeMillis();
         try (java.sql.Connection regularConn = java.sql.DriverManager.getConnection(url, user, password);
-                Statement stmt = regularConn.createStatement()) {
+             Statement stmt = regularConn.createStatement()) {
             stmt.executeUpdate("CREATE TABLE " + tableName + " (id INT PRIMARY KEY, name VARCHAR(100))");
         }
 

@@ -53,7 +53,7 @@ public class Db2ResultSetTest {
         // Create a scrollable and updatable Statement
         statement = connection.createStatement(
                 ResultSet.TYPE_SCROLL_INSENSITIVE, // Scrollable ResultSet
-                ResultSet.CONCUR_UPDATABLE // Updatable ResultSet
+                ResultSet.CONCUR_UPDATABLE         // Updatable ResultSet
         );
 
         // Create test table with DB2-compatible syntax
@@ -190,7 +190,7 @@ public class Db2ResultSetTest {
         setUp(driverClass, url, user, pwd);
 
         resultSet = statement.executeQuery("SELECT * FROM DB2INST1.db2_resultset_test LIMIT 1");
-
+        
         var metaData = resultSet.getMetaData();
         assertNotNull(metaData);
 
@@ -234,14 +234,14 @@ public class Db2ResultSetTest {
         setUp(driverClass, url, user, pwd);
 
         resultSet = statement.executeQuery("SELECT * FROM DB2INST1.db2_resultset_test LIMIT 1");
-
+        
         // Test warnings (initially should be null)
         SQLWarning warning = resultSet.getWarnings();
         // Don't assert null as some drivers may have warnings
-
+        
         // Clear warnings
         resultSet.clearWarnings();
-
+        
         // After clearing, warnings should be null
         warning = resultSet.getWarnings();
         assertNull(warning);

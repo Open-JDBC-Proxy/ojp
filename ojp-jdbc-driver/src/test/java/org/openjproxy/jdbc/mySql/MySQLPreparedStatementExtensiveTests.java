@@ -1,11 +1,11 @@
 package org.openjproxy.jdbc.mySql;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;
@@ -25,7 +25,7 @@ import java.sql.Types;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-class MySQLPreparedStatementExtensiveTests {
+ class MySQLPreparedStatementExtensiveTests {
 
     private static boolean isMySQLTestEnabled;
     private static boolean isMariaDBTestEnabled;
@@ -38,7 +38,7 @@ class MySQLPreparedStatementExtensiveTests {
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
     }
 
-    void setUp(String driverClass, String url, String user, String password) throws Exception {
+     void setUp(String driverClass, String url, String user, String password) throws Exception {
         assumeFalse(!isMySQLTestEnabled, "MySQL tests are not enabled");
         assumeFalse(!isMariaDBTestEnabled, "MariaDB tests are not enabled");
 
@@ -46,8 +46,7 @@ class MySQLPreparedStatementExtensiveTests {
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE mysql_prepared_stmt_test");
-        } catch (SQLException ignore) {
-        }
+        } catch (SQLException ignore) {}
         stmt.execute("CREATE TABLE mysql_prepared_stmt_test (" +
                 "id INT PRIMARY KEY, " +
                 "name VARCHAR(255), " +
@@ -123,8 +122,7 @@ class MySQLPreparedStatementExtensiveTests {
     void testDateTimeParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
-        ps = connection
-                .prepareStatement("INSERT INTO mysql_prepared_stmt_test (id, name, dt, tm, ts) VALUES (?, ?, ?, ?, ?)");
+        ps = connection.prepareStatement("INSERT INTO mysql_prepared_stmt_test (id, name, dt, tm, ts) VALUES (?, ?, ?, ?, ?)");
 
         Date testDate = Date.valueOf("2024-12-01");
         Time testTime = Time.valueOf("10:30:45");
@@ -210,8 +208,7 @@ class MySQLPreparedStatementExtensiveTests {
     void testNullParameterSetters(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
-        ps = connection.prepareStatement(
-                "INSERT INTO mysql_prepared_stmt_test (id, name, age, data, info) VALUES (?, ?, ?, ?, ?)");
+        ps = connection.prepareStatement("INSERT INTO mysql_prepared_stmt_test (id, name, age, data, info) VALUES (?, ?, ?, ?, ?)");
 
         ps.setInt(1, 40);
         ps.setNull(2, Types.VARCHAR);
@@ -310,7 +307,7 @@ class MySQLPreparedStatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
 
         ps = connection.prepareStatement("INSERT INTO mysql_prepared_stmt_test (id, name, age) VALUES (?, ?, ?)");
-
+        
         ps.setInt(1, 80);
         ps.setString(2, "Batch1");
         ps.setInt(3, 25);
@@ -381,8 +378,8 @@ class MySQLPreparedStatementExtensiveTests {
         try {
             var paramMetaData = ps.getParameterMetaData();
             assertNotNull(paramMetaData);
-            // TODO implement the ParameterMetaData using remote proxy
-            // Assertions.assertEquals(3, paramMetaData.getParameterCount());
+            //TODO implement the ParameterMetaData using remote proxy
+            //Assertions.assertEquals(3, paramMetaData.getParameterCount());
         } catch (SQLException e) {
             // Some MySQL drivers/versions may not fully support parameter metadata
             // This is acceptable
@@ -398,14 +395,12 @@ class MySQLPreparedStatementExtensiveTests {
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE mysql_auto_increment_ps_test");
-        } catch (SQLException ignore) {
-        }
-        stmt.execute(
-                "CREATE TABLE mysql_auto_increment_ps_test (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100))");
+        } catch (SQLException ignore) {}
+        stmt.execute("CREATE TABLE mysql_auto_increment_ps_test (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100))");
         stmt.close();
 
-        ps = connection.prepareStatement("INSERT INTO mysql_auto_increment_ps_test (name) VALUES (?)",
-                Statement.RETURN_GENERATED_KEYS);
+        ps = connection.prepareStatement("INSERT INTO mysql_auto_increment_ps_test (name) VALUES (?)", 
+                                        Statement.RETURN_GENERATED_KEYS);
         ps.setString(1, "GeneratedKeyTest");
         assertEquals(1, ps.executeUpdate());
 
@@ -422,33 +417,26 @@ class MySQLPreparedStatementExtensiveTests {
     }
 
     /**
-     * Reproduces the Spring Data saveAll / batch insert scenario with generated
-     * keys (issue #408).
-     * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is
-     * followed by
-     * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data
-     * uses for saveAll.
+     * Reproduces the Spring Data saveAll / batch insert scenario with generated keys (issue #408).
+     * Verifies that RETURN_GENERATED_KEYS is preserved when prepareStatement is followed by
+     * repeated addBatch() calls and executeBatch() — the exact sequence Spring Data uses for saveAll.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testBatchInsertWithGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
 
         Statement stmt = connection.createStatement();
         try {
             stmt.execute("DROP TABLE mysql_batch_gen_keys_test");
         } catch (SQLException ignore) {
-            // Table may not exist on first run; ignore the error and proceed with CREATE
-            // TABLE
+            // Table may not exist on first run; ignore the error and proceed with CREATE TABLE
         }
         stmt.execute("CREATE TABLE mysql_batch_gen_keys_test (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100))");
         stmt.close();
 
-        // Reproduces: prepareStatement(sql, RETURN_GENERATED_KEYS) → addBatch() x N →
-        // executeBatch() → getGeneratedKeys()
-        ps = connection.prepareStatement("INSERT INTO mysql_batch_gen_keys_test (name) VALUES (?)",
-                Statement.RETURN_GENERATED_KEYS);
+        // Reproduces: prepareStatement(sql, RETURN_GENERATED_KEYS) → addBatch() x N → executeBatch() → getGeneratedKeys()
+        ps = connection.prepareStatement("INSERT INTO mysql_batch_gen_keys_test (name) VALUES (?)", Statement.RETURN_GENERATED_KEYS);
 
         ps.setString(1, "Alice");
         ps.addBatch();

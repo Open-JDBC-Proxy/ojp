@@ -1,10 +1,10 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,14 +16,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import static org.openjproxy.jdbc.testutil.TestDBUtils.SqlSyntax.COCKROACHDB;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.openjproxy.jdbc.testutil.TestDBUtils.SqlSyntax.*;
 
 /**
- * CockroachDB-specific integration tests to validate OJP functionality with
- * CockroachDB.
- * These tests verify that OJP can properly handle CockroachDB-specific SQL
- * syntax and features.
+ * CockroachDB-specific integration tests to validate OJP functionality with CockroachDB.
+ * These tests verify that OJP can properly handle CockroachDB-specific SQL syntax and features.
  */
 
 class CockroachDBConnectionExtensiveTests {
@@ -31,13 +29,13 @@ class CockroachDBConnectionExtensiveTests {
     private static boolean isTestEnabled;
 
     @BeforeAll
-    static void setup() {
+     static void setup() {
         isTestEnabled = Boolean.parseBoolean(System.getProperty("enableCockroachDBTests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testCockroachDBBasicConnection(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Assumptions.assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
@@ -77,7 +75,7 @@ class CockroachDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBAutoIncrement(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testCockroachDBAutoIncrement(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Assumptions.assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
@@ -110,8 +108,7 @@ class CockroachDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBTransactionHandling(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+     void testCockroachDBTransactionHandling(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Assumptions.assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
@@ -174,8 +171,7 @@ class CockroachDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBPreparedStatements(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+     void testCockroachDBPreparedStatements(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Assumptions.assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
@@ -212,7 +208,7 @@ class CockroachDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testCockroachDBDataTypes(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Assumptions.assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
@@ -235,8 +231,7 @@ class CockroachDBConnectionExtensiveTests {
 
                 // Insert test data
                 statement.execute("INSERT INTO cockroachdb_types_test " +
-                        "(int_col, bigint_col, float_col, decimal_col, varchar_col, text_col, bool_col, date_col, timestamp_col) "
-                        +
+                        "(int_col, bigint_col, float_col, decimal_col, varchar_col, text_col, bool_col, date_col, timestamp_col) " +
                         "VALUES " +
                         "(42, 9223372036854775807, 3.14, 12345.67, 'varchar test', 'text test', true, '2024-01-15', '2024-01-15 10:30:00')");
 
@@ -263,7 +258,7 @@ class CockroachDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBJoins(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testCockroachDBJoins(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Assumptions.assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
@@ -294,10 +289,10 @@ class CockroachDBConnectionExtensiveTests {
                 // Test JOIN query
                 try (ResultSet rs = statement.executeQuery(
                         "SELECT c.customer_name, o.order_id, o.order_amount " +
-                                "FROM cockroachdb_customers c " +
-                                "INNER JOIN cockroachdb_orders o ON c.customer_id = o.customer_id " +
-                                "ORDER BY o.order_id")) {
-
+                        "FROM cockroachdb_customers c " +
+                        "INNER JOIN cockroachdb_orders o ON c.customer_id = o.customer_id " +
+                        "ORDER BY o.order_id")) {
+                    
                     assertTrue(rs.next());
                     assertEquals("John Doe", rs.getString("customer_name"));
                     assertEquals(101, rs.getInt("order_id"));
@@ -319,7 +314,7 @@ class CockroachDBConnectionExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/cockroachdb_connection.csv")
-    void testCockroachDBMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
+     void testCockroachDBMetadata(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         Assumptions.assumeFalse(!isTestEnabled, "CockroachDB tests are not enabled");
 
@@ -327,8 +322,8 @@ class CockroachDBConnectionExtensiveTests {
             DatabaseMetaData metadata = connection.getMetaData();
 
             assertNotNull(metadata);
-            assertTrue(metadata.getDatabaseProductName().toLowerCase().contains("cockroach") ||
-                    metadata.getDatabaseProductName().toLowerCase().contains("postgres"));
+            assertTrue(metadata.getDatabaseProductName().toLowerCase().contains("cockroach") || 
+                       metadata.getDatabaseProductName().toLowerCase().contains("postgres"));
             assertNotNull(metadata.getDatabaseProductVersion());
 
             logger.info("CockroachDB/Database product name: {}", metadata.getDatabaseProductName());

@@ -18,8 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Integration tests for SQL session affinity feature with MySQL/MariaDB
- * databases.
+ * Integration tests for SQL session affinity feature with MySQL/MariaDB databases.
  * Tests that temporary tables and session variables work correctly across
  * multiple requests by ensuring session affinity.
  */
@@ -42,8 +41,7 @@ class MySQLMariaDBSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd) throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         // Skip tests based on database type
         if (url.toLowerCase().contains("mysql")) {
@@ -130,8 +128,7 @@ class MySQLMariaDBSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+     void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)            throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         // Skip tests based on database type
         if (url.toLowerCase().contains("mysql")) {
@@ -152,8 +149,7 @@ class MySQLMariaDBSessionAffinityIntegrationTest {
 
             // Create temporary table
             logger.debug("Creating complex temp table");
-            stmt.execute(
-                    "CREATE TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR(100), amount DECIMAL(10,2))");
+            stmt.execute("CREATE TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR(100), amount DECIMAL(10,2))");
 
             // Insert multiple rows
             logger.debug("Inserting multiple rows");
@@ -201,8 +197,7 @@ class MySQLMariaDBSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+     void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)            throws SQLException {
         logger.info("Testing temporay table with Driver: {}", driverClass);
         // Skip tests based on database type
         if (url.toLowerCase().contains("mysql")) {

@@ -1,4 +1,4 @@
-package org.openjproxy.jdbc.cockreach;
+package org.openjproxy.jdbc.cockroach;
 
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
@@ -44,7 +44,8 @@ class CockroachDBSavepointTests {
 
         // CockroachDB-specific CREATE TABLE syntax
         stmt.execute(
-                "CREATE TABLE savepoint_test_table (id INT PRIMARY KEY, name VARCHAR(255))");
+                "CREATE TABLE savepoint_test_table (id INT PRIMARY KEY, name VARCHAR(255))"
+        );
         stmt.close();
 
         connection.setAutoCommit(false);
@@ -68,8 +69,7 @@ class CockroachDBSavepointTests {
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (2, 'Bob')");
         connection.rollback(savepoint);
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT * FROM savepoint_test_table ORDER BY id DESC");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT * FROM savepoint_test_table ORDER BY id DESC");
         assertTrue(resultSet.next());
         assertEquals(1, resultSet.getInt("id"));
         assertEquals("Alice", resultSet.getString("name"));
@@ -92,8 +92,7 @@ class CockroachDBSavepointTests {
 
         connection.rollback(savepoint);
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
         assertTrue(resultSet.next());
         assertEquals(1, resultSet.getInt("cnt")); // Should only have Alice
         resultSet.close();
@@ -115,8 +114,7 @@ class CockroachDBSavepointTests {
         // Rollback to sp2 (removes Charlie, keeps Alice and Bob)
         connection.rollback(sp2);
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
         assertTrue(resultSet.next());
         assertEquals(2, resultSet.getInt("cnt"));
         resultSet.close();
@@ -146,8 +144,7 @@ class CockroachDBSavepointTests {
         // Commit the transaction
         connection.commit();
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
         assertTrue(resultSet.next());
         assertEquals(2, resultSet.getInt("cnt")); // Both rows should be committed
         resultSet.close();
@@ -166,8 +163,7 @@ class CockroachDBSavepointTests {
         // Full rollback (ignores savepoint, rolls back everything)
         connection.rollback();
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
         assertTrue(resultSet.next());
         assertEquals(0, resultSet.getInt("cnt")); // All rows should be rolled back
         resultSet.close();
@@ -186,8 +182,7 @@ class CockroachDBSavepointTests {
         // Commit makes all savepoints invalid
         connection.commit();
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT COUNT(*) AS cnt FROM savepoint_test_table");
         assertTrue(resultSet.next());
         assertEquals(2, resultSet.getInt("cnt")); // Both rows should be committed
         resultSet.close();
@@ -212,8 +207,7 @@ class CockroachDBSavepointTests {
         // Rollback to level 2 (removes David and Charlie)
         connection.rollback(sp2);
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT name FROM savepoint_test_table ORDER BY id");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT name FROM savepoint_test_table ORDER BY id");
         assertTrue(resultSet.next());
         assertEquals("Alice", resultSet.getString("name"));
         assertTrue(resultSet.next());
@@ -243,8 +237,7 @@ class CockroachDBSavepointTests {
         connection.createStatement().execute("INSERT INTO savepoint_test_table (id, name) VALUES (2, 'Bob')");
         connection.commit();
 
-        ResultSet resultSet = connection.createStatement()
-                .executeQuery("SELECT name FROM savepoint_test_table ORDER BY id");
+        ResultSet resultSet = connection.createStatement().executeQuery("SELECT name FROM savepoint_test_table ORDER BY id");
         assertTrue(resultSet.next());
         assertEquals("Alice", resultSet.getString("name"));
         assertTrue(resultSet.next());

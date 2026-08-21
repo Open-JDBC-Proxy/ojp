@@ -40,8 +40,7 @@ class H2SessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table session affinity for H2: {}", url);
@@ -87,8 +86,7 @@ class H2SessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing complex temporary table operations for H2: {}", url);
@@ -103,8 +101,7 @@ class H2SessionAffinityIntegrationTest {
 
             // Create temporary table
             logger.debug("Creating complex temp table");
-            stmt.execute(
-                    "CREATE LOCAL TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR(100), amount DECIMAL(10,2))");
+            stmt.execute("CREATE LOCAL TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR(100), amount DECIMAL(10,2))");
 
             // Insert multiple rows
             logger.debug("Inserting multiple rows");
@@ -148,13 +145,11 @@ class H2SessionAffinityIntegrationTest {
     }
 
     /**
-     * Tests that temp table created outside transaction persists within same
-     * session.
+     * Tests that temp table created outside transaction persists within same session.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_connection.csv")
-    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeTrue(isH2TestEnabled, "Skipping H2 tests - not enabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table persistence across transactions for H2: {}", url);

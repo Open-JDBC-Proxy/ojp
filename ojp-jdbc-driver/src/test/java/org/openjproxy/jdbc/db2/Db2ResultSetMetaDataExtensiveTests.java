@@ -58,9 +58,9 @@ class Db2ResultSetMetaDataExtensiveTests {
                         "name VARCHAR(255) NOT NULL, " +
                         "age INTEGER NULL, " +
                         "salary DECIMAL(10, 2) NOT NULL" +
-                        ")");
-        statement
-                .execute("INSERT INTO DB2INST1.TEST_TABLE_METADATA (name, age, salary) VALUES ('Alice', 30, 50000.00)");
+                        ")"
+        );
+        statement.execute("INSERT INTO DB2INST1.TEST_TABLE_METADATA (name, age, salary) VALUES ('Alice', 30, 50000.00)");
 
         resultSet = statement.executeQuery("SELECT * FROM DB2INST1.TEST_TABLE_METADATA");
         resultSet.next(); // Move to first row for metadata access
@@ -95,8 +95,7 @@ class Db2ResultSetMetaDataExtensiveTests {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password)
-            throws SQLException {
+    void testAllResultSetMetaDataMethods(String driverClass, String url, String user, String password) throws SQLException {
         setUp(driverClass, url, user, password);
 
         // getColumnCount
@@ -110,7 +109,7 @@ class Db2ResultSetMetaDataExtensiveTests {
 
         // isCaseSensitive - DB2 is case sensitive for character data
         assertFalse(metaData.isCaseSensitive(1)); // INTEGER
-        assertTrue(metaData.isCaseSensitive(2)); // VARCHAR
+        assertTrue(metaData.isCaseSensitive(2));  // VARCHAR
         assertFalse(metaData.isCaseSensitive(3)); // INTEGER
         assertFalse(metaData.isCaseSensitive(4)); // DECIMAL
 
@@ -133,10 +132,10 @@ class Db2ResultSetMetaDataExtensiveTests {
         assertEquals(ResultSetMetaData.columnNoNulls, metaData.isNullable(4)); // NOT NULL
 
         // isSigned - DB2 numeric types are signed
-        assertTrue(metaData.isSigned(1)); // INTEGER is signed
+        assertTrue(metaData.isSigned(1));  // INTEGER is signed
         assertFalse(metaData.isSigned(2)); // VARCHAR is not signed
-        assertTrue(metaData.isSigned(3)); // INTEGER is signed
-        assertTrue(metaData.isSigned(4)); // DECIMAL is signed
+        assertTrue(metaData.isSigned(3));  // INTEGER is signed
+        assertTrue(metaData.isSigned(4));  // DECIMAL is signed
 
         // getColumnDisplaySize - DB2-specific display sizes
         assertTrue(metaData.getColumnDisplaySize(1) > 0); // INTEGER display size
@@ -276,12 +275,13 @@ class Db2ResultSetMetaDataExtensiveTests {
                         "time_col TIME, " +
                         "timestamp_col TIMESTAMP, " +
                         "boolean_col BOOLEAN" +
-                        ")");
+                        ")"
+        );
         // Insert data with proper BLOB handling
         PreparedStatement pst = connection.prepareStatement(
-                "INSERT INTO DB2INST1.TEST_DB2_TYPES (bigint_col, smallint_col, real_col, double_col, char_col, varchar_col, clob_col, blob_col, date_col, time_col, timestamp_col, boolean_col) "
-                        +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE, CURRENT_TIME, CURRENT_TIMESTAMP, ?)");
+                "INSERT INTO DB2INST1.TEST_DB2_TYPES (bigint_col, smallint_col, real_col, double_col, char_col, varchar_col, clob_col, blob_col, date_col, time_col, timestamp_col, boolean_col) " +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE, CURRENT_TIME, CURRENT_TIMESTAMP, ?)"
+        );
         pst.setLong(1, 9223372036854775807L);
         pst.setInt(2, 32767);
         pst.setFloat(3, 123.45f);
@@ -300,19 +300,19 @@ class Db2ResultSetMetaDataExtensiveTests {
         assertEquals(13, md.getColumnCount());
 
         // Test specific DB2 data types
-        assertEquals(Types.INTEGER, md.getColumnType(1)); // INTEGER (IDENTITY)
-        assertEquals(Types.BIGINT, md.getColumnType(2)); // BIGINT
-        assertEquals(Types.SMALLINT, md.getColumnType(3)); // SMALLINT
-        assertEquals(Types.REAL, md.getColumnType(4)); // REAL
-        assertEquals(Types.DOUBLE, md.getColumnType(5)); // DOUBLE
-        assertEquals(Types.CHAR, md.getColumnType(6)); // CHAR
-        assertEquals(Types.VARCHAR, md.getColumnType(7)); // VARCHAR
-        assertEquals(Types.CLOB, md.getColumnType(8)); // CLOB
-        assertEquals(Types.BLOB, md.getColumnType(9)); // BLOB
-        assertEquals(Types.DATE, md.getColumnType(10)); // DATE
-        assertEquals(Types.TIME, md.getColumnType(11)); // TIME
+        assertEquals(Types.INTEGER, md.getColumnType(1));    // INTEGER (IDENTITY)
+        assertEquals(Types.BIGINT, md.getColumnType(2));     // BIGINT
+        assertEquals(Types.SMALLINT, md.getColumnType(3));   // SMALLINT
+        assertEquals(Types.REAL, md.getColumnType(4));       // REAL
+        assertEquals(Types.DOUBLE, md.getColumnType(5));     // DOUBLE
+        assertEquals(Types.CHAR, md.getColumnType(6));       // CHAR
+        assertEquals(Types.VARCHAR, md.getColumnType(7));    // VARCHAR
+        assertEquals(Types.CLOB, md.getColumnType(8));       // CLOB
+        assertEquals(Types.BLOB, md.getColumnType(9));       // BLOB
+        assertEquals(Types.DATE, md.getColumnType(10));      // DATE
+        assertEquals(Types.TIME, md.getColumnType(11));      // TIME
         assertEquals(Types.TIMESTAMP, md.getColumnType(12)); // TIMESTAMP
-        assertEquals(Types.BOOLEAN, md.getColumnType(13)); // BOOLEAN
+        assertEquals(Types.BOOLEAN, md.getColumnType(13));   // BOOLEAN
 
         // Test type names
         assertTrue(md.getColumnTypeName(1).contains("INTEGER"));

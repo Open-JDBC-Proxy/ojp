@@ -1,20 +1,20 @@
 package org.openjproxy.jdbc;
 
+import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
+import org.openjproxy.jdbc.testutil.TestDBUtils;
+import org.openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
-import org.openjproxy.jdbc.testutil.TestDBUtils.ConnectionResult;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 class BasicCrudIntegrationTest {
 
@@ -29,7 +29,7 @@ class BasicCrudIntegrationTest {
     private static String tablePrefix = "";
 
     @BeforeAll
-    static void setup() {
+     static void setup() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
         isPostgresTestEnabled = Boolean.parseBoolean(System.getProperty("enablePostgresTests", "false"));
         isMySQLTestEnabled = Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
@@ -42,8 +42,7 @@ class BasicCrudIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_postgres_mysql_mariadb_oracle_sqlserver_connections.csv")
-    void crudTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA)
-            throws SQLException, ClassNotFoundException {
+     void crudTestSuccessful(String driverClass, String url, String user, String pwd, boolean isXA) throws SQLException, ClassNotFoundException {
         // Skip H2 tests if not enabled
         if (url.toLowerCase().contains("_h2:") && !isH2TestEnabled) {
             Assumptions.assumeFalse(true, "Skipping H2 tests");
@@ -107,8 +106,7 @@ class BasicCrudIntegrationTest {
         ConnectionResult connResult = TestDBUtils.createConnection(url, user, pwd, isXA);
         Connection conn = connResult.getConnection();
 
-        // For non-XA connections, set autocommit to false for explicit transaction
-        // control
+        // For non-XA connections, set autocommit to false for explicit transaction control
         if (!isXA) {
             conn.setAutoCommit(false);
         }
@@ -132,7 +130,7 @@ class BasicCrudIntegrationTest {
             executeUpdate(conn, "drop table " + tableName);
             connResult.commit();
         } catch (Exception e) {
-            // Does not matter - table might not exist
+            //Does not matter - table might not exist
             try {
                 connResult.rollback();
             } catch (Exception ex) {

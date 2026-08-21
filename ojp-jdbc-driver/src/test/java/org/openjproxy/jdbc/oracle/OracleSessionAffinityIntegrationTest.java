@@ -21,12 +21,12 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * by ensuring session affinity.
  */
 
-class OracleSessionAffinityIntegrationTest {
+ class OracleSessionAffinityIntegrationTest {
     private static final Logger logger = LoggerFactory.getLogger(OracleSessionAffinityIntegrationTest.class);
     private static boolean isTestDisabled;
 
     @BeforeAll
-    static void checkTestConfiguration() {
+     static void checkTestConfiguration() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
@@ -37,8 +37,7 @@ class OracleSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+     void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table session affinity for Oracle: {}", url);
@@ -53,8 +52,7 @@ class OracleSessionAffinityIntegrationTest {
                 // Table doesn't exist, will create it
                 try {
                     logger.debug("Creating Oracle global temporary table");
-                    stmt.execute(
-                            "CREATE GLOBAL TEMPORARY TABLE temp_session_test (id INT, value VARCHAR2(100)) ON COMMIT PRESERVE ROWS");
+                    stmt.execute("CREATE GLOBAL TEMPORARY TABLE temp_session_test (id INT, value VARCHAR2(100)) ON COMMIT PRESERVE ROWS");
                 } catch (SQLException ex) {
                     // Might already exist from another session, just truncate
                     stmt.execute("TRUNCATE TABLE temp_session_test");
@@ -68,17 +66,17 @@ class OracleSessionAffinityIntegrationTest {
             // Query temporary table (should use same session)
             logger.debug("Querying temporary table");
             ResultSet rs = stmt.executeQuery("SELECT id, value FROM temp_session_test");
-
+            
             // Verify data was inserted and retrieved successfully
             assertTrue(rs.next(), "Should have at least one row in temporary table");
             assertEquals(1, rs.getInt("id"), "Session data should match");
             assertEquals("test_value", rs.getString("value"), "Session data should match");
-
+            
             // Verify no more rows
             assertFalse(rs.next(), "Should have only one row");
-
+            
             rs.close();
-
+            
             logger.info("Oracle temporary table session affinity test passed");
 
         } finally {
@@ -97,8 +95,7 @@ class OracleSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+     void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing complex temporary table operations for Oracle: {}", url);
@@ -113,8 +110,7 @@ class OracleSessionAffinityIntegrationTest {
                 // Table doesn't exist, create it
                 try {
                     logger.debug("Creating complex temp table");
-                    stmt.execute(
-                            "CREATE GLOBAL TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR2(100), amount DECIMAL(10,2)) ON COMMIT PRESERVE ROWS");
+                    stmt.execute("CREATE GLOBAL TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR2(100), amount DECIMAL(10,2)) ON COMMIT PRESERVE ROWS");
                 } catch (SQLException ex) {
                     // Might already exist, just truncate
                     stmt.execute("TRUNCATE TABLE temp_complex");
@@ -134,14 +130,14 @@ class OracleSessionAffinityIntegrationTest {
             // Query and verify
             logger.debug("Querying temp table");
             ResultSet rs = stmt.executeQuery("SELECT id, name, amount FROM temp_complex ORDER BY id");
-
+            
             int rowCount = 0;
             while (rs.next()) {
                 rowCount++;
                 int id = rs.getInt("id");
                 String name = rs.getString("name");
                 double amount = rs.getDouble("amount");
-
+                
                 if (id == 1) {
                     assertEquals("Alice", name);
                     assertEquals(100.50, amount, 0.01);
@@ -153,10 +149,10 @@ class OracleSessionAffinityIntegrationTest {
                     assertEquals(150.25, amount, 0.01);
                 }
             }
-
+            
             assertEquals(3, rowCount, "Should have 3 rows");
             rs.close();
-
+            
             logger.info("Oracle complex temporary table operations test passed");
 
         } finally {
@@ -175,8 +171,7 @@ class OracleSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/oracle_connections.csv")
-    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)             throws SQLException {
         assumeFalse(isTestDisabled, "Oracle tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table persistence across transactions for Oracle: {}", url);
@@ -190,8 +185,7 @@ class OracleSessionAffinityIntegrationTest {
             } catch (SQLException e) {
                 // Table doesn't exist, create it
                 try {
-                    stmt.execute(
-                            "CREATE GLOBAL TEMPORARY TABLE temp_persist (id INT, data VARCHAR2(100)) ON COMMIT PRESERVE ROWS");
+                    stmt.execute("CREATE GLOBAL TEMPORARY TABLE temp_persist (id INT, data VARCHAR2(100)) ON COMMIT PRESERVE ROWS");
                 } catch (SQLException ex) {
                     // Might already exist, just truncate
                     stmt.execute("TRUNCATE TABLE temp_persist");

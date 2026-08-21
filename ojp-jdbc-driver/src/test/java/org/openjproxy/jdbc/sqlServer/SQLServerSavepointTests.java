@@ -1,12 +1,12 @@
 package org.openjproxy.jdbc.sqlServer;
 
+import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.openjproxy.jdbc.testutil.SQLServerConnectionProvider;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -39,7 +39,7 @@ class SQLServerSavepointTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerBasicSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server basic savepoints for url -> " + url);
 
@@ -47,7 +47,7 @@ class SQLServerSavepointTests {
         DatabaseMetaData metaData = conn.getMetaData();
         boolean supportsNamedSavepoints = metaData.supportsNamedParameters();
         boolean supportsSavepoints = metaData.supportsSavepoints();
-
+        
         if (!supportsSavepoints) {
             System.out.println("Savepoints not supported, skipping test");
             conn.close();
@@ -61,7 +61,8 @@ class SQLServerSavepointTests {
         try {
             // Insert initial data
             PreparedStatement ps1 = conn.prepareStatement(
-                    "INSERT INTO sqlserver_savepoint_test (id, name) VALUES (?, ?)");
+                    "INSERT INTO sqlserver_savepoint_test (id, name) VALUES (?, ?)"
+            );
             ps1.setInt(1, 1);
             ps1.setString(2, "Initial Data");
             ps1.executeUpdate();
@@ -72,7 +73,8 @@ class SQLServerSavepointTests {
 
             // Insert more data
             PreparedStatement ps2 = conn.prepareStatement(
-                    "INSERT INTO sqlserver_savepoint_test (id, name) VALUES (?, ?)");
+                    "INSERT INTO sqlserver_savepoint_test (id, name) VALUES (?, ?)"
+            );
             ps2.setInt(1, 2);
             ps2.setString(2, "Savepoint Data");
             ps2.executeUpdate();
@@ -115,7 +117,7 @@ class SQLServerSavepointTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerNestedSavepoints(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server nested savepoints for url -> " + url);
 
@@ -126,15 +128,15 @@ class SQLServerSavepointTests {
             return;
         }
 
-        TestDBUtils.createBasicTestTable(conn, "sqlserver_nested_savepoint_test", TestDBUtils.SqlSyntax.SQLSERVER,
-                false);
+        TestDBUtils.createBasicTestTable(conn, "sqlserver_nested_savepoint_test", TestDBUtils.SqlSyntax.SQLSERVER, false);
 
         conn.setAutoCommit(false);
 
         try {
             // Level 0: Insert initial data
             PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO sqlserver_nested_savepoint_test (id, name) VALUES (?, ?)");
+                    "INSERT INTO sqlserver_nested_savepoint_test (id, name) VALUES (?, ?)"
+            );
             ps.setInt(1, 1);
             ps.setString(2, "Level 0");
             ps.executeUpdate();
@@ -197,7 +199,7 @@ class SQLServerSavepointTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerSavepointRelease(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server savepoint release for url -> " + url);
 
@@ -208,15 +210,15 @@ class SQLServerSavepointTests {
             return;
         }
 
-        TestDBUtils.createBasicTestTable(conn, "sqlserver_savepoint_release_test", TestDBUtils.SqlSyntax.SQLSERVER,
-                false);
+        TestDBUtils.createBasicTestTable(conn, "sqlserver_savepoint_release_test", TestDBUtils.SqlSyntax.SQLSERVER, false);
 
         conn.setAutoCommit(false);
 
         try {
             // Insert initial data
             PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO sqlserver_savepoint_release_test (id, name) VALUES (?, ?)");
+                    "INSERT INTO sqlserver_savepoint_release_test (id, name) VALUES (?, ?)"
+            );
             ps.setInt(1, 1);
             ps.setString(2, "Before Savepoint");
             ps.executeUpdate();
@@ -260,7 +262,7 @@ class SQLServerSavepointTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerSavepointWithBatch(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server savepoints with batch operations for url -> " + url);
 
@@ -271,15 +273,15 @@ class SQLServerSavepointTests {
             return;
         }
 
-        TestDBUtils.createBasicTestTable(conn, "sqlserver_savepoint_batch_test", TestDBUtils.SqlSyntax.SQLSERVER,
-                false);
+        TestDBUtils.createBasicTestTable(conn, "sqlserver_savepoint_batch_test", TestDBUtils.SqlSyntax.SQLSERVER, false);
 
         conn.setAutoCommit(false);
 
         try {
             // Insert initial data
             PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO sqlserver_savepoint_batch_test (id, name) VALUES (?, ?)");
+                    "INSERT INTO sqlserver_savepoint_batch_test (id, name) VALUES (?, ?)"
+            );
             ps.setInt(1, 1);
             ps.setString(2, "Initial");
             ps.executeUpdate();
@@ -331,7 +333,7 @@ class SQLServerSavepointTests {
     @ArgumentsSource(SQLServerConnectionProvider.class)
     void testSqlServerSavepointException(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "SQL Server tests are disabled");
-
+        
         Connection conn = DriverManager.getConnection(url, user, pwd);
         System.out.println("Testing SQL Server savepoint exception handling for url -> " + url);
 
@@ -342,15 +344,15 @@ class SQLServerSavepointTests {
             return;
         }
 
-        TestDBUtils.createBasicTestTable(conn, "sqlserver_savepoint_exception_test", TestDBUtils.SqlSyntax.SQLSERVER,
-                false);
+        TestDBUtils.createBasicTestTable(conn, "sqlserver_savepoint_exception_test", TestDBUtils.SqlSyntax.SQLSERVER, false);
 
         conn.setAutoCommit(false);
 
         try {
             // Insert valid data
             PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO sqlserver_savepoint_exception_test (id, name) VALUES (?, ?)");
+                    "INSERT INTO sqlserver_savepoint_exception_test (id, name) VALUES (?, ?)"
+            );
             ps.setInt(1, 1);
             ps.setString(2, "Valid Data");
             ps.executeUpdate();
@@ -376,7 +378,8 @@ class SQLServerSavepointTests {
 
             // Insert different valid data
             PreparedStatement ps2 = conn.prepareStatement(
-                    "INSERT INTO sqlserver_savepoint_exception_test (id, name) VALUES (?, ?)");
+                    "INSERT INTO sqlserver_savepoint_exception_test (id, name) VALUES (?, ?)"
+            );
             ps2.setInt(1, 2);
             ps2.setString(2, "Recovery Data");
             ps2.executeUpdate();

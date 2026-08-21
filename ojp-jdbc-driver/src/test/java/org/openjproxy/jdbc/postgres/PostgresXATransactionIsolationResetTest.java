@@ -1,10 +1,10 @@
 package org.openjproxy.jdbc.postgres;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.openjproxy.jdbc.xa.OjpXADataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,11 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
- * Integration tests for XA transaction isolation reset behavior with
- * PostgreSQL.
+ * Integration tests for XA transaction isolation reset behavior with PostgreSQL.
  * These tests verify that transaction isolation levels are properly reset when
- * XA connections return to the pool, preventing state pollution between
- * sessions.
+ * XA connections return to the pool, preventing state pollution between sessions.
  * <p>
  * These tests require:
  * 1. A running OJP server (localhost:1059)
@@ -34,7 +32,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 class PostgresXATransactionIsolationResetTest {
     private static final Logger logger = LoggerFactory.getLogger(PostgresXATransactionIsolationResetTest.class);
     private static boolean isTestEnabled;
-    private OjpXADataSource xaDataSource; // Reuse same datasource to share XA pool
+    private OjpXADataSource xaDataSource;  // Reuse same datasource to share XA pool
     private XAConnection xaConnection1;
     private XAConnection xaConnection2;
     private XAConnection xaConnection3;
@@ -50,16 +48,14 @@ class PostgresXATransactionIsolationResetTest {
     public void setUp(String driverClass, String url, String user, String password) {
         assumeFalse(!isTestEnabled, "Postgres XA isolation tests are disabled. Enable with -DenablePostgresTests=true");
         logger.info("Testing temporay table with Driver: {}", driverClass);
-        // Create shared XA DataSource - this ensures all connections share the same XA
-        // session pool
+        // Create shared XA DataSource - this ensures all connections share the same XA session pool
         xaDataSource = new OjpXADataSource();
         xaDataSource.setUrl(url);
         xaDataSource.setUser(user);
         xaDataSource.setPassword(password);
 
         // Note: Default transaction isolation is READ_COMMITTED (hardcoded in server)
-        // Tests verify that isolation resets back to READ_COMMITTED after connection
-        // use
+        // Tests verify that isolation resets back to READ_COMMITTED after connection use
     }
 
     private XAConnection createXAConnection(String url, String user, String password) throws SQLException {
@@ -69,7 +65,7 @@ class PostgresXATransactionIsolationResetTest {
     }
 
     @AfterEach
-    void tearDown() {
+     void tearDown() {
         TestDBUtils.closeQuietly(connection1);
         TestDBUtils.closeQuietly(connection2);
         TestDBUtils.closeQuietly(connection3);
@@ -98,10 +94,8 @@ class PostgresXATransactionIsolationResetTest {
     }
 
     /**
-     * CRITICAL TEST: Verifies that transaction isolation level is properly reset
-     * when
-     * XA connections are returned to the pool. This prevents connection state
-     * pollution.
+     * CRITICAL TEST: Verifies that transaction isolation level is properly reset when
+     * XA connections are returned to the pool. This prevents connection state pollution.
      * <p>
      * Scenario that would FAIL before the fix:
      * 1. Client A gets XA connection with default isolation (READ_COMMITTED)
@@ -109,13 +103,11 @@ class PostgresXATransactionIsolationResetTest {
      * 3. Client A closes connection (returns to pool)
      * 4. Client B gets XA connection from pool
      * 5. WITHOUT FIX: Client B would get connection with SERIALIZABLE isolation
-     * 6. WITH FIX: Client B gets connection with READ_COMMITTED isolation (properly
-     * reset)
+     * 6. WITH FIX: Client B gets connection with READ_COMMITTED isolation (properly reset)
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    void testXAConnectionStatePollutionPrevention(String driverClass, String url, String user, String password)
-            throws Exception {
+     void testXAConnectionStatePollutionPrevention(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Client A: Get XA connection and verify default isolation
@@ -147,7 +139,7 @@ class PostgresXATransactionIsolationResetTest {
 
         // Delay to ensure connection is processed and backend session returned to pool
         // XA pool processing may take longer than regular connection pools
-        Thread.sleep(500); // NOSONAR
+        Thread.sleep(500); //NOSONAR
 
         // Client B: Get XA connection from pool
         xaConnection2 = createXAConnection(url, user, password);
@@ -172,8 +164,7 @@ class PostgresXATransactionIsolationResetTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    void testXARapidIsolationChangesMultipleClients(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testXARapidIsolationChangesMultipleClients(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         int[] isolationLevels = {
@@ -207,7 +198,7 @@ class PostgresXATransactionIsolationResetTest {
             }
 
             // Small delay
-            Thread.sleep(10); // NOSONAR
+            Thread.sleep(10); //NOSONAR
         }
 
         // After all the churn, verify next connection has default isolation
@@ -225,8 +216,7 @@ class PostgresXATransactionIsolationResetTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    void testXAExtremeIsolationLevelChanges(String driverClass, String url, String user, String password)
-            throws Exception {
+     void testXAExtremeIsolationLevelChanges(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Client 1: Change to highest isolation (SERIALIZABLE)
@@ -246,7 +236,7 @@ class PostgresXATransactionIsolationResetTest {
 
         connection1.close();
         xaConnection1.close();
-        Thread.sleep(500); // NOSONAR
+        Thread.sleep(500); //NOSONAR
 
         // Client 2: Get connection, verify reset, change to lowest isolation
         xaConnection2 = createXAConnection(url, user, password);
@@ -268,7 +258,7 @@ class PostgresXATransactionIsolationResetTest {
 
         connection2.close();
         xaConnection2.close();
-        Thread.sleep(500);// NOSONAR
+        Thread.sleep(500);//NOSONAR
 
         // Client 3: Verify reset to default again
         xaConnection3 = createXAConnection(url, user, password);
@@ -280,12 +270,11 @@ class PostgresXATransactionIsolationResetTest {
     }
 
     /**
-     * Tests that basic isolation reset works within a simple XA transaction
-     * workflow.
+     * Tests that basic isolation reset works within a simple XA transaction workflow.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    void testXABasicIsolationReset(String driverClass, String url, String user, String password) throws Exception {
+     void testXABasicIsolationReset(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Get XA connection
@@ -309,7 +298,7 @@ class PostgresXATransactionIsolationResetTest {
         // Close and reopen
         connection1.close();
         xaConnection1.close();
-        Thread.sleep(500); // NOSONAR
+        Thread.sleep(500); //NOSONAR
 
         xaConnection2 = createXAConnection(url, user, password);
         connection2 = xaConnection2.getConnection();
@@ -321,13 +310,11 @@ class PostgresXATransactionIsolationResetTest {
 
     /**
      * Tests multiple isolation changes within the same XA session.
-     * Verifies that only the final state needs to be reset when connection is
-     * closed.
+     * Verifies that only the final state needs to be reset when connection is closed.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    void testXAMultipleIsolationChangesInSession(String driverClass, String url, String user, String password)
-            throws Exception {
+     void testXAMultipleIsolationChangesInSession(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         xaConnection1 = createXAConnection(url, user, password);
@@ -359,7 +346,7 @@ class PostgresXATransactionIsolationResetTest {
         // Close connection
         connection1.close();
         xaConnection1.close();
-        Thread.sleep(500);// NOSONAR
+        Thread.sleep(500);//NOSONAR
 
         // New connection should have default isolation
         xaConnection2 = createXAConnection(url, user, password);
@@ -370,12 +357,11 @@ class PostgresXATransactionIsolationResetTest {
     }
 
     /**
-     * Verifies that the default isolation level for new XA connections is
-     * READ_COMMITTED.
+     * Verifies that the default isolation level for new XA connections is READ_COMMITTED.
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    void testXADefaultIsolationLevel(String driverClass, String url, String user, String password) throws Exception {
+     void testXADefaultIsolationLevel(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         xaConnection1 = createXAConnection(url, user, password);
@@ -391,23 +377,17 @@ class PostgresXATransactionIsolationResetTest {
     /**
      * Tests custom configured isolation level.
      * <p>
-     * DISABLED: This test relies on being able to configure custom default
-     * transaction isolation
-     * at the server level. Since the OJP server is shared across all tests,
-     * changing this
-     * configuration would interfere with other tests. This scenario should be
-     * covered by
+     * DISABLED: This test relies on being able to configure custom default transaction isolation
+     * at the server level. Since the OJP server is shared across all tests, changing this
+     * configuration would interfere with other tests. This scenario should be covered by
      * unit tests in the ojp-server module instead.
      * <p>
-     * TODO: Create unit tests in ojp-server module to cover custom isolation
-     * configuration
+     * TODO: Create unit tests in ojp-server module to cover custom isolation configuration
      */
     // @ParameterizedTest
     // @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    // @Disabled("Test requires changing server-wide configuration which interferes
-    // with other tests")
-    void testXAConfiguredCustomIsolation(String driverClass, String url, String user, String password)
-            throws Exception {
+    // @Disabled("Test requires changing server-wide configuration which interferes with other tests")
+     void testXAConfiguredCustomIsolation(String driverClass, String url, String user, String password) throws Exception {
         // DISABLED - See comment above
     }
 
@@ -417,8 +397,7 @@ class PostgresXATransactionIsolationResetTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_xa_connection.csv")
-    void testXAIsolationResetAfterConnectionLeak(String driverClass, String url, String user, String password)
-            throws Exception {
+     void testXAIsolationResetAfterConnectionLeak(String driverClass, String url, String user, String password) throws Exception {
         setUp(driverClass, url, user, password);
 
         // Create connection and change isolation
@@ -438,11 +417,11 @@ class PostgresXATransactionIsolationResetTest {
         connection1.close();
         // Don't close xaConnection1 immediately - simulate leak
 
-        Thread.sleep(100);// NOSONAR
+        Thread.sleep(100);//NOSONAR
 
         // Eventually close the leaked XA connection
         xaConnection1.close();
-        Thread.sleep(500);// NOSONAR
+        Thread.sleep(500);//NOSONAR
 
         // Get new connection - should still have proper default isolation
         xaConnection2 = createXAConnection(url, user, password);

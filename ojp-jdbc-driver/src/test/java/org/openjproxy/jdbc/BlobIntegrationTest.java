@@ -14,12 +14,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
-class BlobIntegrationTest {
+ class BlobIntegrationTest {
 
     private static boolean isH2TestEnabled;
     private static boolean isMySQLTestEnabled;
@@ -29,14 +29,14 @@ class BlobIntegrationTest {
     private Connection conn;
 
     @BeforeAll
-    static void checkTestConfiguration() {
+     static void checkTestConfiguration() {
         isH2TestEnabled = Boolean.parseBoolean(System.getProperty("enableH2Tests", "false"));
         isMySQLTestEnabled = Boolean.parseBoolean(System.getProperty("enableMySQLTests", "false"));
         isMariaDBTestEnabled = Boolean.parseBoolean(System.getProperty("enableMariaDBTests", "false"));
         isOracleTestEnabled = Boolean.parseBoolean(System.getProperty("enableOracleTests", "false"));
     }
 
-    void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
+     void setUp(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException {
 
         this.tableName = "blob_test_blob";
         if (url.toLowerCase().contains("mysql")) {
@@ -58,15 +58,14 @@ class BlobIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, ClassNotFoundException, IOException {
+     void createAndReadingBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, ClassNotFoundException, IOException {
         this.setUp(driverClass, url, user, pwd);
         System.out.println("Testing for url -> " + url);
 
         try {
             executeUpdate(conn, "drop table " + tableName);
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         executeUpdate(conn,
@@ -74,10 +73,12 @@ class BlobIntegrationTest {
                         " val_blob  BLOB," +
                         " val_blob2 BLOB," +
                         " val_blob3 BLOB" +
-                        ")");
+                        ")"
+        );
 
         PreparedStatement psInsert = conn.prepareStatement(
-                " insert into " + tableName + " (val_blob, val_blob2, val_blob3) values (?, ?, ?)");
+                " insert into " + tableName + " (val_blob, val_blob2, val_blob3) values (?, ?, ?)"
+        );
 
         // Test with binary data (not just text)
         byte[] binaryData = new byte[1000];
@@ -88,9 +89,8 @@ class BlobIntegrationTest {
         String testString2 = "BLOB VIA INPUT STREAM";
 
         for (int i = 0; i < 5; i++) {
-            Blob blob = conn.createBlob(); // WHEN this happens a connection in the server is set to a session and I
-                                           // need to replicate that in the
-            // prepared statement created previously
+            Blob blob = conn.createBlob(); //WHEN this happens a connection in the server is set to a session and I need to replicate that in the
+            //prepared statement created previously
             blob.setBytes(1, binaryData);
             psInsert.setBlob(1, blob);
             InputStream inputStream = new ByteArrayInputStream(testString2.getBytes());
@@ -100,12 +100,11 @@ class BlobIntegrationTest {
             psInsert.executeUpdate();
         }
 
-        java.sql.PreparedStatement psSelect = conn
-                .prepareStatement("select val_blob, val_blob2, val_blob3 from " + tableName);
+        java.sql.PreparedStatement psSelect = conn.prepareStatement("select val_blob, val_blob2, val_blob3 from " + tableName);
         ResultSet resultSet = psSelect.executeQuery();
 
         int countReads = 0;
-        while (resultSet.next()) {
+        while(resultSet.next()) {
             countReads++;
             Blob blobResult = resultSet.getBlob(1);
 
@@ -133,34 +132,35 @@ class BlobIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/h2_mysql_mariadb_oracle_connections.csv")
-    void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException, ClassNotFoundException {
+     void creatingAndReadingLargeBLOBsSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException, ClassNotFoundException {
         this.setUp(driverClass, url, user, pwd);
         System.out.println("Testing for url -> " + url);
 
         try {
             executeUpdate(conn, "drop table " + tableName);
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         executeUpdate(conn,
                 "create table " + tableName + "(" +
                         " val_blob  BLOB" +
-                        ")");
+                        ")"
+        );
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into " + tableName + " (val_blob) values (?)");
+                "insert into " + tableName + " (val_blob) values (?)"
+        );
 
         InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
-        psInsert.setBlob(1, inputStream);
+        psInsert.setBlob(1 , inputStream);
 
         psInsert.executeUpdate();
 
         java.sql.PreparedStatement psSelect = conn.prepareStatement("select val_blob from " + tableName);
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-        Blob blobResult = resultSet.getBlob(1);
+        Blob blobResult =  resultSet.getBlob(1);
 
         InputStream inputStreamTestFile = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
         InputStream inputStreamBlob = blobResult.getBinaryStream();

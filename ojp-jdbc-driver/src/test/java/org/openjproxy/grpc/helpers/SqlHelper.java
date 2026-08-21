@@ -6,7 +6,7 @@ import java.sql.Statement;
 
 public class SqlHelper {
     public static int executeUpdate(Connection conn, String s) throws SQLException {
-        try (Statement stmt = conn.createStatement()) {
+        try (Statement stmt =  conn.createStatement()) {
             return stmt.executeUpdate(s);
         }
     }

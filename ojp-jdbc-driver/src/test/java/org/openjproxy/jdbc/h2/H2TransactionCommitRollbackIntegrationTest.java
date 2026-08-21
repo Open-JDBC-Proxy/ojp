@@ -1,10 +1,10 @@
 package org.openjproxy.jdbc.h2;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,38 +19,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Integration tests for JDBC transaction commit and rollback semantics using
- * H2.
+ * Integration tests for JDBC transaction commit and rollback semantics using H2.
  *
- * <p>
- * According to the JDBC specification (java.sql.Connection javadoc and the JDBC
- * 4.3 spec,
+ * <p>According to the JDBC specification (java.sql.Connection javadoc and the JDBC 4.3 spec,
  * section 10):
  * <ul>
- * <li>When {@code autoCommit} is {@code false}, a transaction begins implicitly
- * with the
- * first SQL statement and ends when the application calls
- * {@link Connection#commit()} or
- * {@link Connection#rollback()}.</li>
- * <li>{@link Connection#commit()} makes all changes made since the previous
- * commit/rollback
- * permanent and releases any database locks currently held by the
- * connection.</li>
- * <li>{@link Connection#rollback()} undoes all changes made in the current
- * transaction and
- * releases any database locks. The data is restored to the state it was in at
- * the last
- * commit point.</li>
+ *   <li>When {@code autoCommit} is {@code false}, a transaction begins implicitly with the
+ *       first SQL statement and ends when the application calls {@link Connection#commit()} or
+ *       {@link Connection#rollback()}.</li>
+ *   <li>{@link Connection#commit()} makes all changes made since the previous commit/rollback
+ *       permanent and releases any database locks currently held by the connection.</li>
+ *   <li>{@link Connection#rollback()} undoes all changes made in the current transaction and
+ *       releases any database locks. The data is restored to the state it was in at the last
+ *       commit point.</li>
  * </ul>
  *
- * <p>
- * Therefore, the expected outcome of the scenario tested here is:
+ * <p>Therefore, the expected outcome of the scenario tested here is:
  * <ol>
- * <li>After the first update and commit, the row's value is durably persisted
- * as "COMMITTED_VALUE".</li>
- * <li>After the second update and rollback, the row's value is restored to
- * "COMMITTED_VALUE"
- * (the rolled-back change to "ROLLED_BACK_VALUE" is discarded).</li>
+ *   <li>After the first update and commit, the row's value is durably persisted as "COMMITTED_VALUE".</li>
+ *   <li>After the second update and rollback, the row's value is restored to "COMMITTED_VALUE"
+ *       (the rolled-back change to "ROLLED_BACK_VALUE" is discarded).</li>
  * </ol>
  */
 class H2TransactionCommitRollbackIntegrationTest {
@@ -77,22 +65,17 @@ class H2TransactionCommitRollbackIntegrationTest {
     }
 
     /**
-     * Verifies that after committing a transaction the data is durable, and that a
-     * subsequent
+     * Verifies that after committing a transaction the data is durable, and that a subsequent
      * rollback restores the row to the last committed state.
      *
-     * <p>
-     * Scenario:
+     * <p>Scenario:
      * <ol>
-     * <li>Insert a row with {@code INITIAL_VALUE} and commit (setup, autoCommit
-     * on).</li>
-     * <li>Disable autoCommit to enable explicit transaction control.</li>
-     * <li>Update the row to {@code COMMITTED_VALUE} — commit the transaction.</li>
-     * <li>Update the same row to {@code ROLLED_BACK_VALUE} — rollback the
-     * transaction.</li>
-     * <li>Read the row and assert the value is {@code COMMITTED_VALUE} (the
-     * rollback
-     * discarded the second update per JDBC spec).</li>
+     *   <li>Insert a row with {@code INITIAL_VALUE} and commit (setup, autoCommit on).</li>
+     *   <li>Disable autoCommit to enable explicit transaction control.</li>
+     *   <li>Update the row to {@code COMMITTED_VALUE} — commit the transaction.</li>
+     *   <li>Update the same row to {@code ROLLED_BACK_VALUE} — rollback the transaction.</li>
+     *   <li>Read the row and assert the value is {@code COMMITTED_VALUE} (the rollback
+     *       discarded the second update per JDBC spec).</li>
      * </ol>
      */
     @ParameterizedTest
@@ -138,8 +121,8 @@ class H2TransactionCommitRollbackIntegrationTest {
         // Per JDBC spec section 10: rollback() undoes all changes made in the current
         // transaction and restores data to the state at the last commit point.
         try (Statement stmt = connection.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                        "SELECT name FROM " + TABLE_NAME + " WHERE id = " + ROW_ID)) {
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT name FROM " + TABLE_NAME + " WHERE id = " + ROW_ID)) {
 
             assertTrue(rs.next(), "The row should still exist after rollback");
             String actualValue = rs.getString("name");

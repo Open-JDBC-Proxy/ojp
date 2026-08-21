@@ -1,12 +1,12 @@
 package org.openjproxy.jdbc.mySql;
 
+import org.openjproxy.jdbc.testutil.TestDBUtils;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-import org.openjproxy.jdbc.testutil.TestDBUtils;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -130,12 +130,12 @@ public class MySQLStatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
         boolean hasResultSet = statement.execute("SELECT * FROM mysql_statement_test");
         assertTrue(hasResultSet);
-
+        
         ResultSet rs = statement.getResultSet();
         Assertions.assertNotNull(rs);
         assertTrue(rs.next());
         rs.close();
-
+        
         hasResultSet = statement.execute("UPDATE mysql_statement_test SET name = 'Test' WHERE id = 1");
         assertFalse(hasResultSet);
         assertEquals(1, statement.getUpdateCount());
@@ -157,7 +157,7 @@ public class MySQLStatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
         statement.execute("UPDATE mysql_statement_test SET name = 'Test Update' WHERE id = 1");
         assertEquals(1, statement.getUpdateCount());
-
+        
         statement.execute("SELECT * FROM mysql_statement_test");
         assertEquals(-1, statement.getUpdateCount());
     }
@@ -206,8 +206,8 @@ public class MySQLStatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
         int type = statement.getResultSetType();
         assertTrue(type == ResultSet.TYPE_FORWARD_ONLY ||
-                type == ResultSet.TYPE_SCROLL_INSENSITIVE ||
-                type == ResultSet.TYPE_SCROLL_SENSITIVE);
+                   type == ResultSet.TYPE_SCROLL_INSENSITIVE || 
+                   type == ResultSet.TYPE_SCROLL_SENSITIVE);
     }
 
     @ParameterizedTest
@@ -217,7 +217,7 @@ public class MySQLStatementExtensiveTests {
         statement.addBatch("INSERT INTO mysql_statement_test (id, name) VALUES (10, 'Batch1')");
         statement.addBatch("INSERT INTO mysql_statement_test (id, name) VALUES (11, 'Batch2')");
         statement.clearBatch();
-
+        
         statement.addBatch("INSERT INTO mysql_statement_test (id, name) VALUES (12, 'Batch3')");
         int[] results = statement.executeBatch();
         assertEquals(1, results.length);
@@ -235,7 +235,7 @@ public class MySQLStatementExtensiveTests {
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
     void testGetGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
-
+        
         // Create table with auto-increment
         try {
             statement.execute("DROP TABLE mysql_auto_test");
@@ -243,41 +243,39 @@ public class MySQLStatementExtensiveTests {
             // Ignore if table doesn't exist
         }
         statement.execute("CREATE TABLE mysql_auto_test (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100))");
-
+        
         statement.execute("INSERT INTO mysql_auto_test (name) VALUES ('Test')", Statement.RETURN_GENERATED_KEYS);
         ResultSet keys = statement.getGeneratedKeys();
         Assertions.assertNotNull(keys);
         assertTrue(keys.next());
         assertTrue(keys.getInt(1) > 0);
         keys.close();
-
+        
         statement.execute("DROP TABLE mysql_auto_test");
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/mysql_mariadb_connection.csv")
-    void testExecuteUpdateWithGeneratedKeys(String driverClass, String url, String user, String password)
-            throws Exception {
+    void testExecuteUpdateWithGeneratedKeys(String driverClass, String url, String user, String password) throws Exception {
         this.setUp(driverClass, url, user, password);
-
+        
         // Create table with auto-increment
-        try {
+        try{
             statement.execute("DROP TABLE mysql_auto_test2");
         } catch (SQLException e) {
             // Ignore if table doesn't exist
         }
         statement.execute("CREATE TABLE mysql_auto_test2 (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100))");
-
-        int rows = statement.executeUpdate("INSERT INTO mysql_auto_test2 (name) VALUES ('Test')",
-                Statement.RETURN_GENERATED_KEYS);
+        
+        int rows = statement.executeUpdate("INSERT INTO mysql_auto_test2 (name) VALUES ('Test')", Statement.RETURN_GENERATED_KEYS);
         assertEquals(1, rows);
-
+        
         ResultSet keys = statement.getGeneratedKeys();
         Assertions.assertNotNull(keys);
         assertTrue(keys.next());
         assertTrue(keys.getInt(1) > 0);
         keys.close();
-
+        
         statement.execute("DROP TABLE mysql_auto_test2");
     }
 
@@ -287,7 +285,7 @@ public class MySQLStatementExtensiveTests {
         this.setUp(driverClass, url, user, password);
         int holdability = statement.getResultSetHoldability();
         assertTrue(holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT ||
-                holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
+                   holdability == ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @ParameterizedTest
@@ -327,7 +325,8 @@ public class MySQLStatementExtensiveTests {
         if (url.toLowerCase().contains("mysql"))
             assertEquals(!poolable, statement.isPoolable());
         else
-            assertFalse(statement.isPoolable());
+            assertFalse( statement.isPoolable());
+
 
         statement.setPoolable(poolable);
     }

@@ -14,28 +14,27 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import static org.openjproxy.grpc.helpers.SqlHelper.executeUpdate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
-import static org.openjproxy.grpc.helpers.SqlHelper.*;
 
 /**
  * DB2-specific binary stream integration tests.
  * Tests DB2-specific binary data types (VARBINARY, BLOB) and stream handling.
  */
-class Db2BinaryStreamIntegrationTest {
+ class Db2BinaryStreamIntegrationTest {
 
     private static boolean isTestDisabled;
 
     @BeforeAll
-    static void setup() {
+     static void setup() {
         isTestDisabled = !Boolean.parseBoolean(System.getProperty("enableDb2Tests", "false"));
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+     void createAndReadingBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -50,19 +49,20 @@ class Db2BinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table DB2INST1.db2_binary_stream_test");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Create table with DB2-specific binary types
         executeUpdate(conn, "create table DB2INST1.db2_binary_stream_test(" +
-                " val_varbinary1 VARBINARY(2000)," + // DB2 VARBINARY for binary data
+                " val_varbinary1 VARBINARY(2000)," +  // DB2 VARBINARY for binary data
                 " val_varbinary2 VARBINARY(2000)" +
                 ")");
 
         conn.setAutoCommit(false);
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into DB2INST1.db2_binary_stream_test (val_varbinary1, val_varbinary2) values (?, ?)");
+                "insert into DB2INST1.db2_binary_stream_test (val_varbinary1, val_varbinary2) values (?, ?)"
+        );
 
         String testString = "DB2 VARBINARY VIA INPUT STREAM";
         InputStream inputStream = new ByteArrayInputStream(testString.getBytes());
@@ -74,11 +74,10 @@ class Db2BinaryStreamIntegrationTest {
 
         conn.commit();
 
-        PreparedStatement psSelect = conn
-                .prepareStatement("select val_varbinary1, val_varbinary2 from DB2INST1.db2_binary_stream_test ");
+        PreparedStatement psSelect = conn.prepareStatement("select val_varbinary1, val_varbinary2 from DB2INST1.db2_binary_stream_test ");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
-
+        
         InputStream blobResult = resultSet.getBinaryStream(1);
         String fromBlobByIdx = new String(blobResult.readAllBytes());
         assertEquals(testString, fromBlobByIdx);
@@ -101,8 +100,7 @@ class Db2BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+     void createAndReadingLargeBinaryStreamSuccessful(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -112,7 +110,7 @@ class Db2BinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table db2_large_binary_test");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Create table with DB2 BLOB for large binary data
@@ -121,7 +119,8 @@ class Db2BinaryStreamIntegrationTest {
                 ")");
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into db2_large_binary_test (val_blob) values (?)");
+                "insert into db2_large_binary_test (val_blob) values (?)"
+        );
 
         InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("largeTextFile.txt");
         psInsert.setBinaryStream(1, inputStream);
@@ -152,8 +151,7 @@ class Db2BinaryStreamIntegrationTest {
 
     @ParameterizedTest
     @CsvFileSource(resources = "/db2_connection.csv")
-    void testDb2SpecificBinaryHandling(String driverClass, String url, String user, String pwd)
-            throws SQLException, IOException {
+     void testDb2SpecificBinaryHandling(String driverClass, String url, String user, String pwd) throws SQLException, IOException {
         assumeFalse(isTestDisabled, "Skipping DB2 tests");
 
         Connection conn = DriverManager.getConnection(url, user, pwd);
@@ -163,7 +161,7 @@ class Db2BinaryStreamIntegrationTest {
         try {
             executeUpdate(conn, "drop table db2_binary_types_test");
         } catch (Exception e) {
-            // If fails disregard as per the table is most possibly not created yet
+            //If fails disregard as per the table is most possibly not created yet
         }
 
         // Test different DB2 binary types
@@ -174,7 +172,8 @@ class Db2BinaryStreamIntegrationTest {
                 ")");
 
         PreparedStatement psInsert = conn.prepareStatement(
-                "insert into db2_binary_types_test (small_varbinary, medium_varbinary, large_blob) values (?, ?, ?)");
+                "insert into db2_binary_types_test (small_varbinary, medium_varbinary, large_blob) values (?, ?, ?)"
+        );
 
         // Test different sizes
         String smallData = "Small VARBINARY data";
@@ -187,8 +186,7 @@ class Db2BinaryStreamIntegrationTest {
 
         psInsert.executeUpdate();
 
-        PreparedStatement psSelect = conn
-                .prepareStatement("select small_varbinary, medium_varbinary, large_blob from db2_binary_types_test");
+        PreparedStatement psSelect = conn.prepareStatement("select small_varbinary, medium_varbinary, large_blob from db2_binary_types_test");
         ResultSet resultSet = psSelect.executeQuery();
         resultSet.next();
 

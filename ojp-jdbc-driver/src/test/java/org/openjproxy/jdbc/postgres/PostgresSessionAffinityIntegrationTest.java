@@ -39,8 +39,7 @@ class PostgresSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTableSessionAffinity(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "PostgreSQL tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table session affinity for PostgreSQL: {}", url);
@@ -105,8 +104,7 @@ class PostgresSessionAffinityIntegrationTest {
                 // Verify variable value was preserved
                 assertTrue(rs.next(), "Should return session variable value");
                 String workMem = rs.getString(1);
-                assertTrue(workMem.contains("4MB") || workMem.contains("4096"),
-                        "work_mem should be 4MB or 4096kB format");
+                assertTrue(workMem.contains("4MB") || workMem.contains("4096"), "work_mem should be 4MB or 4096kB format");
 
                 rs.close();
 
@@ -122,8 +120,7 @@ class PostgresSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testComplexTemporaryTableOperations(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "PostgreSQL tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing complex temporary table operations for PostgreSQL: {}", url);
@@ -138,8 +135,7 @@ class PostgresSessionAffinityIntegrationTest {
 
             // Create temporary table
             logger.debug("Creating complex temp table");
-            stmt.execute(
-                    "CREATE TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR(100), amount DECIMAL(10,2))");
+            stmt.execute("CREATE TEMPORARY TABLE temp_complex (id INT PRIMARY KEY, name VARCHAR(100), amount DECIMAL(10,2))");
 
             // Insert multiple rows
             logger.debug("Inserting multiple rows");
@@ -187,8 +183,7 @@ class PostgresSessionAffinityIntegrationTest {
      */
     @ParameterizedTest
     @CsvFileSource(resources = "/postgres_connection.csv")
-    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd)
-            throws SQLException {
+    void testTemporaryTablePersistenceAcrossTransactions(String driverClass, String url, String user, String pwd) throws SQLException {
         assumeFalse(isTestDisabled, "PostgreSQL tests are disabled");
         logger.info("Testing temporay table with Driver: {}", driverClass);
         logger.info("Testing temporary table persistence across transactions for PostgreSQL: {}", url);
