@@ -49,6 +49,9 @@
 #   Check "Dry run" to validate the version calculation and build without publishing.
 #   Optionally provide "Release version" to override the computed release version,
 #   e.g. "0.5.0-beta" for a major version bump regardless of the current pom version.
+#   Snapshot-style overrides like "1.0.0-SNAPSHOT" or "1.0.0-SNAPSHOT1" run in
+#   deployment-only mode: the version is deployed as-is without calculating the
+#   next development version or creating release commits/tags.
 #
 # =============================================================================
 
@@ -63,7 +66,7 @@ on:
         default: 'false'
         type: boolean
       release_version:
-        description: 'Optional release version override (e.g. 0.5.0-beta). Leave blank to auto-derive from the current pom SNAPSHOT version.'
+        description: 'Optional release version override (e.g. 0.5.0-beta, 1.0.0-SNAPSHOT, 1.0.0-SNAPSHOT1). Leave blank to auto-derive from the current pom SNAPSHOT version.'
         required: false
         default: ''
         type: string
@@ -165,20 +168,25 @@ jobs:
           # Read current version from root pom, e.g. "0.4.1-SNAPSHOT"
           CURRENT=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "Current version: ${CURRENT}"
+          DEPLOY_ONLY=false
 
           if [[ -n "${{ inputs.release_version }}" ]]; then
             # Use the caller-supplied release version (e.g. for a major version bump)
             RELEASE="${{ inputs.release_version }}"
             echo "Using provided release version: ${RELEASE}"
 
-            # Validate format: must be X.Y.Z followed by a hyphen and an alphanumeric suffix
-            if ! echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z0-9-]+$'; then
-              echo "ERROR: release_version '${RELEASE}' is not in the expected format X.Y.Z-<suffix> (e.g. 0.5.0-beta)." >&2
+            if echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT[0-9]*$'; then
+              DEPLOY_ONLY=true
+              BASE="${RELEASE%%-*}"
+              echo "Snapshot-style release override detected; deployment-only mode enabled."
+            # Validate regular release format: must be X.Y.Z followed by a hyphen and an alphanumeric suffix
+            elif echo "${RELEASE}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z0-9-]+$'; then
+              # Extract the numeric base (X.Y.Z) by stripping the first '-' and everything after it
+              BASE="${RELEASE%%-*}"
+            else
+              echo "ERROR: release_version '${RELEASE}' must be either X.Y.Z-<suffix> (e.g. 0.5.0-beta) or a snapshot-style version (e.g. 1.0.0-SNAPSHOT, 1.0.0-SNAPSHOT1)." >&2
               exit 1
             fi
-
-            # Extract the numeric base (X.Y.Z) by stripping the first '-' and everything after it
-            BASE="${RELEASE%%-*}"
           else
             # Auto-derive release version from the current SNAPSHOT pom version
             if [[ "${CURRENT}" != *"-SNAPSHOT" ]]; then
@@ -190,20 +198,28 @@ jobs:
             RELEASE="${BASE}-beta"
           fi
 
-          # Derive next development version by incrementing the patch segment
-          # e.g. "0.4.1" -> "0.4.2-SNAPSHOT"  or  "0.5.0" -> "0.5.1-SNAPSHOT"
-          MAJOR=$(echo "${BASE}" | cut -d. -f1)
-          MINOR=$(echo "${BASE}" | cut -d. -f2)
-          PATCH=$(echo "${BASE}" | cut -d. -f3)
-          NEXT_PATCH=$((PATCH + 1))
-          NEXT="${MAJOR}.${MINOR}.${NEXT_PATCH}-SNAPSHOT"
+          NEXT=""
+          if [[ "${DEPLOY_ONLY}" != "true" ]]; then
+            # Derive next development version by incrementing the patch segment
+            # e.g. "0.4.1" -> "0.4.2-SNAPSHOT"  or  "0.5.0" -> "0.5.1-SNAPSHOT"
+            MAJOR=$(echo "${BASE}" | cut -d. -f1)
+            MINOR=$(echo "${BASE}" | cut -d. -f2)
+            PATCH=$(echo "${BASE}" | cut -d. -f3)
+            NEXT_PATCH=$((PATCH + 1))
+            NEXT="${MAJOR}.${MINOR}.${NEXT_PATCH}-SNAPSHOT"
+          fi
 
           echo "Release version : ${RELEASE}"
-          echo "Next dev version: ${NEXT}"
+          if [[ "${DEPLOY_ONLY}" == "true" ]]; then
+            echo "Next dev version: skipped (deployment-only mode)"
+          else
+            echo "Next dev version: ${NEXT}"
+          fi
 
-          echo "current=${CURRENT}"  >> "$GITHUB_OUTPUT"
-          echo "release=${RELEASE}"  >> "$GITHUB_OUTPUT"
-          echo "next=${NEXT}"        >> "$GITHUB_OUTPUT"
+          echo "current=${CURRENT}"      >> "$GITHUB_OUTPUT"
+          echo "release=${RELEASE}"      >> "$GITHUB_OUTPUT"
+          echo "next=${NEXT}"            >> "$GITHUB_OUTPUT"
+          echo "deploy_only=${DEPLOY_ONLY}" >> "$GITHUB_OUTPUT"
 
       # -----------------------------------------------------------------------
       # 6. Set release version in all pom.xml files
@@ -273,6 +289,7 @@ jobs:
       #               <version><old></version>  →  <version><new></version>
       # -----------------------------------------------------------------------
       - name: Update documentation to ${{ steps.versions.outputs.release }}
+        if: ${{ steps.versions.outputs.deploy_only != 'true' }}
         run: |
           NEW="${{ steps.versions.outputs.release }}"
           echo "Updating documentation references to ${NEW}"
@@ -291,7 +308,7 @@ jobs:
       # 11. Commit release (pom changes + docs update) and create tag
       # -----------------------------------------------------------------------
       - name: Commit release pom changes and create tag
-        if: ${{ inputs.dry_run == false }}
+        if: ${{ inputs.dry_run == false && steps.versions.outputs.deploy_only != 'true' }}
         run: |
           git add -A -- ':!**/target/**'
           git commit -m "chore(release): prepare release ${{ steps.versions.outputs.release }}"
@@ -302,6 +319,7 @@ jobs:
       # 12. Set next development (SNAPSHOT) version
       # -----------------------------------------------------------------------
       - name: Set next development version (${{ steps.versions.outputs.next }})
+        if: ${{ steps.versions.outputs.deploy_only != 'true' }}
         run: |
           mvn --batch-mode versions:set \
               -DnewVersion=${{ steps.versions.outputs.next }} \
@@ -310,7 +328,7 @@ jobs:
               --no-transfer-progress
 
       - name: Commit next development version
-        if: ${{ inputs.dry_run == false }}
+        if: ${{ inputs.dry_run == false && steps.versions.outputs.deploy_only != 'true' }}
         run: |
           git add -A -- ':!**/target/**'
           git commit -m "chore(release): prepare next development iteration ${{ steps.versions.outputs.next }}"
@@ -319,7 +337,7 @@ jobs:
       # 13. Push commits and release tag to main
       # -----------------------------------------------------------------------
       - name: Push commits and tag
-        if: ${{ inputs.dry_run == false }}
+        if: ${{ inputs.dry_run == false && steps.versions.outputs.deploy_only != 'true' }}
         run: |
           git push origin main
           git push origin "v${{ steps.versions.outputs.release }}"
@@ -331,7 +349,7 @@ jobs:
       #     .github/release.yml.  A fixed "Artifacts" footer is appended.
       # -----------------------------------------------------------------------
       - name: Create GitHub Release
-        if: ${{ inputs.dry_run == false }}
+        if: ${{ inputs.dry_run == false && steps.versions.outputs.deploy_only != 'true' }}
         uses: actions/github-script@v7
         with:
           script: |
@@ -378,6 +396,8 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "**Mode:** Dry run (nothing was published)" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.versions.outputs.deploy_only }}" == "true" ]]; then
+            echo "**Mode:** Deployment-only release" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "**Mode:** Full release" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -386,7 +406,11 @@ jobs:
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Previous version | \`${{ steps.versions.outputs.current }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Released version | \`${{ steps.versions.outputs.release }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Next dev version | \`${{ steps.versions.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.versions.outputs.deploy_only }}" == "true" ]]; then
+            echo "| Next dev version | _(not calculated)_ |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Next dev version | \`${{ steps.versions.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Maven Central:** https://central.sonatype.com/search?q=org.openjproxy" >> "$GITHUB_STEP_SUMMARY"
           echo "**Docker Hub:** https://hub.docker.com/r/rrobetti/ojp" >> "$GITHUB_STEP_SUMMARY"

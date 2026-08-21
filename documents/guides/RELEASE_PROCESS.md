@@ -150,8 +150,12 @@ release workflow cannot directly push the version-bump commit to `main` using
 
 1. On GitHub, go to **Actions → Release to Maven Central & Docker Hub**.
 2. Click **Run workflow** (top-right of the workflow list).
-3. Leave **Dry run** unchecked for a real release, or check it for a test run.
-4. Click **Run workflow** to start.
+3. Optionally set **Release version**:
+   - Leave it blank for the normal automated flow (`0.5.5-SNAPSHOT` → `0.5.5-beta` → `0.5.6-SNAPSHOT`).
+   - Provide a custom release like `0.6.0-beta` for a manual version jump.
+   - Provide a snapshot-style version like `1.0.0-SNAPSHOT` or `1.0.0-SNAPSHOT1` to run in **deployment-only mode**. In that mode the workflow deploys that exact version and skips the next-version bump, release commits, tag push, and GitHub Release creation.
+4. Leave **Dry run** unchecked for a real release, or check it for a test run.
+5. Click **Run workflow** to start.
 
 That's it — one click.
 
@@ -167,6 +171,19 @@ checkout → compute versions → set release version in all poms
   → push to main + push tag
   → create GitHub Release with auto-generated release notes
 ```
+
+For snapshot-style `release_version` overrides such as `1.0.0-SNAPSHOT` or
+`1.0.0-SNAPSHOT1`, the workflow switches to **deployment-only mode**:
+
+```text
+checkout → compute versions → set requested version in all poms
+  → build (no tests) → deploy to Maven Central (-Prelease)
+  → build & push Docker image
+```
+
+No next-development version is calculated in deployment-only mode, and the
+workflow does not update documentation, create release commits, push a tag, or
+publish a GitHub Release.
 
 Detailed steps in the workflow file: `.github/workflows/release.yml`.
 
@@ -218,6 +235,13 @@ This updates:
 - Every module's `<version>` tag
 - Every module's `<parent><version>` tag
 - Every inter-module dependency `<version>` tag whose value matched the old version
+
+Snapshot-style override examples:
+
+| `release_version` input | Behavior |
+|-------------------------|----------|
+| `1.0.0-SNAPSHOT` | Deploy exactly `1.0.0-SNAPSHOT`; do not calculate a next version |
+| `1.0.0-SNAPSHOT1` | Deploy exactly `1.0.0-SNAPSHOT1`; do not calculate a next version |
 
 ### Dry Run Mode
 
