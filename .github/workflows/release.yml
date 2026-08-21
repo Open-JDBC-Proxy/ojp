@@ -459,7 +459,7 @@ jobs:
               body:        generated.body + artifactsFooter,
               draft:       false,
               prerelease:  ${{ steps.versions.outputs.is_prerelease }},
-              make_latest: ${{ steps.versions.outputs.is_prerelease }} ? 'false' : 'true',
+              make_latest: String(${{ steps.versions.outputs.is_prerelease }}) === 'true' ? 'false' : 'true',
             });
 
       # -----------------------------------------------------------------------
