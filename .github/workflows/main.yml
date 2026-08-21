@@ -35,9 +35,9 @@ name: Main CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'lts/**' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, 'lts/**' ]
 
 jobs:
   # ===========================================================================
