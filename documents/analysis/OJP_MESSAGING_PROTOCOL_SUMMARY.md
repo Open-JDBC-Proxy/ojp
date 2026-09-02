@@ -11,13 +11,17 @@ reuse the existing `ojp-jdbc-driver`?
 ## Quick Answer
 
 Add a new, generic `MessagingService` gRPC contract (topic + opaque payload +
-delivery mode: fire-and-forget or guaranteed) to `ojp-grpc-commons`. Every
-participant — application clients and OJP servers acting on behalf of each
-other — sends and receives messages exclusively through the existing
-`ojp-jdbc-driver` client machinery (pooling, retries, circuit breaker,
-multinode failover, security). A server never opens a direct link to another
-server: it becomes a driver-backed client of its peers, exactly like any JDBC
-application, just calling `Publish`/`Subscribe` instead of `executeQuery`.
+delivery mode: fire-and-forget or guaranteed) to `ojp-grpc-commons`.
+Application clients reach it through `ojp-jdbc-driver`, the same way they use
+any other RPC today. OJP servers reach their peers by reusing the driver's
+*internal* client-side gRPC plumbing (channel management, retries, circuit
+breaker — already shared via `ojp-grpc-commons`) as a plain library
+dependency, **not** by going through the public JDBC `Connection` API and
+**not** by opening any new kind of socket. This server-to-server path is
+**opt-in and disabled by default** (`ojp.server.mesh.enabled=false`) — a
+default OJP deployment makes zero new outbound connections; an operator must
+explicitly enable it and configure a peer list to use RAFT/cache-invalidation
+across servers.
 
 ## Key Design Points
 
@@ -40,11 +44,14 @@ application, just calling `Publish`/`Subscribe` instead of `executeQuery`.
   a stream the client already opened. Surfaced to applications via
   `SQLWarning` (an existing pattern in this codebase) and/or an optional
   listener callback.
-- **Server-to-server:** each server holds driver-backed subscribe streams to
-  its peers (peer list analogous to today's `serverEndpoints`), forming a
-  full mesh. Acceptable at expected OJP cluster sizes; would need a
-  gossip/tree topology if OJP ever targets hundreds of nodes (flagged as an
-  open question, not solved here).
+- **Server-to-server (opt-in, off by default):** once
+  `ojp.server.mesh.enabled=true`, each server opens exactly one channel +
+  one `Subscribe` stream per peer listed in a dedicated
+  `ojp.server.mesh.peers` setting (deliberately *not* the client-populated
+  `serverEndpoints` list, since that only exists while a client is
+  connected). This forms a full mesh, which is acceptable at expected OJP
+  cluster sizes; would need a gossip/tree topology if OJP ever targets
+  hundreds of nodes (flagged as an open question, not solved here).
 
 ## Options Considered (see full analysis for pros/cons)
 
@@ -89,14 +96,17 @@ implementation starts; the codebase does not appear to have this today.
 A reviewer asked how this works when application clients scale to zero for
 long stretches (serverless-style deployments), since RAFT/cache-invalidation
 must keep working with no client traffic. **Answer: this already works, and
-that's exactly what the server-to-server mesh in the full analysis is** —
-each OJP server embeds the JDBC driver as a client library and connects
-directly to its peers' `MessagingService`, driven by server config/lifecycle,
-not by application client activity. No client needs to be connected for
-this path to function. The one open question this raises: is there any
-deployment model where the **OJP servers themselves** (not just client apps)
-scale to zero between requests? If so, this mesh design doesn't cover that
-case and would need a different approach. See §6.1/§8.8 of the full analysis.
+that's exactly what the (opt-in) server-to-server mesh in the full analysis
+is** — each OJP server reuses the driver's internal client-side gRPC
+plumbing as a library dependency and connects directly to its peers'
+`MessagingService`, driven by server config/lifecycle, not by application
+client activity. No client needs to be connected for this path to function,
+but the mesh must be explicitly enabled — it stays off by default even in
+this scenario; enabling it is the point. The one open question this raises:
+is there any deployment model where the **OJP servers themselves** (not just
+client apps) scale to zero between requests? If so, this mesh design
+doesn't cover that case and would need a different approach. See
+§6.1/§8.8 of the full analysis.
 
 ## Full Analysis
 

@@ -155,7 +155,7 @@ for *coarse, low-frequency, last-value-wins* state (see §7, where I suggest
 keeping `clusterHealth` for that purpose and not routing it through the new
 messaging layer).
 
-### Option C — New dedicated `MessagingService` gRPC contract, transported by the driver acting as a client of other servers
+### Option C — New dedicated `MessagingService` gRPC contract, transported by reusing the driver's client library code, not a JDBC `Connection`
 
 Add a new proto service (e.g. `MessagingService`) in `ojp-grpc-commons`:
 
@@ -167,54 +167,135 @@ service MessagingService {
 ```
 
 Any process that needs to send a message — including an OJP server acting on
-behalf of RAFT or cache invalidation — does so **by embedding the same
-`ojp-jdbc-driver` client machinery** (channel management, load-aware
-selection, retries, circuit breaker, health checks) that a normal application
-uses, just invoking `Publish`/`Subscribe` instead of `executeQuery`. A
-subscribing side (client or peer server) opens the `Subscribe` stream once and
-keeps it open; the server pushes `Envelope` messages on it as they are
-published. Because `Subscribe` is a **server-streaming RPC initiated by the
-subscriber**, no participant ever needs to accept an inbound connection it
-doesn't already accept — it's the same call shape already used by
-`executeQuery`.
+behalf of RAFT or cache invalidation — does so **by reusing the same
+low-level client-side building blocks the driver is made of** (gRPC channel
+management, retries, circuit breaker, multinode/health awareness), just
+invoking `Publish`/`Subscribe` instead of `executeQuery`. A subscribing side
+(client or peer server) opens the `Subscribe` stream once and keeps it open;
+the server pushes `Envelope` messages on it as they are published. Because
+`Subscribe` is a **server-streaming RPC initiated by the subscriber**, no
+participant ever needs to accept an inbound connection it doesn't already
+accept — it's the same call shape already used by `executeQuery`.
 
-For server-to-server messaging specifically: each OJP server also holds a
-small internal pool of driver client instances pointed at its peers (the
-peer list is exactly `serverEndpoints`, already exchanged today). From the
-receiving server's point of view, a peer server is indistinguishable from
-any other JDBC client calling `Publish`/`Subscribe` — there is no new
-"server-to-server" concept in the protocol, only "the driver, used by a
-server process instead of an application process." This is what satisfies
-the constraint: OJP servers never open a new socket/API to talk to each
-other, they reuse the driver as any other client would, over the connections
-that already exist for that purpose.
+#### What "embedding the driver" concretely means (clarifying feedback on the first draft)
+
+The first draft of this analysis said an OJP server would hold "a small
+internal pool of driver client instances pointed at its peers," which was
+too vague and reads as messier than intended. To be concrete:
+
+- **It does *not* mean an OJP server calls `DriverManager.getConnection("jdbc:ojp[...]_...")`
+  or otherwise goes through `java.sql.*` / `ojp-jdbc-driver`'s public
+  `java.sql.Driver` entry point.** That entry point is for applications; it
+  parses JDBC URLs, wraps a `java.sql.Connection`, etc. — machinery an OJP
+  server has no reason to instantiate just to send a gRPC message to a peer.
+- **What it does mean:** the driver's *internal* gRPC-plumbing classes —
+  concretely, things like `GrpcChannelFactory` (already in
+  `ojp-grpc-commons`, so already shared/available to both driver and server
+  today), the retry/circuit-breaker logic, and the multinode
+  connect/health-check bookkeeping in `MultinodeConnectionManager` — are
+  reused as a **plain internal library dependency**, the same way
+  `StatementServiceGrpcClient` reuses `GrpcChannelFactory` today. A new,
+  small `MessagingServiceGrpcClient` class (living in `ojp-grpc-commons` or a
+  new thin shared module) would wrap a `MessagingServiceGrpc` stub using
+  that same channel-management code, and `ojp-server` would depend on that
+  class the way it already depends on other `ojp-grpc-commons` classes. This
+  keeps the "no bespoke second wire protocol" property without literally
+  spinning up a JDBC `Connection` object inside the server process.
+- Practically, per configured peer this is: **one long-lived `ManagedChannel`
+  + one `MessagingServiceGrpc` stub + one open `Subscribe` stream**, held by
+  a small, purpose-built component inside `ojp-server` (e.g. a
+  `PeerMessagingClient`), not a `java.sql.Connection`, not a connection
+  pool in the HikariCP sense, and not the JDBC driver's public API surface.
+  "Pool" in the original wording was a poor choice of word — there is
+  exactly one channel per peer, not a pool of interchangeable connections to
+  the same peer.
+
+#### This must be opt-in and off by default
+
+This is a firm requirement, not just a preference: **by default, an OJP
+server must not attempt to connect to any other OJP server.** Standalone,
+single-server OJP deployments (almost certainly the majority of current
+installs) must see zero behavior change — no new outbound connection
+attempts, no new config required, no new failure mode from an unreachable
+peer that was never supposed to exist.
+
+Concretely:
+- A new server setting, e.g. `ojp.server.mesh.enabled` (default `false`),
+  gates the entire feature. When `false`, `ojp-server` never constructs a
+  `PeerMessagingClient`, never reads a peer list, and the `MessagingService`
+  RPC handlers can simply be registered but will have no server-side
+  subscribers among peers (irrelevant, since nothing calls out to them).
+- The peer list itself (e.g. `ojp.server.mesh.peers=host1:port1,host2:port2`)
+  is only read/validated when `ojp.server.mesh.enabled=true`. No peer
+  discovery, DNS lookups, or connection attempts happen otherwise.
+- This mirrors how other optional OJP server features are already gated —
+  e.g. slow-query segregation is `ojp.server.slowQuerySegregation.enabled`,
+  defaulting to `false`, with zero behavioral change until explicitly turned
+  on (see `documents/designs/SLOW_QUERY_SEGREGATION.md`). The messaging mesh
+  should follow the exact same pattern for consistency.
+- RAFT/cache-invalidation/restart-notice are themselves all-optional
+  features that *depend on* `ojp.server.mesh.enabled=true`; none of them
+  should force the flag on implicitly. If a future feature absolutely
+  requires the mesh, that should be a clear, explicit validation error at
+  startup ("feature X requires ojp.server.mesh.enabled=true"), not an
+  automatic silent activation.
+
+For server-to-server messaging: once enabled, each OJP server holds one
+`PeerMessagingClient` (one channel + one subscribe stream) per configured
+peer, using the `ojp.server.mesh.peers` setting described above (same
+`host:port` shape as `serverEndpoints`, but a distinct, server-configured
+list — see the correction below for why). From the receiving server's
+point of view, a peer server is indistinguishable from any other
+`MessagingService` caller — there is no new "server-to-server" concept in
+the wire protocol, only "the same client-side gRPC plumbing the driver uses,
+linked into the server process and activated only when explicitly
+configured."
+
+> **Correction to §6.1/§8.8 of the previous revision:** those sections
+> referred to peers being discovered "the same way multinode driver
+> instances are discovered today... peer list is exactly `serverEndpoints`."
+> On reflection that overstated the reuse and conflicts with "off by
+> default": `serverEndpoints` is populated by *clients* today (in
+> `ConnectionDetails`, at connect time) to tell a server about its multinode
+> siblings for client-failover purposes, and it is only ever populated when
+> a client actually connects with a multinode URL — which is exactly the
+> "clients might all be off" scenario this thread is about. The mesh peer
+> list must instead be **its own explicit, server-side configuration
+> setting**, independent of whether/how any client connects. §5.3 and §6.1
+> below are corrected accordingly.
 
 **Pros**
 - Clean, explicit contract; easy to test and to reason about;
   self-documenting.
-- Reuses 100% of driver resiliency (retry, failover, circuit breaker,
-  multinode awareness, TLS/auth) for free on both the "publish" and the
-  "peer server as a client" side.
+- Reuses the driver's proven client-side building blocks (retry, circuit
+  breaker, channel management) as an internal library dependency, without
+  dragging in the public JDBC API surface that has no purpose here.
 - `Subscribe` as a long-lived server-streaming call is the natural gRPC
   pattern for server→client push, and is architecturally identical to what
   `executeQuery` already does (stream of `OpResult`), so it's not a new kind
   of risk for the codebase.
 - Supports both delivery modes cleanly (see §5).
 - Extensible: new topics require zero protocol changes.
+- Fully opt-in: zero impact, zero new connections, for the default
+  single-server (or client-failover-only multinode) deployment.
 
 **Cons**
 - New proto surface to design well up front (`Envelope` schema, topic
   naming, ack semantics) — mistakes here are expensive to change later
   because of backward-compatibility rules already noted for `.proto` files
   in this repo.
-- Every OJP server becomes a client of every other OJP server (mesh),
-  which means server count² driver-client instances in the worst case;
-  needs sane connection reuse/pooling to avoid overhead at scale (see §8).
+- Every OJP server becomes a client of every other *configured* peer OJP
+  server (mesh), which means server count² channels in the worst case when
+  enabled; needs sane bounds/validation on peer list size (see §8).
+- A new, explicit server-side configuration surface (peer list, enable
+  flag) that operators must set up correctly for multi-server features to
+  work — this is deliberate (see "opt-in" above) but is still an added
+  operational step compared to "it just works."
 - Slightly more moving parts than Option A/B for a first cut.
 
 **Verdict: recommended.** It is the only option that is both generic and
 compliant with the "reuse the driver" constraint without abusing SQL
-semantics.
+semantics, provided it is implemented as an explicitly opt-in feature.
 
 ### Option D — External message broker (Kafka, RabbitMQ, NATS, Redis pub/sub)
 
@@ -312,22 +393,35 @@ doesn't matter because invalidation is idempotent).
 
 ### 5.3 Server-to-server topology
 
-- Peers are discovered the same way multinode driver instances are
-  discovered today: from configuration (a peer list analogous to
-  `serverEndpoints`), not via any new discovery protocol.
-- Each server keeps a small set of long-lived driver-backed
-  `Subscribe` streams open to its peers (mesh: N servers → N-1 outbound
-  subscriptions each). This is a bounded, small number in realistic OJP
+- **Disabled by default.** This entire subsection describes behavior gated
+  behind a new server setting, e.g. `ojp.server.mesh.enabled=false` by
+  default. When disabled, none of the below happens: no peer list is read,
+  no channel is opened, no outbound connection is attempted. A default,
+  single-server (or client-only-multinode) OJP deployment sees no change.
+- Peers are discovered from a **dedicated, explicit server-side setting**
+  (e.g. `ojp.server.mesh.peers=host1:port1,host2:port2`), set independently
+  by the operator on each node — this is deliberately *not* the same list as
+  `serverEndpoints`. `serverEndpoints` is populated by *clients* at connect
+  time (part of `ConnectionDetails`) to tell a server about its multinode
+  siblings for client failover; it only exists while/because a client
+  connected with a multinode URL, which is the opposite of "must work when
+  all clients are off." The mesh's peer list must be known to the server
+  independently of any client ever connecting.
+- Once enabled, each server holds exactly **one long-lived channel + one
+  `Subscribe` stream per configured peer** (mesh: N servers → N-1 outbound
+  connections each), managed by a small dedicated component (see §5.2's
+  "what embedding the driver means" discussion) — not a connection pool, one
+  channel per peer. This is a bounded, small number in realistic OJP
   deployments (tens of nodes at most), so a full mesh is acceptable; if OJP
   ever targets hundreds of nodes, gossip-based fan-out would be needed
   instead (flagged as a non-goal for now, see §9).
 - **This is the server-to-server option**, and it is driven entirely by
   server-side lifecycle/configuration (peer list), not by application client
-  activity: a server establishes and maintains these peer streams from its
-  own startup regardless of whether any JDBC client is currently connected.
-  This is what keeps RAFT/cache-invalidation working in serverless
-  deployments where application clients scale to zero for long stretches —
-  see §6.1 for the detailed reasoning.
+  activity: once enabled, a server establishes and maintains these peer
+  streams from its own startup regardless of whether any JDBC client is
+  currently connected. This is what keeps RAFT/cache-invalidation working in
+  serverless deployments where application clients scale to zero for long
+  stretches — see §6.1 for the detailed reasoning.
 - Publishing from a server to "the cluster" is a local fan-out: the local
   `MessagingService` implementation receives one `Publish` call and pushes
   the `Envelope` to every currently-connected `Subscribe` stream (peers and,
@@ -384,17 +478,20 @@ whatever state RAFT protects.
 to not depend on this. The "reuse the driver" constraint in this analysis
 was never about *piggybacking on application client connections* — it was
 about *not inventing a second, bespoke wire protocol/socket for
-server-to-server traffic*. Concretely: each OJP server embeds an
-`ojp-jdbc-driver` client instance and uses it to open a `Subscribe`
-(and call `Publish`) directly against its peer servers' `MessagingService`,
-the same way any JDBC application does. **No application client needs to be
-connected, or ever connect, for this path to work.** Server A is simply a
-program that links `ojp-jdbc-driver` as a library and calls it — it does not
-need an end user's `Connection` object to exist. So: **yes, this already is
-"an OJP server-to-server option"**, just implemented as "server process
-embeds the driver and calls the peer as a client" rather than as a raw
-socket — which is what satisfies the original constraint without leaving
-serverless clusters unable to run RAFT/cache-invalidation when idle.
+server-to-server traffic*. Concretely: each OJP server reuses the driver's
+internal gRPC client-plumbing (channel management, retry/circuit-breaker
+logic — see §5.2 for exactly which classes) as a library dependency and uses
+it to open a `Subscribe` (and call `Publish`) directly against its peer
+servers' `MessagingService`, the same way `StatementServiceGrpcClient`
+already uses that plumbing today. **No application client needs to be
+connected, or ever connect, for this path to work**, and — per the "opt-in"
+requirement below — nothing here runs at all unless an operator explicitly
+enables it. So: **yes, this already is "an OJP server-to-server option"**,
+just implemented as "server process links the driver's client-side gRPC
+plumbing as a library and calls the peer with it" rather than as a raw
+socket or a JDBC `Connection` — which is what satisfies the original
+constraint without leaving serverless clusters unable to run
+RAFT/cache-invalidation when idle.
 
 That said, a few consequences of this are worth calling out because they
 were understated in the original write-up:
@@ -431,8 +528,16 @@ were understated in the original write-up:
    infra deployment), servers need to discover and connect to peers *before*
    any application client connects, otherwise RAFT can't elect a leader in
    time for the first request. This reinforces point 1: the peer mesh must
-   be driven by server lifecycle/config (peer list, analogous to
-   `serverEndpoints`), not by client activity.
+   be driven by its own dedicated server-side configuration (see §5.3 — a
+   distinct `ojp.server.mesh.peers` setting, not `serverEndpoints`, since the
+   latter is only populated by connecting clients), not by client activity.
+5. **This does not conflict with "opt-in, off by default" (§5.2/§5.3).** A
+   deployment that wants RAFT/cache-invalidation to survive a fully idle
+   client tier must explicitly set `ojp.server.mesh.enabled=true` and
+   configure the peer list on every node — the serverless scenario is a
+   reason *to* enable the mesh, not a reason to make it default-on. Nothing
+   about supporting this use case requires or justifies connecting OJP
+   servers to each other by default.
 
 **Net effect on the recommendation:** no change to the recommended option
 (Option C) — but the analysis should have been explicit from the start that
@@ -465,17 +570,20 @@ it implied.
    expected in production?** My default assumption is "small enough that a
    mesh is fine," medium confidence (60%) since I don't have real deployment
    numbers.
-2. **"Reuse the driver" for server-to-server has a subtlety.** The driver
-   was designed to be used by an *application*, with its own lifecycle
-   (`DriverManager.getConnection`, connection pooling by the app or a
-   framework). Using it *inside* `ojp-server` means `ojp-server` gains a
-   compile-time dependency on `ojp-jdbc-driver`. That's a new module
-   coupling that doesn't exist today (today the driver depends on
-   `ojp-grpc-commons`, and the server depends on `ojp-grpc-commons`, but
-   the server never depended on the driver). This is architecturally clean
-   (no circular dependency: server → driver → grpc-commons) but is a real,
-   visible change to the dependency graph and should be called out
-   explicitly as a design decision (candidate ADR), not slipped in quietly.
+2. **Where does the new client-plumbing code/module live?** As clarified in
+   §5.2, the server-side mesh does **not** add a compile-time dependency from
+   `ojp-server` onto `ojp-jdbc-driver` — it reuses the lower-level gRPC
+   channel/retry/circuit-breaker code that already lives in
+   `ojp-grpc-commons` (shared by both today) plus a small new
+   `MessagingServiceGrpc` client class that should also live in
+   `ojp-grpc-commons` (or a new thin shared module) so both the driver and
+   the server can depend on it symmetrically, exactly like they already both
+   depend on `GrpcChannelFactory`. This avoids the `server → driver`
+   dependency the first draft implied, which would have been an odd,
+   one-directional coupling for a feature that isn't really about JDBC at
+   all. Worth confirming this module placement explicitly as part of any
+   implementation ADR, since "which module owns the new client class" is an
+   easy thing to get inconsistent across a phased rollout.
 3. **Authentication/authorization for server-to-server calls.** Application
    clients authenticate with DB credentials meant for the *target database*.
    A server-to-server messaging call has nothing to do with a database
@@ -545,8 +653,9 @@ plan — but a phased rollout is worth recording as a suggestion:
    "server restarting" use cases first since they are lower risk than RAFT.
 2. Add the cluster-internal peer identity/credential mechanism (see
    Concern 3) before turning on any server-to-server traffic.
-3. Enable the server-to-server mesh (servers embedding driver clients
-   pointed at peers) and exercise it with cache invalidation broadcast.
+3. Enable the server-to-server mesh (`ojp.server.mesh.enabled=true`,
+   servers using the shared client-plumbing to reach configured peers) and
+   exercise it with cache invalidation broadcast.
 4. Add `GUARANTEED` delivery mode (ack + retry + de-dup) and switch
    "server restarting" to it.
 5. RAFT is the most complex and highest-risk consumer (correctness-critical,
@@ -560,16 +669,19 @@ plan — but a phased rollout is worth recording as a suggestion:
 ## 10. Summary Recommendation
 
 Introduce a new, generic `MessagingService` gRPC contract (topic + opaque
-payload + delivery mode), implemented as an addition to
-`ojp-grpc-commons`/`ojp-server`, and consumed on every side (application
-clients, and OJP servers acting as clients of their peers) exclusively
-through `ojp-jdbc-driver`'s existing connection/session/failover machinery.
-This satisfies the "no direct server-to-server link" constraint by
-construction (a server talking to another server is just another driver
-client), reuses everything the driver already does well (pooling, retries,
-circuit breaking, multinode failover, security), and keeps the three example
-use cases as thin, topic-specific consumers of one shared substrate rather
-than three bespoke mechanisms.
+payload + delivery mode), implemented as an addition to `ojp-grpc-commons`,
+consumed by application clients through `ojp-jdbc-driver`, and consumed by
+`ojp-server` itself (for the peer-to-peer mesh) by reusing the driver's
+internal client-side gRPC plumbing as a plain library dependency — **not**
+its public JDBC API — and only when explicitly enabled via
+`ojp.server.mesh.enabled` (default `false`). This satisfies the "no direct
+server-to-server link" constraint by construction (a peer server is just
+another `MessagingService` caller, using the same channel/retry/circuit-
+breaker code the driver already has), reuses everything that plumbing
+already does well (retries, circuit breaking, channel management), stays
+fully opt-in so a default OJP deployment sees no behavior change, and keeps
+the three example use cases as thin, topic-specific consumers of one shared
+substrate rather than three bespoke mechanisms.
 
 My biggest open concern (see §8.3) is that this only really works cleanly
 once there's a proper answer for **inter-server authentication** that's
