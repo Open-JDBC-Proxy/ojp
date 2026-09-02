@@ -2,7 +2,39 @@
 
 This directory contains technical analysis documents for various OJP features and decisions.
 
-## Latest Analysis (May 2026)
+## Latest Analysis (September 2026)
+
+### 🆕 Generic OJP Messaging Protocol (server-to-server and server-to-client)
+
+**Question:** How should OJP servers exchange messages with each other (e.g.
+RAFT leader election, cache-invalidation broadcasts) and notify connected
+JDBC clients (e.g. server restarting), while reusing the existing
+`ojp-jdbc-driver` and without connecting OJP servers directly to each other?
+
+**Quick Answer:** Add a generic `MessagingService` gRPC contract (topic +
+opaque payload + delivery mode), consumed by every participant exclusively
+through the existing JDBC driver's connection/session/failover machinery,
+supporting both fire-and-forget and guaranteed-delivery modes.
+
+**Documents:**
+- **Executive Summary**: [OJP_MESSAGING_PROTOCOL_SUMMARY.md](./OJP_MESSAGING_PROTOCOL_SUMMARY.md)
+  - Recommended protocol shape and delivery modes
+  - Options considered with verdicts
+  - Biggest open concerns and questions
+- **Full Analysis**: [OJP_MESSAGING_PROTOCOL_ANALYSIS.md](./OJP_MESSAGING_PROTOCOL_ANALYSIS.md)
+  - Detailed envelope/proto sketch, delivery-mode comparison table
+  - Server-to-server and server-to-client topology
+  - Mapping to RAFT / cache invalidation / restart-notice use cases
+  - Concerns, open questions, and suggested phasing
+
+**Key Takeaway:** OJP servers become driver-backed clients of each other
+(and of connected application clients, via a client-initiated subscribe
+stream) instead of opening any new server-to-server link — satisfying the
+constraint while reusing the driver's existing resiliency features.
+
+---
+
+## Previous Latest Analysis (May 2026)
 
 ### 🆕 Prepared Statement Cache Server Settings Design
 
@@ -123,5 +155,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-05-10  
+**Last Updated:** 2026-09-02  
 **Maintained By:** OJP Core Team
