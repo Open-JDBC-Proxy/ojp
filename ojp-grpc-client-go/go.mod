@@ -1,6 +1,6 @@
 module github.com/open-j-proxy/ojp-client
 
-go 1.25.0
+go 1.25.14
 
 require (
 	google.golang.org/genproto v0.0.0-20260810153831-ec0a7760b754
