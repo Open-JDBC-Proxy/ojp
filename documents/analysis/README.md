@@ -54,6 +54,10 @@ This directory contains technical analysis documents for various OJP features an
 
 ## Other Analysis Documents
 
+### Session Lifecycle & Reuse
+
+- [CLIENT_SIDE_SESSION_REUSE_ANALYSIS.md](./CLIENT_SIDE_SESSION_REUSE_ANALYSIS.md) - Analysis of client-side persistent session reuse, required architecture changes, limits, risks, and rollout approach
+
 ### XA Pool Architecture
 
 - [xa-pool-spi/](./xa-pool-spi/) - XA Connection Pool SPI design
