@@ -321,6 +321,13 @@ doesn't matter because invalidation is idempotent).
   deployments (tens of nodes at most), so a full mesh is acceptable; if OJP
   ever targets hundreds of nodes, gossip-based fan-out would be needed
   instead (flagged as a non-goal for now, see §9).
+- **This is the server-to-server option**, and it is driven entirely by
+  server-side lifecycle/configuration (peer list), not by application client
+  activity: a server establishes and maintains these peer streams from its
+  own startup regardless of whether any JDBC client is currently connected.
+  This is what keeps RAFT/cache-invalidation working in serverless
+  deployments where application clients scale to zero for long stretches —
+  see §6.1 for the detailed reasoning.
 - Publishing from a server to "the cluster" is a local fan-out: the local
   `MessagingService` implementation receives one `Publish` call and pushes
   the `Envelope` to every currently-connected `Subscribe` stream (peers and,
@@ -352,6 +359,88 @@ doesn't matter because invalidation is idempotent).
 | RAFT consensus | `raft.<cluster-id>.election` (or similar) | Fire-and-forget | RAFT already assumes an unreliable network and re-sends `RequestVote`/`AppendEntries` on timeout; making the transport "guaranteed" would add latency (ack round-trip) for no protocol benefit and could even mask real partitions from RAFT's own failure detector. |
 | Cache invalidation | `cache.invalidate` | Fire-and-forget | Invalidation is idempotent and self-healing (a missed invalidation just means a slightly stale cache entry until the next write/TTL); guaranteed delivery adds cost with little benefit. Could optionally periodically re-broadcast a checksum/version as a belt-and-suspenders anti-entropy mechanism — not required for this analysis. |
 | Server restarting | `server.lifecycle` | Guaranteed (to currently-connected clients only) | This is the one case where "the client acts differently because it got the message" (e.g. stop sending new statements, prepare to fail over), so an ack-and-retry within the shutdown grace period is worth the extra complexity. Note "guaranteed" here can only mean "guaranteed to currently-attached subscribers within the grace period" — a client that is disconnected at the moment of publish cannot be reached by this mechanism, only by the normal failover behavior of the multinode driver, which already exists independently of this new protocol. |
+
+---
+
+## 6.1 Serverless / zero-client deployments
+
+This point needs to be made explicit, because it changes what "reuse the
+driver, don't connect servers directly" actually means in practice.
+
+**The problem:** In a serverless deployment (application instances scaled to
+zero between invocations, e.g. AWS Lambda/Fargate/Knative-style workloads),
+there can be long stretches of time — potentially most of the time — where
+**zero application clients are connected to any OJP server**. RAFT
+leader-election and cache invalidation are both needs of the OJP server
+cluster itself, and both must keep working in that window. If the messaging
+design's server-to-server path only worked *through* connected application
+client sessions (e.g. "server A asks a connected client to relay a message
+to server B"), it would break the moment all clients scale to zero — which
+is unacceptable for RAFT in particular, since a cluster with no application
+traffic still has to hold an election, detect leader failure, and replicate
+whatever state RAFT protects.
+
+**Good news / clarification:** the Option C design in §5.3 was already built
+to not depend on this. The "reuse the driver" constraint in this analysis
+was never about *piggybacking on application client connections* — it was
+about *not inventing a second, bespoke wire protocol/socket for
+server-to-server traffic*. Concretely: each OJP server embeds an
+`ojp-jdbc-driver` client instance and uses it to open a `Subscribe`
+(and call `Publish`) directly against its peer servers' `MessagingService`,
+the same way any JDBC application does. **No application client needs to be
+connected, or ever connect, for this path to work.** Server A is simply a
+program that links `ojp-jdbc-driver` as a library and calls it — it does not
+need an end user's `Connection` object to exist. So: **yes, this already is
+"an OJP server-to-server option"**, just implemented as "server process
+embeds the driver and calls the peer as a client" rather than as a raw
+socket — which is what satisfies the original constraint without leaving
+serverless clusters unable to run RAFT/cache-invalidation when idle.
+
+That said, a few consequences of this are worth calling out because they
+were understated in the original write-up:
+
+1. **The mesh must be independent of, and outlive, any client traffic.**
+   Each server should establish and maintain its peer `Subscribe` streams
+   (with reconnect/backoff) as part of its own startup and health-check
+   loop, not lazily "when a client first connects." Practically this means
+   the peer-mesh client instances are a **server-owned background
+   component**, not something built opportunistically off application
+   sessions. This should be stated as an explicit requirement, not an
+   implementation detail.
+2. **"Client off" doesn't mean "server off."** Serverless here refers to the
+   *application* tier scaling to zero; the OJP servers themselves are
+   assumed to remain running (they are the proxy/pool layer, not the
+   thing being scaled per-request). If OJP servers themselves were expected
+   to scale to zero between requests (a true "serverless OJP server"), RAFT
+   membership and leadership would need to be re-derived on every cold
+   start, which is a much bigger problem than this analysis covers — my
+   assumption (70% confidence) is that this is out of scope because OJP
+   servers are long-lived connection-pool owners by design (ADR-003), and a
+   pool that's destroyed on every scale-to-zero event defeats the purpose of
+   OJP. **Question for the team: is there any scenario where the OJP
+   *servers* (not just client apps) are expected to scale to zero, e.g. one
+   OJP server per Lambda invocation?** If yes, this analysis's server-mesh
+   design does not cover that case and would need rework (likely toward a
+   stateless/external-coordination model, which starts to look like Option D
+   again).
+3. **Server-to-client topics (`server.lifecycle`) are naturally a no-op when
+   no clients are connected**, which is fine — there is nothing to notify.
+   No special handling needed there.
+4. **Bootstrap ordering**: at cluster cold start (e.g. all OJP servers
+   starting together, as might happen in an autoscaled/serverless-adjacent
+   infra deployment), servers need to discover and connect to peers *before*
+   any application client connects, otherwise RAFT can't elect a leader in
+   time for the first request. This reinforces point 1: the peer mesh must
+   be driven by server lifecycle/config (peer list, analogous to
+   `serverEndpoints`), not by client activity.
+
+**Net effect on the recommendation:** no change to the recommended option
+(Option C) — but the analysis should have been explicit from the start that
+the server-to-server mesh in §5.3 *is* the "OJP server-to-server option"
+being asked about here, and that it is designed to work with zero connected
+application clients, provided the OJP server processes themselves stay up.
+I'm revising §5.3/§9 framing below to make this explicit rather than leaving
+it implied.
 
 ---
 
@@ -433,6 +522,15 @@ doesn't matter because invalidation is idempotent).
    growth) for `GUARANTEED`. This needs load testing before being called
    "done," which is out of scope for this analysis but should be an
    explicit acceptance criterion for implementation.
+8. **Does "serverless" ever mean the OJP *servers* scale to zero, not just
+   the application clients?** As discussed in §6.1, this design assumes OJP
+   server processes are long-lived even when application clients are not,
+   and the peer mesh is what keeps RAFT/cache-invalidation alive during
+   client-less periods. If there's a deployment model where OJP servers
+   themselves are ephemeral (spun up per request/invocation), the mesh-based
+   design here does not apply and this would need a fundamentally different
+   (likely externally-coordinated) approach. Flagging this as a question for
+   the team rather than assuming an answer.
 
 ---
 

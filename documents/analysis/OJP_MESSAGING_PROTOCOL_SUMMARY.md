@@ -84,6 +84,20 @@ implementation starts; the codebase does not appear to have this today.
 5. RAFT last, on top of the proven substrate — likely adopting an existing
    Java RAFT library rather than writing RAFT from scratch.
 
+## Serverless / Zero-Client Deployments
+
+A reviewer asked how this works when application clients scale to zero for
+long stretches (serverless-style deployments), since RAFT/cache-invalidation
+must keep working with no client traffic. **Answer: this already works, and
+that's exactly what the server-to-server mesh in the full analysis is** —
+each OJP server embeds the JDBC driver as a client library and connects
+directly to its peers' `MessagingService`, driven by server config/lifecycle,
+not by application client activity. No client needs to be connected for
+this path to function. The one open question this raises: is there any
+deployment model where the **OJP servers themselves** (not just client apps)
+scale to zero between requests? If so, this mesh design doesn't cover that
+case and would need a different approach. See §6.1/§8.8 of the full analysis.
+
 ## Full Analysis
 
 See [OJP_MESSAGING_PROTOCOL_ANALYSIS.md](./OJP_MESSAGING_PROTOCOL_ANALYSIS.md)
