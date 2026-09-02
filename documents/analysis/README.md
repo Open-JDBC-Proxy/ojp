@@ -2,7 +2,30 @@
 
 This directory contains technical analysis documents for various OJP features and decisions.
 
-## Latest Analysis (May 2026)
+## Latest Analysis (August 2026)
+
+### 🆕 JDBC 4.3 Support Positioning
+
+**Question:** Should OJP now be documented and positioned as a JDBC 4.3 driver?
+
+**Quick Answer:** Not yet - keep the formal support claim at JDBC 4.2 until builder APIs and sharding semantics are implemented deliberately.
+
+**Documents:**
+- **Executive Summary**: [JDBC_4_3_SUPPORT_SUMMARY.md](./JDBC_4_3_SUPPORT_SUMMARY.md)
+  - Current support position
+  - What already works through JDK defaults
+  - Recommendation on when to claim JDBC 4.3
+
+- **Full Analysis**: [JDBC_4_3_SUPPORT_ANALYSIS.md](./JDBC_4_3_SUPPORT_ANALYSIS.md)
+  - Evidence from current code and tests
+  - Gap analysis for JDBC 4.3 builders and sharding APIs
+  - Recommended staged path if JDBC 4.3 becomes a goal
+
+**Key Takeaway:** OJP is currently JDBC 4.2 by contract, partially JDBC 4.3-aware by runtime environment, but not yet JDBC 4.3 by product claim.
+
+---
+
+## Previous Latest Analysis (May 2026)
 
 ### 🆕 Prepared Statement Cache Server Settings Design
 
@@ -123,5 +146,5 @@ When adding new analysis documents:
 
 ---
 
-**Last Updated:** 2026-05-10  
+**Last Updated:** 2026-08-18  
 **Maintained By:** OJP Core Team
