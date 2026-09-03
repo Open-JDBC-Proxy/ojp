@@ -32,6 +32,13 @@ than a bespoke protocol.
   - Server-to-server and server-to-client topology
   - Mapping to RAFT / cache invalidation / restart-notice use cases
   - Concerns, open questions, and suggested phasing
+- **Related Analysis**: [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
+  - RAFT vs. Byzantine-fault-tolerant alternatives (PBFT, HotStuff, Tendermint,
+    BFT-SMaRt) for the leader-election use case
+  - Which algorithm(s) fit Mesh ON vs. Mesh OFF, and why swapping algorithms
+    alone doesn't make client-relay safe for consensus traffic
+  - Pros/cons, recommendation, and open questions — RAFT is a running example
+    in the messaging protocol documents above, not a committed decision
 
 **Key Takeaway:** OJP servers become driver-backed clients of each other
 (and of connected application clients, via a client-initiated subscribe

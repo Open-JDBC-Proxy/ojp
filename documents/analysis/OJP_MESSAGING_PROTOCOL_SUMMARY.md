@@ -135,6 +135,17 @@ the full analysis.
 
 See §5.3.3 of the full analysis for the complete comparison and reasoning.
 
+**A note before diving into the RAFT-specific argument below: RAFT is used
+throughout this document as a running example, not a final decision.**
+Whether RAFT (crash-fault-tolerant) or a Byzantine-fault-tolerant alternative
+(PBFT, HotStuff, Tendermint, BFT-SMaRt) is the right choice for Mesh ON, and
+whether any of them changes the "never over client-relay" rule for Mesh OFF,
+is analyzed separately in
+[OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md).
+Short version of that analysis's answer: no BFT algorithm fixes client-relay's
+trust-perimeter problem as things are designed today, so the mesh-required
+verdict below holds regardless of final algorithm choice.
+
 ### Why RAFT specifically requires the direct mesh (not just "less reliable")
 
 This was previously stated as a soft, hedged rule; review correctly pushed
@@ -255,3 +266,11 @@ likely externally-coordinated approach. See §6.1/§8.8 of the full analysis.
 See [OJP_MESSAGING_PROTOCOL_ANALYSIS.md](./OJP_MESSAGING_PROTOCOL_ANALYSIS.md)
 for the detailed proto sketch, delivery-mode comparison table, per-use-case
 mapping, and the full list of concerns and open questions.
+
+## Related Analysis: Which Consensus Algorithm?
+
+See [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
+for the dedicated comparison of RAFT against Byzantine-fault-tolerant
+alternatives (PBFT, HotStuff, Tendermint, BFT-SMaRt) for Mesh ON vs. Mesh OFF
+— this document never assumes RAFT is the final choice, only a convenient,
+well-documented example.

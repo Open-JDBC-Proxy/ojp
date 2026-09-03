@@ -67,7 +67,7 @@ concerns and open questions.
 
 | # | Use case | Direction | Fan-out | Rough reliability need |
 |---|---|---|---|---|
-| 1 | RAFT leader-election / consensus messages | server ↔ server | 1-to-N (cluster) | Fire-and-forget (RAFT is designed to tolerate loss/duplication; it re-tries at the protocol level) |
+| 1 | RAFT-style leader-election / consensus messages | server ↔ server | 1-to-N (cluster) | Fire-and-forget (RAFT is designed to tolerate loss/duplication; it re-tries at the protocol level) |
 | 2 | Cache invalidation broadcast | server → servers | 1-to-N (cluster) | Fire-and-forget, best-effort, idempotent |
 | 3 | "Server is restarting" notice | server → clients | 1-to-N (all sessions attached to that server) | Best-effort but **should be attempted with an ack/retry** because clients act on it to avoid failed in-flight work |
 
@@ -76,6 +76,18 @@ special-case in the protocol itself. The protocol described below is generic:
 topic + payload + delivery-mode, so any future use case (metrics gossip,
 config propagation, distributed lock notifications, admission-control
 back-pressure signals, etc.) can reuse it without a protocol change.
+
+**"RAFT" is a running example, not a decision.** Every use of "RAFT" in this
+document (including §5.3.5's dedicated argument) refers to it as the
+best-known representative of a leader-election/consensus algorithm, because
+it's what the original use case named — it should **not** be read as OJP
+having chosen RAFT as the final algorithm. Whether RAFT (crash-fault-tolerant)
+or a Byzantine-fault-tolerant alternative (PBFT, HotStuff, Tendermint,
+BFT-SMaRt) is the right choice — and whether that answer differs between Mesh
+ON and Mesh OFF — is analyzed separately in
+[OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md).
+This document's job is only to define the generic transport those algorithms
+would ride on.
 
 ---
 
@@ -858,6 +870,20 @@ product rule." This section gives the actual argument, grounded in what
 RAFT is documented to tolerate and what it explicitly does not, rather than
 restating the same conclusion with more hedging.
 
+**Note — RAFT here is a stand-in, not a final choice.** The argument below is
+about RAFT specifically because that's the algorithm named in the use case
+and analyzed for its documented properties. Whether RAFT (crash-fault-
+tolerant) or a Byzantine-fault-tolerant alternative should actually be used —
+and whether a BFT algorithm changes anything about the Mesh ON/Mesh OFF
+choice below — is analyzed in full in
+[OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md).
+Short preview of that analysis's conclusion: switching to a BFT algorithm
+does **not**, by itself, make client-relay (Mesh OFF) safe for consensus
+traffic — the trust-perimeter argument below applies to any algorithm whose
+messages aren't individually authenticated, which is every algorithm listed
+here as currently specified for OJP.
+
+
 **Start from what RAFT genuinely tolerates — conceding the point, because
 it's true and important:** the Raft paper ("In Search of an Understandable
 Consensus Algorithm," Ongaro & Ousterhout, 2014) explicitly designs RAFT
@@ -1135,7 +1161,7 @@ hop-count/seen-set loop-avoidance — flagged there, not solved here.
 
 | Use case | Topic | Mode | Recommended topology | Notes |
 |---|---|---|---|---|
-| RAFT consensus | `raft.<cluster-id>.election` (or similar) | Fire-and-forget | **Direct mesh required** (`ojp.server.mesh.enabled=true`) | RAFT already assumes an unreliable network and re-sends `RequestVote`/`AppendEntries` on timeout; making the transport "guaranteed" would add latency (ack round-trip) for no protocol benefit and could even mask real partitions from RAFT's own failure detector. Client-relay's probabilistic coverage is not the disqualifying reason on its own — RAFT is built to tolerate lost/delayed messages; see §5.3.5 for the concrete, honest argument (trust perimeter and amplification cost, not just "less reliable"). |
+| RAFT-style consensus (algorithm TBD — see [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)) | `raft.<cluster-id>.election` (or similar) | Fire-and-forget | **Direct mesh required** (`ojp.server.mesh.enabled=true`) | RAFT already assumes an unreliable network and re-sends `RequestVote`/`AppendEntries` on timeout; making the transport "guaranteed" would add latency (ack round-trip) for no protocol benefit and could even mask real partitions from RAFT's own failure detector. Client-relay's probabilistic coverage is not the disqualifying reason on its own — RAFT is built to tolerate lost/delayed messages; see §5.3.5 for the concrete, honest argument (trust perimeter and amplification cost, not just "less reliable"). This "direct mesh required" verdict holds regardless of whether the final algorithm is RAFT or a BFT alternative — see the linked analysis §5. |
 | Cache invalidation | `cache.invalidate` | Fire-and-forget | **Client-relay (default) is fine**; mesh optional for stronger guarantees | Invalidation is idempotent and self-healing (a missed invalidation just means a slightly stale cache entry until the next write/TTL), which is exactly what client-relay's best-effort coverage tolerates well. Could optionally periodically re-broadcast a checksum/version as a belt-and-suspenders anti-entropy mechanism — not required for this analysis. |
 | Server restarting | `server.lifecycle` | Guaranteed (to currently-connected clients only) | Neither — always server-to-its-own-clients, never cluster-wide | This is the one case where "the client acts differently because it got the message" (e.g. stop sending new statements, prepare to fail over), so an ack-and-retry within the shutdown grace period is worth the extra complexity. Note "guaranteed" here can only mean "guaranteed to currently-attached subscribers within the grace period" — a client that is disconnected at the moment of publish cannot be reached by this mechanism, only by the normal failover behavior of the multinode driver, which already exists independently of this new protocol. This topic is never `cluster_scope=true` and is therefore unaffected by mesh on/off. |
 
@@ -1437,12 +1463,17 @@ plan — but a phased rollout is worth recording as a suggestion:
    both happen to be active.
 5. Add `GUARANTEED` delivery mode (ack + retry + de-dup) and switch
    "server restarting" to it.
-6. RAFT is the most complex and highest-risk consumer (correctness-critical,
-   latency-sensitive); build/adopt it last, on top of an already-proven
-   messaging substrate, **requiring the direct mesh** (never client-relay,
-   per Concern 11), likely evaluating an existing, well-tested Java RAFT
-   library rather than writing RAFT from scratch, using this messaging
-   layer purely as its transport.
+6. Consensus (leader election) is the most complex and highest-risk consumer
+   (correctness-critical, latency-sensitive); build/adopt it last, on top of
+   an already-proven messaging substrate, **requiring the direct mesh**
+   (never client-relay, per Concern 11) regardless of which algorithm is
+   chosen. The algorithm itself — RAFT vs. a BFT alternative — should be
+   decided per
+   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
+   before this phase starts, not assumed to be RAFT by default; that analysis's
+   current recommendation is RAFT via Apache Ratis, evaluating an existing,
+   well-tested library rather than writing consensus from scratch, using this
+   messaging layer purely as its transport.
 
 ---
 
@@ -1452,6 +1483,13 @@ Introduce a new, generic `MessagingService` gRPC contract (topic + opaque
 payload + delivery mode), implemented as an addition to `ojp-grpc-commons`,
 consumed by application clients through `ojp-jdbc-driver`, with **two
 complementary server-to-server topologies** rather than one:
+
+**Note on the consensus algorithm:** this document uses "RAFT" purely as a
+concrete, well-documented example to reason about; it does not commit OJP to
+RAFT as the final leader-election algorithm. See
+[OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
+for the dedicated comparison of RAFT against Byzantine-fault-tolerant
+alternatives (PBFT, HotStuff, Tendermint, BFT-SMaRt) for Mesh ON vs. Mesh OFF.
 
 - **Client-relay (default, no config, no new connections):** multinode
   clients — which already hold sessions to more than one OJP server for
