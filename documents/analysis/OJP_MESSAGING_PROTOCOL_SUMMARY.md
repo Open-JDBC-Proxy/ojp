@@ -53,6 +53,29 @@ across servers.
   cluster sizes; would need a gossip/tree topology if OJP ever targets
   hundreds of nodes (flagged as an open question, not solved here).
 
+## Mesh OFF vs. Mesh ON at a Glance
+
+```mermaid
+graph LR
+    subgraph "Mesh OFF (default)"
+        C1[App Client] -->|Subscribe / Publish| S1[OJP Server 1]
+        C2[App Client] -->|Subscribe / Publish| S2[OJP Server 2]
+        S1 -.->|no connection attempted| S2
+    end
+```
+
+```mermaid
+graph LR
+    subgraph "Mesh ON (opt-in: ojp.server.mesh.enabled=true)"
+        C3[App Client] -->|Subscribe / Publish| S3[OJP Server 1]
+        C4[App Client] -->|Subscribe / Publish| S4[OJP Server 2]
+        S3 <-->|MessagingService: Publish/Subscribe over configured peers| S4
+    end
+```
+
+Full sequence diagrams for both modes, including the cache-invalidation and
+RAFT-vote message flows, are in §5.5 of the full analysis.
+
 ## Options Considered (see full analysis for pros/cons)
 
 | Option | Verdict |

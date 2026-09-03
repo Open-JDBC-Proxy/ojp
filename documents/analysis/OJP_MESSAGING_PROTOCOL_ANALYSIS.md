@@ -444,6 +444,132 @@ doesn't matter because invalidation is idempotent).
   Reusing `SQLWarning` avoids inventing a whole new client-facing API for a
   notification that is fundamentally advisory.
 
+### 5.5 Message flow diagrams — Mesh OFF vs. Mesh ON
+
+The two diagrams below make the difference between the two modes from §5.3
+concrete: **Mesh OFF** is the default for every OJP deployment; **Mesh ON**
+is an explicit opt-in (`ojp.server.mesh.enabled=true` + a configured peer
+list) needed only when servers must exchange messages with each other
+(RAFT, cross-server cache invalidation) independently of any client, e.g.
+serverless client tiers (§6.1).
+
+#### Topology comparison
+
+```mermaid
+graph LR
+    subgraph "Mesh OFF (default)"
+        C1[App Client] -->|Subscribe / Publish| S1[OJP Server 1]
+        C2[App Client] -->|Subscribe / Publish| S2[OJP Server 2]
+        S1 -.->|no connection attempted| S2
+    end
+```
+
+```mermaid
+graph LR
+    subgraph "Mesh ON (opt-in: ojp.server.mesh.enabled=true)"
+        C3[App Client] -->|Subscribe / Publish| S3[OJP Server 1]
+        C4[App Client] -->|Subscribe / Publish| S4[OJP Server 2]
+        S3 <-->|MessagingService: Publish/Subscribe over configured ojp.server.mesh.peers| S4
+    end
+```
+
+Note both subgraphs use the **same** `MessagingService` contract end to end —
+"Mesh ON" does not add a different protocol, it just means the server also
+acts as a `MessagingService` client of its peers, using the shared gRPC
+plumbing described in §5.2, in addition to serving its own clients.
+
+#### Mesh OFF — sequence flow (default behavior)
+
+With the mesh disabled, `ojp-server` never reads a peer list and never
+dials another server. Messaging only flows between a server and the
+clients connected *to that specific server*. A topic that is meant to
+coordinate the whole cluster (e.g. `cache.invalidate`) only reaches clients
+of the server that received the `Publish` call — there is no cross-server
+fan-out.
+
+```mermaid
+sequenceDiagram
+    participant ClientA as App Client (on Server 1)
+    participant S1 as OJP Server 1
+    participant S2 as OJP Server 2
+    participant ClientB as App Client (on Server 2)
+
+    Note over S1,S2: ojp.server.mesh.enabled=false (default) — S1 and S2 never dial each other
+
+    ClientA->>S1: Subscribe(topics=["cache.invalidate","server.lifecycle"])
+    ClientB->>S2: Subscribe(topics=["cache.invalidate","server.lifecycle"])
+
+    ClientA->>S1: Publish(topic="cache.invalidate", FIRE_AND_FORGET)
+    S1-->>ClientA: PublishAck(accepted=true)
+    S1->>ClientA: Envelope(cache.invalidate)  Note: local fan-out only
+
+    Note over S2: Server 2 and its clients never receive this message —<br/>no peer link exists to carry it there
+
+    S1->>S1: Begin graceful shutdown
+    S1->>ClientA: Envelope(server.lifecycle, "restarting", GUARANTEED)
+    ClientA-->>S1: Ack(message_id)
+```
+
+**Implication (worth calling out explicitly):** with the mesh off, any use
+case that needs cluster-wide consistency (cache invalidation across all
+servers, RAFT) is **not achieved** unless every server happens to be
+reached directly by a client that independently publishes to it, or unless
+the mesh is turned on. Mesh OFF is only sufficient for the pure
+server-to-*its-own*-clients use case (`server.lifecycle`) or for
+single-server deployments. This should be documented plainly for operators
+so nobody assumes cache invalidation is cluster-wide by default when it
+isn't.
+
+#### Mesh ON — sequence flow (opt-in)
+
+With the mesh enabled and peers configured, each server also holds a
+`PeerMessagingClient` per peer, opened at server startup regardless of
+client activity. A `Publish` call now fans out both to the server's own
+connected clients *and* to its peers, which in turn fan out to their own
+connected clients (and, if relevant, further peers already covered by the
+full mesh so no re-forwarding loop is needed — see the loop-avoidance note
+below).
+
+```mermaid
+sequenceDiagram
+    participant ClientA as App Client (on Server 1)
+    participant S1 as OJP Server 1
+    participant S2 as OJP Server 2
+    participant ClientB as App Client (on Server 2)
+
+    Note over S1,S2: ojp.server.mesh.enabled=true, ojp.server.mesh.peers configured on both nodes
+
+    S1->>S2: Subscribe(topics=["raft.election","cache.invalidate"]) [at S1 startup, no client involved]
+    S2->>S1: Subscribe(topics=["raft.election","cache.invalidate"]) [at S2 startup, no client involved]
+
+    ClientA->>S1: Subscribe(topics=["cache.invalidate","server.lifecycle"])
+    ClientB->>S2: Subscribe(topics=["cache.invalidate","server.lifecycle"])
+
+    ClientA->>S1: Publish(topic="cache.invalidate", FIRE_AND_FORGET)
+    S1-->>ClientA: PublishAck(accepted=true)
+    S1->>ClientA: Envelope(cache.invalidate)  Note: local fan-out
+    S1->>S2: Envelope(cache.invalidate)        Note: mesh fan-out (producer_id=S1)
+    S2->>ClientB: Envelope(cache.invalidate)   Note: S2 relays to its own clients
+
+    Note over S1,S2: RAFT example — no client involved at all
+    S2->>S1: Envelope(topic="raft.election", FIRE_AND_FORGET)
+    S1->>S1: Process vote request, update local RAFT state
+
+    Note over S1: Server 1 begins graceful shutdown
+    S1->>ClientA: Envelope(server.lifecycle, "restarting", GUARANTEED)
+    ClientA-->>S1: Ack(message_id)
+```
+
+**Loop-avoidance note:** because §5.3 already assumes a full mesh (every
+server subscribes directly to every other configured peer), a receiving
+server only needs to fan a peer-originated `Envelope` out to its *own*
+connected clients, never re-publish it back onto the mesh — `producer_id`
+lets a receiver recognize and drop an `Envelope` it produced itself (guards
+against any accidental echo) but no further re-broadcast logic is needed
+given the full-mesh topology. If OJP ever moves to gossip-based fan-out
+for larger clusters (§8.1), this would need actual hop-count/seen-set
+loop-avoidance — flagged there, not solved here.
+
 ---
 
 ## 6. Mapping back to the 3 example use cases
