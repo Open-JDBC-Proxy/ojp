@@ -295,7 +295,12 @@ configured."
 
 **Verdict: recommended.** It is the only option that is both generic and
 compliant with the "reuse the driver" constraint without abusing SQL
-semantics, provided it is implemented as an explicitly opt-in feature.
+semantics, provided the peer mesh piece of it is implemented as an
+explicitly opt-in feature. Note this "opt-in" requirement applies
+specifically to the **direct peer mesh** described above; the same
+`MessagingService` contract also underpins a second, always-on
+server-to-server path — **client-relay**, via multinode clients — that
+needs no enable flag at all. See §5.3 for the full picture of both.
 
 ### Option D — External message broker (Kafka, RabbitMQ, NATS, Redis pub/sub)
 
@@ -340,6 +345,13 @@ message Envelope {
   int64    produced_at_ms  = 5;
   DeliveryMode delivery_mode = 6;
   int32    ttl_seconds     = 7;  // optional expiry, mainly for guaranteed mode retries
+  bool     cluster_scope   = 8;  // true = intended for every server in the cluster, not just the
+                                 // one that received the Publish call (see §5.3); false = local to
+                                 // this server's own subscribers only (e.g. server.lifecycle)
+  int32    max_relay_hops  = 9;  // only meaningful when cluster_scope=true and mesh is disabled
+                                 // (client-relay mode, §5.3.1); bounds how many client-mediated
+                                 // hops a message may travel before being dropped, to cap fan-out
+                                 // in a densely-connected client population
 }
 
 enum DeliveryMode {
@@ -391,13 +403,81 @@ for RAFT (each node's own message stream is ordered) and for cache
 invalidation (order between different producers' invalidations usually
 doesn't matter because invalidation is idempotent).
 
-### 5.3 Server-to-server topology
+### 5.3 Server-to-server topology — two modes, not one
 
-- **Disabled by default.** This entire subsection describes behavior gated
-  behind a new server setting, e.g. `ojp.server.mesh.enabled=false` by
-  default. When disabled, none of the below happens: no peer list is read,
-  no channel is opened, no outbound connection is attempted. A default,
-  single-server (or client-only-multinode) OJP deployment sees no change.
+Earlier revisions of this analysis treated the direct peer mesh (§5.3.2
+below) as *the* server-to-server option and described "mesh off" as simply
+"servers don't talk to each other." That was incomplete. There are actually
+**two distinct ways** a `Publish` on one server can reach another server,
+and both are worth offering rather than presenting the mesh as the only
+real mechanism:
+
+| | 5.3.1 Client-relay | 5.3.2 Direct mesh |
+|---|---|---|
+| Controlled by | Automatic, no server-to-server config needed | `ojp.server.mesh.enabled=true` + `ojp.server.mesh.peers` |
+| Default | **Yes — this is what happens today with zero extra config** | No — explicit opt-in |
+| Transport | Existing multinode client sessions, used as a relay medium | A dedicated channel per configured peer |
+| New server-to-server connection? | **None** | Yes (that's the whole point of enabling it) |
+| Works with zero clients connected? | **No** | Yes |
+
+#### 5.3.1 Client-relay mode (the default — no new connections at all)
+
+This is the mechanism that directly answers "use the clients as a means to
+communicate with other OJP servers": OJP already has a population of
+clients that are simultaneously connected to more than one OJP server —
+**multinode clients**, using the existing
+`jdbc:ojp[host1:port1,host2:port2]_url` URL format (see
+`documents/multinode/README.md`). A multinode client already holds an open
+gRPC session to each server in its URL, primarily for load-aware routing
+and failover. Nothing new needs to be opened for such a client to also
+carry a message from one of "its" servers to another.
+
+Mechanics:
+- A multinode driver instance, in addition to its normal query traffic,
+  keeps a `Subscribe` stream open on *every* server session it holds (this
+  is already true regardless of relay — see §5.4) for whichever topics it
+  or the application cares about.
+- When the driver receives an `Envelope` with `cluster_scope=true` on one
+  session, and has not seen that `message_id` before (a small client-side
+  Caffeine-backed seen-set, same de-dup mechanism as guaranteed delivery),
+  it re-publishes the same `Envelope` — unchanged, `message_id` preserved —
+  on every *other* server session it holds, after decrementing
+  `max_relay_hops` (dropping it silently once the count reaches zero, to
+  bound propagation).
+- From a receiving server's point of view this is indistinguishable from
+  any other client `Publish` call — no protocol change, no new RPC. The
+  receiving server fans it out locally to its own subscribers exactly as
+  in §5.3's local fan-out, and if *that* server also happens to have
+  multinode clients connected, the message continues to ripple outward
+  through the client population.
+- Net effect: the "connectivity graph" of the cluster is formed by
+  *currently-connected multinode clients* (servers = nodes, each multinode
+  client = an edge between the servers in its URL). A message reaches every
+  server reachable from the publisher in that graph. If the graph happens
+  to connect the whole cluster, every server eventually gets the message; if
+  it doesn't (too few multinode clients, or clients only connected to a
+  subset of servers), some servers simply never see it — silently, with no
+  error, which is the central trade-off of this mode.
+
+**When this is the right choice:** exactly the scenario in the original
+feedback — deployments where opening a direct connection between OJP
+servers is difficult, disallowed by network policy, or simply undesirable
+(e.g. servers live in network segments that only accept inbound traffic
+from application-side clients, not from each other). It is also
+zero-configuration: it works as an automatic side-effect of multinode
+client connectivity that already exists today, with no new peer list to
+maintain.
+
+**When this is *not* the right choice:** anything that must be guaranteed to
+work regardless of client population, most importantly RAFT — see §5.3.3
+and §6.1 for why.
+
+#### 5.3.2 Direct mesh mode (opt-in, off by default)
+
+- Gated behind `ojp.server.mesh.enabled` (default `false`). When disabled,
+  none of this runs: no peer list is read, no channel is opened, no
+  outbound connection is attempted. A default, single-server (or
+  client-relay-only) OJP deployment sees no change.
 - Peers are discovered from a **dedicated, explicit server-side setting**
   (e.g. `ojp.server.mesh.peers=host1:port1,host2:port2`), set independently
   by the operator on each node — this is deliberately *not* the same list as
@@ -415,18 +495,64 @@ doesn't matter because invalidation is idempotent).
   deployments (tens of nodes at most), so a full mesh is acceptable; if OJP
   ever targets hundreds of nodes, gossip-based fan-out would be needed
   instead (flagged as a non-goal for now, see §9).
-- **This is the server-to-server option**, and it is driven entirely by
-  server-side lifecycle/configuration (peer list), not by application client
-  activity: once enabled, a server establishes and maintains these peer
-  streams from its own startup regardless of whether any JDBC client is
-  currently connected. This is what keeps RAFT/cache-invalidation working in
-  serverless deployments where application clients scale to zero for long
-  stretches — see §6.1 for the detailed reasoning.
-- Publishing from a server to "the cluster" is a local fan-out: the local
-  `MessagingService` implementation receives one `Publish` call and pushes
-  the `Envelope` to every currently-connected `Subscribe` stream (peers and,
-  for client-directed topics, connected client sessions) whose subscription
-  matches the topic.
+- This mode is driven entirely by server-side lifecycle/configuration (peer
+  list), not by application client activity: once enabled, a server
+  establishes and maintains these peer streams from its own startup
+  regardless of whether any JDBC client is currently connected. This is
+  what keeps RAFT/cache-invalidation working in serverless deployments
+  where application clients scale to zero for long stretches — see §6.1 for
+  the detailed reasoning.
+- Publishing from a server to "the cluster" is a local fan-out plus a mesh
+  fan-out: the local `MessagingService` implementation receives one
+  `Publish` call and pushes the `Envelope` to every currently-connected
+  `Subscribe` stream (peers and, for client-directed topics, connected
+  client sessions) whose subscription matches the topic. When mesh mode is
+  active, `cluster_scope=true` envelopes go directly to peers over the mesh
+  and do **not** additionally rely on client relay (both mechanisms are
+  never needed at once for the same message — see §5.3.3).
+
+#### 5.3.3 Comparison: client-relay vs. direct mesh, and how to choose
+
+| | Client-relay (default) | Direct mesh (opt-in) |
+|---|---|---|
+| **New connections required** | None — reuses existing multinode client sessions | Yes — one channel per configured peer |
+| **Delivery guarantee** | Best-effort; depends entirely on the current multinode client population forming a connected graph across the cluster. No bound on latency or coverage. | Deterministic: every configured peer is reached directly, independent of any client |
+| **Works with zero clients connected** | **No** — no clients, no relay medium, no cross-server delivery at all | **Yes** — this is the whole point |
+| **Good fit for** | Cache invalidation and other idempotent, self-healing, best-effort broadcasts, *especially* in deployments where a direct server-to-server link is hard, blocked, or undesirable | RAFT consensus and anything else that needs bounded-latency, guaranteed-to-attempt delivery regardless of client traffic (e.g. serverless client tiers, §6.1) |
+| **Poor fit for** | RAFT — see below | Deployments where opening any new outbound connection between OJP processes is explicitly disallowed by network policy |
+| **New server-side config** | None | Peer list + enable flag, maintained per node |
+| **New trust/auth surface** | None beyond what already secures client↔server traffic (a relay hop is just a normal authenticated client `Publish` call) | Yes — needs its own inter-server credential/trust story (§8.3) |
+| **Extra idle resource cost** | None when no multinode clients are connected; a small amount of relay bookkeeping (seen-set) on multinode clients that are connected | One idle channel + stream per configured peer, always, once enabled |
+| **Puts new responsibility on** | The JDBC driver (an app-embedded library becomes a message relay for cluster-internal traffic — see the concern in §8.9 about whether that is appropriate) | `ojp-server` only (the driver's role doesn't change) |
+
+**My recommendation, stated plainly:** ship both, because they solve
+different problems, and default to client-relay because it costs nothing
+and requires nothing from operators:
+
+- **Client-relay (default) for `cache.invalidate`** and any other
+  idempotent/best-effort cluster-wide topic. It is genuinely the option
+  requested in the original feedback for "situations where opening a
+  connection between OJP servers is difficult or not possible," and it
+  requires zero new infrastructure.
+- **Direct mesh, explicitly enabled, for RAFT.** RAFT should not run over
+  client-relay for two independent reasons, not just one: (1) coverage is
+  probabilistic — an election message that silently fails to reach a
+  quorum because too few multinode clients happen to be connected right
+  then is a correctness/liveness risk, not just a minor delay; and (2)
+  trust — routing consensus-critical server-to-server traffic through
+  arbitrary application processes (which the operator may not fully
+  control, patch on the same schedule, or even trust to the same degree as
+  the OJP servers themselves) is a meaningfully larger attack surface than
+  a direct, operator-configured peer link. I'd treat "RAFT requires
+  `ojp.server.mesh.enabled=true`" as a hard product rule, not a soft
+  recommendation. Confidence: high (85%) on the trust argument, medium
+  (65%) on exactly how bad the coverage risk is in practice, since that
+  depends on real deployment client-connectivity patterns I don't have data
+  on.
+- **Direct mesh is also the answer for serverless/idle-client
+  deployments** (§6.1) — it's the only one of the two modes that keeps
+  working when the client population (and therefore the client-relay
+  medium) disappears entirely.
 
 ### 5.4 Server-to-client topology
 
@@ -444,23 +570,25 @@ doesn't matter because invalidation is idempotent).
   Reusing `SQLWarning` avoids inventing a whole new client-facing API for a
   notification that is fundamentally advisory.
 
-### 5.5 Message flow diagrams — Mesh OFF vs. Mesh ON
+### 5.5 Message flow diagrams — Mesh OFF (client-relay) vs. Mesh ON (direct mesh)
 
 The two diagrams below make the difference between the two modes from §5.3
-concrete: **Mesh OFF** is the default for every OJP deployment; **Mesh ON**
-is an explicit opt-in (`ojp.server.mesh.enabled=true` + a configured peer
-list) needed only when servers must exchange messages with each other
-(RAFT, cross-server cache invalidation) independently of any client, e.g.
-serverless client tiers (§6.1).
+concrete: **Mesh OFF** is the default for every OJP deployment and still
+carries cluster-wide messages, via client relay, whenever a multinode
+client happens to bridge the servers involved; **Mesh ON** is an explicit
+opt-in (`ojp.server.mesh.enabled=true` + a configured peer list) that
+removes the dependency on client connectivity entirely, needed for RAFT and
+for serverless client tiers (§6.1).
 
 #### Topology comparison
 
 ```mermaid
 graph LR
-    subgraph "Mesh OFF (default)"
-        C1[App Client] -->|Subscribe / Publish| S1[OJP Server 1]
-        C2[App Client] -->|Subscribe / Publish| S2[OJP Server 2]
-        S1 -.->|no connection attempted| S2
+    subgraph "Mesh OFF (default) — relay via multinode clients"
+        CM[Multinode App Client<br/>jdbc:ojp two-hosts URL] -->|Subscribe / Publish| S1[OJP Server 1]
+        CM -->|Subscribe / Publish, also relays cluster_scope envelopes| S2[OJP Server 2]
+        C1[Single-node App Client] -->|Subscribe / Publish| S1
+        S1 -.->|no direct connection| S2
     end
 ```
 
@@ -473,62 +601,71 @@ graph LR
     end
 ```
 
-Note both subgraphs use the **same** `MessagingService` contract end to end —
-"Mesh ON" does not add a different protocol, it just means the server also
-acts as a `MessagingService` client of its peers, using the shared gRPC
-plumbing described in §5.2, in addition to serving its own clients.
+Note both subgraphs use the **same** `MessagingService` contract end to end
+— "Mesh ON" does not add a different protocol, it just removes the
+dependency on a multinode client being present to carry the message; a
+`Publish` call, an `Envelope`, and a `Subscribe` stream look identical to a
+server whether the other end is a peer server or a relaying client.
 
-#### Mesh OFF — sequence flow (default behavior)
+#### Mesh OFF — sequence flow (default behavior, client-relay)
 
 With the mesh disabled, `ojp-server` never reads a peer list and never
-dials another server. Messaging only flows between a server and the
-clients connected *to that specific server*. A topic that is meant to
-coordinate the whole cluster (e.g. `cache.invalidate`) only reaches clients
-of the server that received the `Publish` call — there is no cross-server
-fan-out.
+dials another server directly. Instead, any client that is connected to
+more than one server (a **multinode client**, using the existing
+`jdbc:ojp[host1:port1,host2:port2]_url` format) acts as the carrier: it
+already holds a `Subscribe` stream open on every server in its URL (§5.4),
+and when it receives a `cluster_scope=true` `Envelope` it hasn't seen
+before, it re-publishes that same envelope on its other server sessions.
 
 ```mermaid
 sequenceDiagram
-    participant ClientA as App Client (on Server 1)
+    participant ClientA as App Client (single-node, on Server 1)
     participant S1 as OJP Server 1
+    participant CM as Multinode Client (sessions on S1 and S2)
     participant S2 as OJP Server 2
-    participant ClientB as App Client (on Server 2)
+    participant ClientB as App Client (single-node, on Server 2)
 
     Note over S1,S2: ojp.server.mesh.enabled=false (default) — S1 and S2 never dial each other
 
     ClientA->>S1: Subscribe(topics=["cache.invalidate","server.lifecycle"])
+    CM->>S1: Subscribe(topics=["cache.invalidate"])
+    CM->>S2: Subscribe(topics=["cache.invalidate"])
     ClientB->>S2: Subscribe(topics=["cache.invalidate","server.lifecycle"])
 
-    ClientA->>S1: Publish(topic="cache.invalidate", FIRE_AND_FORGET)
+    ClientA->>S1: Publish(topic="cache.invalidate", cluster_scope=true, FIRE_AND_FORGET)
     S1-->>ClientA: PublishAck(accepted=true)
-    S1->>ClientA: Envelope(cache.invalidate)  Note: local fan-out only
+    S1->>ClientA: Envelope(cache.invalidate)  Note: local fan-out
+    S1->>CM: Envelope(cache.invalidate, message_id=M1, max_relay_hops=2)
 
-    Note over S2: Server 2 and its clients never receive this message —<br/>no peer link exists to carry it there
+    CM->>CM: seen-set check: M1 not seen yet, max_relay_hops > 0
+    CM->>S2: Publish(Envelope(cache.invalidate, message_id=M1, max_relay_hops=1))
+    S2-->>CM: PublishAck(accepted=true)
+    S2->>ClientB: Envelope(cache.invalidate)  Note: S2 fans out to its own clients
+
+    Note over S1,S2: Delivery only happened because CM was connected to both servers.<br/>If no such multinode client were connected right now, S2/ClientB would never see it — silently.
 
     S1->>S1: Begin graceful shutdown
-    S1->>ClientA: Envelope(server.lifecycle, "restarting", GUARANTEED)
+    S1->>ClientA: Envelope(server.lifecycle, "restarting", GUARANTEED, cluster_scope=false)
     ClientA-->>S1: Ack(message_id)
+    Note over S1: server.lifecycle is never cluster_scope — it is always local to the restarting server's own clients, relayed or not
 ```
 
-**Implication (worth calling out explicitly):** with the mesh off, any use
-case that needs cluster-wide consistency (cache invalidation across all
-servers, RAFT) is **not achieved** unless every server happens to be
-reached directly by a client that independently publishes to it, or unless
-the mesh is turned on. Mesh OFF is only sufficient for the pure
-server-to-*its-own*-clients use case (`server.lifecycle`) or for
-single-server deployments. This should be documented plainly for operators
-so nobody assumes cache invalidation is cluster-wide by default when it
-isn't.
+**Implication (worth calling out explicitly):** with the mesh off, cluster
+delivery is real but **probabilistic** — it depends on the connectivity
+graph formed by whichever multinode clients happen to be connected at that
+moment. That is a fundamentally different guarantee from "always reaches
+every server," and it is why RAFT should not rely on this mode alone (§5.3.3,
+§6.1) even though cache invalidation is a good fit for it.
 
 #### Mesh ON — sequence flow (opt-in)
 
 With the mesh enabled and peers configured, each server also holds a
 `PeerMessagingClient` per peer, opened at server startup regardless of
 client activity. A `Publish` call now fans out both to the server's own
-connected clients *and* to its peers, which in turn fan out to their own
-connected clients (and, if relevant, further peers already covered by the
-full mesh so no re-forwarding loop is needed — see the loop-avoidance note
-below).
+connected clients *and* directly to its peers — client relay is not needed
+and, when a message is already delivered via the mesh, a relaying client
+that also happens to see it is a no-op thanks to `message_id` de-dup (the
+peer already marks itself as having produced/seen it).
 
 ```mermaid
 sequenceDiagram
@@ -545,13 +682,13 @@ sequenceDiagram
     ClientA->>S1: Subscribe(topics=["cache.invalidate","server.lifecycle"])
     ClientB->>S2: Subscribe(topics=["cache.invalidate","server.lifecycle"])
 
-    ClientA->>S1: Publish(topic="cache.invalidate", FIRE_AND_FORGET)
+    ClientA->>S1: Publish(topic="cache.invalidate", cluster_scope=true, FIRE_AND_FORGET)
     S1-->>ClientA: PublishAck(accepted=true)
     S1->>ClientA: Envelope(cache.invalidate)  Note: local fan-out
     S1->>S2: Envelope(cache.invalidate)        Note: mesh fan-out (producer_id=S1)
     S2->>ClientB: Envelope(cache.invalidate)   Note: S2 relays to its own clients
 
-    Note over S1,S2: RAFT example — no client involved at all
+    Note over S1,S2: RAFT example — no client involved at all, works identically whether zero or many clients are connected
     S2->>S1: Envelope(topic="raft.election", FIRE_AND_FORGET)
     S1->>S1: Process vote request, update local RAFT state
 
@@ -560,7 +697,7 @@ sequenceDiagram
     ClientA-->>S1: Ack(message_id)
 ```
 
-**Loop-avoidance note:** because §5.3 already assumes a full mesh (every
+**Loop-avoidance note:** because §5.3.2 already assumes a full mesh (every
 server subscribes directly to every other configured peer), a receiving
 server only needs to fan a peer-originated `Envelope` out to its *own*
 connected clients, never re-publish it back onto the mesh — `producer_id`
@@ -574,62 +711,92 @@ loop-avoidance — flagged there, not solved here.
 
 ## 6. Mapping back to the 3 example use cases
 
-| Use case | Topic | Mode | Notes |
-|---|---|---|---|
-| RAFT consensus | `raft.<cluster-id>.election` (or similar) | Fire-and-forget | RAFT already assumes an unreliable network and re-sends `RequestVote`/`AppendEntries` on timeout; making the transport "guaranteed" would add latency (ack round-trip) for no protocol benefit and could even mask real partitions from RAFT's own failure detector. |
-| Cache invalidation | `cache.invalidate` | Fire-and-forget | Invalidation is idempotent and self-healing (a missed invalidation just means a slightly stale cache entry until the next write/TTL); guaranteed delivery adds cost with little benefit. Could optionally periodically re-broadcast a checksum/version as a belt-and-suspenders anti-entropy mechanism — not required for this analysis. |
-| Server restarting | `server.lifecycle` | Guaranteed (to currently-connected clients only) | This is the one case where "the client acts differently because it got the message" (e.g. stop sending new statements, prepare to fail over), so an ack-and-retry within the shutdown grace period is worth the extra complexity. Note "guaranteed" here can only mean "guaranteed to currently-attached subscribers within the grace period" — a client that is disconnected at the moment of publish cannot be reached by this mechanism, only by the normal failover behavior of the multinode driver, which already exists independently of this new protocol. |
+| Use case | Topic | Mode | Recommended topology | Notes |
+|---|---|---|---|---|
+| RAFT consensus | `raft.<cluster-id>.election` (or similar) | Fire-and-forget | **Direct mesh required** (`ojp.server.mesh.enabled=true`) | RAFT already assumes an unreliable network and re-sends `RequestVote`/`AppendEntries` on timeout; making the transport "guaranteed" would add latency (ack round-trip) for no protocol benefit and could even mask real partitions from RAFT's own failure detector. Client-relay's probabilistic coverage (§5.3.3) is not acceptable here — a vote that silently never reaches a quorum because too few multinode clients are connected is a liveness bug, and routing consensus traffic through arbitrary application processes is a bigger trust surface than a direct peer link. |
+| Cache invalidation | `cache.invalidate` | Fire-and-forget | **Client-relay (default) is fine**; mesh optional for stronger guarantees | Invalidation is idempotent and self-healing (a missed invalidation just means a slightly stale cache entry until the next write/TTL), which is exactly what client-relay's best-effort coverage tolerates well. Could optionally periodically re-broadcast a checksum/version as a belt-and-suspenders anti-entropy mechanism — not required for this analysis. |
+| Server restarting | `server.lifecycle` | Guaranteed (to currently-connected clients only) | Neither — always server-to-its-own-clients, never cluster-wide | This is the one case where "the client acts differently because it got the message" (e.g. stop sending new statements, prepare to fail over), so an ack-and-retry within the shutdown grace period is worth the extra complexity. Note "guaranteed" here can only mean "guaranteed to currently-attached subscribers within the grace period" — a client that is disconnected at the moment of publish cannot be reached by this mechanism, only by the normal failover behavior of the multinode driver, which already exists independently of this new protocol. This topic is never `cluster_scope=true` and is therefore unaffected by mesh on/off. |
 
 ---
 
-## 6.1 Serverless / zero-client deployments
+## 6.1 Serverless / zero-client deployments, and the client-relay vs. mesh choice
 
-This point needs to be made explicit, because it changes what "reuse the
-driver, don't connect servers directly" actually means in practice.
+This section now covers two related questions raised in review: how does
+this design behave when the application client tier is idle or absent, and
+— stated bluntly — does that actually matter?
 
-**The problem:** In a serverless deployment (application instances scaled to
-zero between invocations, e.g. AWS Lambda/Fargate/Knative-style workloads),
-there can be long stretches of time — potentially most of the time — where
-**zero application clients are connected to any OJP server**. RAFT
-leader-election and cache invalidation are both needs of the OJP server
-cluster itself, and both must keep working in that window. If the messaging
-design's server-to-server path only worked *through* connected application
-client sessions (e.g. "server A asks a connected client to relay a message
-to server B"), it would break the moment all clients scale to zero — which
-is unacceptable for RAFT in particular, since a cluster with no application
-traffic still has to hold an election, detect leader failure, and replicate
-whatever state RAFT protects.
+**The mechanism, restated:** §5.3 now offers two ways for a message to
+cross servers. **Client-relay** (default, §5.3.1) uses whichever multinode
+clients happen to be connected as the carrier — free, but coverage is a
+function of current client connectivity. **Direct mesh** (opt-in,
+§5.3.2) uses a dedicated peer link per server, driven entirely by server
+startup/configuration, independent of any client. Only the mesh is
+unaffected by the client population going to zero.
 
-**Good news / clarification:** the Option C design in §5.3 was already built
-to not depend on this. The "reuse the driver" constraint in this analysis
-was never about *piggybacking on application client connections* — it was
-about *not inventing a second, bespoke wire protocol/socket for
-server-to-server traffic*. Concretely: each OJP server reuses the driver's
-internal gRPC client-plumbing (channel management, retry/circuit-breaker
-logic — see §5.2 for exactly which classes) as a library dependency and uses
-it to open a `Subscribe` (and call `Publish`) directly against its peer
-servers' `MessagingService`, the same way `StatementServiceGrpcClient`
-already uses that plumbing today. **No application client needs to be
-connected, or ever connect, for this path to work**, and — per the "opt-in"
-requirement below — nothing here runs at all unless an operator explicitly
-enables it. So: **yes, this already is "an OJP server-to-server option"**,
-just implemented as "server process links the driver's client-side gRPC
-plumbing as a library and calls the peer with it" rather than as a raw
-socket or a JDBC `Connection` — which is what satisfies the original
-constraint without leaving serverless clusters unable to run
-RAFT/cache-invalidation when idle.
+**Recommendation for serverless/idle-client deployments:** enable the mesh.
+Client-relay is the right default for typical deployments (it costs
+nothing and needs no extra config), but the moment a deployment can have
+long stretches with zero connected clients, client-relay's carrier
+disappears along with them, and cross-server messaging stops silently
+until a client reconnects. If that idle-period gap matters for the use
+case (see below), `ojp.server.mesh.enabled=true` is the only one of the two
+modes that keeps working through it, because it is driven by server
+lifecycle, not client activity.
 
-That said, a few consequences of this are worth calling out because they
-were understated in the original write-up:
+**Now, the honest answer to "is it actually a problem if OJP servers don't
+communicate while no clients are connected?"** — asked directly in review,
+and it deserves a direct, un-hedged answer rather than a reflexive "always
+enable the mesh":
 
-1. **The mesh must be independent of, and outlive, any client traffic.**
-   Each server should establish and maintain its peer `Subscribe` streams
-   (with reconnect/backoff) as part of its own startup and health-check
-   loop, not lazily "when a client first connects." Practically this means
-   the peer-mesh client instances are a **server-owned background
-   component**, not something built opportunistically off application
-   sessions. This should be stated as an explicit requirement, not an
-   implementation detail.
+- **In the fully idle case, on its own, no.** If literally zero clients are
+  connected, there is no query traffic, nothing reading the cache, and
+  nothing depending on a leader decision *at that instant*. A cluster with
+  no application activity has no user-visible correctness or availability
+  at stake while it is idle. I would resist treating "servers can't reach
+  each other right now" as inherently bad — it's only bad in relation to
+  something that needs the result of that communication.
+- **The real risk is at the boundary, not during the idle period itself:**
+  the moment the *first* client reconnects after a long idle stretch. If
+  that first request depends on cluster state that only converges through
+  server-to-server messaging (e.g. "who is the current RAFT leader,"
+  "is my local cache fresh"), and the messaging carrier (client-relay) only
+  starts working once *that same client* becomes multinode-connected, the
+  cluster has to bootstrap its coordination state concurrently with serving
+  the very first request that depends on it. For self-healing, idempotent
+  concerns (stale cache entry served once, RAFT election completing a beat
+  late) this is a bounded cold-start cost, not an ongoing bug — likely
+  acceptable. For anything where "answer before consensus is reached" is
+  actively wrong rather than just outdated (e.g. two servers each
+  believing themselves leader long enough to accept conflicting writes — a
+  split-brain window), it is a real correctness problem, not just added
+  latency, and is worth avoiding entirely rather than tolerating.
+- **Applied to the 3 examples:** `server.lifecycle` can never be a problem
+  when idle — there is nothing to notify with no clients present. Cache
+  invalidation is essentially never a problem — worst case is one avoidable
+  stale read at reconnect, self-corrected on the next write/TTL. RAFT is
+  the only one of the three where the answer genuinely depends on *what*
+  the consensus protects: coordination that's purely advisory/background
+  can tolerate the same cold-start gap as cache invalidation; coordination
+  that gates a decision that must not be made twice or made incorrectly
+  (leader-exclusive writes, distributed locks) cannot, and that is
+  precisely the case the direct mesh exists for.
+- **My confidence in this framing:** high (80%) on the general shape of the
+  argument (idle = no stakes, the risk is at the reconnect boundary, and it
+  scales with how "must-not-be-wrong" the protected state is). Lower
+  confidence (50%) on how large the cold-start window actually is in
+  practice for a specific RAFT implementation, since that depends on
+  election-timeout tuning this analysis doesn't specify — worth revisiting
+  once RAFT is actually implemented rather than assuming it away here.
+
+**Remaining consequences worth calling out** (mostly unchanged from the
+prior revision of this section):
+
+1. **The mesh, when enabled, must be independent of, and outlive, any
+   client traffic.** Each server should establish and maintain its peer
+   `Subscribe` streams (with reconnect/backoff) as part of its own startup
+   and health-check loop, not lazily "when a client first connects." This
+   should be stated as an explicit requirement, not an implementation
+   detail.
 2. **"Client off" doesn't mean "server off."** Serverless here refers to the
    *application* tier scaling to zero; the OJP servers themselves are
    assumed to remain running (they are the proxy/pool layer, not the
@@ -642,36 +809,30 @@ were understated in the original write-up:
    pool that's destroyed on every scale-to-zero event defeats the purpose of
    OJP. **Question for the team: is there any scenario where the OJP
    *servers* (not just client apps) are expected to scale to zero, e.g. one
-   OJP server per Lambda invocation?** If yes, this analysis's server-mesh
-   design does not cover that case and would need rework (likely toward a
+   OJP server per Lambda invocation?** If yes, neither mode in this analysis
+   covers that case and it would need rework (likely toward a
    stateless/external-coordination model, which starts to look like Option D
    again).
-3. **Server-to-client topics (`server.lifecycle`) are naturally a no-op when
-   no clients are connected**, which is fine — there is nothing to notify.
-   No special handling needed there.
-4. **Bootstrap ordering**: at cluster cold start (e.g. all OJP servers
-   starting together, as might happen in an autoscaled/serverless-adjacent
-   infra deployment), servers need to discover and connect to peers *before*
-   any application client connects, otherwise RAFT can't elect a leader in
-   time for the first request. This reinforces point 1: the peer mesh must
-   be driven by its own dedicated server-side configuration (see §5.3 — a
-   distinct `ojp.server.mesh.peers` setting, not `serverEndpoints`, since the
+3. **Bootstrap ordering (mesh mode only)**: at cluster cold start (e.g. all
+   OJP servers starting together), servers need to discover and connect to
+   peers *before* any application client connects, otherwise RAFT can't
+   elect a leader in time for the first request. This reinforces point 1:
+   the peer mesh must be driven by its own dedicated server-side
+   configuration (`ojp.server.mesh.peers`, not `serverEndpoints`, since the
    latter is only populated by connecting clients), not by client activity.
-5. **This does not conflict with "opt-in, off by default" (§5.2/§5.3).** A
-   deployment that wants RAFT/cache-invalidation to survive a fully idle
-   client tier must explicitly set `ojp.server.mesh.enabled=true` and
-   configure the peer list on every node — the serverless scenario is a
-   reason *to* enable the mesh, not a reason to make it default-on. Nothing
-   about supporting this use case requires or justifies connecting OJP
-   servers to each other by default.
+4. **This does not conflict with "client-relay is the default."** A
+   deployment that needs RAFT/cache-invalidation to survive a fully idle
+   client tier, or that considers even the reconnect-boundary risk above
+   unacceptable, must explicitly set `ojp.server.mesh.enabled=true` and
+   configure the peer list on every node. Client-relay remains the default
+   for everyone else because it requires no extra configuration and no new
+   inter-server trust relationship.
 
-**Net effect on the recommendation:** no change to the recommended option
-(Option C) — but the analysis should have been explicit from the start that
-the server-to-server mesh in §5.3 *is* the "OJP server-to-server option"
-being asked about here, and that it is designed to work with zero connected
-application clients, provided the OJP server processes themselves stay up.
-I'm revising §5.3/§9 framing below to make this explicit rather than leaving
-it implied.
+**Net effect on the recommendation:** ship both modes (§5.3.3). Client-relay
+is the default and directly addresses the original ask — servers exchange
+messages via connected clients when opening a direct server-to-server link
+is hard or undesirable — while the direct mesh remains the opt-in answer
+for RAFT and for any deployment where client presence cannot be assumed.
 
 ---
 
@@ -761,10 +922,52 @@ it implied.
    server processes are long-lived even when application clients are not,
    and the peer mesh is what keeps RAFT/cache-invalidation alive during
    client-less periods. If there's a deployment model where OJP servers
-   themselves are ephemeral (spun up per request/invocation), the mesh-based
-   design here does not apply and this would need a fundamentally different
+   themselves are ephemeral (spun up per request/invocation), neither mode
+   in this design applies and this would need a fundamentally different
    (likely externally-coordinated) approach. Flagging this as a question for
    the team rather than assuming an answer.
+9. **Client-relay coverage is probabilistic, not guaranteed, and that is
+   invisible to operators unless documented loudly.** A missed relay hop
+   produces no error anywhere — the publishing server gets a normal
+   `PublishAck`, the message simply never reaches a server that had no
+   multinode client bridging to it at that moment. This is an acceptable
+   trade-off for cache invalidation but needs a prominent callout in any
+   operator-facing docs (something like: "if you need a guarantee that
+   cache invalidation reaches every node, enable the mesh"), otherwise an
+   operator could reasonably assume "cluster-wide" means "every node,
+   always," which client-relay does not promise.
+10. **Client-relay puts new responsibility on the driver that is arguably
+    outside its job description.** Today the JDBC driver's entire purpose is
+    "be a JDBC driver for one application's queries." Client-relay asks it
+    to additionally become a piece of cluster-internal transport
+    infrastructure — forwarding messages that have nothing to do with the
+    application that embeds it, consuming a small amount of the
+    application's CPU/memory/network for another tenant's (the OJP cluster's)
+    benefit. This is a real, if small, scope-creep concern, and part of why
+    I would keep relay strictly limited to `cluster_scope=true`,
+    hop-bounded, fire-and-forget topics (never RAFT, never anything latency-
+    or trust-sensitive) — the blast radius of "an application's JDBC driver
+    is briefly acting as a cluster relay" should stay small and clearly
+    bounded. **Open question for the team: should relay be a per-client
+    opt-out (e.g. a driver connection property such as
+    `relay=false`) for applications that don't want their driver
+    participating in cluster transport at all, even for cache invalidation?**
+    My default assumption is yes, this should be opt-out-able per
+    connection, medium confidence (65%), since some operators will
+    reasonably object to any cluster-internal traffic riding through their
+    application's process on principle, independent of the actual resource
+    cost being small.
+11. **RAFT must never be allowed onto client-relay, even accidentally.**
+    Because both modes reuse the same `MessagingService` contract (§5.5),
+    it would be easy for an implementation to let a `raft.*` topic's
+    envelopes leak onto client-relay simply because a multinode client
+    happens to be subscribed to it. Recommend the server-side
+    implementation hard-codes a topic allowlist for what client-relay is
+    permitted to forward (e.g. only `cache.*` by default), independent of
+    whatever `max_relay_hops`/`cluster_scope` the publisher set, so a
+    misconfigured or malicious client cannot smuggle a RAFT message across
+    servers, and a well-meaning bug can't silently make RAFT "sort of work"
+    over an unreliable, untrusted path that was never meant for it.
 
 ---
 
@@ -775,20 +978,29 @@ plan — but a phased rollout is worth recording as a suggestion:
 
 1. Add `MessagingService` to `ojp-grpc-commons`, implement server-side
    fan-out for `Subscribe`/`Publish` with `FIRE_AND_FORGET` only, no
-   cross-server mesh yet — validate with the "cache invalidation" and
-   "server restarting" use cases first since they are lower risk than RAFT.
-2. Add the cluster-internal peer identity/credential mechanism (see
-   Concern 3) before turning on any server-to-server traffic.
-3. Enable the server-to-server mesh (`ojp.server.mesh.enabled=true`,
-   servers using the shared client-plumbing to reach configured peers) and
-   exercise it with cache invalidation broadcast.
-4. Add `GUARANTEED` delivery mode (ack + retry + de-dup) and switch
+   cross-server delivery of any kind yet — validate with the "server
+   restarting" use case first since it's purely server-to-its-own-clients
+   and carries no cross-server complexity at all.
+2. Add **client-relay** (default mode, §5.3.1): driver-side seen-set +
+   forwarding logic for `cluster_scope=true` envelopes, gated by a
+   hard-coded topic allowlist (Concern 11) and, per Concern 10, an
+   opt-out connection property. Exercise it with `cache.invalidate`, since
+   client-relay's probabilistic coverage is an acceptable trade-off there.
+3. Add the cluster-internal peer identity/credential mechanism (see
+   Concern 3) before turning on any direct server-to-server traffic.
+4. Add the **direct mesh** (opt-in, §5.3.2:
+   `ojp.server.mesh.enabled=true`, servers using the shared client-plumbing
+   to reach configured peers) and re-exercise `cache.invalidate` over it to
+   confirm both modes agree on the wire format and dedup correctly when
+   both happen to be active.
+5. Add `GUARANTEED` delivery mode (ack + retry + de-dup) and switch
    "server restarting" to it.
-5. RAFT is the most complex and highest-risk consumer (correctness-critical,
-   latency-sensitive); build/adopt it last, on top of a already-proven
-   messaging substrate, likely evaluating an existing, well-tested Java RAFT
-   library (e.g. an existing Raft implementation) rather than writing RAFT
-   from scratch, using this messaging layer purely as its transport.
+6. RAFT is the most complex and highest-risk consumer (correctness-critical,
+   latency-sensitive); build/adopt it last, on top of an already-proven
+   messaging substrate, **requiring the direct mesh** (never client-relay,
+   per Concern 11), likely evaluating an existing, well-tested Java RAFT
+   library rather than writing RAFT from scratch, using this messaging
+   layer purely as its transport.
 
 ---
 
@@ -796,20 +1008,42 @@ plan — but a phased rollout is worth recording as a suggestion:
 
 Introduce a new, generic `MessagingService` gRPC contract (topic + opaque
 payload + delivery mode), implemented as an addition to `ojp-grpc-commons`,
-consumed by application clients through `ojp-jdbc-driver`, and consumed by
-`ojp-server` itself (for the peer-to-peer mesh) by reusing the driver's
-internal client-side gRPC plumbing as a plain library dependency — **not**
-its public JDBC API — and only when explicitly enabled via
-`ojp.server.mesh.enabled` (default `false`). This satisfies the "no direct
-server-to-server link" constraint by construction (a peer server is just
-another `MessagingService` caller, using the same channel/retry/circuit-
-breaker code the driver already has), reuses everything that plumbing
-already does well (retries, circuit breaking, channel management), stays
-fully opt-in so a default OJP deployment sees no behavior change, and keeps
-the three example use cases as thin, topic-specific consumers of one shared
-substrate rather than three bespoke mechanisms.
+consumed by application clients through `ojp-jdbc-driver`, with **two
+complementary server-to-server topologies** rather than one:
 
-My biggest open concern (see §8.3) is that this only really works cleanly
-once there's a proper answer for **inter-server authentication** that's
-distinct from the JDBC-target-database credentials the driver was originally
-built to carry — I'd want that settled before writing any code.
+- **Client-relay (default, no config, no new connections):** multinode
+  clients — which already hold sessions to more than one OJP server for
+  failover purposes — carry `cluster_scope=true` envelopes between the
+  servers they're connected to, de-duplicated by `message_id` and bounded by
+  `max_relay_hops`. This directly satisfies "use the clients as a means to
+  communicate between OJP servers" for deployments where a direct
+  server-to-server link is hard, disallowed, or simply not worth the extra
+  configuration — at the cost of best-effort, probabilistic coverage that
+  depends on current client connectivity.
+- **Direct mesh (opt-in via `ojp.server.mesh.enabled`, default `false`):**
+  each server reuses the driver's internal client-side gRPC plumbing as a
+  plain library dependency — **not** its public JDBC API — to hold one
+  channel per configured peer, driven entirely by server startup/config,
+  independent of any client. This is required for RAFT and recommended
+  whenever client presence cannot be assumed (serverless/idle-client
+  deployments, §6.1).
+
+Both modes satisfy the "no direct server-to-server link" constraint by
+construction — even the mesh is "just another `MessagingService` client,"
+using the same channel/retry/circuit-breaker code the driver already has,
+never a bespoke socket. Client-relay requires literally nothing new to be
+opened; the mesh stays fully opt-in so a default OJP deployment sees no
+behavior change until an operator asks for it. Together they let the three
+example use cases pick the topology that matches their actual reliability
+need — cache invalidation on the free, best-effort default; RAFT on the
+guaranteed, opt-in mesh — rather than forcing every use case through a
+single, one-size-fits-all mechanism.
+
+My biggest open concerns, in order: (1) §8.3, inter-server authentication
+for the direct mesh, distinct from the JDBC-target-database credentials the
+driver was originally built to carry — I'd want that settled before writing
+any code that turns the mesh on by default in any environment; and (2)
+§8.10/§8.11, keeping client-relay's blast radius small and RAFT strictly off
+of it — these are cheap to get right now, in the design, and expensive to
+retrofit once client-relay code exists and topics start relying on it
+implicitly.
