@@ -8,13 +8,19 @@ This directory contains technical analysis documents for various OJP features an
 
 **Question:** How should OJP servers exchange messages with each other (e.g.
 RAFT leader election, cache-invalidation broadcasts) and notify connected
-JDBC clients (e.g. server restarting), while reusing the existing
-`ojp-jdbc-driver` and without connecting OJP servers directly to each other?
+JDBC clients (e.g. server restarting), reusing the existing
+`ojp-jdbc-driver` for transport wherever possible, and — by default — without
+any new connection between OJP servers?
 
-**Quick Answer:** Add a generic `MessagingService` gRPC contract (topic +
-opaque payload + delivery mode), consumed by every participant exclusively
-through the existing JDBC driver's connection/session/failover machinery,
-supporting both fire-and-forget and guaranteed-delivery modes.
+**Quick Answer:** Add a generic `MessagingService` gRPC contract (`Publish`,
+`Subscribe`, `Ack`; topic + opaque payload + delivery mode), consumed by
+every participant through the existing JDBC driver's connection/session/
+failover machinery. Two server-to-server topologies are offered: a
+default, always-on **client-relay** mode that adds no new connections at
+all, and an opt-in **direct mesh** mode (`ojp.server.mesh.enabled`) for
+cases — RAFT, serverless — that genuinely need a link independent of client
+presence, built by reusing the driver's client-side gRPC plumbing rather
+than a bespoke protocol.
 
 **Documents:**
 - **Executive Summary**: [OJP_MESSAGING_PROTOCOL_SUMMARY.md](./OJP_MESSAGING_PROTOCOL_SUMMARY.md)
@@ -29,8 +35,9 @@ supporting both fire-and-forget and guaranteed-delivery modes.
 
 **Key Takeaway:** OJP servers become driver-backed clients of each other
 (and of connected application clients, via a client-initiated subscribe
-stream) instead of opening any new server-to-server link — satisfying the
-constraint while reusing the driver's existing resiliency features.
+stream) by default, with an opt-in direct-mesh alternative for cases where
+client connectivity can't be relied upon — both built on the driver's
+existing resiliency features rather than a new bespoke transport.
 
 ---
 

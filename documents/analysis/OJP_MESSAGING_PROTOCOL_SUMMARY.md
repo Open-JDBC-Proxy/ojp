@@ -4,29 +4,47 @@
 
 How should OJP servers exchange messages with each other (e.g. RAFT
 leader-election, cache-invalidation broadcasts) and with connected JDBC
-clients (e.g. "this server is restarting"), given a hard constraint that OJP
-servers must **not** connect directly to each other — all communication must
-reuse the existing `ojp-jdbc-driver`?
+clients (e.g. "this server is restarting")? **Constraint, revised through
+review (see the full analysis's Question section for the complete
+reasoning):** by default, zero new connections between OJP servers may ever
+be opened — this is satisfied unconditionally by reusing the existing
+`ojp-jdbc-driver` sessions as a relay medium. The one deliberate, opt-in
+exception is a direct server-to-server link (`ojp.server.mesh.enabled`),
+needed for RAFT and for serverless/idle-client deployments — but even that
+link must be built by reusing the driver's client-side gRPC plumbing as a
+library, never a bespoke socket or second wire protocol.
 
 ## Quick Answer
 
-Add a new, generic `MessagingService` gRPC contract (topic + opaque payload +
-delivery mode: fire-and-forget or guaranteed) to `ojp-grpc-commons`.
+Add a new, generic `MessagingService` gRPC contract (`Publish`, `Subscribe`,
+and `Ack` RPCs; topic + opaque payload + delivery mode: fire-and-forget or
+guaranteed) to `ojp-grpc-commons`. `Subscribe` is a long-lived
+server-streaming call the subscriber initiates and keeps open; `Publish` is
+a small unary call that does a de-dup check, then a local fan-out to *every*
+currently-subscribed stream for that topic (never a single arbitrarily
+chosen one), then acks. See §5.1 of the full analysis for the complete
+service definition and the mechanics of both RPCs.
 Application clients reach it through `ojp-jdbc-driver`, the same way they use
 any other RPC today. **Two complementary topologies get a message from one
 OJP server to another:**
 
-- **Client-relay (default, always on, no config):** a client connected to
-  more than one OJP server (a *multinode* client, using the existing
-  `jdbc:ojp[host1:port1,host2:port2]_url` format) already holds a
-  `Subscribe` stream on each — it forwards cluster-wide envelopes it
-  receives from one server onto the others it's connected to. This directly
-  is "use the clients as a means to communicate between OJP servers,"
-  requires zero new connections, and is the right default whenever opening a
-  direct server-to-server link is hard, disallowed, or just not worth the
-  config. Its trade-off: coverage depends entirely on which multinode
-  clients happen to be connected right now — with zero clients connected,
-  zero cross-server delivery happens, silently.
+- **Client-relay (default, always on, no config):** in the **standard OJP
+  topology, every client is multinode-connected to every server** (using the
+  existing `jdbc:ojp[host1:port1,host2:port2]_url` format) — a client
+  connected to a single server is the exception (partition/misconfiguration),
+  not the rule. Each such client already holds a `Subscribe` stream on every
+  server; it forwards cluster-wide envelopes it receives from one server onto
+  the others it's connected to. This directly is "use the clients as a means
+  to communicate between OJP servers," requires zero new connections, and is
+  the right default whenever opening a direct server-to-server link is hard,
+  disallowed, or just not worth the config. Its trade-offs: (1) coverage
+  depends entirely on which multinode clients happen to be connected right
+  now — with zero clients connected, zero cross-server delivery happens,
+  silently; (2) because *every* connected client independently relays,
+  broadcasting one message costs up to `C × (N-1)` redundant relay RPCs (C =
+  connected clients, N = servers) — cheap to reject via dedup, but real
+  network/CPU cost that scales with client population. See §5.3.1/§5.3.4 of
+  the full analysis for the complete math and worked examples.
 - **Direct mesh (opt-in, `ojp.server.mesh.enabled=false` by default):** each
   server reuses the driver's *internal* client-side gRPC plumbing (channel
   management, retries, circuit breaker — already shared via
@@ -72,24 +90,36 @@ OJP server to another:**
 
 ```mermaid
 graph LR
-    subgraph "Mesh OFF (default) — relay via multinode clients"
-        CM[Multinode App Client] -->|Subscribe / Publish| S1[OJP Server 1]
-        CM -->|Subscribe / Publish, also relays| S2[OJP Server 2]
-        S1 -.->|no direct connection| S2
+    subgraph "Mesh OFF (default) — every client connects to every server (standard topology)"
+        CM1[Client 1] -->|Subscribe / Publish| S1[OJP Server 1]
+        CM1 -->|Subscribe / Publish, also relays| S2[OJP Server 2]
+        CM2[Client 2] -->|Subscribe / Publish| S1
+        CM2 -->|Subscribe / Publish, also relays| S2
+        S1 -.->|no direct connection, ever| S2
     end
 ```
 
 ```mermaid
 graph LR
     subgraph "Mesh ON (opt-in: ojp.server.mesh.enabled=true)"
-        C3[App Client] -->|Subscribe / Publish| S3[OJP Server 1]
-        C4[App Client] -->|Subscribe / Publish| S4[OJP Server 2]
+        C3[Client 1] -->|Subscribe / Publish| S3[OJP Server 1]
+        C3 -->|Subscribe / Publish| S4[OJP Server 2]
+        C4[Client 2] -->|Subscribe / Publish| S3
+        C4 -->|Subscribe / Publish| S4
         S3 <-->|MessagingService: Publish/Subscribe over configured peers| S4
     end
 ```
 
-Full sequence diagrams for both modes, including the cache-invalidation and
-RAFT-vote message flows, are in §5.5 of the full analysis.
+Both diagrams show each client connected to **both** servers, since that's
+the standard topology — a client pinned to a single server is the exception,
+not the rule (see §5.3.1/§5.5 for why this distinction matters for
+coverage and amplification). Local fan-out on either server always targets
+**every** currently-subscribed client, never a single one.
+
+Full sequence diagrams for both modes — including the cascading-relay
+amplification (2 clients independently relaying the same message) and a
+point-to-point RAFT example via `PublishRequest.target_id` — are in §5.5 of
+the full analysis.
 
 ## Client-relay vs. Direct Mesh — Pros and Cons
 
@@ -97,12 +127,43 @@ RAFT-vote message flows, are in §5.5 of the full analysis.
 |---|---|---|
 | New connections needed | None | One channel per configured peer |
 | Delivery guarantee | Best-effort, probabilistic (depends on current client connectivity) | Deterministic, independent of clients |
+| Cost of a broadcast | `O(clients × servers)` — every connected client relays independently | `O(servers)` — one call per peer, regardless of client count |
 | Works with zero clients connected | No | Yes |
-| Good fit | Cache invalidation and other idempotent, best-effort cluster-wide topics | RAFT; anything needing bounded-latency, guaranteed-to-attempt delivery |
-| New trust surface | None (a relay hop is a normal authenticated client `Publish`) | Yes — needs its own inter-server credential story |
+| Good fit | Cache invalidation and other idempotent, best-effort, low-frequency cluster-wide topics | RAFT; anything needing bounded-latency, guaranteed-to-attempt delivery, or a tight timing budget |
+| New trust surface | None on the wire, but consensus traffic would travel through untrusted application processes if allowed onto it (never allowed for RAFT — see below) | Yes — needs its own inter-server credential story, but keeps the trust perimeter to just the N configured servers |
 | Recommendation | **Default**, and the right choice when a direct server-to-server link is hard, disallowed, or not worth configuring | **Required for RAFT**; recommended whenever client presence can't be assumed (e.g. serverless) |
 
 See §5.3.3 of the full analysis for the complete comparison and reasoning.
+
+### Why RAFT specifically requires the direct mesh (not just "less reliable")
+
+This was previously stated as a soft, hedged rule; review correctly pushed
+back that "less secure, less reliable" isn't a real argument, since RAFT is
+explicitly designed to tolerate arbitrary message loss, delay, duplication,
+and reordering — a dropped or duplicated relay hop, on its own, is not a
+problem RAFT needs help with. The full analysis (§5.3.5) now gives the
+actual, honest argument, and it rests on two different points, not one:
+
+1. **Trust perimeter, not reliability.** RAFT is a crash-fault-tolerant
+   protocol, explicitly *not* Byzantine-fault-tolerant (per the original Raft
+   paper) — it assumes every message a node acts on genuinely came from one
+   of the fixed, known cluster members. Client-relay routes `raft.*`
+   envelopes through arbitrary application JDBC processes that were never
+   part of the RAFT membership and are reachable by anyone with valid DB
+   credentials — silently widening RAFT's trust perimeter from "the N
+   configured servers" to "the N servers plus every connected application."
+   That's a safety concern (a forged or replayed vote), not a liveness one.
+2. **Amplification defeats RAFT's timing model.** RAFT's liveness depends on
+   `broadcastTime << electionTimeout` (heartbeats every ~50–150ms). Client
+   relay's `C × (N-1)` redundant-RPC cost per broadcast (see the table above)
+   turns a deliberately small, predictable protocol into a load that scales
+   with application traffic — a concrete, arithmetic problem, not a vague one.
+
+Confidence: high (85%) on the trust-perimeter argument, high (80%) on the
+amplification argument (both follow from documented RAFT properties and
+arithmetic already in the full analysis), lower (55%) on exactly how severe
+an exploit of the trust gap would be in practice, since that depends on
+OJP's not-yet-designed inter-server/client credential model (§8.3).
 
 ## Options Considered (see full analysis for pros/cons)
 
@@ -141,6 +202,13 @@ See §5.3.3 of the full analysis for the complete comparison and reasoning.
   error anywhere. This needs a loud operator-facing callout so nobody assumes
   "cluster-wide" means "guaranteed to reach every node" under the default
   mode.
+- Client-relay's amplification cost (`C × (N-1)` redundant relay attempts per
+  broadcast) is a real, quantified operational limit, not just a theoretical
+  concern — e.g. ~800 redundant RPCs every 50–150ms at 200 clients / 5
+  servers if something were published on a RAFT-heartbeat-like frequency.
+  This is the concrete reason client-relay should be restricted to
+  low-frequency, idempotent topics and should carry a documented rate
+  ceiling in operator guidance.
 
 ## Suggested Phasing
 
