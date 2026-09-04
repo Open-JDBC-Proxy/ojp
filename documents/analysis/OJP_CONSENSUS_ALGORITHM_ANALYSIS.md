@@ -45,12 +45,15 @@ carries its messages, not just tolerate message loss:
 - **Mesh OFF (client-relay, default):** the same N servers, but messages
   between them are carried by an unbounded, dynamically-changing population
   of application JDBC client processes that were never part of the cluster's
-  membership and are reachable by anyone holding valid database credentials
-  (§5.3.1/§5.3.5 of the messaging analysis). The trust perimeter here is
-  fundamentally wider and, today, not authenticated at the message level —
-  there is no signature or credential on an `Envelope` that distinguishes "a
-  message a real peer server produced" from "a message any client crafted
-  and published directly."
+  membership (§5.3.1/§5.3.5 of the messaging analysis). The trust perimeter
+  here is fundamentally wider and, today, not authenticated at the message
+  level — there is no signature or credential on an `Envelope` that
+  distinguishes "a message a real peer server produced" from "a message any
+  client crafted and published directly." **Important nuance, addressed in
+  full in §6 below: "wider population" is not the same claim as "untrusted
+  population" — application clients are the operator's own software, not
+  strangers, and that distinction matters, but not in the way it might first
+  seem.**
 
 That second point is the crux of this whole analysis, so it is worth stating
 as plainly as possible: **a Byzantine-fault-tolerant consensus algorithm is
@@ -346,7 +349,146 @@ possibility and nothing more for now.
 
 ---
 
-## 6. Overall recommendation
+## 6. Does it matter that "clients" are applications, not strangers?
+
+This is a fair, direct challenge to §1/§5's framing and deserves an honest
+answer rather than a restatement of the existing conclusion: **yes, it
+matters, but it changes the *characterization* of the risk more than it
+changes the *recommendation*.** Worth separating carefully into what changes
+and what doesn't.
+
+**What's correct in the challenge:** application clients are not random
+strangers off the internet. In the overwhelming majority of real OJP
+deployments, they are the operator's own software — provisioned with
+database credentials the operator itself issued, typically deployed through
+the operator's own CI/CD pipeline, running inside the operator's own network
+boundary. Calling them an "arbitrary, unvetted population reachable by
+anyone holding valid database credentials" (as an earlier draft of this
+document and of the messaging analysis did) overstates it — that phrasing
+reads as if any random internet attacker could just show up, which is not
+the threat this argument is actually about, and I should not have implied
+otherwise. To that extent, this is a legitimate correction, and both
+documents' phrasing is being softened accordingly.
+
+**What doesn't change, and why "trusted to some extent" still isn't the same
+question as "trusted for this":**
+
+1. **Trust is scoped to a purpose, and consensus is a different purpose than
+   querying a database.** An application is trusted (and provisioned) to run
+   SQL against the specific schema/database its credentials grant access to.
+   That is a deliberate, narrow grant. Nothing about that grant was ever
+   evaluated against a different question: "should this same process also be
+   allowed to influence which OJP server believes itself to be the cluster
+   leader?" Those are different privileges with different blast radii if
+   misused, and conflating them — "the app is trusted, therefore it's fine to
+   let it carry cluster-governance traffic" — is exactly the kind of
+   privilege-scope creep that least-privilege design exists to prevent. A
+   bank teller being trusted to handle customers' cash doesn't mean they
+   should also be trusted to approve the bank's own credit decisions; both
+   are legitimate trusts, but they are not the same trust, and conflating
+   them is the actual mechanism of the risk here — not an assumption that the
+   teller is a thief.
+2. **The gap is about verifiability, not about anyone's good faith.** RAFT
+   (and BFT without added signing, per §5) has no mechanism to distinguish "a
+   message a genuine peer produced" from "a message an application produced,"
+   however trustworthy that application's operators are. A perfectly
+   well-intentioned application with a bug — a stale library that
+   accidentally double-publishes a relayed envelope with a corrupted
+   `producer_id`, a dependency-confusion or supply-chain compromise the
+   app's own team didn't cause or know about, a misconfigured test harness
+   pointed at production — produces the exact same observable effect on the
+   consensus algorithm as a deliberately malicious one: an envelope claiming
+   peer authorship that didn't actually come from a peer. **The argument in
+   §1/§5 was never really "your application developers might be adversaries"
+   — it's "the protocol has no way to tell the difference between a trusted
+   mistake and an untrusted attack, so it can't rely on trust as a substitute
+   for a missing verification mechanism."** That framing survives the
+   challenge intact, because it doesn't depend on how trustworthy the
+   applications are in the first place.
+3. **Aggregate exposure scales with population size, independent of
+   per-application trust.** Even granting every single application 100%
+   good-faith trust, OJP's own value proposition (many application instances
+   behind a shared connection-pooling proxy — see the OJP architecture docs)
+   means the *population* of processes that could carry a forged or buggy
+   envelope is, by design, much larger and much less uniformly operated than
+   the small, fixed set of N OJP server binaries: different teams, different
+   release cadences, different dependency trees, different security posture,
+   potentially different organizations if OJP is ever run as a shared/
+   multi-tenant proxy tier. A single vulnerable dependency in *any one* of
+   however many connected application processes is a materially bigger
+   attack surface than a single vulnerable dependency in *any one* of a
+   handful of OJP server processes the operator directly controls and
+   patches — this is true regardless of whether every application team is
+   acting in good faith, because it's a statement about surface area, not
+   about intent.
+4. **Operational asymmetry compounds this.** OJP servers are one binary,
+   released and patched on one cadence by (presumably) one operations team
+   that also owns the mesh's security posture. Applications are whatever
+   each app team builds, on whatever cadence they choose, often without the
+   OJP operator having visibility into their dependency health at all. "The
+   organization is trusted" doesn't imply "every application in that
+   organization is operated with the same security rigor as core cluster
+   infrastructure" — and in practice it usually isn't, simply because most
+   application teams' job is the application, not being part of OJP's trust
+   boundary.
+
+**Does this change my recommendation? Only partially, and here's exactly
+where:**
+
+- **It does not weaken the mechanism argument (point 2) at all** — that
+  argument is independent of trust level by construction, so "the clients
+  are trusted" doesn't touch it.
+- **It does not touch the amplification-cost argument (§1's second reason, in
+  the messaging analysis's §5.3.5) at all** — `C × (N-1)` redundant RPCs
+  defeating RAFT's heartbeat timing budget has nothing to do with anyone's
+  trustworthiness; it's arithmetic.
+- **It does meaningfully lower my estimate of the *likelihood* of a
+  deliberately malicious exploit specifically** (as opposed to an accidental
+  one) in a typical, single-organization, well-run deployment — which is
+  worth stating plainly since the previous draft's confidence numbers didn't
+  separate "is the mechanism gap real" (yes, high confidence, unaffected by
+  this challenge) from "how likely is someone to actually exploit it
+  maliciously" (lower, and now further lowered for the common case where the
+  operator runs both the OJP cluster and the applications).
+- **It raises, rather than lowers, my concern about the multi-tenant/shared-
+  proxy case specifically** — because that's exactly the deployment shape
+  where "the applications are the operator's own trusted software" stops
+  being true by construction (different customers'/teams' applications,
+  sharing one OJP cluster, with credentials the *OJP operator* issued but
+  where the *application code and its authors* are outside the OJP
+  operator's own trust boundary). This is the same scenario flagged in §4 for
+  the mesh-peer question, and it's worth treating as one coherent open
+  question rather than two separate ones: **is OJP ever deployed as a shared
+  connection-pooling tier across mutually-untrusting applications/tenants,
+  and if so, does that same untrusted-third-party concern apply to the
+  application population, the peer population, or both?**
+
+**Recommendation, revised in light of this:** keep §1/§5's "no consensus
+traffic over client-relay without message-level authentication" rule as-is —
+the mechanism gap and amplification cost are unaffected — but stop
+describing the reason as being about untrusted strangers. The accurate
+framing is: *client-relay lets a broader, less uniformly-operated, and
+harder-to-verify population than "the N configured servers" produce
+messages the consensus algorithm cannot distinguish from genuine peer
+traffic, and that gap exists regardless of how trustworthy any individual
+application actually is.* That framing survives this challenge, is more
+honest about what the actual risk is, and doesn't require assuming bad faith
+on anyone's part.
+
+**Question for the team:** does OJP expect single-operator deployments only
+(one org runs both the OJP cluster and every connected application), or is a
+shared/multi-tenant proxy tier (one OJP cluster, multiple independently-
+operated applications/customers) a real target? This is the same open
+question raised in §4, and the answer changes how much weight the
+trust-perimeter argument should carry in practice — for a genuinely
+single-operator deployment, the residual risk here is closer to
+"defense-in-depth against your own bugs" than "defense against an
+adversary," which is still worth having but is a different priority than if
+multi-tenant sharing is a real, near-term scenario.
+
+---
+
+## 7. Overall recommendation
 
 1. **Do not assume RAFT is final.** Treat it as the reference CFT choice for
    Mesh ON, on record here as a deliberate choice with reasoning, not an
@@ -364,9 +506,17 @@ possibility and nothing more for now.
    consensus algorithm. Document the "signed envelopes could make BFT-over-
    relay viable" path as a considered-and-deferred option (§5), not a
    commitment.
-4. Update `OJP_MESSAGING_PROTOCOL_ANALYSIS.md` (done, see cross-references
+4. **The trust-perimeter argument in §1/§5 is about privilege scope and
+   verifiability, not about assuming applications act in bad faith (§6)** —
+   worth stating as its own recommendation because it changes how this
+   should be communicated to the team: don't frame this as "we don't trust
+   your apps," frame it as "the protocol can't yet tell a trusted app's
+   message apart from a forged one, and that gap doesn't shrink just
+   because the app is trusted for something else."
+5. Update `OJP_MESSAGING_PROTOCOL_ANALYSIS.md` (done, see cross-references
    added throughout) to stop treating RAFT as an assumed, final choice and
    point to this document wherever the algorithm choice matters.
+
 
 **My biggest concerns, in order:** (1) none of this has been validated with
 any actual load/latency testing — the comm-complexity numbers above are

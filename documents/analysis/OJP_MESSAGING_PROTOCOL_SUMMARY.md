@@ -159,11 +159,15 @@ actual, honest argument, and it rests on two different points, not one:
    protocol, explicitly *not* Byzantine-fault-tolerant (per the original Raft
    paper) — it assumes every message a node acts on genuinely came from one
    of the fixed, known cluster members. Client-relay routes `raft.*`
-   envelopes through arbitrary application JDBC processes that were never
-   part of the RAFT membership and are reachable by anyone with valid DB
-   credentials — silently widening RAFT's trust perimeter from "the N
-   configured servers" to "the N servers plus every connected application."
-   That's a safety concern (a forged or replayed vote), not a liveness one.
+   envelopes through application JDBC processes that were never part of the
+   RAFT membership — typically the operator's own applications, not
+   strangers, but trusted for a narrower purpose (querying a database) than
+   the one being asked of them here (cluster leader election); see
+   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §6](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#6-does-it-matter-that-clients-are-applications-not-strangers)
+   for why that distinction doesn't close the gap. This silently widens
+   RAFT's trust perimeter from "the N configured servers" to "the N servers
+   plus every connected application." That's a safety concern (a forged or
+   replayed vote), not a liveness one.
 2. **Amplification defeats RAFT's timing model.** RAFT's liveness depends on
    `broadcastTime << electionTimeout` (heartbeats every ~50–150ms). Client
    relay's `C × (N-1)` redundant-RPC cost per broadcast (see the table above)

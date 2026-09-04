@@ -911,26 +911,34 @@ best-effort delivery at all:**
    originated from one of the *known, fixed set of cluster members*, and
    was not forged, replayed out of context, or selectively manipulated by
    a third party. Client-relay, by construction, routes `raft.*` envelopes
-   through arbitrary application JDBC driver processes — processes that
-   were never part of the RAFT membership, are not vetted as trusted
-   cluster participants, and are (by design) reachable by any application
-   with valid database credentials. Nothing in the `MessagingService`
-   contract as designed distinguishes "a message a real peer server
-   produced and a client faithfully relayed" from "a message any
-   authenticated application client crafted and published directly with a
-   forged `producer_id`" — `Publish` is reachable the same way in both
-   cases. **This is a genuine expansion of RAFT's trust perimeter from "the
-   N configured servers" to "the N configured servers plus every currently
-   connected application," which is exactly the assumption RAFT documents
-   itself as not being designed to survive.** This is the crux of the
-   argument, and it is a safety concern (a forged/duplicated vote grant or
-   a spoofed heartbeat could genuinely violate RAFT's election-safety
-   invariant), not merely a liveness inconvenience. The direct mesh doesn't
-   automatically solve this either — it still needs its own inter-server
-   auth story (§8.3) — but it at least keeps the trust perimeter to "the N
-   configured servers," which is the perimeter RAFT is designed for,
-   instead of silently widening it to include an uncontrolled, arbitrarily
-   large population of application processes.
+   through application JDBC driver processes — processes that were never
+   part of the RAFT membership and are not vetted as trusted cluster
+   participants, even though (worth being precise here, rather than
+   overstating it) they are typically the operator's own applications, not
+   arbitrary strangers — see
+   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §6](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#6-does-it-matter-that-clients-are-applications-not-strangers)
+   for the full treatment of why "the applications are trusted, to some
+   extent" doesn't close this gap. In short: an application being trusted
+   (and credentialed) to query its own database is a different, narrower
+   grant than being trusted to influence cluster leader election, and
+   nothing in the `MessagingService` contract as designed distinguishes "a
+   message a real peer server produced and a client faithfully relayed"
+   from "a message any authenticated application client crafted and
+   published directly with a forged `producer_id`" — `Publish` is reachable
+   the same way in both cases, regardless of how trustworthy that
+   application's operators are. **This is a genuine expansion of RAFT's
+   trust perimeter from "the N configured servers" to "the N configured
+   servers plus every currently connected application," which is exactly
+   the assumption RAFT documents itself as not being designed to survive.**
+   This is the crux of the argument, and it is a safety concern (a
+   forged/duplicated vote grant or a spoofed heartbeat could genuinely
+   violate RAFT's election-safety invariant), not merely a liveness
+   inconvenience. The direct mesh doesn't automatically solve this either —
+   it still needs its own inter-server auth story (§8.3) — but it at least
+   keeps the trust perimeter to "the N configured servers," which is the
+   perimeter RAFT is designed for, instead of silently widening it to
+   include a much larger and less uniformly-operated population of
+   application processes.
 2. **Amplification cost is real and quantifiable, and it specifically
    defeats RAFT's timing model.** RAFT's liveness (not safety) depends on
    `broadcastTime << electionTimeout << MTBF` — heartbeats/`AppendEntries`
@@ -962,10 +970,13 @@ correct, defensible reason — it follows directly from RAFT's documented
 crash-only failure model, not from speculation. High (80%) on argument 2
 (amplification) since it's arithmetic given the numbers already in §5.3.1.
 Lower confidence (55%) on precisely how *severe* an exploit of argument 1
-would be in a specific deployment (that depends on how OJP ultimately
-authenticates JDBC clients and how much an operator trusts their own
-application fleet) — worth revisiting once OJP's inter-server/client
-credential model (§8.3) is actually designed, rather than assumed here.
+would be in a specific deployment — this depends on how OJP ultimately
+authenticates JDBC clients (§8.3) **and**, per the client-trust discussion
+in [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §6](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#6-does-it-matter-that-clients-are-applications-not-strangers),
+on how homogeneous and tightly-operated the connected application fleet
+actually is (single-operator deployment vs. shared/multi-tenant proxy tier)
+— worth revisiting once both the credential model and the expected
+deployment shape are actually pinned down, rather than assumed here.
 
 ### 5.4 Server-to-client topology
 
