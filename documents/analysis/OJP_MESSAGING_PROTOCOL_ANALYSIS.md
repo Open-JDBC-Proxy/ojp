@@ -312,8 +312,8 @@ tuning.
 **Consensus over client-relay is a supported, documented alternative**, for
 deployments that want to avoid opening the direct mesh at all. It needs two
 things client-relay doesn't have by default:
-1. **Encrypted, authenticated envelopes** (AEAD, per-server keys) so a
-   relaying client cannot forge or alter a message.
+1. **Encrypted, authenticated envelopes** (AEAD, one shared cluster key)
+   so a relaying client cannot forge or alter a message.
 2. **A widened election timeout**, because relay latency depends on
    app-process scheduling, not tuned for a 50–150ms heartbeat budget.
 

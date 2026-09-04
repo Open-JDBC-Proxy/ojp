@@ -98,15 +98,50 @@ needing the mesh at all?
 ### 5.1 What encryption actually fixes
 
 Yes — if every consensus envelope is protected with **authenticated
-encryption** (AEAD, e.g. AES-GCM, keyed per-server so only OJP servers hold
-the key), a relaying client genuinely cannot forge a vote, alter a message,
-or impersonate a server. That is a real, complete fix for **tampering and
+encryption** (AEAD, e.g. AES-GCM), a relaying client genuinely cannot forge
+a vote, alter a message, or impersonate a server, provided the key is only
+known to OJP servers. That is a real, complete fix for **tampering and
 forgery**. Plain confidentiality-only encryption (e.g. unauthenticated
 AES-CBC) does *not* give this — it hides the bytes but doesn't stop someone
 from flipping or replacing them; AEAD (or plaintext + MAC) is required.
 
-This is worth stating plainly: **given trusted client applications and
-proper AEAD, "the client rewrites the message" is a solved problem.**
+**Key model: one shared cluster key, not one key per server.** A separate
+key per server (or per server-pair) adds PKI-like distribution and
+rotation overhead that doesn't fit OJP's simple, single-jar deployment
+model. Instead: **a single symmetric AEAD key, shared by every OJP server
+in the cluster**, configured the same way other OJP settings already are —
+a JVM system property, an environment variable, or an `ojp.server.*`
+property — with no built-in key-management service. This matches OJP's
+expected deployment shape: applications, OJP servers, and databases running
+together on an isolated, operator-controlled network, not exposed on the
+open internet. In that setting, a shared secret distributed via config
+(the same way a database password already is) is a reasonable, low-overhead
+fit — not a compromise made only because something better wasn't available.
+
+This is worth stating plainly: **given trusted client applications, a
+single shared AEAD key, and an isolated deployment network, "the client
+rewrites the message" is a solved problem.**
+
+**Honest limitations of one shared key** (documented so operators can judge
+fit, not hidden):
+- **No per-server accountability.** Any server can produce a validly-signed
+  message; you cannot cryptographically prove *which* server sent a given
+  envelope. Not a concern for a single trusted operator's own cluster;
+  would matter if OJP servers themselves needed to distrust each other.
+- **Single blast radius.** Leaking the key from any one server (or from
+  the config file/env var that holds it) lets an attacker forge messages
+  as any server. Mitigated by normal secret-handling practice — the same
+  care already required for database credentials — not by the messaging
+  design itself.
+- **Rotation is manual.** There's no built-in rotation mechanism; changing
+  the key requires updating it on every server (a rolling restart, or a
+  dual-key grace-period scheme) — standard practice for a shared secret,
+  not a special case.
+- **Not recommended** for a multi-tenant deployment where the OJP servers
+  themselves belong to mutually-untrusting parties, or for any deployment
+  where the network between OJP servers and application clients isn't
+  otherwise trusted/isolated — that's a different threat model than the
+  one this document assumes (§1).
 
 ### 5.2 What encryption does not fix
 
@@ -177,8 +212,9 @@ odds is more of that same traffic, not a separate expense.
 
 ### 5.4 Bottom line
 
-- **Forgery/tampering: solved** by per-peer AEAD encryption, given clients
-  are trusted applications.
+- **Forgery/tampering: solved** by a single shared AEAD key held only by
+  OJP servers, given clients are trusted applications on an isolated
+  network (§5.1).
 - **Full suppression by one rogue or failing client: solved** by full
   fan-out — an attacker needs every bridging client to fail at once, not
   one (§5.2, §5.3).
@@ -200,8 +236,11 @@ a legitimate choice for deployments that want zero new connections between
 OJP servers and are willing to accept its trade-offs, not just a rejected
 idea. Recommended configuration if chosen:
 
-1. **Per-server AEAD keys** (§5.6) on every `raft.*` envelope, so a
-   relaying client cannot forge or alter a message.
+1. **A single shared AEAD key** (§5.1) on every `raft.*` envelope,
+   configured once per server via JVM property / environment variable /
+   `ojp.server.*` setting — the same distribution model already used for
+   other OJP server config — so a relaying client cannot forge or alter a
+   message.
 2. **A monotonic sequence number per producer**, so a replayed old message
    is rejected instead of accepted twice.
 3. **Rely on full fan-out for redundancy** — every connected client already
@@ -246,17 +285,18 @@ least one client being connected.
 | | Recommendation |
 |---|---|
 | Direct mesh | RAFT via Apache Ratis — recommended default for consensus |
-| Client-relay, cache invalidation | Fine as-is; optionally add per-peer AEAD + sequence numbers if message integrity needs to be provable |
-| Client-relay, consensus | Supported alternative to the direct mesh: RAFT via Apache Ratis, with per-peer AEAD + sequence numbers + a widened election timeout (§5.5). Choose this when avoiding new inter-server connections matters more than fastest failover. |
+| Client-relay, cache invalidation | Fine as-is; optionally add the shared AEAD key + sequence numbers if message integrity needs to be provable |
+| Client-relay, consensus | Supported alternative to the direct mesh: RAFT via Apache Ratis, with a single shared AEAD key + sequence numbers + a widened election timeout (§5.5). Choose this when avoiding new inter-server connections matters more than fastest failover, in an isolated/trusted deployment network. |
 | Switch to BFT | Only if a multi-tenant, mutually-untrusting mesh becomes a real deployment target (open question, §3) |
 
 ## 7. Open questions
 
 1. Is a multi-tenant, mutually-untrusting mesh a real target for OJP, or is
    every deployment single-operator? (Drives §3.)
-2. If per-peer AEAD is built for client-relay's consensus path (§5.5) or
-   cache-invalidation path, where do server keys live and how do they
-   rotate? This needs its own design, not an add-on to this analysis.
+2. If the shared AEAD key (§5.1) is built for client-relay's consensus path
+   or cache-invalidation path, what's the exact config surface (property
+   name, env var name, JVM flag) and rotation procedure? This needs its
+   own design, not an add-on to this analysis.
 3. Should the driver expose a way for an application to observe "my relay
    attempt failed" instead of it being silent? Would help operators notice
    the shared-failure-point risk in §5.2 sooner, even without fully
