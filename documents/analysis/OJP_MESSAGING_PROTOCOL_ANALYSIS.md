@@ -147,6 +147,16 @@ message Envelope {
                                   // Default 1 — every client is already
                                   // connected to every server (§5.3), so one
                                   // hop already reaches everyone.
+  int32    relay_fanout    = 10; // only used when cluster_scope=true and the
+                                  // mesh is off (client-relay, §5.3.1); caps
+                                  // how many of the LOCALLY subscribed clients
+                                  // are asked to relay onward, independent of
+                                  // how many receive the message for their own
+                                  // use. 0 = unlimited (every subscribed
+                                  // client relays — needed for consensus).
+                                  // A positive value bounds relay cost for
+                                  // high-frequency, high-redundancy-tolerant
+                                  // topics like cache invalidation.
 }
 
 enum DeliveryMode {
