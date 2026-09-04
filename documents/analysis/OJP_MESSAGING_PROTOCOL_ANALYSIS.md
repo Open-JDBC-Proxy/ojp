@@ -497,18 +497,56 @@ for the team: is that a real deployment target?**
    on it symmetrically — not a `ojp-server → ojp-jdbc-driver` dependency.
 3. **Inter-server authentication does not exist today.** Application
    clients authenticate with database credentials, which have nothing to do
-   with a server-to-server messaging call. A distinct, cluster-internal
-   credential (shared secret or mTLS peer identity) is needed to restrict
-   `raft.*` traffic to known peers. See
-   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably)
-   for a concrete symmetric-key design that would also let consensus
-   traffic survive client-relay, if that's ever needed.
-4. **Guaranteed-delivery durability.** "Guaranteed" only covers retries
-   while the publisher is alive; a crash mid-retry loses queued messages.
-   Acceptable for a restart notice (a crashed server can't announce a
-   graceful restart anyway); a future use case needing crash-durability
-   would need a persisted outbox — a much bigger feature, and a signal that
-   a real broker (Option D) might be the better tool at that point.
+   with a server-to-server messaging call. **Recommended: mTLS** for the
+   direct mesh channels. Reasoning, kept simple:
+   - Each OJP server already terminates gRPC (HTTP/2); mTLS is a
+     configuration addition to the existing channel, not a new protocol —
+     both sides present a certificate, both verify the other's, no extra
+     wire format.
+   - It gives each peer a *distinct, verifiable identity* (its certificate),
+     unlike a shared secret, so a compromised or misconfigured peer can be
+     revoked individually (pull its certificate) without rotating a secret
+     shared by the whole cluster.
+   - It reuses infrastructure operators already run for securing gRPC/HTTPS
+     endpoints (a private CA or existing cert-management tooling), rather
+     than inventing a new OJP-specific credential type.
+   - **Alternative considered: a shared secret token** (a static string,
+     compared on every mesh call). Simpler to configure (one value, no
+     certificates) but every peer holds the same secret — leaking it from
+     one server compromises the whole mesh, with no way to revoke a single
+     peer. Consistent with §5.1 of the consensus analysis, which recommends
+     exactly this simpler shared-secret model for message-level
+     authenticity over client-relay, where the goal is "prove this envelope
+     came from an OJP server" rather than authenticating a live network
+     connection with per-peer revocation — a lower bar than the direct
+     mesh's channel security, where mTLS is worth the extra setup.
+   - **Recommendation: mTLS for the direct mesh's server-to-server
+     channels; the shared-secret/AEAD model stays the right choice only for
+     message-level authenticity over client-relay** (§5.1 of the consensus
+     analysis), since the two solve different problems (who's on the other
+     end of this channel vs. did an OJP server produce this specific
+     envelope).
+   This still needs its own design (certificate provisioning/rotation
+   process, whether to require client certs on `Subscribe` too) before the
+   mesh carries anything real.
+4. **Guaranteed-delivery limitations — documented, not a future fix.**
+   "Guaranteed" (at-least-once) only covers retries while the publisher
+   process is alive; a publisher crash mid-retry loses any message still
+   queued for retry, undelivered and unrecoverable. This is a permanent
+   property of this design, not a gap to be closed later:
+   - **Fine for `server.lifecycle`** (the current use of `GUARANTEED`
+     mode): a crashed server can't announce its own graceful restart
+     anyway, so losing in-flight retries on crash changes nothing.
+   - **Not fine for any future use case that needs delivery to survive a
+     publisher crash** (e.g. a durable audit trail). That requires a
+     persisted outbox — a materially bigger feature (disk-backed queue,
+     replay on restart) — and is a signal that a real broker (Option D,
+     rejected above for the general case) is the better tool for that
+     specific need, not an extension of this design.
+   - Operator-facing docs for `GUARANTEED` mode must state this limitation
+     plainly: *"Guaranteed delivery survives subscriber unavailability, not
+     publisher crashes. If the publishing OJP server crashes while a
+     message is still being retried, that message is lost."*
 5. **Payload versioning.** Each topic's producers/consumers must agree on
    payload encoding and handle version skew across rolling upgrades — every
    per-topic payload message should reserve a `schema_version` field.
@@ -519,11 +557,20 @@ for the team: is that a real deployment target?**
    queue: drop-oldest for fire-and-forget, explicit-reject-new-publishes for
    guaranteed (never unbounded memory growth). Needs load testing before
    this is considered production-ready.
-8. **Client-relay's coverage is invisible when it fails.** A missed relay
-   hop produces no error — the publisher gets a normal ack regardless.
-   Operator docs must say plainly that client-relay is best-effort, not
-   "every node, always," so nobody assumes cache invalidation is guaranteed
-   cluster-wide when it isn't.
+8. **Client-relay is best-effort — documented, not a future fix.**
+   A missed relay hop produces no error: the publisher gets a normal ack
+   the moment its own server hands the message to its own subscribers,
+   regardless of whether any client goes on to relay it further. There is
+   no acknowledgment path back from a remote server confirming a relayed
+   message arrived. Operator-facing docs for client-relay (`cache.*` and
+   any other topic on the relay allowlist, §9 item 10) must state plainly:
+   *"Client-relay delivery is best-effort. It depends on at least one
+   currently-connected client bridging the source and target servers.
+   There is no cluster-wide delivery guarantee, no error if delivery fails,
+   and no way to detect a missed delivery from the publishing server."*
+   This is why cache invalidation (self-healing via TTL/next-write) is a
+   good fit and anything requiring a delivery guarantee is not (use
+   `GUARANTEED` mode + the direct mesh instead).
 9. **Client-relay should be opt-out per connection** (e.g. a `relay=false`
    driver property) for applications that don't want their driver
    participating in cluster-internal transport at all, even for cache
@@ -584,8 +631,10 @@ with two server-to-server topologies:
   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably).
 
 Biggest open items, in order: (1) inter-server authentication doesn't exist
-yet and needs to be designed before the mesh is used for anything (§9, item
-3); (2) keeping client-relay's blast radius small by default (topic
-allowlist, per-connection opt-out, a documented rate ceiling), with
-consensus traffic on it only as an explicit, documented opt-in (§9, items
-8–10) — cheap to get right now, expensive to retrofit later.
+yet — recommended: mTLS, for revocable per-peer identity (§9, item 3); (2)
+keeping client-relay's blast radius small by default (topic allowlist,
+per-connection opt-out) and documenting it plainly as best-effort, not a
+cluster-wide delivery guarantee (§9, items 8–10); (3) `GUARANTEED` mode is
+documented as not surviving a publisher crash — acceptable for
+`server.lifecycle`, not a substitute for a real broker if crash-durable
+delivery is ever needed (§9, item 4).

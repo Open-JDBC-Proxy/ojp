@@ -73,12 +73,18 @@ single-operator mesh. Full comparison:
 
 ## Biggest open items
 
-1. Inter-server authentication for the direct mesh doesn't exist yet and
-   needs designing before the mesh carries anything real.
-2. Keeping plain client-relay's blast radius small by default: a topic
-   allowlist so consensus traffic is opt-in rather than automatic, a
-   per-connection opt-out, and clear operator docs that it's best-effort,
-   not guaranteed cluster-wide delivery.
-3. Guaranteed-delivery retries don't survive a publisher crash — fine for
-   a restart notice, not a durable outbox; a real broker would be needed if
-   that's ever required.
+1. Inter-server authentication for the direct mesh doesn't exist yet.
+   Recommended: **mTLS** — gives each peer its own revocable identity and
+   reuses standard gRPC/HTTPS certificate infrastructure, vs. a shared
+   secret where leaking it from one server compromises the whole mesh with
+   no way to revoke a single peer. Full reasoning: §9 item 3.
+2. Client-relay is documented as **best-effort by design**: no ack path
+   confirms a relayed message arrived, and a missed hop produces no error.
+   Good fit for self-healing topics (cache invalidation); not a
+   cluster-wide delivery guarantee. Consensus traffic stays off the relay
+   allowlist by default (§9 items 8, 10).
+3. `GUARANTEED` mode is documented as **not crash-durable**: retries stop
+   if the publisher crashes, permanently losing anything still queued.
+   Fine for `server.lifecycle` (a crashed server can't announce its own
+   restart anyway); a future need for crash-durable delivery would need a
+   real broker, not an extension of this design (§9 item 4).
