@@ -9,11 +9,11 @@ Byzantine-fault-tolerant (BFT) alternatives — PBFT, HotStuff, Tendermint,
 BFT-SMaRt — for OJP's two transports: the opt-in **direct mesh** and the
 default **client-relay**.
 
-The short answer: **RAFT (via Apache Ratis) for the direct mesh —
-recommended default.** Encrypted, redundant client-relay is a supported
-alternative for deployments that want to avoid new inter-server
-connections entirely and can accept its documented trade-offs (§5.5). §5
-walks through both, with concrete examples.
+The short answer: **RAFT (via Apache Ratis)**, run over whichever topology
+the deployment already uses: the direct mesh when mesh is ON, encrypted
+client-relay when mesh is OFF. One topology setting governs every message
+type — there's no separate per-topic switch. §5 walks through the
+client-relay case in detail, with concrete examples.
 
 ---
 
@@ -76,15 +76,15 @@ target, or is every deployment single-operator?**
 
 ## 4. Mesh OFF: recommendation
 
-**Default recommendation: use the direct mesh for consensus even in an
-otherwise mesh-off deployment**, and reserve plain (unencrypted)
-client-relay for cache invalidation and similarly idempotent,
-low-frequency, best-effort topics.
-
-**Supported alternative: RAFT over encrypted client-relay** (§5.5), for
-deployments that specifically want zero new connections between OJP
-servers and can accept slower failover and the residual risks documented
-there. §5 has the full reasoning and concrete configuration.
+**RAFT over encrypted client-relay** (§5.5) is the approach for consensus
+when the mesh is off — not an alternative to something else, this is what
+"mesh off" means for consensus too. One topology setting governs every
+topic, consensus included: mesh ON routes everything (consensus, cache
+invalidation, restart notices) over the direct mesh; mesh OFF routes
+everything over client-relay. Consensus additionally requires the shared
+AEAD key described in §5.1 whenever it runs over client-relay, since
+unencrypted client-relay is fine for cache invalidation but not for
+consensus (§5). §5 has the full reasoning and concrete configuration.
 
 ---
 
@@ -226,15 +226,14 @@ odds is more of that same traffic, not a separate expense.
   controls (§5.3, §5.5 below).
 
 These are no longer reasons to rule client-relay out for consensus
-outright — they're the concrete, documented trade-offs of an option
-described next.
+outright — they're the concrete, documented trade-offs of the approach
+used whenever the mesh is off, described next.
 
-### 5.5 RAFT over encrypted client-relay — a supported option
+### 5.5 RAFT over encrypted client-relay — the mesh-off approach
 
 Given §5.2–§5.4, running RAFT over an encrypted, redundant client-relay is
-a legitimate choice for deployments that want zero new connections between
-OJP servers and are willing to accept its trade-offs, not just a rejected
-idea. Recommended configuration if chosen:
+a legitimate choice, not a rejected idea — it's what "mesh off" means for
+consensus. Concrete configuration:
 
 1. **A single shared AEAD key** (§5.1) on every `raft.*` envelope,
    configured once per server via JVM property / environment variable /
@@ -267,16 +266,10 @@ infrastructure load, not a one-time cost); and the narrower residual risk
 in §5.2 — a compromised driver build or a compromised shared network
 segment could still suppress specific messages without being detected,
 because RAFT cannot distinguish that from ordinary message loss it already
-tolerates.
-
-**When to choose this vs. the direct mesh:** choose encrypted client-relay
-if avoiding a new inter-server connection matters more than the fastest
-possible failover, and the residual risk above is acceptable for the
-deployment (e.g. a single, trusted operator running its own application
-fleet). Choose the direct mesh if failover speed matters, or if the
-deployment can have long client-free periods (serverless, §8 of the
-messaging analysis), since encrypted client-relay still depends on at
-least one client being connected.
+tolerates; and it still depends on at least one client being connected, so
+it doesn't cover long client-free periods (serverless, §8 of the messaging
+analysis) — that's the case for turning the mesh ON instead, cluster-wide,
+not just for consensus.
 
 ---
 
@@ -284,9 +277,8 @@ least one client being connected.
 
 | | Recommendation |
 |---|---|
-| Direct mesh | RAFT via Apache Ratis — recommended default for consensus |
-| Client-relay, cache invalidation | Fine as-is; optionally add the shared AEAD key + sequence numbers if message integrity needs to be provable |
-| Client-relay, consensus | Supported alternative to the direct mesh: RAFT via Apache Ratis, with a single shared AEAD key + sequence numbers + a widened election timeout (§5.5). Choose this when avoiding new inter-server connections matters more than fastest failover, in an isolated/trusted deployment network. |
+| Mesh ON (all topics) | RAFT via Apache Ratis, over the direct mesh |
+| Mesh OFF (all topics) | Client-relay for everything; consensus specifically requires the shared AEAD key + sequence numbers + a widened election timeout (§5.5) — cache invalidation is fine unencrypted |
 | Switch to BFT | Only if a multi-tenant, mutually-untrusting mesh becomes a real deployment target (open question, §3) |
 
 ## 7. Open questions

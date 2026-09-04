@@ -282,10 +282,11 @@ heartbeat — that's the concrete cost problem, not a hypothetical one (see
 low-frequency broadcasts — especially where opening a direct link between
 OJP servers is hard or not allowed.
 
-**Poor fit:** anything that must work with zero clients connected, or —
-in `FIRE_AND_FORGET` mode, which has no retry — anything published
-frequently where an occasional missed hop matters. See §5.3.3 for why
-consensus specifically defaults to the mesh instead.
+**Poor fit:** anything that must work with zero clients connected. In
+`FIRE_AND_FORGET` mode (no retry), also a poor fit for anything published
+frequently where an occasional missed hop matters — see §5.3.3 for how
+consensus handles this when the mesh is off (`GUARANTEED` mode + encrypted
+envelopes, not plain fire-and-forget).
 
 **Using `GUARANTEED` mode over client-relay.** The example above is
 fire-and-forget. `GUARANTEED` mode works over client-relay too — it is not
@@ -350,16 +351,18 @@ the full discussion of that residual limitation.
 | Cost per broadcast | `O(clients × servers)` | `O(servers)` |
 | New server config | None | Peer list + enable flag |
 | New trust surface | None beyond normal client auth | Needs its own inter-server credential story (§9, item 3) |
-| Good for | Cache invalidation, idempotent best-effort topics; consensus, if configured with `GUARANTEED` mode, encrypted envelopes, and a widened timing budget (see below) | Consensus with the tightest timing/latency guarantees; any deployment where client presence can't be assumed (serverless) |
+| Good for | All topics, including consensus, when the mesh is off (consensus needs `GUARANTEED` mode + encrypted envelopes, see below) | All topics, including consensus, when the mesh is on; required for any deployment where client presence can't be assumed (serverless) |
 
-**Recommended default: consensus runs on the direct mesh.** It reaches every
-configured peer directly and its cost doesn't grow with the number of
-connected clients, so it fits a tight heartbeat budget without extra
-tuning.
+**One setting governs every topic — mesh ON or mesh OFF, not a per-topic
+choice.** When the mesh is on, consensus (like everything else) runs on the
+direct mesh: it reaches every configured peer directly and its cost doesn't
+grow with the number of connected clients, fitting a tight heartbeat budget
+without extra tuning.
 
-**Consensus over client-relay is a supported, documented alternative**, for
-deployments that want to avoid opening the direct mesh at all. It needs two
-things client-relay doesn't have by default:
+**When the mesh is off, encrypted client-relay is the approach for
+consensus** — not an alternative to something else, this is what "mesh
+off" means for consensus. It needs two things beyond what client-relay
+gives cache invalidation by default:
 1. **Encrypted, authenticated envelopes** (AEAD, one shared cluster key)
    so a relaying client cannot forge or alter a message.
 2. **A widened election timeout**, because relay latency depends on
@@ -367,7 +370,7 @@ things client-relay doesn't have by default:
 
 [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably)
 has the full breakdown, including concrete settings and the honest
-remaining limitations of this option.
+remaining limitations of this approach.
 
 ### 5.4 Connections at a glance
 
@@ -417,10 +420,16 @@ happens either way; mesh off relies on those clients relaying onward (cost
 
 **Point-to-point to one specific server** (`PublishRequest.target_id`;
 needed by consensus RPCs like `RequestVote`, not required by cache
-invalidation): mesh off only works if some client happens to hold sessions
-to both servers at that moment — no such client, no delivery. Mesh on is a
-direct, deterministic call. This is the sharpest illustration of why
-consensus needs the mesh.
+invalidation): mesh off relies on some client holding sessions to both
+servers — in `GUARANTEED` mode this retries (§5.3.1) until such a client is
+available or `ttl_seconds` expires, not just an instantaneous check. Mesh
+on is a direct, deterministic call with no dependency on client topology at
+all. This is the sharpest illustration of the trade-off between the two
+topologies for point-to-point traffic like consensus: mesh on trades a new
+inter-server connection for a deterministic path; mesh off trades that
+connection away for a path that depends on client topology, made reliable
+in `GUARANTEED` mode by retry/ack rather than by guaranteeing a client is
+always there.
 
 **Broadcast to all clients of one server** (`server.lifecycle`): never
 touches another server, mesh on or off — pure local fan-out to every
@@ -500,8 +509,8 @@ avoid echo loops; a full mesh needs no further loop-avoidance beyond that.
 
 | Use case | Topic | Mode | Topology | Notes |
 |---|---|---|---|---|
-| Consensus (algorithm TBD — see [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)) | `raft.<cluster-id>.election` | Fire-and-forget | Direct mesh (recommended default); encrypted client-relay (supported alternative) | See §5.3.3 and the consensus analysis §5 |
-| Cache invalidation | `cache.invalidate` | Fire-and-forget | Client-relay (default) fine; mesh optional | Idempotent and self-healing — a missed invalidation just means a stale entry until the next write/TTL |
+| Consensus (algorithm TBD — see [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)) | `raft.<cluster-id>.election` | Fire-and-forget | Whichever the deployment has configured — direct mesh if ON, encrypted client-relay if OFF | See §5.3.3 and the consensus analysis §5 |
+| Cache invalidation | `cache.invalidate` | Fire-and-forget | Whichever the deployment has configured — client-relay or direct mesh, unencrypted either way | Idempotent and self-healing — a missed invalidation just means a stale entry until the next write/TTL |
 | Server restarting | `server.lifecycle` | Guaranteed, to currently-connected clients only | Neither — always local to that server's own clients | Never `cluster_scope=true`; a disconnected client is reached only by the driver's normal failover, not by this mechanism |
 
 ---
@@ -661,10 +670,10 @@ for the team: is that a real deployment target?**
    to confirm both topologies agree on wire format and dedup correctly.
 5. Add `GUARANTEED` mode (ack + retry + dedup); switch `server.lifecycle`
    to it.
-6. Add consensus last, on top of an already-proven substrate. Direct mesh
-   is the recommended default transport; encrypted client-relay (§9, item
-   10) is a supported alternative for deployments that want to avoid the
-   mesh entirely — pick per
+6. Add consensus last, on top of an already-proven substrate. It runs over
+   whichever topology the deployment already has configured: the direct
+   mesh when mesh is ON, encrypted client-relay (§9, item 10) when mesh is
+   OFF — same choice as every other topic, per
    [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
    §5–§6. Pick the algorithm itself from the same document (currently
    recommends RAFT via Apache Ratis) before starting this phase.
@@ -684,10 +693,11 @@ with two server-to-server topologies:
   whether a bridging client is connected at publish time (§9, item 8).
 - **Direct mesh (opt-in, `ojp.server.mesh.enabled`):** one channel per
   configured peer, driven by server config, independent of any client.
-  Recommended default for consensus and required whenever client presence
-  can't be assumed (serverless). Encrypted client-relay is a supported
-  alternative for consensus when avoiding the mesh matters more than the
-  tightest failover latency — see
+  One setting governs every topic: when the mesh is ON, everything —
+  including consensus — runs over it, required for deployments where
+  client presence can't be assumed (serverless). When the mesh is OFF,
+  consensus runs over encrypted client-relay instead (that is the
+  approach, not a fallback) — see
   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably).
 
 Biggest open items, in order: (1) inter-server authentication doesn't exist

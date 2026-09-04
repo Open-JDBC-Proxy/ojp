@@ -37,30 +37,33 @@ any topology, including client-relay.
 | Default | **Yes, always on** | No — opt-in (`ojp.server.mesh.enabled`) |
 | New connections between servers | **None** | One channel per configured peer |
 | Works with zero clients connected | No | Yes |
-| Good for | Cache invalidation | Consensus (required); any deployment with long zero-client periods (serverless) |
+| Good for | All topics, when mesh is off (consensus needs `GUARANTEED` mode + encryption, see below) | All topics, when mesh is on; required for any deployment with long zero-client periods (serverless) |
 
 Client-relay works because multinode clients are already connected to every
 server in the cluster and forward `cluster_scope=true` messages between the
 servers they hold sessions to — no new connection, no new config. The
 direct mesh is a small, explicit exception: servers open a channel directly
 to configured peers, reusing the driver's client-side gRPC plumbing as a
-library (not its public JDBC API), only when an operator turns it on.
+library (not its public JDBC API), only when an operator turns it on. One
+setting governs every topic, including consensus — there's no separate
+per-topic switch.
 
-## Consensus: direct mesh vs. encrypted client-relay
+## Consensus over each topology
 
-Direct mesh is the recommended default for consensus: cost is `O(servers)`
-regardless of client count, and it works with zero clients connected
-(serverless).
+When the mesh is on, consensus runs over it like everything else: cost is
+`O(servers)` regardless of client count, and it works with zero clients
+connected (serverless).
 
-Encrypted client-relay is a supported alternative for deployments that want
-zero new connections between OJP servers. Full fan-out means an attacker
-needs to defeat *every* client bridging two servers to suppress a message,
-not just one — a real, meaningful bar. What's left is a single point
-shared by all clients (the driver build they all run, or a network path
-they all cross), which more clients doesn't fix. This option also costs
-`O(clients × servers)` per heartbeat and needs a widened election timeout
-to tolerate relay-path latency, trading failover speed for avoiding the
-mesh. Full reasoning and configuration:
+When the mesh is off, consensus runs over **encrypted client-relay** —
+that's the approach for mesh-off consensus, not an alternative to
+something else. Full fan-out means an attacker needs to defeat *every*
+client bridging two servers to suppress a message, not just one — a real,
+meaningful bar. What's left is a single point shared by all clients (the
+driver build they all run, or a network path they all cross), which more
+clients doesn't fix. This path also costs `O(clients × servers)` per
+heartbeat and needs a widened election timeout to tolerate relay-path
+latency, trading failover speed for staying mesh-free. Full reasoning and
+configuration:
 [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably).
 
 ## Which consensus algorithm

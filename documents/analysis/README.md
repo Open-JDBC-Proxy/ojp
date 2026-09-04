@@ -15,12 +15,12 @@ any new connection between OJP servers?
 **Quick Answer:** Add a generic `MessagingService` gRPC contract (`Publish`,
 `Subscribe`, `Ack`; topic + opaque payload + delivery mode), consumed by
 every participant through the existing JDBC driver's connection/session/
-failover machinery. Two server-to-server topologies are offered: a
-default, always-on **client-relay** mode that adds no new connections at
-all, and an opt-in **direct mesh** mode (`ojp.server.mesh.enabled`) for
-cases — RAFT, serverless — that genuinely need a link independent of client
-presence, built by reusing the driver's client-side gRPC plumbing rather
-than a bespoke protocol.
+failover machinery. One topology setting governs every message type
+(consensus included) — a default, always-on **client-relay** mode that adds
+no new connections at all, or an opt-in **direct mesh** mode
+(`ojp.server.mesh.enabled`) for deployments that genuinely need a link
+independent of client presence (e.g. serverless), built by reusing the
+driver's client-side gRPC plumbing rather than a bespoke protocol.
 
 **Documents:**
 - **Executive Summary**: [OJP_MESSAGING_PROTOCOL_SUMMARY.md](./OJP_MESSAGING_PROTOCOL_SUMMARY.md)
@@ -35,16 +35,18 @@ than a bespoke protocol.
 - **Related Analysis**: [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
   - RAFT vs. Byzantine-fault-tolerant alternatives (PBFT, HotStuff, Tendermint,
     BFT-SMaRt) for the leader-election use case
-  - Direct mesh (recommended default) vs. encrypted client-relay
-    (supported alternative) for carrying consensus traffic
+  - How consensus runs over each topology: direct mesh when mesh is ON,
+    encrypted client-relay when mesh is OFF (the approach for that case,
+    not a fallback)
   - Pros/cons, recommendation, and open questions — RAFT is a running example
     in the messaging protocol documents above, not a committed decision
 
 **Key Takeaway:** OJP servers become driver-backed clients of each other
 (and of connected application clients, via a client-initiated subscribe
-stream) by default, with an opt-in direct-mesh alternative for cases where
-client connectivity can't be relied upon — both built on the driver's
-existing resiliency features rather than a new bespoke transport.
+stream) by default, with an opt-in direct mesh for deployments where client
+connectivity can't be relied upon — both built on the driver's existing
+resiliency features rather than a new bespoke transport. One switch decides
+the topology for every message type, consensus included.
 
 ---
 
