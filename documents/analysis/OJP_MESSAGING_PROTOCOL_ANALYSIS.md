@@ -294,7 +294,7 @@ needs the mesh instead.
   open `Subscribe` stream per peer, held by a small component inside
   `ojp-server`.
 
-#### 5.3.3 Choosing between them, and why consensus needs the mesh
+#### 5.3.3 Choosing between them
 
 | | Client-relay | Direct mesh |
 |---|---|---|
@@ -302,31 +302,24 @@ needs the mesh instead.
 | Cost per broadcast | `O(clients × servers)` | `O(servers)` |
 | New server config | None | Peer list + enable flag |
 | New trust surface | None beyond normal client auth | Needs its own inter-server credential story (§9, item 3) |
-| Good for | Cache invalidation, idempotent best-effort topics | Consensus; any deployment where client presence can't be assumed (serverless) |
+| Good for | Cache invalidation, idempotent best-effort topics; consensus, if configured with encrypted envelopes and a widened timing budget (see below) | Consensus with the tightest timing/latency guarantees; any deployment where client presence can't be assumed (serverless) |
 
-**Why consensus (e.g. RAFT) needs the mesh, in plain terms:** it is *not*
-because client-relay might lose or delay a message — consensus protocols
-are already built to survive that (they retry). The two real reasons are:
+**Recommended default: consensus runs on the direct mesh.** It reaches every
+configured peer directly and its cost doesn't grow with the number of
+connected clients, so it fits a tight heartbeat budget without extra
+tuning.
 
-1. **Trust perimeter.** A consensus algorithm like RAFT assumes every
-   message it acts on came from one of a small, fixed set of cluster
-   members. Client-relay routes those messages through application
-   processes that were never part of that membership. Nothing in the
-   `MessagingService` contract, as designed, distinguishes "a message a real
-   peer server produced and a client faithfully relayed" from "a message an
-   application crafted and published directly." This isn't about assuming
-   applications are malicious — see
-   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably)
-   for the full breakdown of what encryption does and doesn't fix here, and
-   why client-relay can still be a reasonable choice for lower-stakes
-   topics like cache invalidation even without solving this.
-2. **Cost.** Consensus heartbeats fire every 50–150ms. §5.3.1's
-   `clients × servers` relay cost, repeated at that frequency, turns a
-   small, predictable cluster protocol into a load that scales with the
-   size of the *application* tier, not the (small) server cluster.
+**Consensus over client-relay is a supported, documented alternative**, for
+deployments that want to avoid opening the direct mesh at all. It needs two
+things client-relay doesn't have by default:
+1. **Encrypted, authenticated envelopes** (AEAD, per-server keys) so a
+   relaying client cannot forge or alter a message.
+2. **A widened election timeout**, because relay latency depends on
+   app-process scheduling, not tuned for a 50–150ms heartbeat budget.
 
-The direct mesh avoids both: it only ever talks to the configured peer set,
-and its cost is `O(servers)` regardless of how many clients are connected.
+[OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably)
+has the full breakdown, including concrete settings and the honest
+remaining limitations of this option.
 
 ### 5.4 Connections at a glance
 
@@ -459,7 +452,7 @@ avoid echo loops; a full mesh needs no further loop-avoidance beyond that.
 
 | Use case | Topic | Mode | Topology | Notes |
 |---|---|---|---|---|
-| Consensus (algorithm TBD — see [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)) | `raft.<cluster-id>.election` | Fire-and-forget | **Direct mesh required** | See §5.3.3 for why |
+| Consensus (algorithm TBD — see [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)) | `raft.<cluster-id>.election` | Fire-and-forget | Direct mesh (recommended default); encrypted client-relay (supported alternative) | See §5.3.3 and the consensus analysis §5 |
 | Cache invalidation | `cache.invalidate` | Fire-and-forget | Client-relay (default) fine; mesh optional | Idempotent and self-healing — a missed invalidation just means a stale entry until the next write/TTL |
 | Server restarting | `server.lifecycle` | Guaranteed, to currently-connected clients only | Neither — always local to that server's own clients | Never `cluster_scope=true`; a disconnected client is reached only by the driver's normal failover, not by this mechanism |
 
@@ -535,12 +528,15 @@ for the team: is that a real deployment target?**
    driver property) for applications that don't want their driver
    participating in cluster-internal transport at all, even for cache
    invalidation.
-10. **Consensus must never leak onto client-relay, even by accident.**
-    Since both topologies share one `MessagingService` contract, the
-    server-side implementation should hard-code a topic allowlist for what
-    client-relay is permitted to forward (e.g. only `cache.*`), independent
-    of what a publisher sets, so a bug or a misconfigured client can't
-    smuggle consensus traffic across an untrusted path.
+10. **Consensus over client-relay is opt-in, not automatic.** Since both
+    topologies share one `MessagingService` contract, the server-side
+    implementation should gate which topics client-relay is permitted to
+    forward with an explicit allowlist (default: `cache.*` only). Enabling
+    `raft.*` on that allowlist is a deliberate operator choice, made only
+    together with the encrypted-envelope + widened-timeout setup described
+    in [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably) —
+    never by default, and never by a client simply publishing to that topic
+    unannounced.
 
 ---
 
@@ -559,10 +555,13 @@ for the team: is that a real deployment target?**
    to confirm both topologies agree on wire format and dedup correctly.
 5. Add `GUARANTEED` mode (ack + retry + dedup); switch `server.lifecycle`
    to it.
-6. Add consensus last, on top of an already-proven substrate, requiring the
-   direct mesh always. Pick the algorithm per
+6. Add consensus last, on top of an already-proven substrate. Direct mesh
+   is the recommended default transport; encrypted client-relay (§9, item
+   10) is a supported alternative for deployments that want to avoid the
+   mesh entirely — pick per
    [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
-   (currently recommends RAFT via Apache Ratis) before starting this phase.
+   §5–§6. Pick the algorithm itself from the same document (currently
+   recommends RAFT via Apache Ratis) before starting this phase.
 
 ---
 
@@ -578,12 +577,15 @@ with two server-to-server topologies:
   invalidation.
 - **Direct mesh (opt-in, `ojp.server.mesh.enabled`):** one channel per
   configured peer, driven by server config, independent of any client.
-  Required for consensus and recommended whenever client presence can't be
-  assumed (serverless).
+  Recommended default for consensus and required whenever client presence
+  can't be assumed (serverless). Encrypted client-relay is a supported
+  alternative for consensus when avoiding the mesh matters more than the
+  tightest failover latency — see
+  [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably).
 
 Biggest open items, in order: (1) inter-server authentication doesn't exist
 yet and needs to be designed before the mesh is used for anything (§9, item
-3); (2) keeping client-relay's blast radius small (topic allowlist,
-per-connection opt-out, a documented rate ceiling) and consensus strictly
-off of it (§9, items 8–10) — cheap to get right now, expensive to retrofit
-later.
+3); (2) keeping client-relay's blast radius small by default (topic
+allowlist, per-connection opt-out, a documented rate ceiling), with
+consensus traffic on it only as an explicit, documented opt-in (§9, items
+8–10) — cheap to get right now, expensive to retrofit later.

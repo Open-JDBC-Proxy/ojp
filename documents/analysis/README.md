@@ -35,8 +35,8 @@ than a bespoke protocol.
 - **Related Analysis**: [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md)
   - RAFT vs. Byzantine-fault-tolerant alternatives (PBFT, HotStuff, Tendermint,
     BFT-SMaRt) for the leader-election use case
-  - Which algorithm(s) fit Mesh ON vs. Mesh OFF, and why swapping algorithms
-    alone doesn't make client-relay safe for consensus traffic
+  - Direct mesh (recommended default) vs. encrypted client-relay
+    (supported alternative) for carrying consensus traffic
   - Pros/cons, recommendation, and open questions — RAFT is a running example
     in the messaging protocol documents above, not a committed decision
 

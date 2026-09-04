@@ -9,11 +9,11 @@ Byzantine-fault-tolerant (BFT) alternatives — PBFT, HotStuff, Tendermint,
 BFT-SMaRt — for OJP's two transports: the opt-in **direct mesh** and the
 default **client-relay**.
 
-The short answer: **RAFT (via Apache Ratis) for the direct mesh.
-Client-relay should not carry consensus traffic, mesh or no mesh algorithm
-choice.** §5 explains exactly why, with concrete examples — this is the
-section most relevant to "can we make client-relay work well enough to
-avoid needing the mesh at all?"
+The short answer: **RAFT (via Apache Ratis) for the direct mesh —
+recommended default.** Encrypted, redundant client-relay is a supported
+alternative for deployments that want to avoid new inter-server
+connections entirely and can accept its documented trade-offs (§5.5). §5
+walks through both, with concrete examples.
 
 ---
 
@@ -76,10 +76,15 @@ target, or is every deployment single-operator?**
 
 ## 4. Mesh OFF: recommendation
 
-**Do not run consensus over client-relay in any form, with any algorithm.**
-Use the direct mesh for consensus even in an otherwise mesh-off deployment,
-and reserve client-relay for cache invalidation and similarly idempotent,
-low-frequency, best-effort topics. §5 is the detailed reasoning.
+**Default recommendation: use the direct mesh for consensus even in an
+otherwise mesh-off deployment**, and reserve plain (unencrypted)
+client-relay for cache invalidation and similarly idempotent,
+low-frequency, best-effort topics.
+
+**Supported alternative: RAFT over encrypted client-relay** (§5.5), for
+deployments that specifically want zero new connections between OJP
+servers and can accept slower failover and the residual risks documented
+there. §5 has the full reasoning and concrete configuration.
 
 ---
 
@@ -112,93 +117,127 @@ Encryption protects the message. It does nothing about whether the courier
 courier. Sealing it stops the courier from reading or altering the letter
 inside. It does not stop the courier from putting it in a drawer and
 forgetting about it, walking a different route that takes longer, or
-simply choosing not to deliver it today. Client-relay has exactly this
-gap: a relaying client can silently not relay, relay late, or relay only
-some of the messages it sees — and the publisher has no way to detect that
-from the outside, because a `Publish` call succeeds (returns an ack) the
-moment the local server hands the message to its own subscribers, before
-any relay hop happens.
+simply choosing not to deliver it today.
 
-For RAFT specifically, **selectively not relaying certain messages** — say,
-only the vote requests from one particular candidate — can bias an
-election even though nothing was forged. That is Byzantine-style behavior
-(a participant deviating from "faithfully pass along what you receive"),
-and RAFT's crash-only design has no mechanism to detect or tolerate it.
-Encryption does not touch this at all, because nothing about the message
-was altered — it just never arrived.
+**But this is much harder to pull off than it sounds, because of fan-out.**
+`Publish` sends the envelope to *every* client subscribed on the source
+server, and each one independently relays it. To make one specific message
+never reach a specific target server, an attacker (or a bug) has to make
+**every single one** of the clients that bridge those two servers fail to
+relay it — not just one. With, say, 10 clients connecting server A to
+server B, that means compromising or disabling 10 independent processes in
+exact coincidence, not one. That is a real, meaningful bar, and it's fair
+to say encryption plus full fan-out addresses the "one rogue client drops
+one message" version of this concern.
 
-### 5.3 Does sending via multiple clients (redundancy) fix it?
+**What's left is the case where the clients aren't actually independent.**
+Two realistic ways that happens:
+- **A shared bug or a supply-chain compromise in the driver itself.** Every
+  client uses the same `ojp-jdbc-driver` build. If that build (or a
+  malicious dependency inside it) is the thing deciding whether to relay,
+  then all 10 "independent" clients are really running the same decision
+  logic — compromising the driver once is the same as compromising all
+  10 at once. This is not a per-client attack; it's a single point of
+  failure disguised as many.
+- **A shared network path.** If every one of those 10 clients' traffic to
+  server B crosses the same load balancer, sidecar proxy, or network
+  segment, an attacker controlling that one shared point can drop the
+  message for all 10 without touching any client process.
 
-This is a genuinely good point, and worth being precise about, because the
-design already does this by construction: local fan-out (§5.1 of the
-messaging analysis) sends every envelope to *every* subscribed client, and
-each of them independently attempts to relay it onward. Sending "the same
-message via more than one client" isn't a hypothetical addition — it's what
-already happens today whenever more than one client is connected.
+Neither of these is defeated by "send it to more clients," because more
+clients does not mean more *independence* if they all trust the same
+binary or cross the same wire. This is the honest, narrower version of the
+concern — not "a client might drop a message," but "the one thing all
+clients share (their code, or their network path) might drop it for all of
+them at once."
 
-**What this fixes well: random, independent failures.** If each relaying
-client has a small, independent chance `p` of failing to relay (crashed,
-network blip, GC pause) and the message goes out via `k` different clients,
-the chance that *all of them* fail is `p^k`. A concrete number: at `p =
-0.05` (5% chance any one client fails to relay) and `k = 10` connected
-clients, the chance that *every single one* fails is `0.05^10` —
-practically zero. This is exactly why client-relay works reasonably well
-for cache invalidation in practice — it is not simply "unreliable."
+For RAFT specifically, this narrower risk (not the discredited "any one
+client can bias an election" version) is what remains: a compromised driver
+build or a compromised shared network path could selectively suppress
+specific messages — say, only one candidate's vote requests — while
+leaving everything else working normally, and RAFT's crash-only design has
+no way to detect that as anything other than normal message loss (which it
+already tolerates, so it wouldn't even raise an alarm).
 
-**What this does not fix: a targeted or coordinated actor.** The `p^k` math
-only holds if each client's chance of failing to relay is *independent*.
-That assumption breaks in the two cases that actually matter for
-consensus:
-- **One entity controls (or compromises) several of the specific clients**
-  that happen to bridge two particular servers. Those failures are no
-  longer independent coin flips — they're one decision, applied
-  everywhere at once. `p^k` doesn't apply; the real probability of failure
-  is just however good that one actor's evasion is.
-- **A bug, not malice, shared across a fleet.** If every instance of an
-  application runs the same driver version with the same relay bug, `k`
-  independent-looking clients are really one failure mode duplicated `k`
-  times, not `k` independent trials.
+### 5.3 Redundancy math for the independent-failure case
 
-Redundancy is a real, effective defense against *random* relay failure. It
-is not a defense against a *targeted* one, because targeting breaks the
-independence the math depends on.
+To make §5.2's independence point concrete: if each of `k` relaying clients
+has a small, independent chance `p` of failing to relay (crashed, network
+blip, GC pause — not a shared cause), the chance that *all of them* fail is
+`p^k`. At `p = 0.05` (5% chance any one client fails) and `k = 10`
+connected clients, the chance every single one fails is `0.05^10` —
+practically zero. This is why client-relay works well in practice against
+ordinary, uncoordinated failures, and it's the same math that makes §5.2's
+"attacker needs all 10, not 1" point real.
 
-Redundancy also doesn't touch the other two blockers, which are
-unaffected by trust:
-- **Latency.** Client processes run app code, have their own GC pauses,
-  and sit on whatever network path the application happens to have — none
-  of that is tuned for RAFT's timing budget (heartbeats every 50–150ms,
-  election timeout a small multiple of that). Sending via more clients
-  doesn't make any individual path faster or more predictable; it can only
-  help if at least one of the `k` paths happens to be fast enough, which
-  is a bet, not a guarantee.
-- **Cost.** Sending via `k` clients to get better odds is `k` times the
-  relay traffic (§5.3.1 of the messaging analysis already quantifies this
-  as up to `clients × servers` calls per broadcast). More redundancy for
-  better odds directly means more of exactly the cost problem that already
-  makes client-relay a poor fit for heartbeat-frequency traffic.
+It does not touch cost: sending via `k` clients is `k` times the relay
+traffic (§5.3.1 of the messaging analysis already quantifies plain relay as
+up to `clients × servers` calls per broadcast). More redundancy for better
+odds is more of that same traffic, not a separate expense.
 
 ### 5.4 Bottom line
 
 - **Forgery/tampering: solved** by per-peer AEAD encryption, given clients
-  are trusted applications. Not a reason to avoid client-relay.
-- **Random relay failures: well mitigated** by the fan-out redundancy the
-  design already has. Genuinely a point in client-relay's favor for
-  lower-stakes traffic like cache invalidation.
-- **Targeted omission and unpredictable latency: not solved** by either
-  encryption or redundancy, and are the real, concrete reasons consensus
-  needs the direct mesh instead. Not "less secure" in the abstract — the
-  specific, checkable failure mode is that a deviating (or just slow)
-  client can bias an election result without forging anything, and RAFT's
-  design has no way to detect or route around that.
-- **If client-relay must be used for something today** (e.g. an operator
-  who genuinely cannot enable the mesh yet), the best available design is:
-  per-peer AEAD keys + a monotonic sequence number per producer (replay
-  protection) + relying on the existing multi-client fan-out for
-  redundancy. That combination is good enough for cache invalidation and
-  similar idempotent, best-effort topics today. It is still not
-  recommended for consensus, because of the latency and cost points above,
-  which that combination does not address.
+  are trusted applications.
+- **Full suppression by one rogue or failing client: solved** by full
+  fan-out — an attacker needs every bridging client to fail at once, not
+  one (§5.2, §5.3).
+- **Remaining risk: a single point shared by all clients** — the driver
+  build every client runs, or a network path every client's traffic
+  crosses — since that isn't defeated by adding more clients (§5.2).
+- **Cost and latency** scale with the number of connected clients and with
+  how tuned their network paths are, neither of which client-relay
+  controls (§5.3, §5.5 below).
+
+These are no longer reasons to rule client-relay out for consensus
+outright — they're the concrete, documented trade-offs of an option
+described next.
+
+### 5.5 RAFT over encrypted client-relay — a supported option
+
+Given §5.2–§5.4, running RAFT over an encrypted, redundant client-relay is
+a legitimate choice for deployments that want zero new connections between
+OJP servers and are willing to accept its trade-offs, not just a rejected
+idea. Recommended configuration if chosen:
+
+1. **Per-server AEAD keys** (§5.6) on every `raft.*` envelope, so a
+   relaying client cannot forge or alter a message.
+2. **A monotonic sequence number per producer**, so a replayed old message
+   is rejected instead of accepted twice.
+3. **Rely on full fan-out for redundancy** — every connected client already
+   relays independently; no extra fan-out logic needed beyond what
+   client-relay already does.
+4. **Widen RAFT's election timeout** well beyond the 150–300ms typical for
+   a direct-mesh deployment — e.g. into the 1–5 second range — to absorb
+   app-process scheduling jitter on the relay path instead of triggering
+   spurious elections. This trades faster failover for tolerating
+   relay-path latency.
+5. **Keep the driver's relay logic minimal and audited.** Since §5.2's
+   remaining risk is the shared driver code path itself, that code should
+   do nothing more than "verify AEAD tag, check sequence number, forward" —
+   no parsing of consensus semantics, so a driver bug has the smallest
+   possible blast radius.
+
+**What you get:** no direct connection between OJP servers, ever; message
+forgery is closed; single-client failures (random crashes, blips) are
+absorbed by redundancy.
+
+**What you still accept:** slower failover (from the widened timeout); the
+`clients × servers` traffic cost at heartbeat frequency (real, ongoing
+infrastructure load, not a one-time cost); and the narrower residual risk
+in §5.2 — a compromised driver build or a compromised shared network
+segment could still suppress specific messages without being detected,
+because RAFT cannot distinguish that from ordinary message loss it already
+tolerates.
+
+**When to choose this vs. the direct mesh:** choose encrypted client-relay
+if avoiding a new inter-server connection matters more than the fastest
+possible failover, and the residual risk above is acceptable for the
+deployment (e.g. a single, trusted operator running its own application
+fleet). Choose the direct mesh if failover speed matters, or if the
+deployment can have long client-free periods (serverless, §8 of the
+messaging analysis), since encrypted client-relay still depends on at
+least one client being connected.
 
 ---
 
@@ -206,18 +245,23 @@ unaffected by trust:
 
 | | Recommendation |
 |---|---|
-| Direct mesh | RAFT via Apache Ratis |
-| Client-relay | No consensus traffic. Cache invalidation and similar idempotent topics only, optionally with per-peer AEAD + sequence numbers if message integrity needs to be provable. |
+| Direct mesh | RAFT via Apache Ratis — recommended default for consensus |
+| Client-relay, cache invalidation | Fine as-is; optionally add per-peer AEAD + sequence numbers if message integrity needs to be provable |
+| Client-relay, consensus | Supported alternative to the direct mesh: RAFT via Apache Ratis, with per-peer AEAD + sequence numbers + a widened election timeout (§5.5). Choose this when avoiding new inter-server connections matters more than fastest failover. |
 | Switch to BFT | Only if a multi-tenant, mutually-untrusting mesh becomes a real deployment target (open question, §3) |
 
 ## 7. Open questions
 
 1. Is a multi-tenant, mutually-untrusting mesh a real target for OJP, or is
    every deployment single-operator? (Drives §3.)
-2. If per-peer AEAD is built for client-relay's cache-invalidation path
-   (§5.4), where do server keys live and how do they rotate? This needs its
-   own design, not an add-on to this analysis.
+2. If per-peer AEAD is built for client-relay's consensus path (§5.5) or
+   cache-invalidation path, where do server keys live and how do they
+   rotate? This needs its own design, not an add-on to this analysis.
 3. Should the driver expose a way for an application to observe "my relay
    attempt failed" instead of it being silent? Would help operators notice
-   the "targeted omission" failure mode in §5.2 sooner, even without fully
+   the shared-failure-point risk in §5.2 sooner, even without fully
    solving it.
+4. What election-timeout value is actually safe for encrypted client-relay
+   (§5.5, item 4) in a real deployment? This needs measured relay-path
+   latency data, not a guess — should be validated before recommending a
+   specific number.

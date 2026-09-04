@@ -45,47 +45,40 @@ direct mesh is a small, explicit exception: servers open a channel directly
 to configured peers, reusing the driver's client-side gRPC plumbing as a
 library (not its public JDBC API), only when an operator turns it on.
 
-## Why consensus needs the direct mesh
+## Consensus: direct mesh vs. encrypted client-relay
 
-Not because client-relay might lose or delay a message — consensus
-protocols already tolerate that. Two concrete reasons instead:
+Direct mesh is the recommended default for consensus: cost is `O(servers)`
+regardless of client count, and it works with zero clients connected
+(serverless).
 
-1. **Trust perimeter.** Consensus assumes messages come from a fixed,
-   known set of servers. Client-relay routes them through application
-   processes outside that set. Encryption (AEAD) stops a client from
-   forging or altering a message, but not from simply choosing not to
-   relay it, or relaying it late — a courier can be sealed but still
-   decide not to deliver.
-2. **Cost.** Relaying via every connected client costs up to
-   `clients × servers` calls per broadcast. Fine for an occasional cache
-   invalidation; too expensive at a consensus heartbeat's frequency
-   (every 50–150ms).
-
-Redundancy (sending the same message via many independently-connected
-clients) genuinely helps against random relay failures — at a 5% failure
-chance per client, 10 clients bring the odds of total failure to
-practically zero. It does not help against a targeted actor, since
-targeting breaks the independence that math depends on, and it doesn't
-reduce the cost problem — more redundancy is more of the same traffic.
-Full reasoning: [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably).
+Encrypted client-relay is a supported alternative for deployments that want
+zero new connections between OJP servers. Full fan-out means an attacker
+needs to defeat *every* client bridging two servers to suppress a message,
+not just one — a real, meaningful bar. What's left is a single point
+shared by all clients (the driver build they all run, or a network path
+they all cross), which more clients doesn't fix. This option also costs
+`O(clients × servers)` per heartbeat and needs a widened election timeout
+to tolerate relay-path latency, trading failover speed for avoiding the
+mesh. Full reasoning and configuration:
+[OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#5-can-client-relay-carry-consensus-messages-reliably).
 
 ## Which consensus algorithm
 
-RAFT (via Apache Ratis) for the direct mesh — its crash-only trust
-assumption matches the mesh's fixed, operator-configured peer set. BFT
-alternatives (PBFT, HotStuff, Tendermint, BFT-SMaRt) cost more nodes and
-more messages to tolerate a threat model (malicious peers) that doesn't fit
-a single-operator mesh. Full comparison and Mesh-OFF reasoning:
+RAFT (via Apache Ratis) — its crash-only trust assumption matches the
+direct mesh's fixed, operator-configured peer set. BFT alternatives (PBFT,
+HotStuff, Tendermint, BFT-SMaRt) cost more nodes and more messages to
+tolerate a threat model (malicious peers) that doesn't fit a
+single-operator mesh. Full comparison:
 [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md).
 
 ## Biggest open items
 
 1. Inter-server authentication for the direct mesh doesn't exist yet and
    needs designing before the mesh carries anything real.
-2. Keeping client-relay's blast radius small: a topic allowlist so
-   consensus can never leak onto it, a per-connection opt-out, and clear
-   operator docs that it's best-effort, not guaranteed cluster-wide
-   delivery.
+2. Keeping plain client-relay's blast radius small by default: a topic
+   allowlist so consensus traffic is opt-in rather than automatic, a
+   per-connection opt-out, and clear operator docs that it's best-effort,
+   not guaranteed cluster-wide delivery.
 3. Guaranteed-delivery retries don't survive a publisher crash — fine for
    a restart notice, not a durable outbox; a real broker would be needed if
    that's ever required.
