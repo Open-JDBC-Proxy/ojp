@@ -1342,7 +1342,14 @@ for RAFT and for any deployment where client presence cannot be assumed.
    inter-server trust mechanism to build on (e.g. shared cluster secret,
    mTLS certs), or does this analysis need to also propose one?** I did not
    find one in the codebase; flagging this as a likely next analysis if this
-   proceeds.
+   proceeds. If OJP ever needs consensus traffic to survive over
+   client-relay specifically (Mesh OFF), the same credential/key material
+   discussed here is the basis for the authenticated-envelope schemes
+   evaluated in
+   [OJP_CONSENSUS_ALGORITHM_ANALYSIS.md §5.6](./OJP_CONSENSUS_ALGORITHM_ANALYSIS.md#56-would-encrypting-the-envelope-servers-only-key-work-instead-of-signing)
+   (per-peer symmetric AEAD keys vs. asymmetric signing) — that analysis
+   concludes a shared/derived symmetric key is a realistic, simpler starting
+   point than full PKI for a small, fixed server count.
 4. **Guaranteed delivery durability across a publisher crash.** As
    specified above, "guaranteed" only covers retries while the publisher
    process is alive. If the publishing server crashes mid-retry, queued

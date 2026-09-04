@@ -347,6 +347,144 @@ recommendation against it? If so, that changes the priority of building the
 peer-signing scheme described above; if not, I'd treat it as a documented
 possibility and nothing more for now.
 
+### 5.6 Would encrypting the envelope (servers-only key) work instead of signing?
+
+This is a legitimate alternative to the asymmetric-signing idea above, and
+worth answering precisely rather than lumping it in with "signing" — it's
+realistic, but only if one specific, easy-to-get-wrong distinction is
+respected: **the property that actually matters here is integrity/
+authenticity, not secrecy.**
+
+**Why "encryption" needs to be unpacked before answering "would it work":**
+plain encryption (e.g. AES-CBC, or any cipher used only for confidentiality)
+answers a different question than the one that matters. It stops a client
+from *reading* an envelope it can't decrypt, but naive/unauthenticated
+encryption does not, by itself, stop a client from tampering with the
+ciphertext or replaying an old one — some cipher modes (CBC without a MAC,
+for instance) are explicitly malleable: an attacker who cannot read the
+plaintext can still flip bits in a predictable way and produce a different,
+still-"validly-decrypting" plaintext, or a client could simply replay a
+previously-observed valid ciphertext verbatim. **RAFT's problem was never
+confidentiality — nobody in this system needs a vote request kept secret
+from the client carrying it — the problem is *forgery*: can a client
+produce, on its own, a message the receiving OJP server will accept as
+genuine.** So "encryption" only helps here to the extent it also provides
+**authenticated encryption (AEAD — e.g. AES-GCM, ChaCha20-Poly1305)**, or
+plaintext plus a MAC computed with a servers-only secret. Used that way, it
+is functionally the same mechanism as the signing idea in §5 — a receiver
+can verify "only a holder of the servers-only key could have produced this"
+— just built from a **shared symmetric secret** instead of **per-peer
+asymmetric key pairs**. Framed this way: **yes, this is a realistic,
+concrete, and honestly simpler alternative to full asymmetric signing for
+solving the exact same problem**, and it deserves to be documented as a
+serious option, not a footnote to §5's signing idea.
+
+**How it would actually have to work, concretely:**
+
+1. All N configured OJP servers (Mesh ON peers) share one or more symmetric
+   keys, distributed and rotated out-of-band (the same key-distribution
+   problem any of these schemes has — nothing here avoids needing *some*
+   secure channel to hand out the initial secret, typically the same
+   operator-controlled config/secrets-management path used for database
+   credentials today).
+2. A publishing OJP server computes an AEAD ciphertext (or a MAC over the
+   plaintext) for `cluster_scope=true` / consensus-topic envelopes using
+   that shared key, and includes it in the `Envelope`.
+3. Every OJP server that receives the envelope (whether directly, via the
+   mesh, or after client-relay hops) verifies the AEAD tag/MAC before
+   trusting the message; if verification fails, it discards the envelope
+   without acting on it.
+4. Client-relay carriers never need the key at all — they just forward
+   opaque bytes, exactly like they do today for any other topic — which is
+   precisely the property being asked about: **a relaying client cannot
+   alter the message undetected, because it cannot compute a valid tag
+   without the shared key**, even though it can still read the plaintext if
+   the scheme only uses a MAC without confidentiality (which is fine, since
+   secrecy from the client was never the actual requirement).
+
+**Does "consensus algorithm + encrypted/authenticated messages" work as a
+combination? Yes, at the level that actually matters:** this closes
+argument 1 of the messaging analysis's §5.3.5 (the trust-perimeter/
+forgery problem) in essentially the same way the asymmetric-signing path
+does — a receiver can now tell "produced by a real, key-holding OJP server"
+from "crafted directly by a client," which is exactly the missing piece
+RAFT's crash-only assumption needs to hold over client-relay.
+
+**Where it's genuinely simpler than asymmetric signing (a real advantage,
+worth being fair about):** no PKI, no certificate issuance/rotation
+tooling, no per-peer key pairs to manage — symmetric primitives are cheaper
+to compute and conceptually simpler to reason about for a small, fixed
+cluster size. For a small N (a handful of OJP servers), this is a real,
+non-trivial simplicity win over standing up asymmetric signing
+infrastructure from scratch.
+
+**Where it's genuinely weaker than asymmetric signing (the honest
+trade-offs, not just "it's less secure" hand-waving):**
+
+1. **Blast radius on key compromise is worse with a single shared secret.**
+   If every server holds the *same* symmetric key, compromising or leaking
+   it from *any one* of the N servers (or from wherever it's stored in
+   config/secrets management) lets an attacker forge messages that appear
+   to come from *any* peer — there is no way to tell "genuinely produced by
+   server A" from "forged by whoever leaked the shared secret, claiming to
+   be server A." With per-peer asymmetric keys, compromising server A's
+   private key only lets an attacker impersonate server A specifically;
+   every other peer's signature remains trustworthy. This is fixable —
+   derive a per-peer subkey from a master secret plus the peer's ID (HKDF or
+   similar), so each server signs/MACs with its own derived key instead of
+   one flat shared secret — but that is additional design the naive "one
+   shared key" version of this idea does not have for free, and it's worth
+   being explicit that "shared symmetric key" and "per-peer symmetric key"
+   are different points on this trade-off, not the same proposal.
+2. **No non-repudiation.** With a genuinely shared key, any server that
+   holds it *could* have produced any message attributed to any other
+   server — there's no cryptographic way to prove which specific server
+   actually did, only that *some* key-holder did. Per-peer derived keys (as
+   above) recover attribution, but a flat shared key does not. Asymmetric
+   signatures give this for free, since only the claimed signer's private
+   key could have produced a valid signature.
+3. **Replay protection is not automatic in either scheme and must be added
+   either way.** AEAD/MAC verification proves a message wasn't tampered
+   with; it does not prove a message is fresh. A client could still record
+   and later re-publish a previously-observed, validly-authenticated
+   envelope. This needs a monotonic sequence number or timestamp window
+   checked by receivers regardless of whether the scheme ends up symmetric
+   or asymmetric — not a point in favor of either option, just a shared gap
+   neither closes by default.
+4. **It does not touch argument 2 (amplification) at all**, same as
+   asymmetric signing — `C×(N-1)` redundant relay RPCs is a cost problem,
+   not a trust problem, and no cryptographic scheme changes that arithmetic.
+   It also doesn't change §5's liveness point: a genuinely-authenticated
+   vote that simply never gets relayed to enough peers because too few
+   clients happen to bridge them is still a liveness failure.
+
+**My recommendation, concretely:** if OJP ever does build the "make
+Mesh-OFF-consensus viable" path flagged as deferred in §5, a **per-peer
+derived symmetric key + AEAD** is worth recommending *ahead of* full
+asymmetric signing as the first thing to prototype — it gets the same
+trust-perimeter fix, is simpler to build and operate for a small, fixed
+server count, and avoids standing up PKI machinery. Asymmetric signing only
+becomes clearly worth its extra complexity if OJP later needs properties
+symmetric keys don't give cheaply — e.g. a third party auditing which
+specific server produced a message without being trusted with the ability
+to forge as any server, or a much larger/more dynamic peer set where
+distributing one evolving shared secret becomes its own operational
+headache. Either way, **this remains a deferred, considered option, not a
+change to the recommendation in §5** — the messaging analysis's rule (no
+consensus traffic over client-relay today) stands until *some* such scheme
+is actually built, and this section exists to make sure "encryption" is
+evaluated as the concrete, evaluable option it is instead of being waved
+away or conflated with confidentiality.
+
+**Confidence:** high (85%) that authenticated encryption (AEAD/MAC) is
+mechanically sufficient to fix argument 1's forgery problem, since it is
+the same cryptographic property signing provides, applied differently.
+Medium (60%) on the "prototype this before asymmetric signing" ordering
+recommendation specifically — that depends on operational factors (how
+often OJP's peer set actually changes, whether third-party auditability of
+per-message provenance ever becomes a real requirement) this analysis
+doesn't have deployment data on.
+
 ---
 
 ## 6. Does it matter that "clients" are applications, not strangers?
