@@ -200,6 +200,16 @@ disconnected (this is why `GUARANTEED` mode exists for `server.lifecycle`).
 Client-relay, the direct mesh, and server→client push (§5.3–§6) are all this
 same three-step mechanism, reused for different populations of subscribers.
 
+**`GUARANTEED` mode and `Ack` apply to every subscriber type the same way** —
+an app client, a relaying client (§5.3.1), and a peer server in mesh mode
+(§5.3.2) are all just entries in that `Map<topic, Set<StreamObserver>>`
+registry. There is nothing that restricts `GUARANTEED`/`Ack` to
+server→client delivery: if a relaying client is the subscriber, the
+publishing server retries pushing the envelope to it (backoff, bounded by
+`ttl_seconds`) exactly as it would for an app client, until that client
+sends `Ack(message_id)`. §5.3.1 spells out what the relaying client must do
+before it acks.
+
 ### 5.2 Delivery modes
 
 | | Fire-and-forget | Guaranteed |
@@ -209,7 +219,7 @@ same three-step mechanism, reused for different populations of subscribers.
 | Retry | None | Exponential backoff, bounded by `ttl_seconds` |
 | Dedup | N/A | Short-lived seen-set of `message_id` (Caffeine) |
 | Ordering | Best-effort | Per-(producer, topic) FIFO only — no global order |
-| Used by | Consensus messages, cache invalidation | "Server restarting" notice |
+| Used by (default choice per §7, either mode works over any topology) | Consensus messages, cache invalidation | "Server restarting" notice |
 | If the peer is down | Message dropped silently | Retried up to `ttl_seconds`, then dropped — not durable across a publisher crash (§9) |
 
 A cluster-wide total order would need its own sequencer, which is circular
@@ -217,6 +227,13 @@ for consensus (you can't use total order to build the thing that produces
 total order). Per-(producer, topic) FIFO is enough for consensus (each
 node's own stream is ordered) and for cache invalidation (invalidation is
 idempotent, so cross-producer order doesn't matter).
+
+Both modes are available on **any** topology — client-relay, the direct
+mesh, and server→client push. "Used by" above lists the modes chosen for
+the three example use cases, not a restriction: e.g. cache invalidation
+could run `GUARANTEED` over client-relay instead of fire-and-forget if an
+operator wants retry/ack on top of the default idempotent, self-healing
+behavior.
 
 ### 5.3 Server-to-server: two topologies
 
@@ -265,9 +282,39 @@ heartbeat — that's the concrete cost problem, not a hypothetical one (see
 low-frequency broadcasts — especially where opening a direct link between
 OJP servers is hard or not allowed.
 
-**Poor fit:** anything that must work with zero clients connected, or
-anything published frequently. See §5.3.3 for why consensus specifically
-needs the mesh instead.
+**Poor fit:** anything that must work with zero clients connected, or —
+in `FIRE_AND_FORGET` mode, which has no retry — anything published
+frequently where an occasional missed hop matters. See §5.3.3 for why
+consensus specifically defaults to the mesh instead.
+
+**Using `GUARANTEED` mode over client-relay.** The example above is
+fire-and-forget. `GUARANTEED` mode works over client-relay too — it is not
+restricted to server→client delivery — using the same ack/retry loop from
+§5.1, chained one hop at a time:
+1. Server S (the original publisher) treats each subscribed relaying client
+   exactly like any other `GUARANTEED` subscriber: it retries pushing the
+   envelope to that client (backoff, bounded by `ttl_seconds`) until the
+   client sends `Ack(message_id)`.
+2. The relaying client, on receiving the envelope, calls `Publish` on every
+   other server it holds a session to and only sends `Ack(message_id)` back
+   to S once every one of those `Publish` calls returned
+   `PublishAck{accepted:true}` (or `max_relay_hops` reached zero with no
+   targets left). If a target server is unreachable, the client does not
+   ack yet — S keeps retrying delivery to that client, and the client keeps
+   retrying its own relay attempt, until it succeeds or `ttl_seconds`
+   expires.
+3. Each receiving server (e.g. server B) runs the same three-step `Publish`
+   logic from §5.1 for its own subscribers, independently retried/acked if
+   *its* subscribers also want `GUARANTEED` mode.
+
+This gives a real retry/ack loop at every hop, not a silent best-effort
+drop. The honest limitation is narrower: each hop's guarantee is local (S ⇄
+relaying client, then relaying client ⇄ B), not one signed receipt chained
+end-to-end back to S confirming B's subscribers actually got it — and no
+amount of retrying helps if, at the moment of publish, literally zero
+currently-connected clients hold a session to both S and B (there is no
+path to retry over). §9 item 8 has
+the full discussion of that residual limitation.
 
 #### 5.3.2 Direct mesh (opt-in)
 
@@ -298,11 +345,12 @@ needs the mesh instead.
 
 | | Client-relay | Direct mesh |
 |---|---|---|
-| Delivery guarantee | Best-effort; depends on whichever clients happen to be connected | Deterministic — every configured peer is reached directly |
+| Delivery guarantee (`FIRE_AND_FORGET`) | Best-effort; a missed hop is silently dropped | Best-effort; a missed send is silently dropped |
+| Delivery guarantee (`GUARANTEED`) | Ack + retry at every hop (§5.3.1); no path exists if zero clients bridge two given servers at publish time | Ack + retry directly to every configured peer; the channel always exists once the mesh is enabled |
 | Cost per broadcast | `O(clients × servers)` | `O(servers)` |
 | New server config | None | Peer list + enable flag |
 | New trust surface | None beyond normal client auth | Needs its own inter-server credential story (§9, item 3) |
-| Good for | Cache invalidation, idempotent best-effort topics; consensus, if configured with encrypted envelopes and a widened timing budget (see below) | Consensus with the tightest timing/latency guarantees; any deployment where client presence can't be assumed (serverless) |
+| Good for | Cache invalidation, idempotent best-effort topics; consensus, if configured with `GUARANTEED` mode, encrypted envelopes, and a widened timing budget (see below) | Consensus with the tightest timing/latency guarantees; any deployment where client presence can't be assumed (serverless) |
 
 **Recommended default: consensus runs on the direct mesh.** It reaches every
 configured peer directly and its cost doesn't grow with the number of
@@ -557,20 +605,31 @@ for the team: is that a real deployment target?**
    queue: drop-oldest for fire-and-forget, explicit-reject-new-publishes for
    guaranteed (never unbounded memory growth). Needs load testing before
    this is considered production-ready.
-8. **Client-relay is best-effort — documented, not a future fix.**
-   A missed relay hop produces no error: the publisher gets a normal ack
-   the moment its own server hands the message to its own subscribers,
-   regardless of whether any client goes on to relay it further. There is
-   no acknowledgment path back from a remote server confirming a relayed
-   message arrived. Operator-facing docs for client-relay (`cache.*` and
-   any other topic on the relay allowlist, §9 item 10) must state plainly:
-   *"Client-relay delivery is best-effort. It depends on at least one
-   currently-connected client bridging the source and target servers.
-   There is no cluster-wide delivery guarantee, no error if delivery fails,
-   and no way to detect a missed delivery from the publishing server."*
-   This is why cache invalidation (self-healing via TTL/next-write) is a
-   good fit and anything requiring a delivery guarantee is not (use
-   `GUARANTEED` mode + the direct mesh instead).
+8. **Client-relay's guarantee, in either mode, is capped by client
+   topology coverage — documented, not a future fix.** Both delivery modes
+   work over client-relay (§5.3.1): `FIRE_AND_FORGET` gives no ack/retry at
+   all (a missed hop is silently dropped, exactly as it would be on the
+   direct mesh); `GUARANTEED` gives a real ack/retry loop at every hop, so a
+   *slow* or *temporarily unreachable* bridging client does not lose the
+   message — S keeps retrying until that client acks. What no amount of
+   retrying fixes: if, at the moment of publish, there is no
+   currently-connected client holding a session to both the source and
+   target servers, there is no path to retry over, and the message never
+   arrives — this is a topology gap, not a bug in the retry logic. Neither
+   mode gives one signed end-to-end receipt chained all the way back to the
+   original publisher confirming a remote server's own subscribers actually
+   received it; each hop's ack only confirms that hop. Operator-facing docs
+   for client-relay (`cache.*` and any other topic on the relay allowlist,
+   §9 item 10) must state plainly:
+   *"Client-relay, in `GUARANTEED` mode, retries and acks each hop and
+   survives a slow or briefly-disconnected bridging client. It does not
+   survive having zero clients connected to both the source and target
+   server at publish time — there is no cluster-wide delivery guarantee
+   independent of client topology. For that, use the direct mesh."*
+   This is why cache invalidation (self-healing via TTL/next-write, and
+   fine with either mode) is a good default fit, and why anything that must
+   work with zero clients connected needs the direct mesh instead,
+   regardless of delivery mode.
 9. **Client-relay should be opt-out per connection** (e.g. a `relay=false`
    driver property) for applications that don't want their driver
    participating in cluster-internal transport at all, even for cache
@@ -620,8 +679,9 @@ with two server-to-server topologies:
 
 - **Client-relay (default, no config, no new connections):** multinode
   clients carry `cluster_scope=true` envelopes between the servers they're
-  connected to. Best-effort, zero-cost, the right default for cache
-  invalidation.
+  connected to, in either delivery mode — zero-cost, the right default for
+  cache invalidation. Its guarantee, even in `GUARANTEED` mode, is capped by
+  whether a bridging client is connected at publish time (§9, item 8).
 - **Direct mesh (opt-in, `ojp.server.mesh.enabled`):** one channel per
   configured peer, driven by server config, independent of any client.
   Recommended default for consensus and required whenever client presence
@@ -632,9 +692,10 @@ with two server-to-server topologies:
 
 Biggest open items, in order: (1) inter-server authentication doesn't exist
 yet — recommended: mTLS, for revocable per-peer identity (§9, item 3); (2)
-keeping client-relay's blast radius small by default (topic allowlist,
-per-connection opt-out) and documenting it plainly as best-effort, not a
-cluster-wide delivery guarantee (§9, items 8–10); (3) `GUARANTEED` mode is
-documented as not surviving a publisher crash — acceptable for
+client-relay's `GUARANTEED` mode retries/acks each hop but has no path if
+zero clients bridge two servers at publish time — keep its blast radius
+small by default (topic allowlist, per-connection opt-out) and document
+this topology-coverage limit plainly (§9, items 8–10); (3) `GUARANTEED`
+mode is documented as not surviving a publisher crash — acceptable for
 `server.lifecycle`, not a substitute for a real broker if crash-durable
 delivery is ever needed (§9, item 4).

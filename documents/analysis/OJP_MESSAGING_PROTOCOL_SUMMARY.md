@@ -25,9 +25,10 @@ message Envelope {
 }
 ```
 
-Two delivery modes: **fire-and-forget** (at-most-once, no ack — consensus,
-cache invalidation) and **guaranteed** (at-least-once, ack + retry + dedup
-— server-restart notices).
+Two delivery modes: **fire-and-forget** (at-most-once, no ack — default for
+consensus, cache invalidation) and **guaranteed** (at-least-once, ack +
+retry + dedup — default for server-restart notices). Both modes work over
+any topology, including client-relay.
 
 ## Two server-to-server topologies
 
@@ -78,11 +79,13 @@ single-operator mesh. Full comparison:
    reuses standard gRPC/HTTPS certificate infrastructure, vs. a shared
    secret where leaking it from one server compromises the whole mesh with
    no way to revoke a single peer. Full reasoning: §9 item 3.
-2. Client-relay is documented as **best-effort by design**: no ack path
-   confirms a relayed message arrived, and a missed hop produces no error.
-   Good fit for self-healing topics (cache invalidation); not a
-   cluster-wide delivery guarantee. Consensus traffic stays off the relay
-   allowlist by default (§9 items 8, 10).
+2. Client-relay supports both delivery modes, including `GUARANTEED`
+   (ack + retry at every hop — a slow or briefly-disconnected bridging
+   client doesn't lose the message). What retries can't fix: if zero
+   currently-connected clients bridge the source and target server at
+   publish time, there's no path to retry over. Not a cluster-wide
+   guarantee independent of client topology. Consensus traffic stays off
+   the relay allowlist by default (§9 items 8, 10).
 3. `GUARANTEED` mode is documented as **not crash-durable**: retries stop
    if the publisher crashes, permanently losing anything still queued.
    Fine for `server.lifecycle` (a crashed server can't announce its own
